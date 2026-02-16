@@ -1,0 +1,562 @@
+"use client";
+
+import React, { useEffect, useState } from "react";
+import { Loader2, AlertCircle } from "lucide-react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import * as z from "zod";
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from "@/components/ui/dialog";
+import {
+    Form,
+    FormControl,
+    FormField,
+    FormItem,
+    FormLabel,
+    FormMessage,
+} from "@/components/ui/form";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { CustomerWithRelations, ReferenceItem } from "../types";
+import { BankAccountManager } from "./BankAccountManager";
+import { toast } from "sonner";
+
+const customerSchema = z.object({
+    customer_code: z.string().min(1, "Customer code is required"),
+    customer_name: z.string().min(1, "Customer name is required"),
+    store_name: z.string().min(1, "Store name is required"),
+    store_signage: z.string().optional().or(z.literal("")),
+    contact_number: z.string().min(1, "Contact number is required"),
+    customer_email: z.string().email().optional().or(z.literal("")),
+    brgy: z.string().default(""),
+    city: z.string().default(""),
+    province: z.string().default(""),
+    tel_number: z.string().default(""),
+    customer_tin: z.string().default(""),
+    payment_term: z.coerce.number().default(0),
+    store_type: z.coerce.number().min(1, "Please select a store type"),
+    price_type: z.string().default(""),
+    isActive: z.coerce.number().default(1),
+    isVAT: z.coerce.number().default(0),
+    isEWT: z.coerce.number().default(0),
+    discount_type: z.coerce.number().nullable().optional().default(null),
+    division_id: z.coerce.number().nullable().optional().default(null),
+    department_id: z.coerce.number().nullable().optional().default(null),
+    encoder_id: z.number().default(1),
+});
+
+type CustomerFormValues = any; // Use any to bypass RHF Resolver variance issues in complex schemas
+
+interface CustomerDialogProps {
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+    customer: CustomerWithRelations | null;
+    onSubmit: (data: CustomerFormValues) => Promise<void>;
+    defaultTab?: string;
+}
+
+export function CustomerDialog({
+    open,
+    onOpenChange,
+    customer,
+    onSubmit,
+    defaultTab = "basic",
+}: CustomerDialogProps) {
+    const [activeTab, setActiveTab] = useState(defaultTab);
+    const [storeTypes, setStoreTypes] = useState<ReferenceItem[]>([]);
+    const [discountTypes, setDiscountTypes] = useState<ReferenceItem[]>([]);
+
+    useEffect(() => {
+        if (open) {
+            setActiveTab(defaultTab || "basic");
+        }
+    }, [open, defaultTab]);
+
+    useEffect(() => {
+        const fetchRefs = async () => {
+            try {
+                const [storeRes, discRes] = await Promise.all([
+                    fetch("/api/crm/customer/references?type=store_type"),
+                    fetch("/api/crm/customer/references?type=discount_type"),
+                ]);
+
+                if (storeRes.ok) {
+                    const data = await storeRes.json();
+                    setStoreTypes(data.data || []);
+                }
+                if (discRes.ok) {
+                    const data = await discRes.json();
+                    setDiscountTypes(data.data || []);
+                }
+            } catch (err) {
+                console.error("Failed to fetch references", err);
+            }
+        };
+        if (open) fetchRefs();
+    }, [open]);
+
+    const form = useForm<CustomerFormValues>({
+        resolver: zodResolver(customerSchema),
+        defaultValues: {
+            customer_code: "",
+            customer_name: "",
+            store_name: "",
+            store_signage: "",
+            contact_number: "",
+            customer_email: "",
+            brgy: "",
+            city: "",
+            province: "",
+            tel_number: "",
+            customer_tin: "",
+            payment_term: 0,
+            store_type: null,
+            price_type: "",
+            isActive: 1,
+            isVAT: 0,
+            isEWT: 0,
+            discount_type: null,
+            division_id: null,
+            department_id: null,
+            encoder_id: 1,
+        },
+    });
+
+    useEffect(() => {
+        if (customer) {
+            form.reset({
+                customer_code: customer.customer_code,
+                customer_name: customer.customer_name,
+                store_name: customer.store_name,
+                store_signage: customer.store_signage || "",
+                contact_number: customer.contact_number,
+                customer_email: customer.customer_email || "",
+                brgy: customer.brgy || "",
+                city: customer.city || "",
+                province: customer.province || "",
+                tel_number: customer.tel_number || "",
+                customer_tin: customer.customer_tin || "",
+                payment_term: customer.payment_term || 0,
+                store_type: customer.store_type || null,
+                price_type: customer.price_type || "",
+                isActive: customer.isActive ?? 1,
+                isVAT: customer.isVAT ?? 0,
+                isEWT: customer.isEWT ?? 0,
+                discount_type: customer.discount_type || null,
+                division_id: customer.division_id || null,
+                department_id: customer.department_id || null,
+                encoder_id: customer.encoder_id || 1,
+            });
+        } else if (open) {
+            form.reset({
+                customer_code: "",
+                customer_name: "",
+                store_name: "",
+                store_signage: "",
+                contact_number: "",
+                customer_email: "",
+                brgy: "",
+                city: "",
+                province: "",
+                tel_number: "",
+                customer_tin: "",
+                payment_term: 0,
+                store_type: null,
+                price_type: "",
+                isActive: 1,
+                isVAT: 0,
+                isEWT: 0,
+                discount_type: null,
+                division_id: null,
+                department_id: null,
+                encoder_id: 1,
+            });
+        }
+    }, [customer, form, open]);
+
+    const handleFormSubmit = async (values: CustomerFormValues) => {
+        try {
+            await onSubmit(values);
+            toast.success(`Customer ${customer ? "updated" : "created"} successfully`);
+            onOpenChange(false);
+        } catch (error) {
+            console.error("Submit failed:", error);
+            toast.error("Failed to save customer. Please try again.");
+        }
+    };
+
+    const onFormError = (errors: any) => {
+        console.log("Form Validation Errors:", errors);
+        toast.error("Please fill in all required fields in Basic, Address, and Billing tabs.");
+    };
+
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col p-0">
+                <DialogHeader className="p-6 pb-2">
+                    <DialogTitle>{customer ? "Edit Customer" : "Add New Customer"}</DialogTitle>
+                    <DialogDescription>
+                        Fill in the details below to {customer ? "update" : "create"} a customer record.
+                    </DialogDescription>
+                </DialogHeader>
+
+                <Form {...form}>
+                    <form onSubmit={form.handleSubmit(handleFormSubmit, onFormError)} className="flex flex-col flex-1 overflow-hidden">
+                        <ScrollArea className="flex-1 px-6">
+                            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+                                <TabsList className="grid w-full grid-cols-4 mb-6 gap-2 bg-transparent p-0">
+                                    <TabsTrigger value="basic" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground border text-xs">Basic</TabsTrigger>
+                                    <TabsTrigger value="address" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground border text-xs">Address</TabsTrigger>
+                                    <TabsTrigger value="billing" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground border text-xs">Billing</TabsTrigger>
+                                    <TabsTrigger value="bank" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground border text-xs">Bank</TabsTrigger>
+                                </TabsList>
+
+                                <TabsContent value="basic" className="space-y-6 pb-6 mt-2">
+                                    <div className="grid grid-cols-2 gap-6">
+                                        <FormField
+                                            control={form.control as any}
+                                            name="customer_code"
+                                            render={({ field }) => (
+                                                <FormItem>
+                                                    <FormLabel>Customer Code</FormLabel>
+                                                    <FormControl>
+                                                        <Input placeholder="CUST-001" {...field} />
+                                                    </FormControl>
+                                                    <FormMessage />
+                                                </FormItem>
+                                            )}
+                                        />
+                                        <FormField
+                                            control={form.control as any}
+                                            name="customer_name"
+                                            render={({ field }) => (
+                                                <FormItem>
+                                                    <FormLabel>Customer Name</FormLabel>
+                                                    <FormControl>
+                                                        <Input placeholder="John Doe" {...field} />
+                                                    </FormControl>
+                                                    <FormMessage />
+                                                </FormItem>
+                                            )}
+                                        />
+                                    </div>
+
+                                    <div className="grid grid-cols-1 gap-6">
+                                        <FormField
+                                            control={form.control as any}
+                                            name="store_type"
+                                            render={({ field }) => (
+                                                <FormItem>
+                                                    <FormLabel>Store Type</FormLabel>
+                                                    <Select
+                                                        onValueChange={(val) => field.onChange(parseInt(val))}
+                                                        value={field.value?.toString()}
+                                                    >
+                                                        <FormControl>
+                                                            <SelectTrigger>
+                                                                <SelectValue placeholder="Select Store Type" />
+                                                            </SelectTrigger>
+                                                        </FormControl>
+                                                        <SelectContent>
+                                                            {storeTypes.map((type) => (
+                                                                <SelectItem key={type.id} value={type.id.toString()}>
+                                                                    {type.store_type}
+                                                                </SelectItem>
+                                                            ))}
+                                                        </SelectContent>
+                                                    </Select>
+                                                    <FormMessage />
+                                                </FormItem>
+                                            )}
+                                        />
+                                    </div>
+
+                                    <div className="grid grid-cols-2 gap-6">
+                                        <FormField
+                                            control={form.control as any}
+                                            name="store_name"
+                                            render={({ field }) => (
+                                                <FormItem>
+                                                    <FormLabel>Store Name</FormLabel>
+                                                    <FormControl>
+                                                        <Input placeholder="Main Branch" {...field} />
+                                                    </FormControl>
+                                                    <FormMessage />
+                                                </FormItem>
+                                            )}
+                                        />
+                                        <FormField
+                                            control={form.control as any}
+                                            name="store_signage"
+                                            render={({ field }) => (
+                                                <FormItem>
+                                                    <FormLabel>Store Signage</FormLabel>
+                                                    <FormControl>
+                                                        <Input placeholder="Doe's General Store" {...field} />
+                                                    </FormControl>
+                                                    <FormMessage />
+                                                </FormItem>
+                                            )}
+                                        />
+                                    </div>
+
+                                    <FormField
+                                        control={form.control as any}
+                                        name="customer_tin"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel>TIN Number</FormLabel>
+                                                <FormControl>
+                                                    <Input placeholder="000-000-000-000" {...field} />
+                                                </FormControl>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+                                </TabsContent>
+
+                                <TabsContent value="address" className="space-y-6 pb-6 mt-2">
+                                    <div className="grid grid-cols-3 gap-6">
+                                        <FormField
+                                            control={form.control as any}
+                                            name="brgy"
+                                            render={({ field }) => (
+                                                <FormItem>
+                                                    <FormLabel>Barangay</FormLabel>
+                                                    <FormControl>
+                                                        <Input {...field} />
+                                                    </FormControl>
+                                                    <FormMessage />
+                                                </FormItem>
+                                            )}
+                                        />
+                                        <FormField
+                                            control={form.control as any}
+                                            name="city"
+                                            render={({ field }) => (
+                                                <FormItem>
+                                                    <FormLabel>City</FormLabel>
+                                                    <FormControl>
+                                                        <Input {...field} />
+                                                    </FormControl>
+                                                    <FormMessage />
+                                                </FormItem>
+                                            )}
+                                        />
+                                        <FormField
+                                            control={form.control as any}
+                                            name="province"
+                                            render={({ field }) => (
+                                                <FormItem>
+                                                    <FormLabel>Province</FormLabel>
+                                                    <FormControl>
+                                                        <Input {...field} />
+                                                    </FormControl>
+                                                    <FormMessage />
+                                                </FormItem>
+                                            )}
+                                        />
+                                    </div>
+
+                                    <div className="grid grid-cols-2 gap-6">
+                                        <FormField
+                                            control={form.control as any}
+                                            name="contact_number"
+                                            render={({ field }) => (
+                                                <FormItem>
+                                                    <FormLabel>Mobile Number</FormLabel>
+                                                    <FormControl>
+                                                        <Input placeholder="09123456789" {...field} />
+                                                    </FormControl>
+                                                    <FormMessage />
+                                                </FormItem>
+                                            )}
+                                        />
+                                        <FormField
+                                            control={form.control as any}
+                                            name="tel_number"
+                                            render={({ field }) => (
+                                                <FormItem>
+                                                    <FormLabel>Telephone Number</FormLabel>
+                                                    <FormControl>
+                                                        <Input {...field} />
+                                                    </FormControl>
+                                                    <FormMessage />
+                                                </FormItem>
+                                            )}
+                                        />
+                                    </div>
+
+                                    <FormField
+                                        control={form.control as any}
+                                        name="customer_email"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel>Email Address</FormLabel>
+                                                <FormControl>
+                                                    <Input type="email" placeholder="customer@example.com" {...field} />
+                                                </FormControl>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+                                </TabsContent>
+
+                                <TabsContent value="billing" className="space-y-6 pb-6 mt-2">
+                                    <div className="grid grid-cols-2 gap-6">
+                                        <FormField
+                                            control={form.control as any}
+                                            name="payment_term"
+                                            render={({ field }) => (
+                                                <FormItem>
+                                                    <FormLabel>Payment Term (Days)</FormLabel>
+                                                    <FormControl>
+                                                        <Input type="number" {...field} />
+                                                    </FormControl>
+                                                    <FormMessage />
+                                                </FormItem>
+                                            )}
+                                        />
+                                        <FormField
+                                            control={form.control as any}
+                                            name="price_type"
+                                            render={({ field }) => (
+                                                <FormItem>
+                                                    <FormLabel>Price Type</FormLabel>
+                                                    <FormControl>
+                                                        <Input placeholder="Retail/Wholesale" {...field} />
+                                                    </FormControl>
+                                                    <FormMessage />
+                                                </FormItem>
+                                            )}
+                                        />
+                                    </div>
+
+                                    <div className="grid grid-cols-2 gap-6">
+                                        <FormField
+                                            control={form.control as any}
+                                            name="discount_type"
+                                            render={({ field }) => (
+                                                <FormItem>
+                                                    <FormLabel>Discount Type</FormLabel>
+                                                    <Select
+                                                        onValueChange={(val) => field.onChange(val === "null" ? null : parseInt(val))}
+                                                        value={field.value === null ? "null" : field.value?.toString()}
+                                                    >
+                                                        <FormControl>
+                                                            <SelectTrigger>
+                                                                <SelectValue placeholder="Select Discount Type" />
+                                                            </SelectTrigger>
+                                                        </FormControl>
+                                                        <SelectContent>
+                                                            <SelectItem value="null">None</SelectItem>
+                                                            {discountTypes.map((item) => (
+                                                                <SelectItem key={item.id} value={item.id.toString()}>
+                                                                    {item.discount_type}
+                                                                </SelectItem>
+                                                            ))}
+                                                        </SelectContent>
+                                                    </Select>
+                                                    <FormMessage />
+                                                </FormItem>
+                                            )}
+                                        />
+                                    </div>
+
+                                    <div className="flex flex-wrap gap-6 pt-2">
+                                        <FormField
+                                            control={form.control as any}
+                                            name="isActive"
+                                            render={({ field }) => (
+                                                <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                                                    <FormControl>
+                                                        <Checkbox
+                                                            checked={field.value === 1}
+                                                            onCheckedChange={(checked) => field.onChange(checked ? 1 : 0)}
+                                                        />
+                                                    </FormControl>
+                                                    <div className="space-y-1 leading-none">
+                                                        <FormLabel>Is Active</FormLabel>
+                                                    </div>
+                                                </FormItem>
+                                            )}
+                                        />
+                                        <FormField
+                                            control={form.control as any}
+                                            name="isVAT"
+                                            render={({ field }) => (
+                                                <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                                                    <FormControl>
+                                                        <Checkbox
+                                                            checked={field.value === 1}
+                                                            onCheckedChange={(checked) => field.onChange(checked ? 1 : 0)}
+                                                        />
+                                                    </FormControl>
+                                                    <div className="space-y-1 leading-none">
+                                                        <FormLabel>VAT Registered</FormLabel>
+                                                    </div>
+                                                </FormItem>
+                                            )}
+                                        />
+                                        <FormField
+                                            control={form.control as any}
+                                            name="isEWT"
+                                            render={({ field }) => (
+                                                <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                                                    <FormControl>
+                                                        <Checkbox
+                                                            checked={field.value === 1}
+                                                            onCheckedChange={(checked) => field.onChange(checked ? 1 : 0)}
+                                                        />
+                                                    </FormControl>
+                                                    <div className="space-y-1 leading-none">
+                                                        <FormLabel>Subject to EWT</FormLabel>
+                                                    </div>
+                                                </FormItem>
+                                            )}
+                                        />
+                                    </div>
+                                </TabsContent>
+
+                                <TabsContent value="bank" className="space-y-4 pb-4">
+                                    {customer?.id ? (
+                                        <BankAccountManager customerId={customer.id} />
+                                    ) : (
+                                        <div className="flex flex-col items-center justify-center p-12 border-2 border-dashed rounded-lg bg-muted/20 text-center">
+                                            <AlertCircle className="h-10 w-10 text-muted-foreground mb-4" />
+                                            <h4 className="font-semibold mb-1">Customer ID Required</h4>
+                                            <p className="text-sm text-muted-foreground max-w-[280px]">
+                                                Please save the customer first before you can manage their bank accounts.
+                                            </p>
+                                        </div>
+                                    )}
+                                </TabsContent>
+                            </Tabs>
+
+                        </ScrollArea>
+
+                        <DialogFooter className="p-6 pt-2 border-t">
+                            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+                                Cancel
+                            </Button>
+                            <Button type="submit" disabled={form.formState.isSubmitting}>
+                                {form.formState.isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                {customer ? "Save Changes" : "Create Customer"}
+                            </Button>
+                        </DialogFooter>
+                    </form>
+                </Form>
+            </DialogContent>
+        </Dialog >
+    );
+}

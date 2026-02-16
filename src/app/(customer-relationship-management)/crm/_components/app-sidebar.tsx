@@ -35,7 +35,7 @@ import {
 const data = {
     navMain: [
         { title: "Dashboard", url: "/crm/", icon: LayoutDashboard },
-        { title: "Customer Database", url: "/crm/customer-database/", icon: LayoutDashboard },
+        { title: "Customer", url: "/crm/customer/", icon: LayoutDashboard },
         /*{
             title: "Treasury",
             url: "#",
@@ -47,7 +47,7 @@ const data = {
                     // ✅ optional: you can give icon here later; if omitted, NavMain will default L2 icons
                     items: [
                         { title: "Dashboard", url: "/fm/treasury/budgeting/dashboard" },
-                        { title: "Budget Records Records R", url: "/fm/treasury/budgeting/customer-database" },
+                        { title: "Budget Records Records R", url: "/fm/treasury/budgeting/customer" },
                         { title: "Reports", url: "/fm/treasury/budgeting/reports" },
                     ],
                 },
