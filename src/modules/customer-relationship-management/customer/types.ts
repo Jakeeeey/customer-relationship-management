@@ -106,7 +106,10 @@ export interface CustomersAPIResponse {
     customers: CustomerWithRelations[];
     bank_accounts: BankAccount[]; // For backward compatibility or global list if needed
     metadata: {
-        total: number;
+        total_count: number;
+        filter_count?: number;
+        page: number;
+        pageSize: number;
         lastUpdated: string;
     };
 }

@@ -33,18 +33,38 @@ import {
     Phone,
     X,
     CreditCard,
-    Loader2
+    Loader2,
+    ChevronLeft,
+    ChevronRight,
+    ChevronsLeft,
+    ChevronsRight
 } from "lucide-react";
-import { CustomerWithRelations, BankAccount } from "../types";
+import { CustomerWithRelations, BankAccount, CustomersAPIResponse } from "../types";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { CustomerDialog } from "./CustomerDialog";
 import { CustomerRow } from "./CustomerRow";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
 
 interface CustomerTableProps {
     data: CustomerWithRelations[];
     bankAccounts: BankAccount[];
     isLoading: boolean;
+    metadata: CustomersAPIResponse['metadata'];
+    page: number;
+    pageSize: number;
+    searchQuery: string;
+    statusFilter: string;
+    onPageChange: (page: number) => void;
+    onPageSizeChange: (pageSize: number) => void;
+    onSearchChange: (query: string) => void;
+    onStatusChange: (status: string) => void;
     onCreate: (data: Partial<CustomerWithRelations>) => Promise<void>;
     onUpdate: (id: number, data: Partial<CustomerWithRelations>) => Promise<void>;
     onDelete: (id: number) => Promise<void>;
@@ -54,56 +74,46 @@ export function CustomerTable({
     data,
     bankAccounts,
     isLoading,
+    metadata,
+    page,
+    pageSize,
+    searchQuery: parentSearchQuery,
+    statusFilter,
+    onPageChange,
+    onPageSizeChange,
+    onSearchChange,
+    onStatusChange,
     onCreate,
     onUpdate,
     onDelete,
 }: CustomerTableProps) {
-    const [searchQuery, setSearchQuery] = useState("");
+    const [localSearchQuery, setLocalSearchQuery] = useState(parentSearchQuery);
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [selectedCustomer, setSelectedCustomer] = useState<CustomerWithRelations | null>(null);
-    const [statusFilter, setStatusFilter] = useState<string>("all");
     const [defaultDialogTab, setDefaultDialogTab] = useState<string>("basic");
     const [isAdding, setIsAdding] = useState(false);
 
-    const [debouncedQuery, setDebouncedQuery] = useState(searchQuery);
-
     useEffect(() => {
         const handler = setTimeout(() => {
-            setDebouncedQuery(searchQuery);
-        }, 300);
+            if (localSearchQuery !== parentSearchQuery) {
+                onSearchChange(localSearchQuery);
+            }
+        }, 500);
 
         return () => clearTimeout(handler);
-    }, [searchQuery]);
+    }, [localSearchQuery, onSearchChange, parentSearchQuery]);
 
-    const filteredData = useMemo(() => {
-        const query = debouncedQuery.toLowerCase().trim();
-        if (!query && statusFilter === "all") return data;
+    // Sync local search with parent if parent changes (e.g. from refetch or manual reset)
+    useEffect(() => {
+        setLocalSearchQuery(parentSearchQuery);
+    }, [parentSearchQuery]);
 
-        return data.filter((item) => {
-            // Status Filter first (usually faster/more restrictive)
-            if (statusFilter !== "all") {
-                const isActive = item.isActive === 1;
-                if (statusFilter === "active" && !isActive) return false;
-                if (statusFilter === "inactive" && isActive) return false;
-            }
-
-            // Search Filter
-            if (!query) return true;
-
-            return (
-                item.customer_name.toLowerCase().includes(query) ||
-                item.customer_code.toLowerCase().includes(query) ||
-                item.store_name?.toLowerCase().includes(query) ||
-                item.customer_email?.toLowerCase().includes(query)
-            );
-        });
-    }, [data, debouncedQuery, statusFilter]);
-
-    const isFiltered = statusFilter !== "all" || searchQuery !== "";
+    const isFiltered = statusFilter !== "all" || parentSearchQuery !== "";
 
     const resetFilters = () => {
-        setSearchQuery("");
-        statusFilter !== "all" && setStatusFilter("all");
+        setLocalSearchQuery("");
+        onSearchChange("");
+        onStatusChange("all");
     };
 
     const handleEdit = (customer: CustomerWithRelations) => {
@@ -114,7 +124,6 @@ export function CustomerTable({
 
     const handleAddNew = () => {
         setIsAdding(true);
-        // Small delay to show the loading state as requested
         setTimeout(() => {
             setSelectedCustomer(null);
             setDefaultDialogTab("basic");
@@ -129,6 +138,8 @@ export function CustomerTable({
         setIsDialogOpen(true);
     };
 
+    const totalPages = Math.ceil(metadata.total_count / pageSize);
+
     return (
         <div className="space-y-4">
             <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
@@ -136,8 +147,8 @@ export function CustomerTable({
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
                         placeholder="Search customers by name, code, store or email..."
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
+                        value={localSearchQuery}
+                        onChange={(e) => setLocalSearchQuery(e.target.value)}
                         className="pl-10"
                     />
                 </div>
@@ -156,7 +167,7 @@ export function CustomerTable({
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="w-56">
                             <DropdownMenuLabel>Status Filter</DropdownMenuLabel>
-                            <DropdownMenuRadioGroup value={statusFilter} onValueChange={setStatusFilter}>
+                            <DropdownMenuRadioGroup value={statusFilter} onValueChange={onStatusChange}>
                                 <DropdownMenuRadioItem value="all">All Status</DropdownMenuRadioItem>
                                 <DropdownMenuRadioItem value="active">Active Only</DropdownMenuRadioItem>
                                 <DropdownMenuRadioItem value="inactive">Inactive Only</DropdownMenuRadioItem>
@@ -200,7 +211,7 @@ export function CustomerTable({
                     </TableHeader>
                     <TableBody>
                         {isLoading ? (
-                            Array.from({ length: 5 }).map((_, i) => (
+                            Array.from({ length: pageSize }).map((_, i) => (
                                 <TableRow key={i}>
                                     <TableCell className="px-2 py-4"><Skeleton className="h-4 w-12" /></TableCell>
                                     <TableCell className="px-2 py-4"><Skeleton className="h-4 w-32" /></TableCell>
@@ -211,14 +222,14 @@ export function CustomerTable({
                                     <TableCell className="px-2 py-4 text-right"><Skeleton className="h-8 w-8 rounded-md inline-block" /></TableCell>
                                 </TableRow>
                             ))
-                        ) : filteredData.length === 0 ? (
+                        ) : data.length === 0 ? (
                             <TableRow>
                                 <TableCell colSpan={7} className="h-32 text-center text-muted-foreground">
                                     No customers found.
                                 </TableCell>
                             </TableRow>
                         ) : (
-                            filteredData.map((customer) => (
+                            data.map((customer) => (
                                 <CustomerRow
                                     key={customer.id}
                                     customer={customer}
@@ -230,6 +241,80 @@ export function CustomerTable({
                         )}
                     </TableBody>
                 </Table>
+            </div>
+
+            {/* Pagination Controls */}
+            <div className="flex items-center justify-between px-2">
+                <div className="flex-1 text-sm text-muted-foreground text-left">
+                    {metadata.filter_count !== metadata.total_count ? (
+                        <span>Showing {data.length} of {metadata.filter_count} filtered results (Total: {metadata.total_count})</span>
+                    ) : (
+                        <span>Total {metadata.total_count} customers</span>
+                    )}
+                </div>
+                <div className="flex items-center space-x-6 lg:space-x-8">
+                    <div className="flex items-center space-x-2">
+                        <p className="text-sm font-medium">Rows per page</p>
+                        <Select
+                            value={`${pageSize}`}
+                            onValueChange={(value) => {
+                                onPageSizeChange(Number(value));
+                            }}
+                        >
+                            <SelectTrigger className="h-8 w-[70px]">
+                                <SelectValue placeholder={pageSize} />
+                            </SelectTrigger>
+                            <SelectContent side="top">
+                                {[10, 20, 30, 40, 50].map((size) => (
+                                    <SelectItem key={size} value={`${size}`}>
+                                        {size}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    <div className="flex w-[100px] items-center justify-center text-sm font-medium">
+                        Page {page} of {totalPages || 1}
+                    </div>
+                    <div className="flex items-center space-x-2">
+                        <Button
+                            variant="outline"
+                            className="hidden h-8 w-8 p-0 lg:flex"
+                            onClick={() => onPageChange(1)}
+                            disabled={page === 1 || isLoading}
+                        >
+                            <span className="sr-only">Go to first page</span>
+                            <ChevronsLeft className="h-4 w-4" />
+                        </Button>
+                        <Button
+                            variant="outline"
+                            className="h-8 w-8 p-0"
+                            onClick={() => onPageChange(page - 1)}
+                            disabled={page === 1 || isLoading}
+                        >
+                            <span className="sr-only">Go to previous page</span>
+                            <ChevronLeft className="h-4 w-4" />
+                        </Button>
+                        <Button
+                            variant="outline"
+                            className="h-8 w-8 p-0"
+                            onClick={() => onPageChange(page + 1)}
+                            disabled={page === totalPages || totalPages === 0 || isLoading}
+                        >
+                            <span className="sr-only">Go to next page</span>
+                            <ChevronRight className="h-4 w-4" />
+                        </Button>
+                        <Button
+                            variant="outline"
+                            className="hidden h-8 w-8 p-0 lg:flex"
+                            onClick={() => onPageChange(totalPages)}
+                            disabled={page === totalPages || totalPages === 0 || isLoading}
+                        >
+                            <span className="sr-only">Go to last page</span>
+                            <ChevronsRight className="h-4 w-4" />
+                        </Button>
+                    </div>
+                </div>
             </div>
 
             <CustomerDialog

@@ -9,6 +9,15 @@ interface UseCustomersReturn {
     isLoading: boolean;
     isError: boolean;
     error: Error | null;
+    metadata: CustomersAPIResponse['metadata'];
+    page: number;
+    pageSize: number;
+    searchQuery: string;
+    statusFilter: string;
+    setPage: (page: number) => void;
+    setPageSize: (pageSize: number) => void;
+    setSearchQuery: (query: string) => void;
+    setStatusFilter: (status: string) => void;
     refetch: () => Promise<void>;
     createCustomer: (data: Partial<Customer>) => Promise<void>;
     updateCustomer: (id: number, data: Partial<Customer>) => Promise<void>;
@@ -21,6 +30,18 @@ export function useCustomers(): UseCustomersReturn {
     const [isLoading, setIsLoading] = useState(true);
     const [isError, setIsError] = useState(false);
     const [error, setError] = useState<Error | null>(null);
+    const [metadata, setMetadata] = useState<CustomersAPIResponse['metadata']>({
+        total_count: 0,
+        page: 1,
+        pageSize: 10,
+        lastUpdated: new Date().toISOString(),
+    });
+
+    // Pagination & Filter State
+    const [page, setPage] = useState(1);
+    const [pageSize, setPageSize] = useState(10);
+    const [searchQuery, setSearchQuery] = useState("");
+    const [statusFilter, setStatusFilter] = useState("all");
 
     const hasLoadedRef = useRef(false);
 
@@ -33,7 +54,15 @@ export function useCustomers(): UseCustomersReturn {
             setIsError(false);
             setError(null);
 
-            const res = await fetch(`/api/crm/customer?t=${Date.now()}`, { cache: "no-store" });
+            const params = new URLSearchParams({
+                page: page.toString(),
+                pageSize: pageSize.toString(),
+                q: searchQuery,
+                status: statusFilter,
+                t: Date.now().toString()
+            });
+
+            const res = await fetch(`/api/crm/customer?${params.toString()}`, { cache: "no-store" });
 
             if (!res.ok) {
                 throw new Error(`API error: ${res.status}`);
@@ -43,6 +72,7 @@ export function useCustomers(): UseCustomersReturn {
 
             setAllCustomers(data.customers || []);
             setBankAccounts(data.bank_accounts || []);
+            setMetadata(data.metadata);
             hasLoadedRef.current = true;
 
         } catch (err) {
@@ -52,7 +82,7 @@ export function useCustomers(): UseCustomersReturn {
         } finally {
             setIsLoading(false);
         }
-    }, []);
+    }, [page, pageSize, searchQuery, statusFilter]);
 
     useEffect(() => {
         fetchData(true);
@@ -131,6 +161,15 @@ export function useCustomers(): UseCustomersReturn {
         isLoading,
         isError,
         error,
+        metadata,
+        page,
+        pageSize,
+        searchQuery,
+        statusFilter,
+        setPage,
+        setPageSize,
+        setSearchQuery,
+        setStatusFilter,
         refetch,
         createCustomer,
         updateCustomer,

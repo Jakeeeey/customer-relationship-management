@@ -15,6 +15,15 @@ export default function CustomerModule() {
         isLoading,
         isError,
         error,
+        metadata,
+        page,
+        pageSize,
+        searchQuery,
+        statusFilter,
+        setPage,
+        setPageSize,
+        setSearchQuery,
+        setStatusFilter,
         refetch,
         createCustomer,
         updateCustomer,
@@ -88,6 +97,15 @@ export default function CustomerModule() {
                 data={customers}
                 bankAccounts={bankAccounts}
                 isLoading={isLoading}
+                metadata={metadata}
+                page={page}
+                pageSize={pageSize}
+                searchQuery={searchQuery}
+                statusFilter={statusFilter}
+                onPageChange={setPage}
+                onPageSizeChange={setPageSize}
+                onSearchChange={setSearchQuery}
+                onStatusChange={setStatusFilter}
                 onCreate={handleCreate}
                 onUpdate={handleUpdate}
                 onDelete={handleDelete}

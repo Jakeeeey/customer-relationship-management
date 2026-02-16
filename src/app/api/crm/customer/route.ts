@@ -43,7 +43,8 @@ async function fetchAll<T>(collection: string, offset = 0, acc: T[] = []): Promi
 
 export async function GET(req: NextRequest) {
     try {
-        const id = req.nextUrl.searchParams.get("id");
+        const { searchParams } = new URL(req.url);
+        const id = searchParams.get("id");
 
         if (id) {
             // Fetch single customer
@@ -53,22 +54,48 @@ export async function GET(req: NextRequest) {
             return NextResponse.json(data.data);
         }
 
-        // Fetch all customers and related data for enrichment
-        const [customers, bankAccounts] = await Promise.all([
-            fetchAll<any>(COLLECTIONS.CUSTOMER),
-            fetchAll<any>(COLLECTIONS.BANK_ACCOUNTS),
-        ]);
+        // Pagination parameters
+        const page = parseInt(searchParams.get("page") || "1");
+        const pageSize = parseInt(searchParams.get("pageSize") || "10");
+        const searchQuery = searchParams.get("q") || "";
+        const statusFilter = searchParams.get("status") || "all";
 
-        // Basic enrichment: Link bank accounts to customers if there's a logical link
-        // For now, we'll return them separately or try to match if a field exists
-        // Since the SQL doesn't show a direct link, we'll return the full lists
-        // and let the frontend handle specific association if needed.
+        const offset = (page - 1) * pageSize;
+
+        // Build Directus query parameters
+        const params = new URLSearchParams();
+        params.append("limit", pageSize.toString());
+        params.append("offset", offset.toString());
+        params.append("meta", "*"); // To get total_count and filter_count
+
+        if (searchQuery) {
+            params.append("search", searchQuery);
+        }
+
+        if (statusFilter !== "all") {
+            const isActive = statusFilter === "active" ? 1 : 0;
+            params.append("filter[isActive][_eq]", isActive.toString());
+        }
+
+        // Fetch customers with pagination and filtering
+        const customersUrl = `${DIRECTUS_URL}/items/${COLLECTIONS.CUSTOMER}?${params.toString()}`;
+        const customersRes = await fetch(customersUrl, { cache: "no-store" });
+
+        if (!customersRes.ok) throw new Error(`Directus error fetching customers: ${customersRes.statusText}`);
+        const customersJson = await customersRes.json();
+
+        // Fetch all bank accounts for enrichment (mapping is done client-side for now)
+        // Note: For large datasets, this should be optimized to only fetch relevant accounts
+        const bankAccounts = await fetchAll<any>(COLLECTIONS.BANK_ACCOUNTS);
 
         return NextResponse.json({
-            customers,
+            customers: customersJson.data || [],
             bank_accounts: bankAccounts,
             metadata: {
-                total: customers.length,
+                total_count: customersJson.meta?.total_count || 0,
+                filter_count: customersJson.meta?.filter_count ?? customersJson.meta?.total_count ?? 0,
+                page,
+                pageSize,
                 lastUpdated: new Date().toISOString(),
             },
         });
