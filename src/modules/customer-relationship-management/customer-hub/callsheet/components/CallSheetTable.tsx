@@ -109,17 +109,24 @@ export function CallSheetTable({
                                             {row.sales_order_no}
                                         </TableCell>
                                         <TableCell>
-                                            <Button
-                                                variant="ghost"
-                                                size="sm"
-                                                className="h-auto px-0 py-0 font-normal text-primary hover:text-primary hover:underline gap-1.5"
-                                                onClick={() => onFileClick(row)}
-                                            >
-                                                <FileText className="h-4 w-4 shrink-0" />
-                                                <span className="truncate max-w-[200px]">
-                                                    {row.attachment_name}
+                                            {row.file_id ? (
+                                                <Button
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    className="h-auto px-0 py-0 font-normal text-primary hover:text-primary hover:underline gap-1.5"
+                                                    onClick={() => onFileClick(row)}
+                                                >
+                                                    <FileText className="h-4 w-4 shrink-0" />
+                                                    <span className="truncate max-w-[200px]">
+                                                        {row.attachment_name}
+                                                    </span>
+                                                </Button>
+                                            ) : (
+                                                <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+                                                    <FileText className="h-3.5 w-3.5" />
+                                                    No file attached
                                                 </span>
-                                            </Button>
+                                            )}
                                         </TableCell>
                                         <TableCell className="text-right">
                                             <Button

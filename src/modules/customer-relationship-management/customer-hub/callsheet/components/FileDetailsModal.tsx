@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
-import { FileText, Download, Eye, ChevronLeft, Loader2 } from "lucide-react";
+import { FileText, Download, Eye, ChevronLeft, Loader2, AlertTriangle } from "lucide-react";
 import {
     Dialog,
     DialogContent,
@@ -52,6 +52,7 @@ function getFileLabel(name: string): string {
 export function FileDetailsModal({ item, open, onClose }: FileDetailsModalProps) {
     const [showPreview, setShowPreview] = useState(false);
     const [pdfLoading, setPdfLoading] = useState(true);
+    const [previewError, setPreviewError] = useState<string | null>(null);
 
     // Safety fallback: clear loading spinner after 8 s in case onLoad never fires
     // ⚠️ Must be ABOVE the early return to satisfy Rules of Hooks
@@ -92,7 +93,26 @@ export function FileDetailsModal({ item, open, onClose }: FileDetailsModalProps)
     const handleClose = () => {
         setShowPreview(false);
         setPdfLoading(true);
+        setPreviewError(null);
         onClose();
+    };
+
+    // Pre-flight check before opening preview — avoids showing raw JSON error in embed
+    const handleViewDocument = async () => {
+        if (!proxyViewUrl) return;
+        setPdfLoading(true);
+        setPreviewError(null);
+        setShowPreview(true);
+        try {
+            const res = await fetch(proxyViewUrl, { method: "HEAD" });
+            if (!res.ok) {
+                setPreviewError(`File not available (${res.status}). The document may not have been uploaded yet.`);
+                setPdfLoading(false);
+            }
+        } catch {
+            setPreviewError("Could not reach the file server. Please check your connection.");
+            setPdfLoading(false);
+        }
     };
 
     return (
@@ -113,7 +133,7 @@ export function FileDetailsModal({ item, open, onClose }: FileDetailsModalProps)
                                 variant="ghost"
                                 size="sm"
                                 className="gap-1.5 h-8"
-                                onClick={() => { setShowPreview(false); setPdfLoading(true); }}
+                                onClick={() => { setShowPreview(false); setPdfLoading(true); setPreviewError(null); }}
                             >
                                 <ChevronLeft className="h-4 w-4" />
                                 Back
@@ -140,40 +160,52 @@ export function FileDetailsModal({ item, open, onClose }: FileDetailsModalProps)
 
                         {/* File preview — type-aware renderer */}
                         <div className="relative flex-1 min-h-0 bg-muted/20 overflow-auto flex items-center justify-center">
-                            {pdfLoading && (
-                                <div className="absolute inset-0 flex items-center justify-center bg-background/80 z-10">
-                                    <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-                                </div>
-                            )}
-
-                            {fileType === "image" && (
-                                // Images: use <img> tag — iframes cannot render images properly
-                                <img
-                                    src={proxyViewUrl ?? ""}
-                                    alt={item.attachment_name}
-                                    className="max-w-full max-h-full object-contain p-4"
-                                    onLoad={() => setPdfLoading(false)}
-                                    onError={() => setPdfLoading(false)}
-                                />
-                            )}
-
-                            {fileType === "pdf" && (
-                                <iframe
-                                    src={proxyViewUrl ?? ""}
-                                    className="w-full h-full border-0"
-                                    title={item.attachment_name}
-                                    onLoad={() => setPdfLoading(false)}
-                                />
-                            )}
-
-                            {fileType === "other" && (
+                            {/* Error state — shown when file is not accessible */}
+                            {previewError ? (
                                 <div className="flex flex-col items-center gap-3 p-8 text-center">
-                                    <FileText className="h-12 w-12 text-muted-foreground" />
-                                    <p className="text-sm font-medium">Preview not available</p>
-                                    <p className="text-xs text-muted-foreground">
-                                        This file type cannot be previewed. Use the Download button instead.
-                                    </p>
+                                    <AlertTriangle className="h-12 w-12 text-destructive" />
+                                    <p className="text-sm font-semibold text-destructive">Document Not Available</p>
+                                    <p className="text-xs text-muted-foreground max-w-xs">{previewError}</p>
                                 </div>
+                            ) : (
+                                <>
+                                    {pdfLoading && (
+                                        <div className="absolute inset-0 flex items-center justify-center bg-background/80 z-10">
+                                            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                                        </div>
+                                    )}
+
+                                    {fileType === "image" && (
+                                        <img
+                                            src={proxyViewUrl ?? ""}
+                                            alt={item.attachment_name}
+                                            className="max-w-full max-h-full object-contain p-4"
+                                            onLoad={() => setPdfLoading(false)}
+                                            onError={() => { setPdfLoading(false); setPreviewError("Failed to load image."); }}
+                                        />
+                                    )}
+
+                                    {fileType === "pdf" && (
+                                        <div className="absolute inset-0 bg-white">
+                                            <embed
+                                                src={proxyViewUrl ?? ""}
+                                                type="application/pdf"
+                                                className="w-full h-full"
+                                                onLoad={() => setPdfLoading(false)}
+                                            />
+                                        </div>
+                                    )}
+
+                                    {fileType === "other" && (
+                                        <div className="flex flex-col items-center gap-3 p-8 text-center">
+                                            <FileText className="h-12 w-12 text-muted-foreground" />
+                                            <p className="text-sm font-medium">Preview not available</p>
+                                            <p className="text-xs text-muted-foreground">
+                                                This file type cannot be previewed. Use the Download button instead.
+                                            </p>
+                                        </div>
+                                    )}
+                                </>
                             )}
                         </div>
                     </>
@@ -232,7 +264,7 @@ export function FileDetailsModal({ item, open, onClose }: FileDetailsModalProps)
                         <div className="flex gap-3">
                             <Button
                                 className="flex-1 gap-2"
-                                onClick={() => { setPdfLoading(true); setShowPreview(true); }}
+                                onClick={handleViewDocument}
                                 disabled={!proxyViewUrl}
                             >
                                 <Eye className="h-4 w-4" />
