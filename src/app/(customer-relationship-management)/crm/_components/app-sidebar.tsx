@@ -36,25 +36,23 @@ const data = {
     navMain: [
         { title: "Dashboard", url: "/crm/", icon: LayoutDashboard },
         { title: "Customer", url: "/crm/customer/", icon: LayoutDashboard },
-        /*{
-            title: "Treasury",
+        {
+            title: "Customer Hub",
             url: "#",
             icon: Bot,
             items: [
                 {
-                    title: "Budgeting Budgeting Budgeting",
-                    url: "#",
-                    // ✅ optional: you can give icon here later; if omitted, NavMain will default L2 icons
-                    items: [
-                        { title: "Dashboard", url: "/fm/treasury/budgeting/dashboard" },
-                        { title: "Budget Records Records R", url: "/fm/treasury/budgeting/customer" },
-                        { title: "Reports", url: "/fm/treasury/budgeting/reports" },
-                    ],
+                    title: "Callsheet",
+                    url: "/crm/customer-hub/callsheet",
                 },
-                { title: "Disbursement", url: "/fm/treasury/disbursement" },
-                { title: "Remittances", url: "/fm/treasury/remittances" },
+                {
+                    title: "Sales Order",
+                    url: "/crm/customer-hub/sales-order",
+                },
+                // { title: "Disbursement", url: "/fm/treasury/disbursement" },
+                // { title: "Remittances", url: "/fm/treasury/remittances" },
             ],
-        },*/
+        },
     ],
 };
 
