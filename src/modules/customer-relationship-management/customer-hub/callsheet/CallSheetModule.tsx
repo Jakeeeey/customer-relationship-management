@@ -64,7 +64,7 @@ export default function CallSheetModule() {
                 {/* Header */}
                 <div className="flex items-start justify-between gap-4">
                     <div>
-                        <h1 className="text-2xl font-bold tracking-tight">Sales Call Sheet</h1>
+                        <h1 className="text-2xl font-bold tracking-tight">Call Sheet</h1>
                         <p className="text-sm text-muted-foreground mt-0.5">
                             Manage your sales orders and customer information
                         </p>
