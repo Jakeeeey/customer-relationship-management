@@ -35,6 +35,11 @@ const data = {
             icon: Bot,
             items: [
                 {
+                    title: "Callsheet Printable",
+                    url: "/crm/customer-hub/callsheet-printable",
+                    icon: ClipboardList,
+                },
+                {
                     title: "Callsheet",
                     url: "/crm/customer-hub/callsheet",
                     icon: ClipboardList,
