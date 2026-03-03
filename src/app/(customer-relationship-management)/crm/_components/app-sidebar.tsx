@@ -5,17 +5,10 @@ import Link from "next/link";
 import Image from "next/image";
 import {
     LayoutDashboard,
-    BookOpen,
-    Receipt,
-    HandCoins,
-    Landmark,
-    Wallet,
-    PiggyBank,
-    Scale,
-    ShieldCheck,
-    PlugZap,
+    Users,
     Bot,
-    SquareTerminal,
+    ClipboardList,
+    ShoppingCart,
 } from "lucide-react";
 
 import { NavMain } from "./nav-main";
@@ -35,7 +28,7 @@ import {
 const data = {
     navMain: [
         { title: "Dashboard", url: "/crm/", icon: LayoutDashboard },
-        { title: "Customer", url: "/crm/customer/", icon: LayoutDashboard },
+        { title: "Customer", url: "/crm/customer/", icon: Users },
         {
             title: "Customer Hub",
             url: "#",
@@ -44,10 +37,12 @@ const data = {
                 {
                     title: "Callsheet",
                     url: "/crm/customer-hub/callsheet",
+                    icon: ClipboardList,
                 },
                 {
                     title: "Sales Order",
                     url: "/crm/customer-hub/sales-order",
+                    icon: ShoppingCart,
                 },
                 // { title: "Disbursement", url: "/fm/treasury/disbursement" },
                 // { title: "Remittances", url: "/fm/treasury/remittances" },
@@ -77,7 +72,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
                                 <div className="grid flex-1 text-left text-sm leading-tight">
                                     <span className="truncate font-medium">VOS Web</span>
-                                    <span className="truncate text-xs text-muted-foreground">Financial Management</span>
+                                    <span className="truncate text-xs text-muted-foreground">
+                                        Customer Relationship Management
+                                    </span>
                                 </div>
                             </Link>
                         </SidebarMenuButton>
@@ -88,7 +85,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             <Separator />
 
             <SidebarContent>
-                <div className="px-4 pt-3 pb-2 text-xs font-medium text-muted-foreground">Platform</div>
+                <div className="px-4 pt-3 pb-2 text-xs font-medium text-muted-foreground">
+                    Platform
+                </div>
 
                 <ScrollArea
                     className={cn(
@@ -106,7 +105,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
             <SidebarFooter className="p-0">
                 <Separator />
-                <div className="py-3 text-center text-xs text-muted-foreground">VOS Web v2.0</div>
+                <div className="py-3 text-center text-xs text-muted-foreground">
+                    VOS Web v2.0
+                </div>
             </SidebarFooter>
         </Sidebar>
     );
