@@ -15,7 +15,6 @@ import {
 import {
     MoreHorizontal,
     Pencil,
-    Trash2,
     Building2,
     Mail,
     Phone,
@@ -27,14 +26,12 @@ interface CustomerRowProps {
     customer: CustomerWithRelations;
     onEdit: (customer: CustomerWithRelations) => void;
     onManageBanks: (customer: CustomerWithRelations) => void;
-    onDelete: (id: number) => void;
 }
 
 export const CustomerRow = memo(function CustomerRow({
     customer,
     onEdit,
     onManageBanks,
-    onDelete,
 }: CustomerRowProps) {
     return (
         <TableRow className="hover:bg-muted/30 transition-colors">
@@ -106,14 +103,6 @@ export const CustomerRow = memo(function CustomerRow({
                         <DropdownMenuItem onClick={() => onManageBanks(customer)}>
                             <CreditCard className="mr-2 h-4 w-4" />
                             Manage Bank Accounts
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem
-                            className="text-destructive focus:text-destructive"
-                            onClick={() => onDelete(customer.id)}
-                        >
-                            <Trash2 className="mr-2 h-4 w-4" />
-                            Delete
                         </DropdownMenuItem>
                     </DropdownMenuContent>
                 </DropdownMenu>

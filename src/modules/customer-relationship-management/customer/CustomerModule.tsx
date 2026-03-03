@@ -27,7 +27,6 @@ export default function CustomerModule() {
         refetch,
         createCustomer,
         updateCustomer,
-        deleteCustomer,
     } = useCustomers();
 
     const handleCreate = async (data: any) => {
@@ -38,15 +37,7 @@ export default function CustomerModule() {
         await updateCustomer(id, data);
     };
 
-    const handleDelete = async (id: number) => {
-        try {
-            await deleteCustomer(id);
-            toast.success("Customer deleted successfully");
-        } catch (error) {
-            toast.error("Failed to delete customer");
-            throw error;
-        }
-    };
+
 
     if (isError) {
         return (
@@ -108,7 +99,6 @@ export default function CustomerModule() {
                 onStatusChange={setStatusFilter}
                 onCreate={handleCreate}
                 onUpdate={handleUpdate}
-                onDelete={handleDelete}
             />
         </div>
     );

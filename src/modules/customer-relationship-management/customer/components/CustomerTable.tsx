@@ -67,7 +67,6 @@ interface CustomerTableProps {
     onStatusChange: (status: string) => void;
     onCreate: (data: Partial<CustomerWithRelations>) => Promise<void>;
     onUpdate: (id: number, data: Partial<CustomerWithRelations>) => Promise<void>;
-    onDelete: (id: number) => Promise<void>;
 }
 
 export function CustomerTable({
@@ -85,7 +84,6 @@ export function CustomerTable({
     onStatusChange,
     onCreate,
     onUpdate,
-    onDelete,
 }: CustomerTableProps) {
     const [localSearchQuery, setLocalSearchQuery] = useState(parentSearchQuery);
     const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -235,7 +233,6 @@ export function CustomerTable({
                                     customer={customer}
                                     onEdit={handleEdit}
                                     onManageBanks={handleManageBanks}
-                                    onDelete={onDelete}
                                 />
                             ))
                         )}

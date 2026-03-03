@@ -41,7 +41,6 @@ import { Badge } from "@/components/ui/badge";
 import {
     Plus,
     Pencil,
-    Trash2,
     Loader2,
     CreditCard,
     Building2,
@@ -192,24 +191,6 @@ export function BankAccountManager({ customerId }: BankAccountManagerProps) {
         }
     };
 
-    const handleDelete = async (id: number) => {
-        if (!confirm("Are you sure you want to delete this bank account?")) return;
-
-        try {
-            const res = await fetch(`/api/crm/bank-account?id=${id}`, {
-                method: "DELETE",
-            });
-
-            if (res.ok) {
-                toast.success("Bank account deleted successfully");
-                fetchAccounts();
-            } else {
-                throw new Error("Failed to delete");
-            }
-        } catch (err) {
-            toast.error("Failed to delete bank account.");
-        }
-    };
 
     return (
         <div className="space-y-4">
@@ -295,9 +276,6 @@ export function BankAccountManager({ customerId }: BankAccountManagerProps) {
                                                 disabled={isOpening}
                                             >
                                                 <Pencil className="h-3.5 w-3.5" />
-                                            </Button>
-                                            <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => handleDelete(account.id)}>
-                                                <Trash2 className="h-3.5 w-3.5" />
                                             </Button>
                                         </div>
                                     </TableCell>

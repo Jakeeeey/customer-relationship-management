@@ -21,7 +21,6 @@ interface UseCustomersReturn {
     refetch: () => Promise<void>;
     createCustomer: (data: Partial<Customer>) => Promise<void>;
     updateCustomer: (id: number, data: Partial<Customer>) => Promise<void>;
-    deleteCustomer: (id: number) => Promise<void>;
 }
 
 export function useCustomers(): UseCustomersReturn {
@@ -135,24 +134,6 @@ export function useCustomers(): UseCustomersReturn {
         }
     }, [fetchData]);
 
-    const deleteCustomer = useCallback(async (id: number) => {
-        try {
-            const res = await fetch(`/api/crm/customer?id=${id}`, {
-                method: "DELETE"
-            });
-
-            if (!res.ok) {
-                const errorData = await res.json().catch(() => ({}));
-                throw new Error(errorData.message || `Server error: ${res.status}`);
-            }
-
-            await fetchData(true);
-        } catch (err) {
-            console.error('Delete customer error:', err);
-            throw err;
-        }
-    }, [fetchData]);
-
     const refetch = useCallback(() => fetchData(true), [fetchData]);
 
     return {
@@ -173,6 +154,5 @@ export function useCustomers(): UseCustomersReturn {
         refetch,
         createCustomer,
         updateCustomer,
-        deleteCustomer,
     };
 }
