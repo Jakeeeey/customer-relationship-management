@@ -12,7 +12,46 @@ import { NavUser } from "../../_components/nav-user";
 
 import { cookies } from "next/headers";
 
-import ComingSoon from "../../_components/ComingSoon";
+import CallSheetPrintableModule from "@/modules/customer-relationship-management/customer-hub/callsheet-printable/CallSheetPrintableModule";
+
+async function getSalesmen() {
+    const DIRECTUS_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://goatedcodoer:8056";
+    const DIRECTUS_TOKEN = process.env.DIRECTUS_STATIC_TOKEN || "";
+    try {
+        const res = await fetch(`${DIRECTUS_URL}/items/salesman?filter[isActive][_eq]=1&limit=-1`, {
+            headers: {
+                Authorization: `Bearer ${DIRECTUS_TOKEN}`,
+                "Content-Type": "application/json",
+            },
+            cache: "no-store",
+        });
+        if (!res.ok) return [];
+        const json = await res.json();
+        const smData = json.data || [];
+
+        const userIds = new Set<string>();
+        smData.forEach((s: any) => {
+            if (s.employee_id) userIds.add(s.employee_id.toString());
+            else if (s.encoder_id) userIds.add(s.encoder_id.toString());
+        });
+
+        if (userIds.size === 0) return [];
+
+        const idsStr = Array.from(userIds).join(',');
+        const uRes = await fetch(`${DIRECTUS_URL}/items/user?filter[user_id][_in]=${idsStr}&limit=-1`, {
+            headers: {
+                Authorization: `Bearer ${DIRECTUS_TOKEN}`,
+                "Content-Type": "application/json",
+            },
+            cache: "no-store",
+        });
+        if (!uRes.ok) return [];
+        const uJson = await uRes.json();
+        return uJson.data || [];
+    } catch {
+        return [];
+    }
+}
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -77,12 +116,13 @@ export default async function Page() {
     const token = cookieStore.get(COOKIE_NAME)?.value ?? null;
 
     const headerUser = buildHeaderUserFromToken(token);
+    const salesmen = await getSalesmen();
 
     return (
         // ✅ This fills the RIGHT column provided by SidebarInset (which is now fixed-height).
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden print:overflow-visible">
             {/* ✅ Topbar is fixed in place because ONLY <main> scrolls */}
-            <header className="relative z-10 flex h-14 shrink-0 items-center justify-between border-b shadow-sm bg-background sm:h-16 overflow-hidden">
+            <header className="relative z-10 flex h-14 shrink-0 items-center justify-between border-b shadow-sm bg-background sm:h-16 overflow-hidden print:hidden">
                 <div className="flex h-full min-w-0 items-center gap-2 px-3 sm:px-4 overflow-hidden">
                     <SidebarTrigger className="-ml-1 shrink-0" />
 
@@ -114,8 +154,8 @@ export default async function Page() {
             </header>
 
             {/* ✅ Only content scrolls inside RIGHT column */}
-            <main className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden p-2 sm:p-4">
-                <ComingSoon />
+            <main className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden p-2 sm:p-4 print:overflow-visible print:absolute print:inset-0 print:bg-white print:text-black">
+                <CallSheetPrintableModule initialSalesmen={salesmen} />
             </main>
         </div>
     );
