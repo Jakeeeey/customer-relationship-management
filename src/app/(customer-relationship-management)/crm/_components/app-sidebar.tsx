@@ -49,6 +49,11 @@ const data = {
                     url: "/crm/customer-hub/sales-order",
                     icon: ShoppingCart,
                 },
+                {
+                    title: "Sales Order Approval",
+                    url: "/crm/customer-hub/sales-order-approval",
+                    icon: ClipboardList,
+                },
                 // { title: "Disbursement", url: "/fm/treasury/disbursement" },
                 // { title: "Remittances", url: "/fm/treasury/remittances" },
             ],
