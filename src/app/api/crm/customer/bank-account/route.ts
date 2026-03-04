@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-const DIRECTUS_URL = "http://100.110.197.61:8056";
+const DIRECTUS_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
 const COLLECTION = "customer_bank_account";
 
 export const dynamic = "force-dynamic";

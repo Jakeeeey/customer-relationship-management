@@ -61,6 +61,7 @@ interface CustomerTableProps {
     pageSize: number;
     searchQuery: string;
     statusFilter: string;
+    userMapping: Record<number, string>;
     onPageChange: (page: number) => void;
     onPageSizeChange: (pageSize: number) => void;
     onSearchChange: (query: string) => void;
@@ -72,6 +73,7 @@ interface CustomerTableProps {
 export function CustomerTable({
     data,
     bankAccounts,
+    userMapping,
     isLoading,
     metadata,
     page,
@@ -201,9 +203,11 @@ export function CustomerTable({
                             <TableHead className="w-[80px] px-2">Code</TableHead>
                             <TableHead className="w-[200px] px-2">Customer Name</TableHead>
                             <TableHead className="w-[180px] px-2">Store Details</TableHead>
+                            <TableHead className="w-[80px] px-2">Type</TableHead>
+                            <TableHead className="w-[150px] px-2">User</TableHead>
                             <TableHead className="w-[180px] px-2">Contact Info</TableHead>
-                            <TableHead className="w-[150px] px-2">Location</TableHead>
-                            <TableHead className="w-[100px] px-2">Status</TableHead>
+                            <TableHead className="w-[120px] px-2">Location</TableHead>
+                            <TableHead className="w-[90px] px-2">Status</TableHead>
                             <TableHead className="w-[60px] px-2 text-right">Actions</TableHead>
                         </TableRow>
                     </TableHeader>
@@ -222,7 +226,7 @@ export function CustomerTable({
                             ))
                         ) : data.length === 0 ? (
                             <TableRow>
-                                <TableCell colSpan={7} className="h-32 text-center text-muted-foreground">
+                                <TableCell colSpan={9} className="h-32 text-center text-muted-foreground">
                                     No customers found.
                                 </TableCell>
                             </TableRow>
@@ -233,6 +237,7 @@ export function CustomerTable({
                                     customer={customer}
                                     onEdit={handleEdit}
                                     onManageBanks={handleManageBanks}
+                                    userMapping={userMapping}
                                 />
                             ))
                         )}

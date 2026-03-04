@@ -20,18 +20,25 @@ import {
     Phone,
     CreditCard,
 } from "lucide-react";
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { CustomerWithRelations } from "../types";
 
 interface CustomerRowProps {
     customer: CustomerWithRelations;
     onEdit: (customer: CustomerWithRelations) => void;
     onManageBanks: (customer: CustomerWithRelations) => void;
+    userMapping?: Record<number, string>;
 }
 
 export const CustomerRow = memo(function CustomerRow({
     customer,
     onEdit,
     onManageBanks,
+    userMapping = {},
 }: CustomerRowProps) {
     return (
         <TableRow className="hover:bg-muted/30 transition-colors">
@@ -47,16 +54,36 @@ export const CustomerRow = memo(function CustomerRow({
                 </div>
             </TableCell>
             <TableCell className="px-2 py-2">
-                <div className="flex flex-col gap-0.5">
-                    <div className="flex items-center text-xs font-medium">
-                        <Building2 className="mr-1.5 h-3 w-3 text-muted-foreground shrink-0" />
-                        <span className="truncate max-w-[140px]">{customer.store_name}</span>
-                    </div>
-                    {customer.store_signage && (
-                        <span className="text-[10px] text-muted-foreground italic truncate max-w-[140px] pl-4.5">
-                            {customer.store_signage}
-                        </span>
-                    )}
+                <Tooltip>
+                    <TooltipTrigger asChild>
+                        <div className="flex flex-col gap-0.5 cursor-help">
+                            <div className="flex items-center text-xs font-medium">
+                                <Building2 className="mr-1.5 h-3 w-3 text-muted-foreground shrink-0" />
+                                <span className="truncate max-w-[140px]">{customer.store_name}</span>
+                            </div>
+                            {customer.store_signage && (
+                                <span className="text-[10px] text-muted-foreground italic truncate max-w-[140px] pl-4.5">
+                                    {customer.store_signage}
+                                </span>
+                            )}
+                        </div>
+                    </TooltipTrigger>
+                    <TooltipContent side="right" className="max-w-xs">
+                        <div className="flex flex-col gap-1">
+                            <p className="font-semibold">{customer.store_name}</p>
+                            {customer.store_signage && <p className="italic text-muted-foreground text-[10px]">{customer.store_signage}</p>}
+                        </div>
+                    </TooltipContent>
+                </Tooltip>
+            </TableCell>
+            <TableCell className="px-2 py-2">
+                <Badge variant="outline" className={`text-[10px] px-1.5 h-5 font-medium ${customer.type === 'Employee' ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-blue-50 text-blue-700 border-blue-200'}`}>
+                    {customer.type}
+                </Badge>
+            </TableCell>
+            <TableCell className="px-2 py-2">
+                <div className="text-xs font-medium text-blue-600/80 max-w-[140px] truncate" title={customer.user_id ? (userMapping[customer.user_id] || `#${customer.user_id}`) : "None"}>
+                    {customer.user_id ? (userMapping[customer.user_id] || `#${customer.user_id}`) : <span className="text-muted-foreground font-normal">None</span>}
                 </div>
             </TableCell>
             <TableCell className="px-2 py-2">
@@ -76,9 +103,16 @@ export const CustomerRow = memo(function CustomerRow({
                 </div>
             </TableCell>
             <TableCell className="px-2 py-2">
-                <div className="text-[11px] max-w-[140px] truncate" title={[customer.brgy, customer.city, customer.province].filter(Boolean).join(", ")}>
-                    {[customer.brgy, customer.city, customer.province].filter(Boolean).join(", ")}
-                </div>
+                <Tooltip>
+                    <TooltipTrigger asChild>
+                        <div className="text-[11px] max-w-[140px] truncate cursor-help">
+                            {[customer.brgy, customer.city, customer.province].filter(Boolean).join(", ")}
+                        </div>
+                    </TooltipTrigger>
+                    <TooltipContent side="right" className="max-w-xs">
+                        {[customer.brgy, customer.city, customer.province].filter(Boolean).join(", ")}
+                    </TooltipContent>
+                </Tooltip>
             </TableCell>
             <TableCell className="px-2 py-2">
                 <Badge variant={customer.isActive ? "default" : "secondary"} className="text-[10px] px-1.5 h-5">
@@ -108,14 +142,5 @@ export const CustomerRow = memo(function CustomerRow({
                 </DropdownMenu>
             </TableCell>
         </TableRow>
-    );
-}, (prevProps, nextProps) => {
-    // Custom comparison to optimize
-    return (
-        prevProps.customer.id === nextProps.customer.id &&
-        prevProps.customer.customer_name === nextProps.customer.customer_name &&
-        prevProps.customer.isActive === nextProps.customer.isActive &&
-        prevProps.customer.customer_code === nextProps.customer.customer_code &&
-        prevProps.customer.store_name === nextProps.customer.store_name
     );
 });
