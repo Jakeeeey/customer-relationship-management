@@ -11,7 +11,7 @@ import { Package2, Plus, Loader2 } from "lucide-react";
 
 import { SalesOrderSkeleton } from "./components/SalesOrderSkeleton";
 
-export default function SalesOrderModule() {
+export default function SalesOrderReportModule() {
     const [loading, setLoading] = useState(false);
     const [salesOrders, setSalesOrders] = useState<SalesOrder[]>([]);
     const [order, setOrder] = useState<Partial<SalesOrder>>({});
@@ -109,7 +109,7 @@ export default function SalesOrderModule() {
                         <Package2 className="h-6 w-6" />
                     </div>
                     <div>
-                        <h1 className="text-2xl font-bold tracking-tight">Sales Order</h1>
+                        <h1 className="text-2xl font-bold tracking-tight">Sales Order Report</h1>
                         <p className="text-sm text-muted-foreground">Manage and review sales order details</p>
                     </div>
                 </div>
