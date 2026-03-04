@@ -92,21 +92,79 @@ export async function GET(req: NextRequest) {
             const parentIds = products.map((p: any) => p.parent_id).filter(Boolean);
             let parents: any[] = [];
             if (parentIds.length > 0) {
-                const parentIdsStr = [...new Set(parentIds)].join(',');
-                const prRes = await fetch(`${DIRECTUS_URL}/items/products?filter[product_id][_in]=${parentIdsStr}&limit=-1`, {
-                    headers: fetchHeaders,
-                });
-                if (prRes.ok) {
-                    const prJson = await prRes.json();
-                    parents = prJson.data || [];
+                const uniqueParentIds = [...new Set(parentIds)];
+                // Chunk the parent IDs to avoid URL length limits
+                const chunkSize = 50;
+                for (let i = 0; i < uniqueParentIds.length; i += chunkSize) {
+                    const chunk = uniqueParentIds.slice(i, i + chunkSize);
+                    const parentIdsStr = chunk.join(',');
+                    const prRes = await fetch(`${DIRECTUS_URL}/items/products?filter[product_id][_in]=${parentIdsStr}&limit=-1`, {
+                        headers: fetchHeaders,
+                    });
+                    if (prRes.ok) {
+                        const prJson = await prRes.json();
+                        if (prJson.data) {
+                            parents = parents.concat(prJson.data);
+                        }
+                    } else {
+                        console.error("Failed to fetch parent chunk", await prRes.text());
+                    }
                 }
             }
 
-            const result = products.map((p: any) => {
-                const parent = parents.find((pr: any) => pr.product_id === p.parent_id);
+            let children: any[] = [];
+            if (productIds.length > 0) {
+                const uniqueProductIds = [...new Set(productIds)];
+                const chunkSize = 50;
+                for (let i = 0; i < uniqueProductIds.length; i += chunkSize) {
+                    const chunk = uniqueProductIds.slice(i, i + chunkSize);
+                    const chunkStr = chunk.join(',');
+                    const cRes = await fetch(`${DIRECTUS_URL}/items/products?filter[parent_id][_in]=${chunkStr}&filter[isActive][_eq]=1&limit=-1`, {
+                        headers: fetchHeaders,
+                    });
+                    if (cRes.ok) {
+                        const cJson = await cRes.json();
+                        if (cJson.data) {
+                            children = children.concat(cJson.data);
+                        }
+                    } else {
+                        console.error("Failed to fetch children chunk", await cRes.text());
+                    }
+                }
+            }
+
+            const allProductsMap = new Map();
+            const addToMap = (list: any[]) => {
+                for (const p of list) {
+                    if (!allProductsMap.has(Number(p.product_id))) {
+                        allProductsMap.set(Number(p.product_id), p);
+                    }
+                }
+            };
+
+            addToMap(products);
+            addToMap(parents);
+            addToMap(children);
+
+            const allProducts = Array.from(allProductsMap.values());
+
+            const result = allProducts.map((p: any) => {
+                const parentIdVal = Number(p.parent_id);
+                const parent = parentIdVal ? allProductsMap.get(parentIdVal) : null;
+
+                // Use description if available, else product_name
+                let display_name = p.description ? p.description : p.product_name;
+
+                // If it's a child product but has no description/name, fallback to parent's name
+                if (!display_name && parent) {
+                    display_name = parent.product_name || "Unnamed Product";
+                }
+
                 return {
                     ...p,
-                    parent_product: parent || null
+                    display_name: display_name || "Unnamed Product",
+                    parent_product_name: parent?.product_name || null,
+                    parent_product: parent || null,
                 };
             });
 

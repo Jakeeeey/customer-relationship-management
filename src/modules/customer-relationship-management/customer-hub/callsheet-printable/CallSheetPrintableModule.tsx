@@ -40,7 +40,13 @@ export default function CallSheetPrintableModule({ initialSalesmen }: { initialS
 
     const handlePreview = () => {
         if (!selectedCustomer || !selectedSupplier) return;
-        const doc = generateCallSheetPDF({ customer: selectedCustomer, supplier: selectedSupplier, products });
+        const doc = generateCallSheetPDF({
+            customer: selectedCustomer,
+            supplier: selectedSupplier,
+            products,
+            salesman: selectedSalesman,
+            account: selectedAccount
+        });
         const url = doc.output("bloburl");
         setPreviewUrl(url ? url.toString() : null);
         setPreviewOpen(true);
@@ -48,7 +54,13 @@ export default function CallSheetPrintableModule({ initialSalesmen }: { initialS
 
     const handleDownload = () => {
         if (!selectedCustomer || !selectedSupplier) return;
-        const doc = generateCallSheetPDF({ customer: selectedCustomer, supplier: selectedSupplier, products });
+        const doc = generateCallSheetPDF({
+            customer: selectedCustomer,
+            supplier: selectedSupplier,
+            products,
+            salesman: selectedSalesman,
+            account: selectedAccount
+        });
         doc.save(`Callsheet_${selectedCustomer.customer_code}.pdf`);
     };
 

@@ -73,12 +73,12 @@ export function PrintableTable({ supplier, products, loadingProducts }: Printabl
                         ) : (
                             currentProducts.map((p, i) => (
                                 <tr key={p.product_id || i} className="border-t print:border-gray-300">
-                                    <td className="p-3 print:p-1 max-w-[200px] truncate" title={p.product_name || p.description}>
-                                        {p.product_name || p.description || "Unnamed Product"}
-                                        {p.parent_product && (
-                                            <span className="block text-xs text-muted-foreground print:hidden">
+                                    <td className="p-3 print:p-1 max-w-[200px] truncate" title={p.display_name}>
+                                        <div className="font-medium">{p.display_name || "Unnamed Product"}</div>
+                                        {p.parent_product && p.parent_product.product_name && (
+                                            <div className="text-[11px] print:text-[8px] text-muted-foreground mt-0.5" title={`Parent: ${p.parent_product.product_name}`}>
                                                 Parent: {p.parent_product.product_name}
-                                            </span>
+                                            </div>
                                         )}
                                     </td>
                                     <td className="p-3 print:p-1 text-center border-l print:border-l-0">0.0</td>
