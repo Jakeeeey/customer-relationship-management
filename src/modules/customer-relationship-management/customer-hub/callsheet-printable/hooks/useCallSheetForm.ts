@@ -1,4 +1,11 @@
 import { useState, useEffect } from "react";
+import {
+    getSalesmen,
+    getAccounts,
+    getCustomers,
+    getSuppliers,
+    getProducts
+} from "../providers/fetchProvider";
 
 export function useCallSheetForm() {
     const [salesmen, setSalesmen] = useState<any[]>([]);
@@ -22,9 +29,8 @@ export function useCallSheetForm() {
     useEffect(() => {
         const fetchInitialSalesmen = async () => {
             try {
-                const res = await fetch(`/api/crm/customer-hub/callsheet-printable?type=salesmen`);
-                const json = await res.json();
-                setSalesmen(json.data || []);
+                const data = await getSalesmen();
+                setSalesmen(data);
             } catch (error) {
                 console.error("Failed to fetch salesmen:", error);
             }
@@ -46,9 +52,8 @@ export function useCallSheetForm() {
         if (salesman) {
             setLoadingAccounts(true);
             try {
-                const res = await fetch(`/api/crm/customer-hub/callsheet-printable?type=accounts&userId=${salesman.user_id}`);
-                const json = await res.json();
-                setAccounts(json.data || []);
+                const data = await getAccounts(salesman.user_id);
+                setAccounts(data);
             } catch (e) {
                 console.error(e);
             }
@@ -68,9 +73,8 @@ export function useCallSheetForm() {
         if (account) {
             setLoadingCustomers(true);
             try {
-                const res = await fetch(`/api/crm/customer-hub/callsheet-printable?type=customers&salesmanId=${account.id}`);
-                const json = await res.json();
-                setCustomers(json.data || []);
+                const data = await getCustomers(account.id);
+                setCustomers(data);
             } catch (e) {
                 console.error(e);
             }
@@ -87,9 +91,8 @@ export function useCallSheetForm() {
         if (customer) {
             setLoadingSuppliers(true);
             try {
-                const res = await fetch(`/api/crm/customer-hub/callsheet-printable?type=suppliers`);
-                const json = await res.json();
-                setSuppliers(json.data || []);
+                const data = await getSuppliers();
+                setSuppliers(data);
             } catch (e) {
                 console.error(e);
             }
@@ -105,9 +108,8 @@ export function useCallSheetForm() {
         if (supplier) {
             setLoadingProducts(true);
             try {
-                const res = await fetch(`/api/crm/customer-hub/callsheet-printable?type=products&supplierId=${supplier.id}`);
-                const json = await res.json();
-                setProducts(json.data || []);
+                const data = await getProducts(supplier.id);
+                setProducts(data);
             } catch (e) {
                 console.error(e);
             }
