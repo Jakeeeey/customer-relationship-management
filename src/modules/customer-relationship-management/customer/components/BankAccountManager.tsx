@@ -93,7 +93,7 @@ export function BankAccountManager({ customerId }: BankAccountManagerProps) {
     const fetchAccounts = async () => {
         setIsLoading(true);
         try {
-            const res = await fetch(`/api/crm/bank-account?customer_id=${customerId}`);
+            const res = await fetch(`/api/crm/customer/bank-account?customer_id=${customerId}`);
             if (res.ok) {
                 const data = await res.json();
                 setAccounts(data || []);
@@ -168,7 +168,7 @@ export function BankAccountManager({ customerId }: BankAccountManagerProps) {
                 id: selectedAccount?.id,
             };
 
-            const res = await fetch("/api/crm/bank-account", {
+            const res = await fetch("/api/crm/customer/bank-account", {
                 method,
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(body),

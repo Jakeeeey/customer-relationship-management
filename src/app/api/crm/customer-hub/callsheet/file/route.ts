@@ -7,7 +7,7 @@ const FILE_SERVER_BASE =
     "http://goatedcodoer:7002";
 
 // ── Directus (PDFs and other Directus-managed files) ─────────
-const DIRECTUS_URL = process.env.DIRECTUS_URL ?? "http://goatedcodoer:8056";
+const DIRECTUS_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
 const DIRECTUS_TOKEN = process.env.DIRECTUS_STATIC_TOKEN ?? "";
 
 export const dynamic = "force-dynamic";

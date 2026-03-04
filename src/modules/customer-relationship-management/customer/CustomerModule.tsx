@@ -20,6 +20,7 @@ export default function CustomerModule() {
         pageSize,
         searchQuery,
         statusFilter,
+        userMapping,
         setPage,
         setPageSize,
         setSearchQuery,
@@ -87,6 +88,7 @@ export default function CustomerModule() {
             <CustomerTable
                 data={customers}
                 bankAccounts={bankAccounts}
+                userMapping={userMapping}
                 isLoading={isLoading}
                 metadata={metadata}
                 page={page}

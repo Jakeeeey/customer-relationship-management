@@ -41,6 +41,8 @@ const customerSchema = z.object({
     brgy: z.string().default(""),
     city: z.string().default(""),
     province: z.string().default(""),
+    type: z.enum(["Regular", "Employee"]).default("Regular"),
+    user_id: z.coerce.number().nullable().optional().default(null),
     tel_number: z.string().default(""),
     customer_tin: z.string().default(""),
     payment_term: z.coerce.number().default(0),
@@ -75,6 +77,7 @@ export function CustomerDialog({
     const [activeTab, setActiveTab] = useState(defaultTab);
     const [storeTypes, setStoreTypes] = useState<ReferenceItem[]>([]);
     const [discountTypes, setDiscountTypes] = useState<ReferenceItem[]>([]);
+    const [users, setUsers] = useState<ReferenceItem[]>([]);
 
     useEffect(() => {
         if (open) {
@@ -85,9 +88,10 @@ export function CustomerDialog({
     useEffect(() => {
         const fetchRefs = async () => {
             try {
-                const [storeRes, discRes] = await Promise.all([
+                const [storeRes, discRes, userRes] = await Promise.all([
                     fetch("/api/crm/customer/references?type=store_type"),
                     fetch("/api/crm/customer/references?type=discount_type"),
+                    fetch("/api/crm/customer/references?type=user"),
                 ]);
 
                 if (storeRes.ok) {
@@ -97,6 +101,10 @@ export function CustomerDialog({
                 if (discRes.ok) {
                     const data = await discRes.json();
                     setDiscountTypes(data.data || []);
+                }
+                if (userRes.ok) {
+                    const data = await userRes.json();
+                    setUsers(data.data || []);
                 }
             } catch (err) {
                 console.error("Failed to fetch references", err);
@@ -128,6 +136,8 @@ export function CustomerDialog({
             discount_type: null,
             division_id: null,
             department_id: null,
+            type: "Regular",
+            user_id: null,
             encoder_id: 1,
         },
     });
@@ -155,6 +165,8 @@ export function CustomerDialog({
                 discount_type: customer.discount_type || null,
                 division_id: customer.division_id || null,
                 department_id: customer.department_id || null,
+                type: customer.type || "Regular",
+                user_id: customer.user_id || null,
                 encoder_id: customer.encoder_id || 1,
             });
         } else if (open) {
@@ -179,6 +191,8 @@ export function CustomerDialog({
                 discount_type: null,
                 division_id: null,
                 department_id: null,
+                type: "Regular",
+                user_id: null,
                 encoder_id: 1,
             });
         }
@@ -222,7 +236,7 @@ export function CustomerDialog({
                                 </TabsList>
 
                                 <TabsContent value="basic" className="space-y-6 pb-6 mt-2">
-                                    <div className="grid grid-cols-2 gap-6">
+                                    <div className="grid grid-cols-3 gap-6">
                                         <FormField
                                             control={form.control as any}
                                             name="customer_code"
@@ -249,9 +263,33 @@ export function CustomerDialog({
                                                 </FormItem>
                                             )}
                                         />
+                                        <FormField
+                                            control={form.control as any}
+                                            name="type"
+                                            render={({ field }) => (
+                                                <FormItem>
+                                                    <FormLabel>Customer Type</FormLabel>
+                                                    <Select
+                                                        onValueChange={field.onChange}
+                                                        value={field.value}
+                                                    >
+                                                        <FormControl>
+                                                            <SelectTrigger>
+                                                                <SelectValue placeholder="Select Type" />
+                                                            </SelectTrigger>
+                                                        </FormControl>
+                                                        <SelectContent>
+                                                            <SelectItem value="Regular">Regular</SelectItem>
+                                                            <SelectItem value="Employee">Employee</SelectItem>
+                                                        </SelectContent>
+                                                    </Select>
+                                                    <FormMessage />
+                                                </FormItem>
+                                            )}
+                                        />
                                     </div>
 
-                                    <div className="grid grid-cols-1 gap-6">
+                                    <div className="grid grid-cols-2 gap-6">
                                         <FormField
                                             control={form.control as any}
                                             name="store_type"
@@ -269,10 +307,44 @@ export function CustomerDialog({
                                                         </FormControl>
                                                         <SelectContent>
                                                             {storeTypes.map((type) => (
-                                                                <SelectItem key={type.id} value={type.id.toString()}>
-                                                                    {type.store_type}
-                                                                </SelectItem>
+                                                                type.id !== undefined && (
+                                                                    <SelectItem key={type.id} value={type.id.toString()}>
+                                                                        {type.store_type}
+                                                                    </SelectItem>
+                                                                )
                                                             ))}
+                                                        </SelectContent>
+                                                    </Select>
+                                                    <FormMessage />
+                                                </FormItem>
+                                            )}
+                                        />
+                                        <FormField
+                                            control={form.control as any}
+                                            name="user_id"
+                                            render={({ field }) => (
+                                                <FormItem>
+                                                    <FormLabel>Linked User</FormLabel>
+                                                    <Select
+                                                        onValueChange={(val) => field.onChange(val === "null" ? null : parseInt(val))}
+                                                        value={field.value === null ? "null" : field.value?.toString()}
+                                                    >
+                                                        <FormControl>
+                                                            <SelectTrigger>
+                                                                <SelectValue placeholder="Select User" />
+                                                            </SelectTrigger>
+                                                        </FormControl>
+                                                        <SelectContent>
+                                                            <SelectItem value="null">None</SelectItem>
+                                                            {users.map((u: any) => {
+                                                                const uid = u.id || u.user_id;
+                                                                if (!uid) return null;
+                                                                return (
+                                                                    <SelectItem key={uid} value={uid.toString()}>
+                                                                        {[u.user_fname, u.user_mname, u.user_lname].filter(Boolean).join(" ")}
+                                                                    </SelectItem>
+                                                                );
+                                                            })}
                                                         </SelectContent>
                                                     </Select>
                                                     <FormMessage />
@@ -461,9 +533,11 @@ export function CustomerDialog({
                                                         <SelectContent>
                                                             <SelectItem value="null">None</SelectItem>
                                                             {discountTypes.map((item) => (
-                                                                <SelectItem key={item.id} value={item.id.toString()}>
-                                                                    {item.discount_type}
-                                                                </SelectItem>
+                                                                item.id !== undefined && (
+                                                                    <SelectItem key={item.id} value={item.id.toString()}>
+                                                                        {item.discount_type}
+                                                                    </SelectItem>
+                                                                )
                                                             ))}
                                                         </SelectContent>
                                                     </Select>

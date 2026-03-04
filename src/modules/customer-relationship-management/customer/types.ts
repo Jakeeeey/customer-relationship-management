@@ -11,6 +11,8 @@ export interface Customer {
     id: number;
     customer_code: string;
     customer_name: string;
+    type: 'Regular' | 'Employee';
+    user_id?: number | null;
     customer_image?: string | null;
     store_name: string;
     store_signage: string;
@@ -75,11 +77,15 @@ export interface DiscountType {
 }
 
 export interface ReferenceItem {
-    id: number;
+    id?: number;
+    user_id?: number;
     division_name?: string;
     department_name?: string;
     store_type?: string;
     discount_type?: string;
+    user_fname?: string;
+    user_mname?: string;
+    user_lname?: string;
 }
 
 // ============================================================================
