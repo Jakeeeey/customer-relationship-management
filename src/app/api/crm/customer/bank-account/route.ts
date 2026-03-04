@@ -14,7 +14,11 @@ export async function GET(req: NextRequest) {
             url += `?filter[customer_id][_eq]=${customer_id}`;
         }
 
-        const res = await fetch(url, { cache: "no-store" });
+        const token = process.env.DIRECTUS_STATIC_TOKEN;
+        const res = await fetch(url, {
+            cache: "no-store",
+            headers: token ? { Authorization: `Bearer ${token}` } : {}
+        });
         if (!res.ok) throw new Error(`Directus error fetching bank accounts: ${res.statusText}`);
 
         const json = await res.json();

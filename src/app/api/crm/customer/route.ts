@@ -22,8 +22,12 @@ export const revalidate = 0;
 // ============================================================================
 
 async function fetchAll<T>(collection: string, offset = 0, acc: T[] = []): Promise<T[]> {
+    const token = process.env.DIRECTUS_STATIC_TOKEN;
     const url = `${DIRECTUS_URL}/items/${collection}?limit=${LIMIT}&offset=${offset}`;
-    const res = await fetch(url, { cache: "no-store" });
+    const res = await fetch(url, {
+        cache: "no-store",
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+    });
     if (!res.ok) throw new Error(`Directus error fetching ${collection}: ${res.statusText}`);
 
     const json = await res.json();
@@ -42,13 +46,17 @@ async function fetchAll<T>(collection: string, offset = 0, acc: T[] = []): Promi
 // ============================================================================
 
 export async function GET(req: NextRequest) {
+    const token = process.env.DIRECTUS_STATIC_TOKEN;
     try {
         const { searchParams } = new URL(req.url);
         const id = searchParams.get("id");
 
         if (id) {
             // Fetch single customer
-            const res = await fetch(`${DIRECTUS_URL}/items/${COLLECTIONS.CUSTOMER}/${id}`, { cache: "no-store" });
+            const res = await fetch(`${DIRECTUS_URL}/items/${COLLECTIONS.CUSTOMER}/${id}`, {
+                cache: "no-store",
+                headers: token ? { Authorization: `Bearer ${token}` } : {}
+            });
             if (!res.ok) throw new Error(`Customer not found: ${id}`);
             const data = await res.json();
             return NextResponse.json(data.data);
@@ -79,7 +87,10 @@ export async function GET(req: NextRequest) {
 
         // Fetch customers with pagination and filtering
         const customersUrl = `${DIRECTUS_URL}/items/${COLLECTIONS.CUSTOMER}?${params.toString()}`;
-        const customersRes = await fetch(customersUrl, { cache: "no-store" });
+        const customersRes = await fetch(customersUrl, {
+            cache: "no-store",
+            headers: token ? { Authorization: `Bearer ${token}` } : {}
+        });
 
         if (!customersRes.ok) throw new Error(`Directus error fetching customers: ${customersRes.statusText}`);
         const customersJson = await customersRes.json();

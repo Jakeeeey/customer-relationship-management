@@ -27,8 +27,10 @@ export async function GET(req: NextRequest) {
                 return NextResponse.json({ error: "Invalid reference type" }, { status: 400 });
         }
 
+        const token = process.env.DIRECTUS_STATIC_TOKEN;
         const res = await fetch(`${DIRECTUS_URL}/items/${collection}?limit=100`, {
             cache: "no-store",
+            headers: token ? { Authorization: `Bearer ${token}` } : {}
         });
 
         if (!res.ok) {

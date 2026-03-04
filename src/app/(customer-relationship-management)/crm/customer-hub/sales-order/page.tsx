@@ -13,6 +13,7 @@ import { NavUser } from "../../_components/nav-user";
 import { cookies } from "next/headers";
 
 import ComingSoon from "../../_components/ComingSoon";
+import SalesOrderModule from "@/modules/customer-relationship-management/customer-hub/sales-order/SalesOrderModule";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -114,8 +115,8 @@ export default async function Page() {
             </header>
 
             {/* ✅ Only content scrolls inside RIGHT column */}
-            <main className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden p-2 sm:p-4">
-                <ComingSoon />
+            <main className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden p-6 sm:p-8">
+                <SalesOrderModule />
             </main>
         </div>
     );
