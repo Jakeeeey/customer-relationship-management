@@ -2,8 +2,16 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { useSalesOrderApproval, CustomerGroup } from "./hooks/useSalesOrderApproval";
-import { CustomerGroupCard } from "./components/CustomerGroupCard";
 import { ApprovalModal } from "./components/ApprovalModal";
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
 import { RefreshCw, Search, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,6 +23,13 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+
+const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat("en-PH", {
+        style: "currency",
+        currency: "PHP",
+    }).format(amount);
+};
 
 export default function SalesOrderApprovalModule() {
     const {
@@ -108,30 +123,80 @@ export default function SalesOrderApprovalModule() {
             </div>
 
             {/* Main List */}
-            {loadingOrders ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4">
-                    {[1, 2, 3, 4, 5, 6].map((i) => (
-                        <Skeleton key={i} className="h-32 w-full rounded-xl" />
-                    ))}
-                </div>
-            ) : groupedCustomers.length === 0 ? (
-                <div className="flex flex-col items-center justify-center p-12 text-center border rounded-xl border-dashed">
-                    <h3 className="text-lg font-semibold mb-1">No Orders Found</h3>
-                    <p className="text-sm text-muted-foreground max-w-sm">
-                        There are no orders matching your current search and filter criteria.
-                    </p>
-                </div>
-            ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4">
-                    {groupedCustomers.map((group) => (
-                        <CustomerGroupCard
-                            key={group.customer_code}
-                            group={group}
-                            onClick={() => setSelectedGroup(group)}
-                        />
-                    ))}
-                </div>
-            )}
+            <div className="rounded-md border bg-card overflow-hidden">
+                <Table>
+                    <TableHeader className="bg-muted/50">
+                        <TableRow>
+                            <TableHead className="w-[120px]">Customer Code</TableHead>
+                            <TableHead>Customer Name</TableHead>
+                            <TableHead className="text-right">Orders</TableHead>
+                            <TableHead className="text-right">Total Net Amount</TableHead>
+                            <TableHead className="w-[150px] text-center">Status</TableHead>
+                            <TableHead className="w-[100px] text-right">Action</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {loadingOrders ? (
+                            Array.from({ length: 5 }).map((_, i) => (
+                                <TableRow key={i}>
+                                    <TableCell><Skeleton className="h-5 w-20" /></TableCell>
+                                    <TableCell><Skeleton className="h-5 w-48" /></TableCell>
+                                    <TableCell className="text-right"><Skeleton className="h-5 w-12 ml-auto" /></TableCell>
+                                    <TableCell className="text-right"><Skeleton className="h-5 w-24 ml-auto" /></TableCell>
+                                    <TableCell className="text-center"><Skeleton className="h-6 w-24 mx-auto" /></TableCell>
+                                    <TableCell className="text-right"><Skeleton className="h-8 w-20 ml-auto" /></TableCell>
+                                </TableRow>
+                            ))
+                        ) : groupedCustomers.length === 0 ? (
+                            <TableRow>
+                                <TableCell colSpan={6} className="h-32 text-center text-muted-foreground">
+                                    No orders found matching your criteria.
+                                </TableCell>
+                            </TableRow>
+                        ) : (
+                            groupedCustomers.map((group) => {
+                                const statuses = Array.from(new Set(group.orders.map(o => o.order_status)));
+                                const status = statuses.length > 1 ? "MIXED" : (statuses[0] || "UNKNOWN");
+
+                                let badgeColor = "bg-secondary text-secondary-foreground";
+                                if (status === "For Approval") badgeColor = "bg-amber-100 text-amber-800 border-amber-200";
+                                else if (status === "For Consolidation") badgeColor = "bg-purple-100 text-purple-800 border-purple-200";
+                                else if (status === "Delivered") badgeColor = "bg-emerald-100 text-emerald-800 border-emerald-200";
+                                else if (status === "Cancelled") badgeColor = "bg-destructive/10 text-destructive border-destructive/20";
+                                else if (status === "MIXED") badgeColor = "bg-secondary text-secondary-foreground border-border";
+
+                                return (
+                                    <TableRow
+                                        key={group.customer_code}
+                                        className="cursor-pointer hover:bg-muted/50 transition-colors"
+                                        onClick={() => setSelectedGroup(group)}
+                                    >
+                                        <TableCell className="font-medium">{group.customer_code}</TableCell>
+                                        <TableCell>{group.customer_name}</TableCell>
+                                        <TableCell className="text-right font-medium">{group.orders.length}</TableCell>
+                                        <TableCell className="text-right text-emerald-600 font-medium">
+                                            {formatCurrency(group.total_net_amount)}
+                                        </TableCell>
+                                        <TableCell className="text-center">
+                                            <Badge variant="outline" className={`${badgeColor} whitespace-nowrap`}>
+                                                {status.toUpperCase()}
+                                            </Badge>
+                                        </TableCell>
+                                        <TableCell className="text-right">
+                                            <Button variant="outline" size="sm" onClick={(e) => {
+                                                e.stopPropagation();
+                                                setSelectedGroup(group);
+                                            }}>
+                                                Review
+                                            </Button>
+                                        </TableCell>
+                                    </TableRow>
+                                );
+                            })
+                        )}
+                    </TableBody>
+                </Table>
+            </div>
 
             {/* Infinite Scroll Target */}
             {hasMore ? (
