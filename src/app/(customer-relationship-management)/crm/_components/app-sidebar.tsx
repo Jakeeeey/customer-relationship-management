@@ -35,6 +35,11 @@ const data = {
             icon: Bot,
             items: [
                 {
+                    title: "Callsheet Printable",
+                    url: "/crm/customer-hub/callsheet-printable",
+                    icon: ClipboardList,
+                },
+                {
                     title: "Callsheet",
                     url: "/crm/customer-hub/callsheet",
                     icon: ClipboardList,
@@ -43,6 +48,11 @@ const data = {
                     title: "Sales Order",
                     url: "/crm/customer-hub/sales-order",
                     icon: ShoppingCart,
+                },
+                {
+                    title: "Sales Order Approval",
+                    url: "/crm/customer-hub/sales-order-approval",
+                    icon: ClipboardList,
                 },
                 // { title: "Disbursement", url: "/fm/treasury/disbursement" },
                 // { title: "Remittances", url: "/fm/treasury/remittances" },
