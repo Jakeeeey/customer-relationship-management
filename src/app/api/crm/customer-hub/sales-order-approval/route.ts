@@ -16,64 +16,149 @@ export async function GET(req: NextRequest) {
     try {
         if (type === "orders") {
             const statusFilter = req.nextUrl.searchParams.get("status") || "For Approval";
+            const search = req.nextUrl.searchParams.get("search") || "";
+            const page = parseInt(req.nextUrl.searchParams.get("page") || "1", 10);
+            const limit = parseInt(req.nextUrl.searchParams.get("limit") || "30", 10);
 
-            // 1. Fetch Sales Orders
-            let url = `${DIRECTUS_URL}/items/sales_order?sort=-for_approval_at,-modified_date,-order_id&limit=-1`;
+            // 1. Build Directus Filter
+            let filter: any = { _and: [] };
 
             if (statusFilter !== "All") {
-                url = `${DIRECTUS_URL}/items/sales_order?filter[order_status][_eq]=${encodeURIComponent(statusFilter)}&sort=-for_approval_at,-modified_date,-order_id&limit=-1`;
+                filter._and.push({ order_status: { _eq: statusFilter } });
+            }
+            // If status is All, we might still want to exclude some statuses if needed, but "All" usually means All. Keep as is.
+
+            if (search) {
+                // Since customer_name isn't natively on sales_order, we need to find matching customers first
+                let matchingCustomerCodes: string[] = [];
+                try {
+                    const cMatchRes = await fetch(`${DIRECTUS_URL}/items/customer?filter[customer_name][_icontains]=${encodeURIComponent(search)}&fields=customer_code&limit=-1`, {
+                        headers: fetchHeaders
+                    });
+                    if (cMatchRes.ok) {
+                        const cMatchJson = await cMatchRes.json();
+                        matchingCustomerCodes = (cMatchJson.data || []).map((c: any) => c.customer_code).filter(Boolean);
+                    }
+                } catch (e) {
+                    console.error("Search customer match error:", e);
+                }
+
+                const orConditions: any[] = [
+                    { customer_code: { _icontains: search } },
+                    { order_no: { _icontains: search } },
+                    { po_no: { _icontains: search } }
+                ];
+
+                if (matchingCustomerCodes.length > 0) {
+                    orConditions.push({ customer_code: { _in: matchingCustomerCodes } });
+                }
+
+                filter._and.push({ _or: orConditions });
             }
 
-            const ordersRes = await fetch(url, {
-                headers: fetchHeaders,
-            });
+            // Remove empty _and array if no filters applied so we don't send `_and: []`
+            const filterParam = filter._and.length > 0 ? `&filter=${encodeURIComponent(JSON.stringify(filter))}` : "";
 
-            if (!ordersRes.ok) return NextResponse.json({ error: "Failed to fetch orders" }, { status: 500 });
-            const ordersJson = await ordersRes.json();
-            const orders = ordersJson.data || [];
+            // 2. Fetch lightweight list of matches to extract unique customer_codes
+            // We use sorting so the most recent orders pull their customers to the top of the list
+            const codesUrl = `${DIRECTUS_URL}/items/sales_order?fields=customer_code${filterParam}&sort=-for_approval_at,-modified_date,-order_id&limit=-1`;
 
-            if (orders.length === 0) return NextResponse.json({ data: [] });
+            const codesRes = await fetch(codesUrl, { headers: fetchHeaders });
+            if (!codesRes.ok) {
+                const errText = await codesRes.text();
+                return NextResponse.json({ error: "Failed to fetch customer codes", details: errText }, { status: 500 });
+            }
 
-            // 2. Extract unique customer_codes
-            const customerCodes = Array.from(new Set(orders.map((o: any) => o.customer_code).filter(Boolean)));
-            let customersDict: Record<string, string> = {};
+            const codesJson = await codesRes.json();
+            const rawItems = codesJson.data || [];
 
-            // 3. Fetch Customers
-            if (customerCodes.length > 0) {
-                const codesStr = customerCodes.join(',');
-                const cRes = await fetch(`${DIRECTUS_URL}/items/customer?filter[customer_code][_in]=${encodeURIComponent(codesStr)}&limit=-1`, {
-                    headers: fetchHeaders,
-                });
-                if (cRes.ok) {
-                    const cJson = await cRes.json();
-                    const customers = cJson.data || [];
-                    customers.forEach((c: any) => {
-                        customersDict[c.customer_code] = c.customer_name;
-                    });
+            // Maintain sorting order by using a Set (which keeps insertion order for unique items natively in JS)
+            const uniqueCodesSet = new Set<string>();
+            for (const item of rawItems) {
+                if (item.customer_code) {
+                    uniqueCodesSet.add(item.customer_code);
                 }
             }
 
-            // 4. Map names and group by customer
-            const enrichedOrders = orders.map((o: any) => ({
-                ...o,
-                customer_name: customersDict[o.customer_code] || o.customer_code || "Unknown Customer"
-            }));
+            const allUniqueCodes = Array.from(uniqueCodesSet);
+            const totalCustomers = allUniqueCodes.length;
+            const hasMore = page * limit < totalCustomers;
 
-            // Grouping logic is typically better handled on the frontend so we have raw data to search,
-            // but we will return the raw enriched array.
-            return NextResponse.json({ data: enrichedOrders });
+            // 3. Paginate the Customer Codes
+            const paginatedCodes = allUniqueCodes.slice((page - 1) * limit, page * limit);
+
+            if (paginatedCodes.length === 0) {
+                return NextResponse.json({
+                    data: [],
+                    metadata: { page, limit, total_customers: totalCustomers, hasMore: false }
+                });
+            }
+
+            // 4. Fetch the full orders for THESE specific paginated customers AND that match the original search/status
+            filter._and.push({ customer_code: { _in: paginatedCodes } });
+            const finalFilterParam = `&filter=${encodeURIComponent(JSON.stringify(filter))}`;
+
+            const ordersUrl = `${DIRECTUS_URL}/items/sales_order?${finalFilterParam}&sort=-for_approval_at,-modified_date,-order_id&limit=-1`;
+            const ordersRes = await fetch(ordersUrl, { headers: fetchHeaders });
+            if (!ordersRes.ok) {
+                const errText = await ordersRes.text();
+                return NextResponse.json({ error: "Failed to fetch paginated orders", details: errText }, { status: 500 });
+            }
+
+            const ordersJson = await ordersRes.json();
+            const orders = ordersJson.data || [];
+
+            // 5. Fetch Customer Names for these paginated codes
+            let customersDict: Record<string, string> = {};
+            const cRes = await fetch(`${DIRECTUS_URL}/items/customer?filter[customer_code][_in]=${encodeURIComponent(paginatedCodes.join(','))}&limit=-1`, {
+                headers: fetchHeaders,
+            });
+            if (cRes.ok) {
+                const cJson = await cRes.json();
+                const customers = cJson.data || [];
+                customers.forEach((c: any) => {
+                    customersDict[c.customer_code] = c.customer_name;
+                });
+            }
+
+            // 6. Group the orders by customer perfectly
+            const groupsMap = new Map<string, any>();
+
+            orders.forEach((order: any) => {
+                const code = order.customer_code || "UNKNOWN";
+                if (!groupsMap.has(code)) {
+                    groupsMap.set(code, {
+                        customer_code: code,
+                        customer_name: customersDict[code] || order.customer_name || "Unknown Customer",
+                        orders: [],
+                        total_net_amount: 0
+                    });
+                }
+                const group = groupsMap.get(code)!;
+                // Enforce name on order object too just in case UI uses it
+                order.customer_name = group.customer_name;
+
+                group.orders.push(order);
+                group.total_net_amount += (Number(order.net_amount) || 0);
+            });
+
+            // Re-sort the groups based on the paginatedCodes array to retain original time-based sorting
+            const groupedData = paginatedCodes.map(code => groupsMap.get(code)).filter(Boolean);
+
+            return NextResponse.json({
+                data: groupedData,
+                metadata: { page, limit, total_customers: totalCustomers, hasMore }
+            });
         }
 
         if (type === "payment-summary") {
             const orderIds = req.nextUrl.searchParams.get("orderIds"); // comma separated
             const orderNos = req.nextUrl.searchParams.get("orderNos"); // comma separated
-            console.log("\n[Payment Summary] Requested orderIds:", orderIds);
-            console.log("[Payment Summary] Requested orderNos:", orderNos);
+
             if (!orderIds) return NextResponse.json({ error: "orderIds required" }, { status: 400 });
 
             // 1. Fetch Invoices - First attempt with numeric IDs
             let invUrl = `${DIRECTUS_URL}/items/sales_invoice?filter[order_id][_in]=${encodeURIComponent(orderIds)}&fields=invoice_id,total_amount,net_amount,order_id&limit=-1`;
-            console.log("[Payment Summary] Fetching invoices (Attempt 1):", invUrl);
             let invRes = await fetch(invUrl, { headers: fetchHeaders });
             if (!invRes.ok) return NextResponse.json({ error: "Failed to fetch invoices" }, { status: 500 });
             let invJson = await invRes.json();
@@ -82,15 +167,12 @@ export async function GET(req: NextRequest) {
             // Fallback attempt with orderNos
             if (invoices.length === 0 && orderNos) {
                 invUrl = `${DIRECTUS_URL}/items/sales_invoice?filter[order_id][_in]=${encodeURIComponent(orderNos)}&fields=invoice_id,total_amount,net_amount,order_id&limit=-1`;
-                console.log("[Payment Summary] Fetching invoices (Attempt 2 - Fallback):", invUrl);
                 invRes = await fetch(invUrl, { headers: fetchHeaders });
                 if (invRes.ok) {
                     invJson = await invRes.json();
                     invoices = invJson.data || [];
                 }
             }
-
-            console.log(`[Payment Summary] Found ${invoices.length} invoices.`, invoices);
 
             let invoiceTotal = 0;
             const invoiceIds: number[] = [];
@@ -106,24 +188,18 @@ export async function GET(req: NextRequest) {
             if (invoiceIds.length > 0) {
                 const idsStr = invoiceIds.join(',');
                 const payUrl = `${DIRECTUS_URL}/items/sales_invoice_payments?filter[invoice_id][_in]=${encodeURIComponent(idsStr)}&fields=paid_amount&limit=-1`;
-                console.log("[Payment Summary] Fetching payments:", payUrl);
                 const payRes = await fetch(payUrl, { headers: fetchHeaders });
                 if (payRes.ok) {
                     const payJson = await payRes.json();
                     const payments = payJson.data || [];
-                    console.log(`[Payment Summary] Found ${payments.length} payments.`, payments);
                     for (const payment of payments) {
                         paidTotal += Number(payment.paid_amount ?? 0);
                     }
                 }
-            } else {
-                console.log("[Payment Summary] No invoice IDs found to fetch payments.");
             }
 
             let unpaidTotal = invoiceTotal - paidTotal;
             if (unpaidTotal < 0) unpaidTotal = 0; // Safety check
-
-            console.log(`[Payment Summary] Calculated totals => Invoice: ${invoiceTotal}, Paid: ${paidTotal}, Unpaid: ${unpaidTotal}`);
 
             return NextResponse.json({
                 data: {

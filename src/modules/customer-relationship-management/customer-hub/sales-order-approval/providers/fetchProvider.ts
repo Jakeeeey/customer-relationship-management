@@ -1,8 +1,16 @@
-export async function getPendingOrders(status: string = "For Approval") {
-    const res = await fetch(`/api/crm/customer-hub/sales-order-approval?type=orders&status=${encodeURIComponent(status)}`);
+export async function getPendingOrders(status: string = "For Approval", search: string = "", page: number = 1, limit: number = 50) {
+    const params = new URLSearchParams({
+        type: "orders",
+        status,
+        search,
+        page: page.toString(),
+        limit: limit.toString()
+    });
+
+    const res = await fetch(`/api/crm/customer-hub/sales-order-approval?${params.toString()}`);
     if (!res.ok) throw new Error("Failed to fetch pending orders");
     const json = await res.json();
-    return json.data || [];
+    return json; // Returns { data, metadata: { page, limit, total_customers, hasMore } }
 }
 
 export async function getPaymentSummary(orderIds: (string | number)[], orderNos: string[] = []) {

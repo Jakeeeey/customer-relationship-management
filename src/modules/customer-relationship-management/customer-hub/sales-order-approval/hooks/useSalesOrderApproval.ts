@@ -23,18 +23,36 @@ export interface CustomerGroup {
 }
 
 export function useSalesOrderApproval() {
-    const [orders, setOrders] = useState<SalesOrder[]>([]);
+    const [groupedCustomers, setGroupedCustomers] = useState<CustomerGroup[]>([]);
     const [loadingOrders, setLoadingOrders] = useState(false);
+    const [loadingMore, setLoadingMore] = useState(false);
+    const [page, setPage] = useState(1);
+    const [hasMore, setHasMore] = useState(true);
 
     // Filters
     const [statusFilter, setStatusFilter] = useState("For Approval");
     const [searchTerm, setSearchTerm] = useState("");
 
-    const fetchOrders = useCallback(async () => {
-        setLoadingOrders(true);
+    const fetchOrders = async (isLoadMore = false, currentSearch = searchTerm, currentStatus = statusFilter, currentPage = page) => {
+        const fetchPage = isLoadMore ? currentPage + 1 : 1;
+
+        if (isLoadMore) {
+            setLoadingMore(true);
+        } else {
+            setLoadingOrders(true);
+        }
+
         try {
-            const data = await getPendingOrders(statusFilter);
-            setOrders(data);
+            const result = await getPendingOrders(currentStatus, currentSearch, fetchPage, 30);
+
+            if (isLoadMore) {
+                setGroupedCustomers(prev => [...prev, ...result.data]);
+            } else {
+                setGroupedCustomers(result.data);
+            }
+
+            setPage(result.metadata.page);
+            setHasMore(result.metadata.hasMore);
         } catch (error) {
             console.error(error);
             toast.error("Error fetching orders", {
@@ -42,12 +60,18 @@ export function useSalesOrderApproval() {
             });
         } finally {
             setLoadingOrders(false);
+            setLoadingMore(false);
         }
-    }, [statusFilter]);
+    };
 
+    // Debounce search and status changes
     useEffect(() => {
-        fetchOrders();
-    }, [fetchOrders]);
+        const timeoutId = setTimeout(() => {
+            fetchOrders(false, searchTerm, statusFilter, 1);
+        }, 400); // 400ms debounce
+        return () => clearTimeout(timeoutId);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [statusFilter, searchTerm]);
 
     const handleApproveBulk = async (orderIds: (string | number)[]) => {
         try {
@@ -55,7 +79,8 @@ export function useSalesOrderApproval() {
             toast.success("Orders Approved", {
                 description: `Successfully moved ${orderIds.length} order(s) to For Consolidation.`,
             });
-            fetchOrders(); // Refresh grouped list
+            // Refresh from page 1
+            fetchOrders(false, searchTerm, statusFilter, 1);
             return true;
         } catch (error) {
             toast.error("Error", {
@@ -65,49 +90,22 @@ export function useSalesOrderApproval() {
         }
     };
 
-    // Prepare Customer Groups Data based on Filters
-    const groupedCustomers = useMemo(() => {
-        let filteredOrders = orders;
-
-        if (searchTerm.trim() !== "") {
-            const lowerTerm = searchTerm.toLowerCase();
-            filteredOrders = orders.filter(o =>
-                o.customer_code?.toLowerCase().includes(lowerTerm) ||
-                o.customer_name?.toLowerCase().includes(lowerTerm) ||
-                o.order_no?.toLowerCase().includes(lowerTerm) ||
-                o.po_no?.toLowerCase().includes(lowerTerm)
-            );
+    const loadNextPage = () => {
+        if (!loadingMore && hasMore && !loadingOrders) {
+            fetchOrders(true, searchTerm, statusFilter, page);
         }
+    };
 
-        const groupsMap = new Map<string, CustomerGroup>();
-
-        filteredOrders.forEach(order => {
-            const code = order.customer_code || "UNKNOWN";
-            if (!groupsMap.has(code)) {
-                groupsMap.set(code, {
-                    customer_code: code,
-                    customer_name: order.customer_name,
-                    orders: [],
-                    total_net_amount: 0
-                });
-            }
-
-            const group = groupsMap.get(code)!;
-            group.orders.push(order);
-            group.total_net_amount += (Number(order.net_amount) || 0);
-        });
-
-        // Convert Map to Array
-        return Array.from(groupsMap.values());
-
-    }, [orders, searchTerm]);
-
-    const refreshOrders = () => fetchOrders();
+    const refreshOrders = () => fetchOrders(false, searchTerm, statusFilter, 1);
 
     return {
-        orders,
-        loadingOrders,
+        // We no longer strictly need the flat orders list, but if UI expects it we could flatten it.
+        // For now, the hook only returns groupedCustomers.
         groupedCustomers,
+        loadingOrders,
+        loadingMore,
+        hasMore,
+        loadNextPage,
         statusFilter,
         setStatusFilter,
         searchTerm,

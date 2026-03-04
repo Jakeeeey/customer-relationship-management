@@ -1,10 +1,10 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useSalesOrderApproval, CustomerGroup } from "./hooks/useSalesOrderApproval";
 import { CustomerGroupCard } from "./components/CustomerGroupCard";
 import { ApprovalDrawer } from "./components/ApprovalDrawer";
-import { RefreshCw, Search } from "lucide-react";
+import { RefreshCw, Search, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -19,6 +19,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 export default function SalesOrderApprovalModule() {
     const {
         loadingOrders,
+        loadingMore,
+        hasMore,
+        loadNextPage,
         groupedCustomers,
         statusFilter,
         setStatusFilter,
@@ -29,6 +32,24 @@ export default function SalesOrderApprovalModule() {
     } = useSalesOrderApproval();
 
     const [selectedGroup, setSelectedGroup] = useState<CustomerGroup | null>(null);
+    const observerTarget = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        const observer = new IntersectionObserver(
+            entries => {
+                if (entries[0].isIntersecting && hasMore && !loadingMore && !loadingOrders) {
+                    loadNextPage();
+                }
+            },
+            { rootMargin: "100px" } // trigger slightly before reaching bottom
+        );
+
+        if (observerTarget.current) {
+            observer.observe(observerTarget.current);
+        }
+
+        return () => observer.disconnect();
+    }, [hasMore, loadingMore, loadingOrders, loadNextPage]);
 
     return (
         <div className="flex flex-col gap-6 max-w-5xl mx-auto w-full">
@@ -110,6 +131,24 @@ export default function SalesOrderApprovalModule() {
                         />
                     ))}
                 </div>
+            )}
+
+            {/* Infinite Scroll Target */}
+            {hasMore ? (
+                <div ref={observerTarget} className="flex justify-center p-6">
+                    {(loadingMore || loadingOrders) && (
+                        <div className="flex items-center gap-2 text-muted-foreground">
+                            <Loader2 className="h-5 w-5 animate-spin" />
+                            <span className="text-sm">Loading more...</span>
+                        </div>
+                    )}
+                </div>
+            ) : (
+                groupedCustomers.length > 0 && (
+                    <div className="flex justify-center p-6 text-sm text-muted-foreground">
+                        No more orders to load.
+                    </div>
+                )
             )}
 
             <ApprovalDrawer
