@@ -91,9 +91,6 @@ export function generateCallSheetPDF({ customer, supplier, products, salesman, a
 
     const tableBody = products.map((p) => {
         let productName = p.display_name || "Unnamed Product";
-        if (p.parent_product && p.parent_product.product_name) {
-            productName += `\n(Parent: ${p.parent_product.product_name})`;
-        }
         return [
             productName,
             "0.0", // MO AVG

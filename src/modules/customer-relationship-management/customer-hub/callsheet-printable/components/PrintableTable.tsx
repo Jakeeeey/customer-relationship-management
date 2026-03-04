@@ -75,11 +75,6 @@ export function PrintableTable({ supplier, products, loadingProducts }: Printabl
                                 <tr key={p.product_id || i} className="border-t print:border-gray-300">
                                     <td className="p-3 print:p-1 max-w-[200px] truncate" title={p.display_name}>
                                         <div className="font-medium">{p.display_name || "Unnamed Product"}</div>
-                                        {p.parent_product && p.parent_product.product_name && (
-                                            <div className="text-[11px] print:text-[8px] text-muted-foreground mt-0.5" title={`Parent: ${p.parent_product.product_name}`}>
-                                                Parent: {p.parent_product.product_name}
-                                            </div>
-                                        )}
                                     </td>
                                     <td className="p-3 print:p-1 text-center border-l print:border-l-0">0.0</td>
                                     <td className="p-0 border-l print:border-black">
