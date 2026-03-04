@@ -12,7 +12,7 @@ import { NavUser } from "../../_components/nav-user";
 
 import { cookies } from "next/headers";
 
-import ComingSoon from "../../_components/ComingSoon";
+import CallSheetPrintableModule from "@/modules/customer-relationship-management/customer-hub/callsheet-printable/CallSheetPrintableModule";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -80,9 +80,9 @@ export default async function Page() {
 
     return (
         // ✅ This fills the RIGHT column provided by SidebarInset (which is now fixed-height).
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden print:overflow-visible">
             {/* ✅ Topbar is fixed in place because ONLY <main> scrolls */}
-            <header className="relative z-10 flex h-14 shrink-0 items-center justify-between border-b shadow-sm bg-background sm:h-16 overflow-hidden">
+            <header className="relative z-10 flex h-14 shrink-0 items-center justify-between border-b shadow-sm bg-background sm:h-16 overflow-hidden print:hidden">
                 <div className="flex h-full min-w-0 items-center gap-2 px-3 sm:px-4 overflow-hidden">
                     <SidebarTrigger className="-ml-1 shrink-0" />
 
@@ -114,8 +114,8 @@ export default async function Page() {
             </header>
 
             {/* ✅ Only content scrolls inside RIGHT column */}
-            <main className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden p-2 sm:p-4">
-                <ComingSoon />
+            <main className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden p-2 sm:p-4 print:overflow-visible print:absolute print:inset-0 print:bg-white print:text-black">
+                <CallSheetPrintableModule />
             </main>
         </div>
     );
