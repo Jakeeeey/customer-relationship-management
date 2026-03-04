@@ -12,10 +12,8 @@ import { NavUser } from "../../_components/nav-user";
 
 import { cookies } from "next/headers";
 
-import ComingSoon from "../../_components/ComingSoon";
-import SalesOrderModule from "@/modules/customer-relationship-management/customer-hub/sales-order/SalesOrderModule";
+import SalesOrderReportModule from "@/modules/customer-relationship-management/customer-hub/sales-order-report/SalesOrderReportModule";
 
-export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const COOKIE_NAME = "vos_access_token";
@@ -116,7 +114,7 @@ export default async function Page() {
 
             {/* ✅ Only content scrolls inside RIGHT column */}
             <main className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden p-6 sm:p-8">
-                <SalesOrderModule />
+                <SalesOrderReportModule />
             </main>
         </div>
     );
