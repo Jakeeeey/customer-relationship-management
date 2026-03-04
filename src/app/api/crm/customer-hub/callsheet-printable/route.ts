@@ -20,7 +20,23 @@ export async function GET(req: NextRequest) {
             });
             if (!res.ok) return NextResponse.json({ error: "Failed to fetch salesmen" }, { status: 500 });
             const json = await res.json();
-            return NextResponse.json({ data: json.data || [] });
+            const smData = json.data || [];
+
+            const userIds = new Set<string>();
+            smData.forEach((s: any) => {
+                if (s.employee_id) userIds.add(s.employee_id.toString());
+                else if (s.encoder_id) userIds.add(s.encoder_id.toString());
+            });
+
+            if (userIds.size === 0) return NextResponse.json({ data: [] });
+
+            const idsStr = Array.from(userIds).join(',');
+            const uRes = await fetch(`${DIRECTUS_URL}/items/user?filter[user_id][_in]=${idsStr}&limit=-1`, {
+                headers: fetchHeaders,
+            });
+            if (!uRes.ok) return NextResponse.json({ error: "Failed to fetch users" }, { status: 500 });
+            const uJson = await uRes.json();
+            return NextResponse.json({ data: uJson.data || [] });
         }
 
         if (type === "accounts") {

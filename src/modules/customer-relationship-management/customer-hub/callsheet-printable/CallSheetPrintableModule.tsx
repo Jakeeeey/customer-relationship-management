@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogTitle, DialogHeader } from "@/components/u
 import { generateCallSheetPDF } from "./utils/generatePDF";
 import { useEffect, useState } from "react";
 
-export default function CallSheetPrintableModule({ initialSalesmen }: { initialSalesmen: any[] }) {
+export default function CallSheetPrintableModule() {
     const [printDate, setPrintDate] = useState<string>("");
 
     useEffect(() => {
@@ -36,7 +36,7 @@ export default function CallSheetPrintableModule({ initialSalesmen }: { initialS
         handleAccountChange,
         handleCustomerChange,
         handleSupplierChange
-    } = useCallSheetForm(initialSalesmen);
+    } = useCallSheetForm();
 
     const handlePreview = () => {
         if (!selectedCustomer || !selectedSupplier) return;

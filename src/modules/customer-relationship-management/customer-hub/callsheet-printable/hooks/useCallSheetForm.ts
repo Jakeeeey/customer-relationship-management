@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
-export function useCallSheetForm(initialSalesmen: any[]) {
-    const [salesmen] = useState<any[]>(initialSalesmen);
+export function useCallSheetForm() {
+    const [salesmen, setSalesmen] = useState<any[]>([]);
     const [selectedSalesman, setSelectedSalesman] = useState<any | null>(null);
 
     const [accounts, setAccounts] = useState<any[]>([]);
@@ -18,6 +18,19 @@ export function useCallSheetForm(initialSalesmen: any[]) {
 
     const [products, setProducts] = useState<any[]>([]);
     const [loadingProducts, setLoadingProducts] = useState(false);
+
+    useEffect(() => {
+        const fetchInitialSalesmen = async () => {
+            try {
+                const res = await fetch(`/api/crm/customer-hub/callsheet-printable?type=salesmen`);
+                const json = await res.json();
+                setSalesmen(json.data || []);
+            } catch (error) {
+                console.error("Failed to fetch salesmen:", error);
+            }
+        };
+        fetchInitialSalesmen();
+    }, []);
 
     const handleSalesmanChange = async (val: string) => {
         const salesman = salesmen.find(s => s.user_id?.toString() === val);
