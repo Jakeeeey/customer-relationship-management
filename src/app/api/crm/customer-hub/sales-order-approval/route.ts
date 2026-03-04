@@ -18,7 +18,13 @@ export async function GET(req: NextRequest) {
             const statusFilter = req.nextUrl.searchParams.get("status") || "For Approval";
 
             // 1. Fetch Sales Orders
-            const ordersRes = await fetch(`${DIRECTUS_URL}/items/sales_order?filter[order_status][_eq]=${encodeURIComponent(statusFilter)}&sort=-for_approval_at,-modified_date,-order_id&limit=-1`, {
+            let url = `${DIRECTUS_URL}/items/sales_order?sort=-for_approval_at,-modified_date,-order_id&limit=-1`;
+
+            if (statusFilter !== "All") {
+                url = `${DIRECTUS_URL}/items/sales_order?filter[order_status][_eq]=${encodeURIComponent(statusFilter)}&sort=-for_approval_at,-modified_date,-order_id&limit=-1`;
+            }
+
+            const ordersRes = await fetch(url, {
                 headers: fetchHeaders,
             });
 
@@ -60,39 +66,64 @@ export async function GET(req: NextRequest) {
 
         if (type === "payment-summary") {
             const orderIds = req.nextUrl.searchParams.get("orderIds"); // comma separated
+            const orderNos = req.nextUrl.searchParams.get("orderNos"); // comma separated
+            console.log("\n[Payment Summary] Requested orderIds:", orderIds);
+            console.log("[Payment Summary] Requested orderNos:", orderNos);
             if (!orderIds) return NextResponse.json({ error: "orderIds required" }, { status: 400 });
 
-            // 1. Fetch Invoices
-            const invRes = await fetch(`${DIRECTUS_URL}/items/sales_invoice?filter[order_id][_in]=${encodeURIComponent(orderIds)}&limit=-1`, {
-                headers: fetchHeaders,
-            });
+            // 1. Fetch Invoices - First attempt with numeric IDs
+            let invUrl = `${DIRECTUS_URL}/items/sales_invoice?filter[order_id][_in]=${encodeURIComponent(orderIds)}&fields=invoice_id,total_amount,net_amount,order_id&limit=-1`;
+            console.log("[Payment Summary] Fetching invoices (Attempt 1):", invUrl);
+            let invRes = await fetch(invUrl, { headers: fetchHeaders });
             if (!invRes.ok) return NextResponse.json({ error: "Failed to fetch invoices" }, { status: 500 });
-            const invJson = await invRes.json();
-            const invoices = invJson.data || [];
+            let invJson = await invRes.json();
+            let invoices = invJson.data || [];
 
-            if (invoices.length === 0) {
-                return NextResponse.json({ data: { invoiceTotal: 0, paidTotal: 0, unpaidTotal: 0 } });
+            // Fallback attempt with orderNos
+            if (invoices.length === 0 && orderNos) {
+                invUrl = `${DIRECTUS_URL}/items/sales_invoice?filter[order_id][_in]=${encodeURIComponent(orderNos)}&fields=invoice_id,total_amount,net_amount,order_id&limit=-1`;
+                console.log("[Payment Summary] Fetching invoices (Attempt 2 - Fallback):", invUrl);
+                invRes = await fetch(invUrl, { headers: fetchHeaders });
+                if (invRes.ok) {
+                    invJson = await invRes.json();
+                    invoices = invJson.data || [];
+                }
             }
 
-            const invoiceTotal = invoices.reduce((sum: number, inv: any) => sum + (Number(inv.net_amount) || 0), 0);
+            console.log(`[Payment Summary] Found ${invoices.length} invoices.`, invoices);
 
-            const invoiceIds = invoices.map((i: any) => i.invoice_id).filter(Boolean);
+            let invoiceTotal = 0;
+            const invoiceIds: number[] = [];
+
+            for (const inv of invoices) {
+                if (inv.invoice_id) invoiceIds.push(inv.invoice_id);
+                invoiceTotal += Number(inv.total_amount ?? inv.net_amount ?? 0);
+            }
+
             let paidTotal = 0;
 
             // 2. Fetch Payments
             if (invoiceIds.length > 0) {
                 const idsStr = invoiceIds.join(',');
-                const payRes = await fetch(`${DIRECTUS_URL}/items/sales_invoice_payments?filter[invoice_id][_in]=${encodeURIComponent(idsStr)}&limit=-1`, {
-                    headers: fetchHeaders,
-                });
+                const payUrl = `${DIRECTUS_URL}/items/sales_invoice_payments?filter[invoice_id][_in]=${encodeURIComponent(idsStr)}&fields=paid_amount&limit=-1`;
+                console.log("[Payment Summary] Fetching payments:", payUrl);
+                const payRes = await fetch(payUrl, { headers: fetchHeaders });
                 if (payRes.ok) {
                     const payJson = await payRes.json();
                     const payments = payJson.data || [];
-                    paidTotal = payments.reduce((sum: number, pay: any) => sum + (Number(pay.paid_amount) || 0), 0);
+                    console.log(`[Payment Summary] Found ${payments.length} payments.`, payments);
+                    for (const payment of payments) {
+                        paidTotal += Number(payment.paid_amount ?? 0);
+                    }
                 }
+            } else {
+                console.log("[Payment Summary] No invoice IDs found to fetch payments.");
             }
 
-            const unpaidTotal = Math.max(0, invoiceTotal - paidTotal);
+            let unpaidTotal = invoiceTotal - paidTotal;
+            if (unpaidTotal < 0) unpaidTotal = 0; // Safety check
+
+            console.log(`[Payment Summary] Calculated totals => Invoice: ${invoiceTotal}, Paid: ${paidTotal}, Unpaid: ${unpaidTotal}`);
 
             return NextResponse.json({
                 data: {

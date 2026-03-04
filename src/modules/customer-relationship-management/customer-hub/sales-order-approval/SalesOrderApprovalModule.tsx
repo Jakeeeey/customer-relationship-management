@@ -69,9 +69,18 @@ export default function SalesOrderApprovalModule() {
                             <SelectValue placeholder="Status" />
                         </SelectTrigger>
                         <SelectContent>
+                            <SelectItem value="All">All Statuses</SelectItem>
                             <SelectItem value="For Approval">For Approval</SelectItem>
                             <SelectItem value="For Consolidation">For Consolidation</SelectItem>
-                            <SelectItem value="Approved">Approved</SelectItem>
+                            <SelectItem value="For Picking">For Picking</SelectItem>
+                            <SelectItem value="For Invoicing">For Invoicing</SelectItem>
+                            <SelectItem value="For Loading">For Loading</SelectItem>
+                            <SelectItem value="For Shipping">For Shipping</SelectItem>
+                            <SelectItem value="En Route">En Route</SelectItem>
+                            <SelectItem value="Delivered">Delivered</SelectItem>
+                            <SelectItem value="On Hold">On Hold</SelectItem>
+                            <SelectItem value="Cancelled">Cancelled</SelectItem>
+                            <SelectItem value="Not Fulfilled">Not Fulfilled</SelectItem>
                         </SelectContent>
                     </Select>
                 </div>
