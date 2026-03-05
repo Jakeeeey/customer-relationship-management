@@ -1,13 +1,12 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { SalesOrder, SalesOrderDetail, Customer, Salesman, Branch, Supplier } from "./types";
+import { SalesOrder, Customer, Salesman, Branch, Supplier } from "./types";
 import { fetchSalesOrderData } from "./providers/fetchProvider";
 import { SalesOrderFormFields } from "./components/SalesOrderFormFields";
 import { SalesOrderTable } from "./components/SalesOrderTable";
 import { SalesOrderSummary } from "./components/SalesOrderSummary";
-import { Button } from "@/components/ui/button";
-import { Package2, Plus, Loader2 } from "lucide-react";
+import { Package2 } from "lucide-react";
 
 import { SalesOrderSkeleton } from "./components/SalesOrderSkeleton";
 
@@ -15,7 +14,6 @@ export default function SalesOrderReportModule() {
     const [loading, setLoading] = useState(false);
     const [salesOrders, setSalesOrders] = useState<SalesOrder[]>([]);
     const [order, setOrder] = useState<Partial<SalesOrder>>({});
-    const [details, setDetails] = useState<SalesOrderDetail[]>([]);
     const [customers, setCustomers] = useState<Customer[]>([]);
     const [salesmen, setSalesmen] = useState<Salesman[]>([]);
     const [branches, setBranches] = useState<Branch[]>([]);
@@ -32,7 +30,7 @@ export default function SalesOrderReportModule() {
         dueDate: "",
     });
 
-    const loadData = async (page: number, filtersToUse: any) => {
+    const loadData = async (page: number, filtersToUse: Record<string, string>) => {
         const hasDateFilter = filtersToUse.dateCreated ||
             filtersToUse.orderDate ||
             filtersToUse.deliveryDate ||
@@ -42,7 +40,6 @@ export default function SalesOrderReportModule() {
             setSalesOrders([]);
             setTotalOrders(0);
             setOrder({});
-            setDetails([]);
             setLoading(false);
             return;
         }
@@ -51,7 +48,7 @@ export default function SalesOrderReportModule() {
         try {
             // Clean up empty filters
             const activeFilters = Object.fromEntries(
-                Object.entries(filtersToUse).filter(([_, v]) => v !== "")
+                Object.entries(filtersToUse).filter(([, v]) => v !== "")
             ) as Record<string, string>;
 
             const data = await fetchSalesOrderData(page, pageSize, activeFilters);
@@ -61,8 +58,6 @@ export default function SalesOrderReportModule() {
             if (data.salesOrders.length > 0) {
                 // By default, select the first order if none is currently selected 
                 setOrder(data.salesOrders[0]);
-                // Set details to empty as we're not fetching them for now
-                setDetails([]);
 
                 setCustomers(data.customers);
                 setSalesmen(data.salesmen);
@@ -70,16 +65,15 @@ export default function SalesOrderReportModule() {
                 setSuppliers(data.suppliers);
             } else {
                 setOrder({});
-                setDetails([]);
             }
-        } catch (err: any) {
-            setError(err.message);
+        } catch (err: unknown) {
+            setError(err instanceof Error ? err.message : "An unknown error occurred");
         } finally {
             setLoading(false);
         }
     };
 
-    const handleSearch = (newFilters: any) => {
+    const handleSearch = (newFilters: typeof appliedFilters) => {
         setAppliedFilters(newFilters);
         setCurrentPage(1); // Reset to first page on new search
     };
@@ -118,7 +112,6 @@ export default function SalesOrderReportModule() {
             {/* Form Fields */}
             <section className="bg-card rounded-xl border p-6 shadow-sm">
                 <SalesOrderFormFields
-                    order={order}
                     appliedFilters={appliedFilters}
                     onSearch={handleSearch}
                 />

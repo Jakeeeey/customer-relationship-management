@@ -97,7 +97,7 @@ export async function GET(req: NextRequest) {
 
         // Fetch all bank accounts for enrichment (mapping is done client-side for now)
         // Note: For large datasets, this should be optimized to only fetch relevant accounts
-        const bankAccounts = await fetchAll<any>(COLLECTIONS.BANK_ACCOUNTS);
+        const bankAccounts = await fetchAll<Record<string, unknown>>(COLLECTIONS.BANK_ACCOUNTS);
 
         return NextResponse.json({
             customers: customersJson.data || [],

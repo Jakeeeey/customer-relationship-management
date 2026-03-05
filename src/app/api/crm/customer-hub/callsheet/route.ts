@@ -63,10 +63,10 @@ export async function GET(req: NextRequest) {
         );
 
         // Enrich each record with resolved names
-        const enriched = (attachmentJson.data || []).map((row: any) => ({
+        const enriched = (attachmentJson.data || []).map((row: Record<string, unknown>) => ({
             ...row,
-            salesman_name: salesmanMap.get(row.salesman_id) ?? `Salesman #${row.salesman_id}`,
-            customer_name: customerMap.get(row.customer_code) ?? row.customer_code,
+            salesman_name: salesmanMap.get(row.salesman_id as number) ?? `Salesman #${row.salesman_id}`,
+            customer_name: customerMap.get(row.customer_code as string) ?? row.customer_code,
         }));
 
         return NextResponse.json({

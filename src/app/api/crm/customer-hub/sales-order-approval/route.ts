@@ -21,7 +21,7 @@ export async function GET(req: NextRequest) {
             const limit = parseInt(req.nextUrl.searchParams.get("limit") || "30", 10);
 
             // 1. Build Directus Filter
-            let filter: any = { _and: [] };
+            const filter: { _and: Record<string, unknown>[] } = { _and: [] };
 
             if (statusFilter !== "All") {
                 filter._and.push({ order_status: { _eq: statusFilter } });
@@ -37,13 +37,13 @@ export async function GET(req: NextRequest) {
                     });
                     if (cMatchRes.ok) {
                         const cMatchJson = await cMatchRes.json();
-                        matchingCustomerCodes = (cMatchJson.data || []).map((c: any) => c.customer_code).filter(Boolean);
+                        matchingCustomerCodes = (cMatchJson.data || []).map((c: { customer_code: string }) => c.customer_code).filter(Boolean);
                     }
                 } catch (e) {
                     console.error("Search customer match error:", e);
                 }
 
-                const orConditions: any[] = [
+                const orConditions: Record<string, unknown>[] = [
                     { customer_code: { _icontains: search } },
                     { order_no: { _icontains: search } },
                     { po_no: { _icontains: search } }
@@ -109,27 +109,27 @@ export async function GET(req: NextRequest) {
             const orders = ordersJson.data || [];
 
             // 5. Fetch Customer Names for these paginated codes
-            let customersDict: Record<string, string> = {};
+            const customersDict: Record<string, string> = {};
             const cRes = await fetch(`${DIRECTUS_URL}/items/customer?filter[customer_code][_in]=${encodeURIComponent(paginatedCodes.join(','))}&limit=-1`, {
                 headers: fetchHeaders,
             });
             if (cRes.ok) {
                 const cJson = await cRes.json();
                 const customers = cJson.data || [];
-                customers.forEach((c: any) => {
+                customers.forEach((c: { customer_code: string, customer_name: string }) => {
                     customersDict[c.customer_code] = c.customer_name;
                 });
             }
 
             // 6. Group the orders by customer perfectly
-            const groupsMap = new Map<string, any>();
+            const groupsMap = new Map<string, { customer_code: string, customer_name: string, orders: Record<string, unknown>[], total_net_amount: number }>();
 
-            orders.forEach((order: any) => {
-                const code = order.customer_code || "UNKNOWN";
+            orders.forEach((order: Record<string, unknown>) => {
+                const code = (order.customer_code as string) || "UNKNOWN";
                 if (!groupsMap.has(code)) {
                     groupsMap.set(code, {
                         customer_code: code,
-                        customer_name: customersDict[code] || order.customer_name || "Unknown Customer",
+                        customer_name: (customersDict[code] as string) || (order.customer_name as string) || "Unknown Customer",
                         orders: [],
                         total_net_amount: 0
                     });
@@ -220,7 +220,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
     try {
         const body = await req.json();
-        const { orderIds, action } = body; // action = "approve" | "reject"
+        const { orderIds } = body; // action = "approve" | "reject"
 
         // We only implement Approve -> For Consolidation right now, based on instructions:
         if (!orderIds || !Array.isArray(orderIds) || orderIds.length === 0) {

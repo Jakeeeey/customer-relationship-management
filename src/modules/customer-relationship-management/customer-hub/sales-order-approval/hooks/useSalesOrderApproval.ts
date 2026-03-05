@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect } from "react";
 import { getPendingOrders, approveOrders } from "../providers/fetchProvider";
 import { toast } from "sonner";
 
@@ -82,7 +82,7 @@ export function useSalesOrderApproval() {
             // Refresh from page 1
             fetchOrders(false, searchTerm, statusFilter, 1);
             return true;
-        } catch (error) {
+        } catch {
             toast.error("Error", {
                 description: "Failed to approve the orders. Please try again.",
             });
