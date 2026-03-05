@@ -185,7 +185,7 @@ export default function CallSheetModule() {
                     pageSize={pageSize}
                     onPageChange={setPage}
                     onFileClick={handleFileClick}
-                    onCreateSalesOrder={(row) => router.push("/crm/customer-hub/sales-order")}
+                    onCreateSalesOrder={() => router.push("/crm/customer-hub/sales-order")}
                 />
             </div>
 

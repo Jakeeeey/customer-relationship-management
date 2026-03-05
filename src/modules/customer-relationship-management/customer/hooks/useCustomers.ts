@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState, useCallback, useMemo, useRef } from "react";
-import type { CustomerWithRelations, Customer, BankAccount, CustomersAPIResponse } from "../types";
+import { useEffect, useState, useCallback, useRef } from "react";
+import type { CustomerWithRelations, Customer, BankAccount, CustomersAPIResponse, ReferenceItem } from "../types";
 
 interface UseCustomersReturn {
     customers: CustomerWithRelations[];
@@ -18,15 +18,16 @@ interface UseCustomersReturn {
     setPageSize: (pageSize: number) => void;
     setSearchQuery: (query: string) => void;
     setStatusFilter: (status: string) => void;
+    userMapping: Record<number, string>;
     refetch: () => Promise<void>;
     createCustomer: (data: Partial<Customer>) => Promise<void>;
     updateCustomer: (id: number, data: Partial<Customer>) => Promise<void>;
-    deleteCustomer: (id: number) => Promise<void>;
 }
 
 export function useCustomers(): UseCustomersReturn {
     const [allCustomers, setAllCustomers] = useState<CustomerWithRelations[]>([]);
     const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([]);
+    const [userMapping, setUserMapping] = useState<Record<number, string>>({});
     const [isLoading, setIsLoading] = useState(true);
     const [isError, setIsError] = useState(false);
     const [error, setError] = useState<Error | null>(null);
@@ -62,17 +63,34 @@ export function useCustomers(): UseCustomersReturn {
                 t: Date.now().toString()
             });
 
-            const res = await fetch(`/api/crm/customer?${params.toString()}`, { cache: "no-store" });
+            // Parallel fetch for customers and user mapping if not loaded
+            const [customerRes, userRes] = await Promise.all([
+                fetch(`/api/crm/customer?${params.toString()}`, { cache: "no-store" }),
+                fetch("/api/crm/customer/references?type=user", { cache: "no-store" })
+            ]);
 
-            if (!res.ok) {
-                throw new Error(`API error: ${res.status}`);
+            if (!customerRes.ok) {
+                throw new Error(`API error: ${customerRes.status}`);
             }
 
-            const data: CustomersAPIResponse = await res.json();
-
+            const data: CustomersAPIResponse = await customerRes.json();
             setAllCustomers(data.customers || []);
             setBankAccounts(data.bank_accounts || []);
             setMetadata(data.metadata);
+
+            if (userRes.ok) {
+                const userData = await userRes.json();
+                const mapping: Record<number, string> = {};
+                (userData.data || []).forEach((u: ReferenceItem) => {
+                    const fullName = [u.user_fname, u.user_mname, u.user_lname].filter(Boolean).join(" ");
+                    const uid = u.id || u.user_id;
+                    if (uid) {
+                        mapping[uid] = fullName || `User #${uid}`;
+                    }
+                });
+                setUserMapping(mapping);
+            }
+
             hasLoadedRef.current = true;
 
         } catch (err) {
@@ -135,29 +153,12 @@ export function useCustomers(): UseCustomersReturn {
         }
     }, [fetchData]);
 
-    const deleteCustomer = useCallback(async (id: number) => {
-        try {
-            const res = await fetch(`/api/crm/customer?id=${id}`, {
-                method: "DELETE"
-            });
-
-            if (!res.ok) {
-                const errorData = await res.json().catch(() => ({}));
-                throw new Error(errorData.message || `Server error: ${res.status}`);
-            }
-
-            await fetchData(true);
-        } catch (err) {
-            console.error('Delete customer error:', err);
-            throw err;
-        }
-    }, [fetchData]);
-
     const refetch = useCallback(() => fetchData(true), [fetchData]);
 
     return {
         customers: allCustomers,
         bankAccounts,
+        userMapping,
         isLoading,
         isError,
         error,
@@ -173,6 +174,5 @@ export function useCustomers(): UseCustomersReturn {
         refetch,
         createCustomer,
         updateCustomer,
-        deleteCustomer,
     };
 }

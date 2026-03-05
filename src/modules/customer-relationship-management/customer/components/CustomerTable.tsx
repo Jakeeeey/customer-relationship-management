@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useMemo } from "react";
+import React, { useEffect, useState } from "react";
 import {
     Table,
     TableBody,
@@ -22,17 +22,10 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
-    MoreHorizontal,
-    Pencil,
-    Trash2,
     Search,
     Filter,
     UserPlus,
-    Building2,
-    Mail,
-    Phone,
     X,
-    CreditCard,
     Loader2,
     ChevronLeft,
     ChevronRight,
@@ -61,18 +54,18 @@ interface CustomerTableProps {
     pageSize: number;
     searchQuery: string;
     statusFilter: string;
+    userMapping: Record<number, string>;
     onPageChange: (page: number) => void;
     onPageSizeChange: (pageSize: number) => void;
     onSearchChange: (query: string) => void;
     onStatusChange: (status: string) => void;
     onCreate: (data: Partial<CustomerWithRelations>) => Promise<void>;
     onUpdate: (id: number, data: Partial<CustomerWithRelations>) => Promise<void>;
-    onDelete: (id: number) => Promise<void>;
 }
 
 export function CustomerTable({
     data,
-    bankAccounts,
+    userMapping,
     isLoading,
     metadata,
     page,
@@ -85,7 +78,6 @@ export function CustomerTable({
     onStatusChange,
     onCreate,
     onUpdate,
-    onDelete,
 }: CustomerTableProps) {
     const [localSearchQuery, setLocalSearchQuery] = useState(parentSearchQuery);
     const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -203,9 +195,11 @@ export function CustomerTable({
                             <TableHead className="w-[80px] px-2">Code</TableHead>
                             <TableHead className="w-[200px] px-2">Customer Name</TableHead>
                             <TableHead className="w-[180px] px-2">Store Details</TableHead>
+                            <TableHead className="w-[80px] px-2">Type</TableHead>
+                            <TableHead className="w-[150px] px-2">User</TableHead>
                             <TableHead className="w-[180px] px-2">Contact Info</TableHead>
-                            <TableHead className="w-[150px] px-2">Location</TableHead>
-                            <TableHead className="w-[100px] px-2">Status</TableHead>
+                            <TableHead className="w-[120px] px-2">Location</TableHead>
+                            <TableHead className="w-[90px] px-2">Status</TableHead>
                             <TableHead className="w-[60px] px-2 text-right">Actions</TableHead>
                         </TableRow>
                     </TableHeader>
@@ -224,7 +218,7 @@ export function CustomerTable({
                             ))
                         ) : data.length === 0 ? (
                             <TableRow>
-                                <TableCell colSpan={7} className="h-32 text-center text-muted-foreground">
+                                <TableCell colSpan={9} className="h-32 text-center text-muted-foreground">
                                     No customers found.
                                 </TableCell>
                             </TableRow>
@@ -235,7 +229,7 @@ export function CustomerTable({
                                     customer={customer}
                                     onEdit={handleEdit}
                                     onManageBanks={handleManageBanks}
-                                    onDelete={onDelete}
+                                    userMapping={userMapping}
                                 />
                             ))
                         )}
@@ -321,7 +315,13 @@ export function CustomerTable({
                 open={isDialogOpen}
                 onOpenChange={setIsDialogOpen}
                 customer={selectedCustomer}
-                onSubmit={selectedCustomer ? (data) => onUpdate(selectedCustomer.id, data) : onCreate}
+                onSubmit={(data: unknown) => {
+                    const customerData = data as Partial<CustomerWithRelations>;
+                    if (selectedCustomer) {
+                        return onUpdate(selectedCustomer.id, customerData);
+                    }
+                    return onCreate(customerData);
+                }}
                 defaultTab={defaultDialogTab}
             />
         </div>

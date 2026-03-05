@@ -4,9 +4,9 @@ import React from "react";
 import { useCustomers } from "./hooks/useCustomers";
 import { CustomerTable } from "./components/CustomerTable";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { AlertCircle, RefreshCw, UserPlus } from "lucide-react";
+import { AlertCircle, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { toast } from "sonner";
+import { Customer } from "./types";
 
 export default function CustomerModule() {
     const {
@@ -20,6 +20,7 @@ export default function CustomerModule() {
         pageSize,
         searchQuery,
         statusFilter,
+        userMapping,
         setPage,
         setPageSize,
         setSearchQuery,
@@ -27,26 +28,17 @@ export default function CustomerModule() {
         refetch,
         createCustomer,
         updateCustomer,
-        deleteCustomer,
     } = useCustomers();
 
-    const handleCreate = async (data: any) => {
+    const handleCreate = async (data: Partial<Customer>) => {
         await createCustomer(data);
     };
 
-    const handleUpdate = async (id: number, data: any) => {
+    const handleUpdate = async (id: number, data: Partial<Customer>) => {
         await updateCustomer(id, data);
     };
 
-    const handleDelete = async (id: number) => {
-        try {
-            await deleteCustomer(id);
-            toast.success("Customer deleted successfully");
-        } catch (error) {
-            toast.error("Failed to delete customer");
-            throw error;
-        }
-    };
+
 
     if (isError) {
         return (
@@ -96,6 +88,7 @@ export default function CustomerModule() {
             <CustomerTable
                 data={customers}
                 bankAccounts={bankAccounts}
+                userMapping={userMapping}
                 isLoading={isLoading}
                 metadata={metadata}
                 page={page}
@@ -108,7 +101,6 @@ export default function CustomerModule() {
                 onStatusChange={setStatusFilter}
                 onCreate={handleCreate}
                 onUpdate={handleUpdate}
-                onDelete={handleDelete}
             />
         </div>
     );

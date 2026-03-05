@@ -4,8 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 // CONFIG
 // ============================================================================
 
-const DIRECTUS_URL =
-    process.env.DIRECTUS_URL || "http://100.110.197.61:8056";
+const DIRECTUS_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
