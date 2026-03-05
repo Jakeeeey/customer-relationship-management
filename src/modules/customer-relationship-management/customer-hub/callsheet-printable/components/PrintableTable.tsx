@@ -1,8 +1,9 @@
 "use client";
+import type { Supplier, Product } from "../hooks/useCallSheetForm";
 
 interface PrintableTableProps {
-    supplier: any;
-    products: any[];
+    supplier: Supplier | null;
+    products: Product[];
     loadingProducts: boolean;
 }
 

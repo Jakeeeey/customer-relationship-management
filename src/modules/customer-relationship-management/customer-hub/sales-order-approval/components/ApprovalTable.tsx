@@ -11,8 +11,10 @@ import {
 import { Button } from "@/components/ui/button";
 import { Check, X, Loader2 } from "lucide-react";
 
+import type { SalesOrder } from "../hooks/useSalesOrderApproval";
+
 interface ApprovalTableProps {
-    orders: any[];
+    orders: SalesOrder[];
     loading: boolean;
     onApprove: (id: string | number) => void;
     onReject: (id: string | number) => void;
@@ -49,10 +51,10 @@ export function ApprovalTable({ orders, loading, onApprove, onReject }: Approval
                 </TableHeader>
                 <TableBody>
                     {orders.map((order) => (
-                        <TableRow key={order.id}>
-                            <TableCell className="font-medium">{order.id}</TableCell>
+                        <TableRow key={order.order_id}>
+                            <TableCell className="font-medium">{order.order_id}</TableCell>
                             <TableCell>{order.customer_name}</TableCell>
-                            <TableCell>{new Date(order.date).toLocaleDateString()}</TableCell>
+                            <TableCell>{new Date(order.order_date).toLocaleDateString()}</TableCell>
                             <TableCell className="text-right">₱{order.total_amount?.toLocaleString()}</TableCell>
                             <TableCell className="text-center">
                                 <div className="flex gap-2 justify-center">
@@ -60,7 +62,7 @@ export function ApprovalTable({ orders, loading, onApprove, onReject }: Approval
                                         size="sm"
                                         variant="default"
                                         className="bg-green-600 hover:bg-green-700 h-8"
-                                        onClick={() => onApprove(order.id)}
+                                        onClick={() => onApprove(order.order_id)}
                                     >
                                         <Check className="h-4 w-4 mr-1" /> Approve
                                     </Button>
@@ -68,7 +70,7 @@ export function ApprovalTable({ orders, loading, onApprove, onReject }: Approval
                                         size="sm"
                                         variant="destructive"
                                         className="h-8"
-                                        onClick={() => onReject(order.id)}
+                                        onClick={() => onReject(order.order_id)}
                                     >
                                         <X className="h-4 w-4 mr-1" /> Reject
                                     </Button>

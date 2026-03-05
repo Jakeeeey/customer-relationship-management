@@ -7,23 +7,55 @@ import {
     getProducts
 } from "../providers/fetchProvider";
 
-export function useCallSheetForm() {
-    const [salesmen, setSalesmen] = useState<any[]>([]);
-    const [selectedSalesman, setSelectedSalesman] = useState<any | null>(null);
+export interface Salesman {
+    user_id: number;
+    user_fname: string;
+    user_lname: string;
+}
 
-    const [accounts, setAccounts] = useState<any[]>([]);
-    const [selectedAccount, setSelectedAccount] = useState<any | null>(null);
+export interface Account {
+    id: number;
+    salesman_name: string;
+    salesman_code: string;
+    price_type?: string;
+}
+
+export interface Customer {
+    id: number;
+    customer_name: string;
+    customer_code: string;
+}
+
+export interface Supplier {
+    id: number;
+    supplier_name: string;
+}
+
+export interface Product {
+    product_id: number;
+    display_name: string;
+    product_name?: string;
+    description?: string;
+    parent_id?: number;
+}
+
+export function useCallSheetForm() {
+    const [salesmen, setSalesmen] = useState<Salesman[]>([]);
+    const [selectedSalesman, setSelectedSalesman] = useState<Salesman | null>(null);
+
+    const [accounts, setAccounts] = useState<Account[]>([]);
+    const [selectedAccount, setSelectedAccount] = useState<Account | null>(null);
     const [loadingAccounts, setLoadingAccounts] = useState(false);
 
-    const [customers, setCustomers] = useState<any[]>([]);
-    const [selectedCustomer, setSelectedCustomer] = useState<any | null>(null);
+    const [customers, setCustomers] = useState<Customer[]>([]);
+    const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
     const [loadingCustomers, setLoadingCustomers] = useState(false);
 
-    const [suppliers, setSuppliers] = useState<any[]>([]);
-    const [selectedSupplier, setSelectedSupplier] = useState<any | null>(null);
+    const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+    const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
     const [loadingSuppliers, setLoadingSuppliers] = useState(false);
 
-    const [products, setProducts] = useState<any[]>([]);
+    const [products, setProducts] = useState<Product[]>([]);
     const [loadingProducts, setLoadingProducts] = useState(false);
 
     useEffect(() => {

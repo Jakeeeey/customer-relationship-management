@@ -25,7 +25,7 @@ export interface Customer {
     bank_details?: string | null; // This might be a legacy field or a string representation
     customer_tin?: string | null;
     payment_term?: number | null;
-    store_type: number;
+    store_type: number | null;
     price_type?: string | null;
     encoder_id: number;
     credit_type?: number | null;
@@ -38,7 +38,7 @@ export interface Customer {
     otherDetails?: string | null;
     division_id?: number | null;
     department_id?: number | null;
-    location?: any | null; // point type
+    location?: unknown | null; // point type
 }
 
 export interface BankAccount {

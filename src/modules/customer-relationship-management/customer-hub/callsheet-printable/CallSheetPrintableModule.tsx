@@ -12,7 +12,11 @@ export default function CallSheetPrintableModule() {
 
     useEffect(() => {
         // Fix for React Hydration Error: set date only on client mount
-        setPrintDate(new Date().toLocaleString());
+        // Use a small delay/microtask to avoid synchronous setState warning in effect
+        const timer = setTimeout(() => {
+            setPrintDate(new Date().toLocaleString());
+        }, 0);
+        return () => clearTimeout(timer);
     }, []);
 
     const [previewUrl, setPreviewUrl] = useState<string | null>(null);

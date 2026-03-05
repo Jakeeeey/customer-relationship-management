@@ -7,18 +7,19 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { Button } from "@/components/ui/button";
 import { Printer, Check, ChevronsUpDown } from "lucide-react";
 import { cn } from "@/lib/utils";
+import type { Salesman, Account, Customer, Supplier } from "../hooks/useCallSheetForm";
 
 interface CallSheetFilterCardProps {
-    salesmen: any[];
-    selectedSalesman: any;
-    accounts: any[];
-    selectedAccount: any;
+    salesmen: Salesman[];
+    selectedSalesman: Salesman | null;
+    accounts: Account[];
+    selectedAccount: Account | null;
     loadingAccounts: boolean;
-    customers: any[];
-    selectedCustomer: any;
+    customers: Customer[];
+    selectedCustomer: Customer | null;
     loadingCustomers: boolean;
-    suppliers: any[];
-    selectedSupplier: any;
+    suppliers: Supplier[];
+    selectedSupplier: Supplier | null;
     loadingSuppliers: boolean;
     onSalesmanChange: (val: string) => void;
     onAccountChange: (val: string) => void;

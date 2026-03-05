@@ -2,21 +2,13 @@
 
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from "@/components/ui/select";
 import { Card, CardContent } from "@/components/ui/card";
-import { SalesOrder } from "../types";
+
 import { Search, Calendar } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 
 interface SalesOrderFormFieldsProps {
-    order: Partial<SalesOrder>;
     appliedFilters: {
         search: string;
         dateCreated: string;
@@ -24,10 +16,10 @@ interface SalesOrderFormFieldsProps {
         deliveryDate: string;
         dueDate: string;
     };
-    onSearch: (filters: any) => void;
+    onSearch: (filters: SalesOrderFormFieldsProps["appliedFilters"]) => void;
 }
 
-export function SalesOrderFormFields({ order, appliedFilters, onSearch }: SalesOrderFormFieldsProps) {
+export function SalesOrderFormFields({ appliedFilters, onSearch }: SalesOrderFormFieldsProps) {
     const [draftFilters, setDraftFilters] = useState(appliedFilters);
 
     const handleInputChange = (key: string, value: string) => {

@@ -1,12 +1,13 @@
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import type { Customer, Supplier, Product, Salesman, Account } from "../hooks/useCallSheetForm";
 
 interface GeneratePDFOptions {
-    customer: any;
-    supplier: any;
-    products: any[];
-    salesman?: any;
-    account?: any;
+    customer: Customer | null;
+    supplier: Supplier | null;
+    products: Product[];
+    salesman?: Salesman | null;
+    account?: Account | null;
 }
 
 export function generateCallSheetPDF({ customer, supplier, products, salesman, account }: GeneratePDFOptions) {
@@ -75,7 +76,7 @@ export function generateCallSheetPDF({ customer, supplier, products, salesman, a
     currentY += 10;
 
     // Prepare table data
-    const tableHeaders: any[] = [
+    const tableHeaders: (string | Record<string, unknown>)[][] = [
         [{ content: "PRODUCTS", rowSpan: 2, styles: { halign: "left", valign: "middle" } },
         { content: "MO AVG", rowSpan: 2, styles: { halign: "center", valign: "middle" } },
         { content: "", colSpan: 2, styles: { halign: "center", minCellHeight: 15 } },
@@ -90,7 +91,7 @@ export function generateCallSheetPDF({ customer, supplier, products, salesman, a
     ];
 
     const tableBody = products.map((p) => {
-        let productName = p.display_name || "Unnamed Product";
+        const productName = p.display_name || "Unnamed Product";
         return [
             productName,
             "0.0", // MO AVG
@@ -123,21 +124,21 @@ export function generateCallSheetPDF({ customer, supplier, products, salesman, a
         },
         columnStyles: {
             0: { cellWidth: 150 },
-            1: { cellWidth: 40, halign: "center" as any },
-            2: { halign: "center" as any },
-            3: { halign: "center" as any },
-            4: { halign: "center" as any },
-            5: { halign: "center" as any },
-            6: { halign: "center" as any },
-            7: { halign: "center" as any },
-            8: { halign: "center" as any },
-            9: { halign: "center" as any },
-            10: { cellWidth: 40, halign: "center" as any },
+            1: { cellWidth: 40, halign: "center" as const },
+            2: { halign: "center" as const },
+            3: { halign: "center" as const },
+            4: { halign: "center" as const },
+            5: { halign: "center" as const },
+            6: { halign: "center" as const },
+            7: { halign: "center" as const },
+            8: { halign: "center" as const },
+            9: { halign: "center" as const },
+            10: { cellWidth: 40, halign: "center" as const },
         },
         margin: { top: 40, right: 40, bottom: 40, left: 40 },
-        didDrawPage: function (data: any) {
+        didDrawPage: (data) => {
             // Render Page Numbers at the bottom
-            const str = `Page ${(doc as any).internal.getNumberOfPages()}`;
+            const str = `Page ${(doc as unknown as { internal: { getNumberOfPages: () => number } }).internal.getNumberOfPages()}`;
             doc.setFontSize(8);
             doc.setTextColor(100);
             const pageSize = doc.internal.pageSize;

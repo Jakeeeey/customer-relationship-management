@@ -1,6 +1,5 @@
 "use client";
 
-import { Label } from "@/components/ui/label";
 import { SalesOrder } from "../types";
 
 interface SalesOrderSummaryProps {

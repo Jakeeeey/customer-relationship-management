@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
+import Image from "next/image";
 import { FileText, Download, Eye, ChevronLeft, Loader2, AlertTriangle } from "lucide-react";
 import {
     Dialog,
@@ -176,13 +177,17 @@ export function FileDetailsModal({ item, open, onClose }: FileDetailsModalProps)
                                     )}
 
                                     {fileType === "image" && (
-                                        <img
-                                            src={proxyViewUrl ?? ""}
-                                            alt={item.attachment_name}
-                                            className="max-w-full max-h-full object-contain p-4"
-                                            onLoad={() => setPdfLoading(false)}
-                                            onError={() => { setPdfLoading(false); setPreviewError("Failed to load image."); }}
-                                        />
+                                        <div className="relative w-full h-full p-4">
+                                            <Image
+                                                src={proxyViewUrl ?? ""}
+                                                alt={item.attachment_name}
+                                                fill
+                                                className="object-contain"
+                                                onLoadingComplete={() => setPdfLoading(false)}
+                                                onError={() => { setPdfLoading(false); setPreviewError("Failed to load image."); }}
+                                                unoptimized
+                                            />
+                                        </div>
                                     )}
 
                                     {fileType === "pdf" && (

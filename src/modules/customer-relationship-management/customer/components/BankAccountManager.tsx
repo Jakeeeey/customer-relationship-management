@@ -16,7 +16,6 @@ import {
     DialogFooter,
     DialogHeader,
     DialogTitle,
-    DialogTrigger,
 } from "@/components/ui/dialog";
 import {
     Form,
@@ -45,12 +44,11 @@ import {
     CreditCard,
     Building2,
     CheckCircle2,
-    AlertCircle
 } from "lucide-react";
-import { useForm } from "react-hook-form";
+import { useForm, Resolver, SubmitHandler, FieldErrors } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { BankAccount, BankAccountFormData } from "../types";
+import { BankAccount } from "../types";
 import { toast } from "sonner";
 
 const bankAccountSchema = z.object({
@@ -58,9 +56,9 @@ const bankAccountSchema = z.object({
     account_name: z.string().min(1, "Account name is required"),
     account_number: z.string().min(1, "Account number is required"),
     account_type: z.enum(["Savings", "Checking", "Other"]),
-    branch_of_account: z.string().default(""),
-    is_primary: z.coerce.number(),
-    notes: z.string().default(""),
+    branch_of_account: z.string().default("").or(z.literal("")),
+    is_primary: z.coerce.number().default(0),
+    notes: z.string().default("").or(z.literal("")),
 });
 
 type BankAccountFormValues = z.infer<typeof bankAccountSchema>;
@@ -78,7 +76,7 @@ export function BankAccountManager({ customerId }: BankAccountManagerProps) {
     const [isOpening, setIsOpening] = useState(false);
 
     const form = useForm<BankAccountFormValues>({
-        resolver: zodResolver(bankAccountSchema) as any,
+        resolver: zodResolver(bankAccountSchema) as Resolver<BankAccountFormValues>,
         defaultValues: {
             bank_name: 0,
             account_name: "",
@@ -90,7 +88,7 @@ export function BankAccountManager({ customerId }: BankAccountManagerProps) {
         },
     });
 
-    const fetchAccounts = async () => {
+    const fetchAccounts = React.useCallback(async () => {
         setIsLoading(true);
         try {
             const res = await fetch(`/api/crm/customer/bank-account?customer_id=${customerId}`);
@@ -103,11 +101,11 @@ export function BankAccountManager({ customerId }: BankAccountManagerProps) {
         } finally {
             setIsLoading(false);
         }
-    };
+    }, [customerId]);
 
     useEffect(() => {
         if (customerId) fetchAccounts();
-    }, [customerId]);
+    }, [customerId, fetchAccounts]);
 
     useEffect(() => {
         if (isDialogOpen) {
@@ -116,7 +114,7 @@ export function BankAccountManager({ customerId }: BankAccountManagerProps) {
                     bank_name: selectedAccount.bank_name,
                     account_name: selectedAccount.account_name,
                     account_number: selectedAccount.account_number,
-                    account_type: selectedAccount.account_type as any,
+                    account_type: selectedAccount.account_type,
                     branch_of_account: selectedAccount.branch_of_account || "",
                     is_primary: selectedAccount.is_primary,
                     notes: selectedAccount.notes || "",
@@ -153,12 +151,12 @@ export function BankAccountManager({ customerId }: BankAccountManagerProps) {
         }, 600);
     };
 
-    const onFormError = (errors: any) => {
+    const onFormError = (errors: FieldErrors<BankAccountFormValues>) => {
         console.error("Bank Account Form Errors:", errors);
         toast.error("Please fill in all required bank account details.");
     };
 
-    const onSubmit = async (values: z.infer<typeof bankAccountSchema>) => {
+    const onSubmit: SubmitHandler<BankAccountFormValues> = async (values) => {
         setIsSubmitting(true);
         try {
             const method = selectedAccount ? "PATCH" : "POST";
@@ -183,9 +181,9 @@ export function BankAccountManager({ customerId }: BankAccountManagerProps) {
                 const errData = await res.json().catch(() => ({}));
                 throw new Error(errData.error || "Failed to save bank account");
             }
-        } catch (err: any) {
+        } catch (err: unknown) {
             console.error("Save failed:", err);
-            toast.error(err.message || "Failed to save bank account detail.");
+            toast.error(err instanceof Error ? err.message : "Failed to save bank account detail.");
         } finally {
             setIsSubmitting(false);
         }
@@ -294,11 +292,10 @@ export function BankAccountManager({ customerId }: BankAccountManagerProps) {
                             Enter the bank account details for this customer.
                         </DialogDescription>
                     </DialogHeader>
-                    <Form {...(form as any)}>
+                    <Form {...form}>
                         <form onSubmit={form.handleSubmit(onSubmit, onFormError)} className="space-y-4">
                             <div className="grid grid-cols-2 gap-4">
                                 <FormField
-                                    control={form.control}
                                     name="bank_name"
                                     render={({ field }) => (
                                         <FormItem>
@@ -307,6 +304,7 @@ export function BankAccountManager({ customerId }: BankAccountManagerProps) {
                                                 <Input
                                                     type="number"
                                                     {...field}
+                                                    value={field.value ?? ""}
                                                     onChange={(e) => field.onChange(e.target.value === "" ? 0 : parseInt(e.target.value))}
                                                 />
                                             </FormControl>
@@ -315,7 +313,6 @@ export function BankAccountManager({ customerId }: BankAccountManagerProps) {
                                     )}
                                 />
                                 <FormField
-                                    control={form.control}
                                     name="account_type"
                                     render={({ field }) => (
                                         <FormItem>
@@ -373,7 +370,7 @@ export function BankAccountManager({ customerId }: BankAccountManagerProps) {
                                     <FormItem>
                                         <FormLabel>Branch</FormLabel>
                                         <FormControl>
-                                            <Input placeholder="Ayala Ave. Branch" {...field} />
+                                            <Input placeholder="Ayala Ave. Branch" {...field} value={field.value ?? ""} />
                                         </FormControl>
                                         <FormMessage />
                                     </FormItem>
@@ -387,7 +384,7 @@ export function BankAccountManager({ customerId }: BankAccountManagerProps) {
                                     <FormItem>
                                         <FormLabel>Notes</FormLabel>
                                         <FormControl>
-                                            <Textarea placeholder="Optional notes about the account" {...field} />
+                                            <Textarea placeholder="Optional notes about the account" {...field} value={field.value ?? ""} />
                                         </FormControl>
                                         <FormMessage />
                                     </FormItem>

@@ -31,7 +31,7 @@ export async function GET(req: NextRequest) {
         ].join(",");
 
         // Construct filter object
-        const filters: any[] = [];
+        const filters: Record<string, unknown>[] = [];
 
         if (search) {
             filters.push({
@@ -91,9 +91,9 @@ export async function GET(req: NextRequest) {
                 total_count: salesOrdersData.meta?.filter_count || 0
             }
         });
-    } catch (error: any) {
+    } catch (error: unknown) {
         return NextResponse.json(
-            { error: error.message || "Internal Server Error" },
+            { error: (error as Error).message || "Internal Server Error" },
             { status: 500 }
         );
     }

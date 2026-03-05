@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useMemo } from "react";
+import React, { useEffect, useState } from "react";
 import {
     Table,
     TableBody,
@@ -22,17 +22,10 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
-    MoreHorizontal,
-    Pencil,
-    Trash2,
     Search,
     Filter,
     UserPlus,
-    Building2,
-    Mail,
-    Phone,
     X,
-    CreditCard,
     Loader2,
     ChevronLeft,
     ChevronRight,
@@ -72,7 +65,6 @@ interface CustomerTableProps {
 
 export function CustomerTable({
     data,
-    bankAccounts,
     userMapping,
     isLoading,
     metadata,
@@ -323,7 +315,13 @@ export function CustomerTable({
                 open={isDialogOpen}
                 onOpenChange={setIsDialogOpen}
                 customer={selectedCustomer}
-                onSubmit={selectedCustomer ? (data) => onUpdate(selectedCustomer.id, data) : onCreate}
+                onSubmit={(data: unknown) => {
+                    const customerData = data as Partial<CustomerWithRelations>;
+                    if (selectedCustomer) {
+                        return onUpdate(selectedCustomer.id, customerData);
+                    }
+                    return onCreate(customerData);
+                }}
                 defaultTab={defaultDialogTab}
             />
         </div>
