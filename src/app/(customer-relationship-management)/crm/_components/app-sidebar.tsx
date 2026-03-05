@@ -50,6 +50,11 @@ const data = {
                     icon: ShoppingCart,
                 },
                 {
+                    title: "Create Sales Order",
+                    url: "/crm/customer-hub/create-sales-order",
+                    icon: ShoppingCart,
+                },
+                {
                     title: "Sales Order Approval",
                     url: "/crm/customer-hub/sales-order-approval",
                     icon: ClipboardList,
