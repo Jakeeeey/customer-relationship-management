@@ -173,10 +173,10 @@ const SUBSYSTEMS: SubsystemItem[] = [
 
     {
         id: "crm",
-        title: "CRM",
+        title: "Customer Relationship Management",
         subtitle: "Customers, accounts, pipeline, quotations, after-sales linkage",
         href: "/crm",
-        status: "comingSoon",
+        status: "active",
         category: "Customer & Engagement",
         icon: Users,
         tag: "CRM",
@@ -218,7 +218,7 @@ const SUBSYSTEMS: SubsystemItem[] = [
         title: "Human Resources",
         subtitle: "Timekeeping, payroll, benefits, employee master, performance",
         href: "/hrm",
-        status: "active",
+        status: "comingSoon",
         category: "Corporate Services",
         icon: Settings,
         tag: "HR",
