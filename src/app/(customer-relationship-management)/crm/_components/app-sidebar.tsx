@@ -45,8 +45,13 @@ const data = {
                     icon: ClipboardList,
                 },
                 {
-                    title: "Sales Order",
-                    url: "/crm/customer-hub/sales-order",
+                    title: "Sales Order Report",
+                    url: "/crm/customer-hub/sales-order-report",
+                    icon: ShoppingCart,
+                },
+                {
+                    title: "Create Sales Order",
+                    url: "/crm/customer-hub/create-sales-order",
                     icon: ShoppingCart,
                 },
                 {
