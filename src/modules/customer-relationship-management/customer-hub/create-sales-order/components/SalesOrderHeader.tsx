@@ -1,0 +1,235 @@
+"use client";
+
+import { useState } from "react";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Check, ChevronsUpDown, Calendar as CalendarIcon, Hash } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { format } from "date-fns";
+
+interface SalesOrderHeaderProps {
+    salesmen: any[];
+    selectedSalesman: any;
+    onSalesmanChange: (id: string) => void;
+
+    accounts: any[];
+    selectedAccount: any;
+    loadingAccounts: boolean;
+    onAccountChange: (id: string) => void;
+
+    customers: any[];
+    selectedCustomer: any;
+    loadingCustomers: boolean;
+    onCustomerChange: (id: string) => void;
+
+    suppliers: any[];
+    selectedSupplier: any;
+    loadingSuppliers: boolean;
+    onSupplierChange: (id: string) => void;
+
+    receiptTypes: any[];
+    selectedReceiptTypeId: string;
+    onReceiptTypeChange: (id: string) => void;
+
+    salesTypes: any[];
+    selectedSalesTypeId: string;
+    onSalesTypeChange: (id: string) => void;
+
+    dueDate: string;
+    onDueDateChange: (val: string) => void;
+
+    poNo: string;
+    onPoNoChange: (val: string) => void;
+
+    priceType: string;
+}
+
+export function SalesOrderHeader({
+    salesmen, selectedSalesman, onSalesmanChange,
+    accounts, selectedAccount, loadingAccounts, onAccountChange,
+    customers, selectedCustomer, loadingCustomers, onCustomerChange,
+    suppliers, selectedSupplier, loadingSuppliers, onSupplierChange,
+    receiptTypes, selectedReceiptTypeId, onReceiptTypeChange,
+    salesTypes, selectedSalesTypeId, onSalesTypeChange,
+    dueDate, onDueDateChange,
+    poNo, onPoNoChange,
+    priceType
+}: SalesOrderHeaderProps) {
+    const [openSalesman, setOpenSalesman] = useState(false);
+    const [openAccount, setOpenAccount] = useState(false);
+    const [openCustomer, setOpenCustomer] = useState(false);
+    const [openSupplier, setOpenSupplier] = useState(false);
+
+    return (
+        <Card className="shadow-sm border-muted-foreground/20">
+            <CardHeader className="pb-3 flex flex-row items-center justify-between">
+                <div>
+                    <CardTitle className="text-xl font-bold">New Sales Order</CardTitle>
+                    <CardDescription>Select entities and order metadata</CardDescription>
+                </div>
+                <div className="text-right">
+                    <span className="text-[10px] uppercase font-black text-muted-foreground">Price Tier</span>
+                    <div className="text-xl font-black text-primary">TIER {priceType}</div>
+                </div>
+            </CardHeader>
+            <CardContent className="grid gap-4 md:grid-cols-4 sm:grid-cols-2">
+                {/* 1. SALESMAN (USER) */}
+                <div className="flex flex-col gap-1.5">
+                    <label className="text-xs font-bold uppercase text-muted-foreground">Salesman (User)</label>
+                    <Popover open={openSalesman} onOpenChange={setOpenSalesman}>
+                        <PopoverTrigger asChild>
+                            <Button variant="outline" className="w-full justify-between font-normal h-9 text-xs">
+                                <span className="truncate">{selectedSalesman ? `${selectedSalesman.user_fname} ${selectedSalesman.user_lname}` : "Select User..."}</span>
+                                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                            </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-[280px] p-0" align="start">
+                            <Command>
+                                <CommandInput placeholder="Search user..." />
+                                <CommandList>
+                                    <CommandEmpty>No user found.</CommandEmpty>
+                                    <CommandGroup>
+                                        {salesmen.map(s => (
+                                            <CommandItem key={s.user_id || s.id} value={`${s.user_fname} ${s.user_lname}`} onSelect={() => { onSalesmanChange((s.user_id || s.id).toString()); setOpenSalesman(false); }}>
+                                                <Check className={cn("mr-2 h-4 w-4", (selectedSalesman?.user_id || selectedSalesman?.id) === (s.user_id || s.id) ? "opacity-100" : "opacity-0")} />
+                                                {s.user_fname} {s.user_lname}
+                                            </CommandItem>
+                                        ))}
+                                    </CommandGroup>
+                                </CommandList>
+                            </Command>
+                        </PopoverContent>
+                    </Popover>
+                </div>
+
+                {/* 2. SALESMAN (ACCOUNT) */}
+                <div className="flex flex-col gap-1.5">
+                    <label className="text-xs font-bold uppercase text-muted-foreground">Account {loadingAccounts && "..."}</label>
+                    <Popover open={openAccount} onOpenChange={setOpenAccount}>
+                        <PopoverTrigger asChild>
+                            <Button variant="outline" className="w-full justify-between font-normal h-9 text-xs" disabled={!selectedSalesman || loadingAccounts}>
+                                <span className="truncate">{selectedAccount ? `${selectedAccount.salesman_name} (${selectedAccount.salesman_code})` : "Select Account..."}</span>
+                                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                            </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-[300px] p-0" align="start">
+                            <Command>
+                                <CommandInput placeholder="Search account..." />
+                                <CommandList>
+                                    <CommandEmpty>No account found.</CommandEmpty>
+                                    <CommandGroup>
+                                        {accounts.map(a => (
+                                            <CommandItem key={a.id} value={`${a.salesman_name} ${a.salesman_code}`} onSelect={() => { onAccountChange(a.id.toString()); setOpenAccount(false); }}>
+                                                <Check className={cn("mr-2 h-4 w-4", selectedAccount?.id === a.id ? "opacity-100" : "opacity-0")} />
+                                                {a.salesman_name} ({a.salesman_code})
+                                            </CommandItem>
+                                        ))}
+                                    </CommandGroup>
+                                </CommandList>
+                            </Command>
+                        </PopoverContent>
+                    </Popover>
+                </div>
+
+                {/* 3. CUSTOMER */}
+                <div className="flex flex-col gap-1.5">
+                    <label className="text-xs font-bold uppercase text-muted-foreground">Customer {loadingCustomers && "..."}</label>
+                    <Popover open={openCustomer} onOpenChange={setOpenCustomer}>
+                        <PopoverTrigger asChild>
+                            <Button variant="outline" className="w-full justify-between font-normal h-9 text-xs" disabled={!selectedAccount || loadingCustomers}>
+                                <span className="truncate">{selectedCustomer ? selectedCustomer.customer_name : "Select Customer..."}</span>
+                                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                            </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-[350px] p-0" align="start">
+                            <Command>
+                                <CommandInput placeholder="Search customer..." />
+                                <CommandList>
+                                    <CommandEmpty>No customer found.</CommandEmpty>
+                                    <CommandGroup>
+                                        {customers.map(c => (
+                                            <CommandItem key={c.id} value={c.customer_name} onSelect={() => { onCustomerChange(c.id.toString()); setOpenCustomer(false); }}>
+                                                <Check className={cn("mr-2 h-4 w-4", selectedCustomer?.id === c.id ? "opacity-100" : "opacity-0")} />
+                                                {c.customer_name}
+                                            </CommandItem>
+                                        ))}
+                                    </CommandGroup>
+                                </CommandList>
+                            </Command>
+                        </PopoverContent>
+                    </Popover>
+                </div>
+
+                {/* 4. SUPPLIER */}
+                <div className="flex flex-col gap-1.5">
+                    <label className="text-xs font-bold uppercase text-muted-foreground">Supplier {loadingSuppliers && "..."}</label>
+                    <Popover open={openSupplier} onOpenChange={setOpenSupplier}>
+                        <PopoverTrigger asChild>
+                            <Button variant="outline" className="w-full justify-between font-normal h-9 text-xs" disabled={!selectedCustomer || loadingSuppliers}>
+                                <span className="truncate">{selectedSupplier ? selectedSupplier.supplier_name : "Select Supplier..."}</span>
+                                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                            </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-[350px] p-0" align="start">
+                            <Command>
+                                <CommandInput placeholder="Search supplier..." />
+                                <CommandList>
+                                    <CommandEmpty>No supplier found.</CommandEmpty>
+                                    <CommandGroup>
+                                        {suppliers.map(s => (
+                                            <CommandItem key={s.id} value={s.supplier_name} onSelect={() => { onSupplierChange(s.id.toString()); setOpenSupplier(false); }}>
+                                                <Check className={cn("mr-2 h-4 w-4", selectedSupplier?.id === s.id ? "opacity-100" : "opacity-0")} />
+                                                {s.supplier_name}
+                                            </CommandItem>
+                                        ))}
+                                    </CommandGroup>
+                                </CommandList>
+                            </Command>
+                        </PopoverContent>
+                    </Popover>
+                </div>
+
+                {/* META FIELDS row 2 */}
+                <div className="flex flex-col gap-1.5">
+                    <label className="text-xs font-bold uppercase text-muted-foreground">Receipt Type</label>
+                    <Select value={selectedReceiptTypeId} onValueChange={onReceiptTypeChange}>
+                        <SelectTrigger className="h-9 text-xs"><SelectValue placeholder="Select type" /></SelectTrigger>
+                        <SelectContent>
+                            {receiptTypes.map(t => <SelectItem key={t.id} value={t.id.toString()}>{t.type}</SelectItem>)}
+                        </SelectContent>
+                    </Select>
+                </div>
+
+                <div className="flex flex-col gap-1.5">
+                    <label className="text-xs font-bold uppercase text-muted-foreground">Sales Type</label>
+                    <Select value={selectedSalesTypeId} onValueChange={onSalesTypeChange}>
+                        <SelectTrigger className="h-9 text-xs"><SelectValue placeholder="Select type" /></SelectTrigger>
+                        <SelectContent>
+                            {salesTypes.map(t => <SelectItem key={t.id} value={t.id.toString()}>{t.operation_name}</SelectItem>)}
+                        </SelectContent>
+                    </Select>
+                </div>
+
+                <div className="flex flex-col gap-1.5">
+                    <label className="text-xs font-bold uppercase text-muted-foreground">Due Date</label>
+                    <div className="relative">
+                        <CalendarIcon className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+                        <Input type="date" value={dueDate} onChange={(e) => onDueDateChange(e.target.value)} className="pl-9 h-9 text-xs" />
+                    </div>
+                </div>
+
+                <div className="flex flex-col gap-1.5">
+                    <label className="text-xs font-bold uppercase text-muted-foreground">PO Number</label>
+                    <div className="relative">
+                        <Hash className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+                        <Input placeholder="Enter PO#" value={poNo} onChange={(e) => onPoNoChange(e.target.value)} className="pl-9 h-9 text-xs" />
+                    </div>
+                </div>
+            </CardContent>
+        </Card>
+    );
+}

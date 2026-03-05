@@ -1,0 +1,91 @@
+[2026-03-05T05:23:56.420Z] >>> GET action=products
+[2026-03-05T05:23:56.421Z] [API] products request: customerCode=CUST001, supplierId=1, priceType=A
+[2026-03-05T05:23:56.462Z] [API] Supplier 1 has 0 linked products.
+[2026-03-05T05:24:39.111Z] >>> GET action=products
+[2026-03-05T05:24:39.111Z] [API] products request: customerCode=CUST001, supplierId=1, priceType=A
+[2026-03-05T05:24:39.157Z] [API] Raw psData sample: []
+[2026-03-05T05:24:39.157Z] [API] Supplier 1 has 0 linked products.
+[2026-03-05T05:24:42.633Z] >>> GET action=products
+[2026-03-05T05:24:42.633Z] [API] products request: customerCode=MAIN-31275, supplierId=21, priceType=A
+[2026-03-05T05:24:42.683Z] [API] Raw psData sample: [{"product_id":24373},{"product_id":24375}]
+[2026-03-05T05:24:42.684Z] [API] Supplier 21 has 2 linked products.
+[2026-03-05T05:24:42.728Z] [API] Found 2 active products in products table.
+[2026-03-05T05:24:42.758Z] [API] Fetched 0 parents and 2 children.
+[2026-03-05T05:24:42.983Z] [API] Returning 2 items
+[2026-03-05T05:25:32.824Z] >>> GET action=products
+[2026-03-05T05:25:32.824Z] [API] products request: customerCode=MAIN-31275, supplierId=21, priceType=A
+[2026-03-05T05:25:32.878Z] [API] psData[0]: {"product_id":24373}
+[2026-03-05T05:25:32.878Z] [API] psData[0].product_id type: number
+[2026-03-05T05:25:32.879Z] [API] Supplier 21 has 2 linked products. IDs: 24373,24375
+[2026-03-05T05:25:32.927Z] [API] Found 2 active products in products table.
+[2026-03-05T05:25:32.968Z] [API] Fetched 0 parents and 2 children.
+[2026-03-05T05:25:33.153Z] [API] Returning 2 items
+[2026-03-05T05:28:36.958Z] >>> GET action=salesmen
+[2026-03-05T05:28:36.965Z] >>> GET action=suppliers
+[2026-03-05T05:28:36.969Z] >>> GET action=invoice_types
+[2026-03-05T05:28:36.974Z] >>> GET action=operations
+[2026-03-05T05:28:46.420Z] >>> GET action=accounts
+[2026-03-05T05:29:14.337Z] >>> GET action=customers
+[2026-03-05T05:29:18.823Z] >>> GET action=products
+[2026-03-05T05:29:18.823Z] [API] products request: customerCode=MAIN-31275, supplierId=21, priceType=A
+[2026-03-05T05:29:18.861Z] [API] psData[0]: {"product_id":24373}
+[2026-03-05T05:29:18.862Z] [API] psData[0].product_id type: number
+[2026-03-05T05:29:18.862Z] [API] Supplier 21 has 2 linked products. IDs: 24373,24375
+[2026-03-05T05:29:18.904Z] [API] Found 2 active products in products table.
+[2026-03-05T05:29:18.938Z] [API] Fetched 0 parents and 2 children.
+[2026-03-05T05:29:19.115Z] [API] Returning 2 items
+[2026-03-05T05:33:03.387Z] >>> GET action=products
+[2026-03-05T05:33:03.387Z] [API] products request: customerCode=MAIN-31275, supplierId=21, priceType=A
+[2026-03-05T05:33:03.439Z] [API] Supplier 21 has 2 linked products.
+[2026-03-05T05:33:03.511Z] [API] Found 2 initial active products.
+[2026-03-05T05:33:03.557Z] [API] Fetched 0 parents and 2 children.
+[2026-03-05T05:33:03.594Z] [API] allProductsMap size: 4
+[2026-03-05T05:33:03.801Z] [API] Returning 4 items
+[2026-03-05T05:34:51.851Z] >>> GET action=products
+[2026-03-05T05:34:51.851Z] [API] products request: customerCode=MAIN-31275, supplierId=21, priceType=A
+[2026-03-05T05:34:51.888Z] [API] Supplier 21 has 2 linked products.
+[2026-03-05T05:34:51.928Z] [API] Found 2 initial active products.
+[2026-03-05T05:34:51.966Z] [API] Fetched 0 parents and 2 children.
+[2026-03-05T05:34:51.996Z] [API] allProductsMap size: 4
+[2026-03-05T05:34:52.114Z] [API] Returning 4 items
+[2026-03-05T05:35:33.590Z] >>> GET action=products
+[2026-03-05T05:35:33.590Z] [API] products request: customerCode=MAIN-31275, supplierId=21, priceType=A
+[2026-03-05T05:35:33.638Z] [API] Supplier 21 has 2 linked products.
+[2026-03-05T05:35:33.729Z] [API] Found 2 initial active products.
+[2026-03-05T05:35:33.768Z] [API] Fetched 0 parents and 2 children.
+[2026-03-05T05:35:33.820Z] [API] allProductsMap size: 4
+[2026-03-05T05:35:33.976Z] [API] Returning 4 items
+[2026-03-05T05:35:54.690Z] >>> GET action=products
+[2026-03-05T05:35:54.691Z] [API] products request: customerCode=MAIN-31275, supplierId=21, priceType=A
+[2026-03-05T05:35:54.742Z] [API] Supplier 21 has 2 linked products.
+[2026-03-05T05:35:54.789Z] [API] Found 2 initial active products.
+[2026-03-05T05:35:54.825Z] [API] Fetched 0 parents and 2 children.
+[2026-03-05T05:35:54.861Z] [API] allProductsMap size: 4
+[2026-03-05T05:35:55.003Z] [API] Returning 4 items
+[2026-03-05T05:36:15.560Z] >>> GET action=salesmen
+[2026-03-05T05:36:15.566Z] >>> GET action=suppliers
+[2026-03-05T05:36:15.571Z] >>> GET action=invoice_types
+[2026-03-05T05:36:15.578Z] >>> GET action=operations
+[2026-03-05T05:36:21.412Z] >>> GET action=accounts
+[2026-03-05T05:36:23.242Z] >>> GET action=customers
+[2026-03-05T05:36:30.437Z] >>> GET action=products
+[2026-03-05T05:36:30.438Z] [API] products request: customerCode=MAIN-31275, supplierId=21, priceType=A
+[2026-03-05T05:36:30.482Z] [API] Supplier 21 has 2 linked products.
+[2026-03-05T05:36:30.524Z] [API] Found 2 initial active products.
+[2026-03-05T05:36:30.566Z] [API] Fetched 0 parents and 2 children.
+[2026-03-05T05:36:30.594Z] [API] allProductsMap size: 4
+[2026-03-05T05:36:30.751Z] [API] Returning 4 items
+[2026-03-05T05:37:09.157Z] >>> GET action=products
+[2026-03-05T05:37:09.158Z] [API] products request: customerCode=MAIN-31275, supplierId=21, priceType=A
+[2026-03-05T05:37:09.214Z] [API] Supplier 21 has 2 linked products.
+[2026-03-05T05:37:09.259Z] [API] Found 2 initial active products.
+[2026-03-05T05:37:09.291Z] [API] Fetched 0 parents and 2 children.
+[2026-03-05T05:37:09.323Z] [API] allProductsMap size: 4
+[2026-03-05T05:37:09.466Z] [API] Returning 4 items
+[2026-03-05T05:37:23.031Z] >>> GET action=products
+[2026-03-05T05:37:23.031Z] [API] products request: customerCode=MAIN-31275, supplierId=13, priceType=A
+[2026-03-05T05:37:23.075Z] [API] Supplier 13 has 48 linked products.
+[2026-03-05T05:37:23.127Z] [API] Found 38 initial active products.
+[2026-03-05T05:37:23.171Z] [API] Fetched 0 parents and 59 children.
+[2026-03-05T05:37:23.199Z] [API] allProductsMap size: 97
+[2026-03-05T05:37:23.452Z] [API] Returning 97 items
