@@ -11,7 +11,7 @@ export const fetchSalesOrderData = async (
         ...filters
     });
 
-    const response = await fetch(`/api/crm/customer-hub/sales-order?${queryParams.toString()}`);
+    const response = await fetch(`/api/crm/customer-hub/sales-order-report?${queryParams.toString()}`);
     if (!response.ok) {
         throw new Error("Failed to fetch sales order data");
     }
