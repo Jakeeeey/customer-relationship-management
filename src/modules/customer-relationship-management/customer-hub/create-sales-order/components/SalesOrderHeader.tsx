@@ -43,6 +43,9 @@ interface SalesOrderHeaderProps {
     dueDate: string;
     onDueDateChange: (val: string) => void;
 
+    deliveryDate: string;
+    onDeliveryDateChange: (val: string) => void;
+
     poNo: string;
     onPoNoChange: (val: string) => void;
 
@@ -57,6 +60,7 @@ export function SalesOrderHeader({
     receiptTypes, selectedReceiptTypeId, onReceiptTypeChange,
     salesTypes, selectedSalesTypeId, onSalesTypeChange,
     dueDate, onDueDateChange,
+    deliveryDate, onDeliveryDateChange,
     poNo, onPoNoChange,
     priceType
 }: SalesOrderHeaderProps) {
@@ -215,18 +219,26 @@ export function SalesOrderHeader({
                 </div>
 
                 <div className="flex flex-col gap-1.5">
-                    <label className="text-xs font-bold uppercase text-muted-foreground">Due Date</label>
+                    <label className="text-xs font-bold uppercase text-muted-foreground">Due Date <span className="text-red-500">*</span></label>
                     <div className="relative">
                         <CalendarIcon className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
-                        <Input type="date" value={dueDate} onChange={(e) => onDueDateChange(e.target.value)} className="pl-9 h-9 text-xs" />
+                        <Input type="date" value={dueDate} onChange={(e) => onDueDateChange(e.target.value)} className="pl-9 h-9 text-xs" required />
                     </div>
                 </div>
 
                 <div className="flex flex-col gap-1.5">
-                    <label className="text-xs font-bold uppercase text-muted-foreground">PO Number</label>
+                    <label className="text-xs font-bold uppercase text-muted-foreground">Delivery Date <span className="text-red-500">*</span></label>
+                    <div className="relative">
+                        <CalendarIcon className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+                        <Input type="date" value={deliveryDate} onChange={(e) => onDeliveryDateChange(e.target.value)} className="pl-9 h-9 text-xs" required />
+                    </div>
+                </div>
+
+                <div className="flex flex-col gap-1.5">
+                    <label className="text-xs font-bold uppercase text-muted-foreground">PO Number <span className="text-red-500">*</span></label>
                     <div className="relative">
                         <Hash className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
-                        <Input placeholder="Enter PO#" value={poNo} onChange={(e) => onPoNoChange(e.target.value)} className="pl-9 h-9 text-xs" />
+                        <Input placeholder="Enter PO#" value={poNo} onChange={(e) => onPoNoChange(e.target.value)} className="pl-9 h-9 text-xs" required />
                     </div>
                 </div>
             </CardContent>

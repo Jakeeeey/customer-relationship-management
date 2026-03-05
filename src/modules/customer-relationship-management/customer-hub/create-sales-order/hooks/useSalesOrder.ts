@@ -31,8 +31,10 @@ export function useSalesOrder() {
     const [selectedSalesTypeId, setSelectedSalesTypeId] = useState<string>("1");
 
     const [dueDate, setDueDate] = useState<string>("");
+    const [deliveryDate, setDeliveryDate] = useState<string>("");
     const [poNo, setPoNo] = useState("");
     const [priceType, setPriceType] = useState<string>("A");
+    const [priceTypeId, setPriceTypeId] = useState<number | null>(null);
 
     // Product Results
     const [supplierProducts, setSupplierProducts] = useState<any[]>([]);
@@ -46,6 +48,7 @@ export function useSalesOrder() {
     const [isCheckout, setIsCheckout] = useState(false);
     const [orderNo, setOrderNo] = useState("");
     const [allocatedQuantities, setAllocatedQuantities] = useState<Record<string, number>>({});
+    const [orderRemarks, setOrderRemarks] = useState("");
 
     const selectedSalesman = useMemo(() => salesmen.find(s => (s.user_id || s.id)?.toString() === selectedSalesmanId), [salesmen, selectedSalesmanId]);
     const selectedAccount = useMemo(() => accounts.find(a => a.id.toString() === selectedAccountId), [accounts, selectedAccountId]);
@@ -100,7 +103,10 @@ export function useSalesOrder() {
         setCustomers([]);
 
         const account = accounts.find(a => a.id.toString() === id);
-        if (account) setPriceType(account.price_type || "A");
+        if (account) {
+            setPriceType(account.price_type || "A");
+            setPriceTypeId(account.price_type_id || null);
+        }
 
         if (id) {
             setLoadingCustomers(true);
@@ -132,7 +138,7 @@ export function useSalesOrder() {
             const customer = customers.find(c => c.id.toString() === selectedCustomerId);
             if (customer) {
                 setLoadingProducts(true);
-                salesOrderProvider.searchProducts("", customer.customer_code, Number(selectedSupplierId), priceType, Number(selectedCustomerId))
+                salesOrderProvider.searchProducts("", customer.customer_code, Number(selectedSupplierId), priceType, Number(selectedCustomerId), priceTypeId || undefined)
                     .then(res => {
                         const productsWithMockStock = (Array.isArray(res) ? res : []).map(p => ({
                             ...p,
@@ -204,17 +210,38 @@ export function useSalesOrder() {
     };
 
     const summary = useMemo(() => {
-        const totalAmount = lineItems.reduce((sum, item) => sum + item.totalAmount, 0);
-        const netAmount = lineItems.reduce((sum, item) => sum + item.netAmount, 0);
+        // Ordered totals (Base sa buong order na kinuha)
+        const orderedGross = lineItems.reduce((sum, item) => sum + (item.unitPrice * item.quantity), 0);
+        const orderedNet = lineItems.reduce((sum, item) => {
+            const netPrice = calculateChainNetPrice(item.unitPrice, item.discounts);
+            return sum + (netPrice * item.quantity);
+        }, 0);
+        const orderedDiscount = orderedGross - orderedNet;
 
-        // Allocated total
-        const allocatedAmount = lineItems.reduce((sum, item) => {
+        // Allocated totals (Base lang sa kung ano ang ibibigay o "allocated")
+        const allocatedGross = lineItems.reduce((sum, item) => {
+            const qty = allocatedQuantities[item.id] ?? item.quantity;
+            return sum + (item.unitPrice * qty);
+        }, 0);
+
+        const allocatedNet = lineItems.reduce((sum, item) => {
             const qty = allocatedQuantities[item.id] ?? item.quantity;
             const netPrice = calculateChainNetPrice(item.unitPrice, item.discounts);
             return sum + (netPrice * qty);
         }, 0);
 
-        return { totalAmount, netAmount, discountAmount: totalAmount - netAmount, allocatedAmount };
+        const allocatedDiscount = allocatedGross - allocatedNet;
+
+        return {
+            totalAmount: orderedNet, // Ito ang ipapasa sa total_amount sa API (Ordered Net)
+            netAmount: orderedNet,
+            orderedGross,
+            orderedNet,
+            allocatedGross,
+            allocatedNet,
+            allocatedDiscount,
+            discountAmount: allocatedDiscount // Ito ang ipapasa sa discount_amount sa API (Allocated Discount)
+        };
     }, [lineItems, allocatedQuantities]);
 
     const isValidAllocation = useMemo(() => {
@@ -227,6 +254,18 @@ export function useSalesOrder() {
     const enterCheckout = () => {
         if (lineItems.length === 0) {
             toast.error("No items in order");
+            return;
+        }
+        if (!dueDate) {
+            toast.error("Due Date is required");
+            return;
+        }
+        if (!deliveryDate) {
+            toast.error("Delivery Date is required");
+            return;
+        }
+        if (!poNo.trim()) {
+            toast.error("PO Number is required");
             return;
         }
 
@@ -260,21 +299,26 @@ export function useSalesOrder() {
 
         setSubmitting(true);
         try {
-            const header = {
-                salesman_id: Number(selectedAccountId),
+            // I-prepare ang final payload para sa pag-save ng order
+            const payload = {
+                customer_id: Number(selectedCustomerId),
                 customer_code: selectedCustomer.customer_code,
+                salesman_id: Number(selectedAccountId),
                 supplier_id: Number(selectedSupplierId),
                 receipt_type: Number(selectedReceiptTypeId),
                 sales_type: Number(selectedSalesTypeId),
                 po_no: poNo,
                 due_date: dueDate,
-                total_amount: summary.totalAmount,
-                discount_amount: summary.discountAmount,
-                net_amount: summary.netAmount,
-                allocated_amount: summary.allocatedAmount,
+                delivery_date: deliveryDate,
+                // Ito yung bagong logic: total_amount = ordered, net_amount = allocated
+                total_amount: summary.orderedNet,
+                discount_amount: summary.allocatedDiscount,
+                net_amount: summary.allocatedNet,
+                allocated_amount: summary.allocatedNet,
                 order_no: orderNo,
                 order_status: "For Approval",
-                for_approval_at: new Date().toISOString()
+                for_approval_at: new Date().toISOString(),
+                remarks: orderRemarks || ""
             };
 
             const itemsWithAllocation = lineItems.map(item => ({
@@ -283,12 +327,12 @@ export function useSalesOrder() {
                 allocated_amount: (calculateChainNetPrice(item.unitPrice, item.discounts)) * (allocatedQuantities[item.id] ?? item.quantity)
             }));
 
-            const result = await salesOrderProvider.createOrder(header, itemsWithAllocation);
-            if (result.success) {
-                toast.success(`Order created: ${result.order_no}`);
+            const res = await salesOrderProvider.createOrder(payload, itemsWithAllocation);
+            if (res.success) {
+                toast.success(`Order created: ${res.order_no}`);
                 window.location.reload();
             } else {
-                toast.error(result.error || "Failed to create order");
+                toast.error(res.error || "Failed to create order");
             }
         } catch (e) {
             toast.error("Submission error");
@@ -305,6 +349,7 @@ export function useSalesOrder() {
         receiptTypes, selectedReceiptTypeId, setSelectedReceiptTypeId, selectedReceiptType,
         salesTypes, selectedSalesTypeId, setSelectedSalesTypeId, selectedSalesType,
         dueDate, setDueDate,
+        deliveryDate, setDeliveryDate,
         poNo, setPoNo,
         priceType,
         supplierProducts, loadingProducts,
@@ -312,6 +357,7 @@ export function useSalesOrder() {
         addProduct, removeLineItem, updateLineItemQty,
         summary, isValidAllocation,
         isCheckout, setIsCheckout, orderNo, enterCheckout, allocatedQuantities, updateAllocatedQty,
+        orderRemarks, setOrderRemarks,
         handleSubmitOrder, submitting
     };
 }

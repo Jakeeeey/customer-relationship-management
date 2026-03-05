@@ -15,12 +15,14 @@ export default function CreateSalesOrderModule() {
         receiptTypes, selectedReceiptTypeId, setSelectedReceiptTypeId, selectedReceiptType,
         salesTypes, selectedSalesTypeId, setSelectedSalesTypeId, selectedSalesType,
         dueDate, setDueDate,
+        deliveryDate, setDeliveryDate,
         poNo, setPoNo,
         priceType,
         supplierProducts, loadingProducts,
         lineItems, addProduct, removeLineItem, updateLineItemQty,
         summary, isValidAllocation,
         isCheckout, setIsCheckout, orderNo, enterCheckout, allocatedQuantities, updateAllocatedQty,
+        orderRemarks, setOrderRemarks,
         handleSubmitOrder, submitting
     } = useSalesOrder();
 
@@ -60,13 +62,18 @@ export default function CreateSalesOrderModule() {
                     onConfirm={handleSubmitOrder}
                     submitting={submitting}
                     isValidAllocation={isValidAllocation}
+                    orderRemarks={orderRemarks}
+                    setOrderRemarks={setOrderRemarks}
                     header={{
                         salesman: salesmen.find(s => (s.user_id || s.id)?.toString() === selectedSalesmanId),
                         account: selectedAccount,
                         customer: selectedCustomer,
                         supplier: selectedSupplier,
                         receiptType: selectedReceiptType,
-                        salesType: selectedSalesType
+                        salesType: selectedSalesType,
+                        dueDate,
+                        deliveryDate,
+                        poNo
                     }}
                 />
             ) : (
@@ -102,6 +109,9 @@ export default function CreateSalesOrderModule() {
 
                         dueDate={dueDate}
                         onDueDateChange={setDueDate}
+
+                        deliveryDate={deliveryDate}
+                        onDeliveryDateChange={setDeliveryDate}
 
                         poNo={poNo}
                         onPoNoChange={setPoNo}

@@ -5,7 +5,8 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, CheckCircle2, Package, Calculator, Receipt, ShoppingBag, AlertCircle, Loader2 } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
+import { ArrowLeft, CheckCircle2, Package, Calculator, Receipt, ShoppingBag, AlertCircle, Loader2, MessageSquare } from "lucide-react";
 import { formatCurrency, calculateChainNetPrice } from "../utils/priceCalc";
 import { LineItem } from "../types";
 
@@ -14,11 +15,23 @@ interface SalesOrderCheckoutProps {
     lineItems: LineItem[];
     allocatedQuantities: Record<string, number>;
     updateAllocatedQty: (id: string, qty: number) => void;
-    summary: { totalAmount: number; netAmount: number; discountAmount: number; allocatedAmount: number };
+    summary: {
+        totalAmount: number;
+        netAmount: number;
+        discountAmount: number;
+        allocatedAmount: number;
+        orderedGross: number;
+        orderedNet: number;
+        allocatedGross: number;
+        allocatedNet: number;
+        allocatedDiscount: number;
+    };
     onBack: () => void;
     onConfirm: () => void;
     submitting: boolean;
     isValidAllocation: boolean;
+    orderRemarks: string;
+    setOrderRemarks: (val: string) => void;
     header: {
         salesman: any;
         account: any;
@@ -26,12 +39,16 @@ interface SalesOrderCheckoutProps {
         supplier: any;
         receiptType: any;
         salesType: any;
+        dueDate: string;
+        deliveryDate: string;
+        poNo: string;
     };
 }
 
 export function SalesOrderCheckout({
     orderNo, lineItems, allocatedQuantities, updateAllocatedQty,
-    summary, onBack, onConfirm, submitting, header, isValidAllocation
+    summary, onBack, onConfirm, submitting, header, isValidAllocation,
+    orderRemarks, setOrderRemarks
 }: SalesOrderCheckoutProps) {
     return (
         <div className="flex flex-col gap-6 animate-in fade-in zoom-in duration-500">
@@ -61,7 +78,7 @@ export function SalesOrderCheckout({
                                     </div>
                                     <h1 className="text-4xl font-black tracking-tighter text-slate-900">{orderNo}</h1>
                                 </div>
-                                <div className="grid grid-cols-2 md:grid-cols-5 gap-8">
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
                                     <div className="flex flex-col">
                                         <span className="text-[10px] font-black text-muted-foreground uppercase tracking-wider mb-1">Customer</span>
                                         <span className="text-xs font-bold text-slate-700">{header.customer?.customer_name || "N/A"}</span>
@@ -84,6 +101,18 @@ export function SalesOrderCheckout({
                                     <div className="flex flex-col">
                                         <span className="text-[10px] font-black text-muted-foreground uppercase tracking-wider mb-1">Account Rep</span>
                                         <span className="text-xs font-bold text-indigo-600">{header.account?.salesman_name || "N/A"}</span>
+                                    </div>
+                                    <div className="flex flex-col">
+                                        <span className="text-[10px] font-black text-muted-foreground uppercase tracking-wider mb-1">Delivery Date</span>
+                                        <span className="text-xs font-bold text-orange-600">{header.deliveryDate || "N/A"}</span>
+                                    </div>
+                                    <div className="flex flex-col">
+                                        <span className="text-[10px] font-black text-muted-foreground uppercase tracking-wider mb-1">Due Date</span>
+                                        <span className="text-xs font-bold text-slate-700">{header.dueDate || "N/A"}</span>
+                                    </div>
+                                    <div className="flex flex-col">
+                                        <span className="text-[10px] font-black text-muted-foreground uppercase tracking-wider mb-1">PO#</span>
+                                        <span className="text-xs font-bold text-slate-700">{header.poNo || "N/A"}</span>
                                     </div>
                                 </div>
                             </div>
@@ -185,32 +214,49 @@ export function SalesOrderCheckout({
                             <div className="space-y-6">
                                 <div className="flex justify-between items-center group">
                                     <span className="text-xs text-slate-400 font-bold uppercase tracking-wider group-hover:text-slate-300 transition-colors">Gross Amount</span>
-                                    <span className="text-sm font-bold tabular-nums">{formatCurrency(summary.totalAmount)}</span>
+                                    {/* Gross Amount: Base sa Ordered Quantity */}
+                                    <span className="text-sm font-bold tabular-nums">{formatCurrency(summary.orderedGross)}</span>
                                 </div>
                                 <div className="flex justify-between items-center group">
                                     <div className="flex flex-col">
                                         <span className="text-xs text-amber-500 font-bold uppercase tracking-wider group-hover:text-amber-400 transition-colors">Tier Discounts</span>
-                                        <span className="text-[9px] text-slate-500 font-bold">L1-L5 Deductions</span>
+                                        <span className="text-[9px] text-slate-500 font-bold">Allocated Deductions</span>
                                     </div>
-                                    <span className="text-sm font-bold tabular-nums text-amber-500">-{formatCurrency(summary.discountAmount)}</span>
+                                    {/* Allocated Discount: Discount na para lang sa allocated quantity */}
+                                    <span className="text-sm font-bold tabular-nums text-amber-500">-{formatCurrency(summary.allocatedDiscount)}</span>
                                 </div>
                                 <div className="pt-6 border-t border-slate-800 space-y-4">
-                                    <div className="flex justify-between items-center">
+                                    <div className="flex flex-col gap-2">
+                                        <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-slate-500">
+                                            <MessageSquare className="w-3 h-3" />
+                                            Order Remarks
+                                        </div>
+                                        {/* Dito pwedeng mag-input ng special instructions para sa order */}
+                                        <Textarea
+                                            placeholder="Add special instructions, delivery notes, etc."
+                                            className="bg-slate-800/50 border-slate-700 text-slate-200 text-xs min-h-[80px] focus:border-primary/50 transition-all resize-none"
+                                            value={orderRemarks}
+                                            onChange={(e) => setOrderRemarks(e.target.value)}
+                                        />
+                                    </div>
+                                    <div className="flex justify-between items-center pt-4 border-t border-slate-800">
                                         <div className="flex flex-col">
                                             <span className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Order Total</span>
-                                            <span className="text-xs text-slate-300 font-medium tabular-nums opacity-60">Full Fulfillment</span>
+                                            <span className="text-xs text-slate-300 font-medium tabular-nums opacity-60">Full Fulfillment (Net)</span>
                                         </div>
+                                        {/* Order Total: Net amount base sa buong ordered quantity */}
                                         <span className="text-base font-bold text-slate-400 tabular-nums">
-                                            {formatCurrency(summary.netAmount)}
+                                            {formatCurrency(summary.orderedNet)}
                                         </span>
                                     </div>
                                     <div className="flex justify-between items-center pt-4 border-t border-slate-800/50">
                                         <div className="flex flex-col">
                                             <span className="text-[10px] text-primary font-black uppercase tracking-widest">Actual Fulfillment</span>
-                                            <span className="text-xs text-slate-400 font-medium">Grand Total</span>
+                                            <span className="text-xs text-slate-400 font-medium">Grand Total (Net)</span>
                                         </div>
+                                        {/* Actual Fulfillment: Net amount base sa allocated quantity (Grand Total) */}
                                         <span className="text-3xl font-black text-emerald-400 tabular-nums tracking-tighter decoration-emerald-500/30 underline underline-offset-8">
-                                            {formatCurrency(summary.allocatedAmount)}
+                                            {formatCurrency(summary.allocatedNet)}
                                         </span>
                                     </div>
                                 </div>

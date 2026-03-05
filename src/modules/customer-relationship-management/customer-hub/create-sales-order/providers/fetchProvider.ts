@@ -18,11 +18,14 @@ export const salesOrderProvider = {
         return res.json();
     },
 
-    searchProducts: async (search: string, customerCode: string, supplierId: number, priceType: string, customerId: number): Promise<any[]> => {
-        const res = await fetch(`${API_BASE}?action=products&search=${encodeURIComponent(search)}&customer_code=${customerCode}&supplier_id=${supplierId}&price_type=${priceType}&customer_id=${customerId}`);
+    // Pag-search ng mga products na pwedeng bilhin
+    searchProducts: async (search: string, customerCode: string, supplierId: number, priceType: string, customerId: number, priceTypeId?: number): Promise<any[]> => {
+        // Dito natin ipinapasa ang price_type_id para makuha ang tamang presyo mula sa Directus
+        const res = await fetch(`${API_BASE}?action=products&search=${encodeURIComponent(search)}&customer_code=${customerCode}&supplier_id=${supplierId}&price_type=${priceType}&customer_id=${customerId}${priceTypeId ? `&price_type_id=${priceTypeId}` : ""}`);
         return res.json();
     },
 
+    // Pag-save ng bagong Sales Order sa database
     createOrder: async (header: any, items: any[]): Promise<any> => {
         const res = await fetch(API_BASE, {
             method: "POST",

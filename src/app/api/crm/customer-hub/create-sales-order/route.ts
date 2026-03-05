@@ -1,4 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
+import { cookies } from "next/headers";
+
+const COOKIE_NAME = "vos_access_token";
+
+function decodeJwtPayload(token: string): any | null {
+    try {
+        const parts = token.split(".");
+        if (parts.length < 2) return null;
+        const p = parts[1];
+        const b64 = p.replace(/-/g, "+").replace(/_/g, "/");
+        const padded = b64 + "=".repeat((4 - (b64.length % 4)) % 4);
+        const json = Buffer.from(padded, "base64").toString("utf8");
+        return JSON.parse(json);
+    } catch {
+        return null;
+    }
+}
 
 export const dynamic = "force-dynamic";
 
@@ -15,21 +32,27 @@ export async function GET(req: NextRequest) {
 
     try {
         if (action === "salesmen") {
+            // Kunin lahat ng active na salesman sa Directus
             const res = await fetch(`${DIRECTUS_URL}/items/salesman?filter[isActive][_eq]=1&limit=-1`, { headers: fetchHeaders });
             const smData = (await res.json()).data || [];
             const userIds = new Set<string>();
+
+            // I-collect ang mga employee_id o encoder_id para mahanap ang user account nila
             smData.forEach((s: any) => {
                 const uid = s.employee_id || s.encoder_id;
                 if (uid) userIds.add(uid.toString());
             });
             if (userIds.size === 0) return NextResponse.json([]);
+
+            // Hanapin ang mga user records base sa nakolektang IDs
             const uRes = await fetch(`${DIRECTUS_URL}/items/user?filter[user_id][_in]=${Array.from(userIds).join(',')}&limit=-1`, { headers: fetchHeaders });
             return NextResponse.json((await uRes.json()).data || []);
         }
 
         if (action === "accounts") {
+            // Kunin ang mga salesman records na naka-link sa logged-in user
             const userId = req.nextUrl.searchParams.get("user_id");
-            const url = `${DIRECTUS_URL}/items/salesman?filter[_or][0][employee_id][_eq]=${userId}&filter[_or][1][encoder_id][_eq]=${userId}&filter[isActive][_eq]=1&fields=id,salesman_name,salesman_code,price_type,truck_plate&limit=-1`;
+            const url = `${DIRECTUS_URL}/items/salesman?filter[_or][0][employee_id][_eq]=${userId}&filter[_or][1][encoder_id][_eq]=${userId}&filter[isActive][_eq]=1&fields=id,salesman_name,salesman_code,price_type,price_type_id,truck_plate&limit=-1`;
             const res = await fetch(url, { headers: fetchHeaders });
             return NextResponse.json((await res.json()).data || []);
         }
@@ -68,6 +91,7 @@ export async function GET(req: NextRequest) {
                 const supplierIdRaw = req.nextUrl.searchParams.get("supplier_id") || req.nextUrl.searchParams.get("supplierId");
                 const supplierId = supplierIdRaw ? Number(supplierIdRaw) : null;
                 const priceType = req.nextUrl.searchParams.get("price_type") || req.nextUrl.searchParams.get("priceType") || "A";
+                const priceTypeId = req.nextUrl.searchParams.get("price_type_id") || req.nextUrl.searchParams.get("priceTypeId");
 
                 if (!customerCode || !supplierId) return NextResponse.json({ error: "customer_code and supplier_id required" }, { status: 400 });
 
@@ -134,6 +158,17 @@ export async function GET(req: NextRequest) {
                 const customerRes = await fetch(`${DIRECTUS_URL}/items/customer?filter[customer_code][_eq]=${customerCode}&fields=discount_type`, { headers: fetchHeaders });
                 const customerData = (await customerRes.json()).data?.[0];
 
+                // 4. Price Type Overrides
+                // Dito natin chine-check kung may special price ang product para sa partikular na price_type_id
+                let priceOverrides: Record<number, number> = {};
+                if (priceTypeId) {
+                    const poRes = await fetch(`${DIRECTUS_URL}/items/product_per_price_type?filter[price_type_id][_eq]=${priceTypeId}&limit=-1`, { headers: fetchHeaders });
+                    const poData = (await poRes.json()).data || [];
+                    poData.forEach((po: any) => {
+                        priceOverrides[Number(po.product_id)] = Number(po.price);
+                    });
+                }
+
                 const typeIds = new Set(
                     l1Items.map((i: any) => i.discount_type)
                         .concat(l2Items.map((i: any) => i.discount_type))
@@ -163,8 +198,12 @@ export async function GET(req: NextRequest) {
                 const finalProducts = sellableItems.map((p: any) => {
                     let winId = null;
                     let level = "Default Customer Discount";
-                    let price = Number(p[priceField]) || Number(p.price_per_unit) || 0;
 
+                    // Priority: Override by price_type_id > priceType column > price_per_unit
+                    // Dito tinitignan kung anong presyo ang dapat gamitin base sa priority level
+                    let price = priceOverrides[Number(p.product_id)] || Number(p[priceField]) || Number(p.price_per_unit) || 0;
+
+                    // I-resolve ang "winning" discount type base sa hierarchy (L1 -> L2 -> L3 -> L4 -> Default)
                     const l1 = l1Items.find((i: any) => i.product_id === p.product_id);
                     if (l1) { winId = l1.discount_type; price = Number(l1.unit_price) || price; level = "Customer-Specific Price Override"; }
 
@@ -229,23 +268,125 @@ export async function POST(req: NextRequest) {
         const body = await req.json();
         const { header, items } = body;
         const now = new Date();
-        const orderNo = `SO-${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}${String(now.getSeconds()).padStart(2, '0')}`;
+        const orderNo = header.order_no || `SO-${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}${String(now.getSeconds()).padStart(2, '0')}`;
+
+        // Kunin ang created_by gamit ang JWT cookie
+        // Tandaan: Ang "sub" sa JWT ay Spring Boot ID, kaya kailangang hanapin ang totoong user_id sa Directus user table.
+        let createdBy: number | null = null;
+        try {
+            const cookieStore = await cookies();
+            const token = cookieStore.get(COOKIE_NAME)?.value;
+            if (token) {
+                const payload = decodeJwtPayload(token);
+                const email = payload?.email || payload?.Email || "";
+                const firstName = payload?.FirstName || payload?.Firstname || payload?.firstName || payload?.firstname || "";
+                const lastName = payload?.LastName || payload?.Lastname || payload?.lastName || payload?.lastname || "";
+
+                // Strategy 1: Hanapin gamit ang email
+                if (email && !createdBy) {
+                    const res = await fetch(`${DIRECTUS_URL}/items/user?filter[user_email][_eq]=${encodeURIComponent(email)}&fields=user_id&limit=1`, { headers: fetchHeaders });
+                    if (res.ok) {
+                        const data = (await res.json()).data;
+                        if (data && data.length > 0) createdBy = data[0].user_id;
+                    }
+                }
+
+                // Strategy 2: Kung walang email, hanapin gamit ang First Name + Last Name
+                if (!createdBy && firstName && lastName) {
+                    const res = await fetch(`${DIRECTUS_URL}/items/user?filter[user_fname][_eq]=${encodeURIComponent(firstName)}&filter[user_lname][_eq]=${encodeURIComponent(lastName)}&fields=user_id&limit=1`, { headers: fetchHeaders });
+                    if (res.ok) {
+                        const data = (await res.json()).data;
+                        if (data && data.length > 0) createdBy = data[0].user_id;
+                    }
+                }
+            }
+        } catch (e) {
+            console.error("Failed to resolve created_by from JWT:", e);
+        }
+
+        // 1. Kunin ang Branch ID mula sa Salesman
+        let branchId = null;
+        if (header.salesman_id) {
+            const smRes = await fetch(`${DIRECTUS_URL}/items/salesman/${header.salesman_id}?fields=branch_code,branch_id`, { headers: fetchHeaders });
+            if (smRes.ok) {
+                const smData = (await smRes.json()).data;
+                // Ang branch_code sa salesman table ay madalas na ang mismong branch id (numeric)
+                if (smData?.branch_code) {
+                    branchId = Number(smData.branch_code);
+                } else if (smData?.branch_id) {
+                    branchId = Number(smData.branch_id);
+                }
+            }
+        }
+        // 3. I-process muna ang Line Items para ma-compute ang tamang header totals
+        const lineItemsPayload = items.map((item: any) => {
+            const unitPrice = Number(item.unitPrice) || 0;
+            const orderedQty = Number(item.quantity) || 0;
+            const allocatedQty = Number(item.allocated_quantity) || orderedQty;
+
+            // Ordered-based calculations (Base sa kabuuang order)
+            const orderedGross = unitPrice * orderedQty;
+            const orderedNetAmount = Number(item.netAmount) || orderedGross;
+            const totalDiscountOrdered = orderedGross - orderedNetAmount;
+
+            // Per-unit discount (proportional)
+            const unitDiscount = orderedQty > 0 ? totalDiscountOrdered / orderedQty : 0;
+
+            // Allocated-based calculations (Base sa kung ano lang ang ibibigay o "allocated")
+            // Ang net_amount ay dapat nakabase sa allocated quantity, hindi sa ordered.
+            const allocatedDiscount = unitDiscount * allocatedQty;
+            const allocatedGross = unitPrice * allocatedQty;
+            const netAmountLine = allocatedGross - allocatedDiscount;
+            const allocatedAmountLine = netAmountLine;
+
+            return {
+                order_id: 0, // Placeholder lang ito, papalitan mamaya pagkatapos ma-save ang header
+                product_id: item.product.product_id,
+                unit_price: unitPrice,
+                ordered_quantity: orderedQty,
+                allocated_quantity: allocatedQty,
+                served_quantity: 0,
+                discount_type: item.product?.discount_type || null,
+                discount_amount: allocatedDiscount,
+                gross_amount: allocatedGross,
+                net_amount: netAmountLine,
+                allocated_amount: allocatedAmountLine,
+                remarks: item.remarks || "",
+                // Internal fields para sa computation ng header (hindi sinesave sa DB)
+                _ordered_gross: orderedGross,
+                _ordered_discount: totalDiscountOrdered
+            };
+        });
+
+        // I-compute ang mga total para sa header:
+        // total_amount = ordered net total (full fulfillment)
+        const computedTotalAmount = lineItemsPayload.reduce((sum: number, li: any) => sum + (li._ordered_gross - li._ordered_discount), 0);
+        const computedDiscountAmount = lineItemsPayload.reduce((sum: number, li: any) => sum + li.discount_amount, 0);
+        const computedNetAmount = lineItemsPayload.reduce((sum: number, li: any) => sum + li.net_amount, 0);
+        const computedAllocatedAmount = lineItemsPayload.reduce((sum: number, li: any) => sum + li.allocated_amount, 0);
 
         const headerPayload = {
+            ...(header.order_id ? { order_id: header.order_id } : {}), // Omit if null for AUTO_INCREMENT
             order_no: orderNo,
             po_no: header.po_no || "",
             customer_code: header.customer_code,
             salesman_id: header.salesman_id,
             supplier_id: header.supplier_id,
+            branch_id: branchId,
             receipt_type: header.receipt_type,
             sales_type: header.sales_type || 1,
-            order_date: now.toISOString(),
+            order_date: now.toISOString().split('T')[0], // DATE only
             order_status: "For Approval",
-            due_date: header.due_date,
-            total_amount: header.total_amount,
-            discount_amount: header.discount_amount,
-            net_amount: header.net_amount,
-            created_date: now.toISOString()
+            due_date: header.due_date || null,
+            delivery_date: header.delivery_date || null,
+            total_amount: computedTotalAmount,
+            discount_amount: computedDiscountAmount,
+            net_amount: computedNetAmount,
+            allocated_amount: computedAllocatedAmount,
+            remarks: header.remarks || "",
+            created_by: createdBy,
+            created_date: now.toISOString(),
+            for_approval_at: now.toISOString()
         };
 
         const hRes = await fetch(`${DIRECTUS_URL}/items/sales_order`, {
@@ -254,31 +395,33 @@ export async function POST(req: NextRequest) {
             body: JSON.stringify(headerPayload)
         });
 
-        if (!hRes.ok) return NextResponse.json({ success: false, error: await hRes.text() });
+        if (!hRes.ok) {
+            const errText = await hRes.text();
+            console.error("Header Save Error:", errText);
+            return NextResponse.json({ success: false, error: errText });
+        }
+
         const hJson = await hRes.json();
-        const soId = hJson.data.id;
+        const soId = hJson.data.order_id || hJson.data.id;
 
-        const lineItemsPayload = items.map((item: any) => ({
-            so_id: soId,
-            product_id: item.product.product_id,
-            quantity: item.quantity,
-            uom: item.uom,
-            unit_price: item.unitPrice,
-            discount_type: item.discountType,
-            discount_amount: item.discountAmount,
-            net_amount: item.netAmount,
-            total_amount: item.totalAmount
-        }));
+        // Set correct order_id and strip internal fields before saving
+        const finalLineItems = lineItemsPayload.map(({ _ordered_gross, _ordered_discount, ...li }: any) => ({ ...li, order_id: soId }));
 
-        const itemsRes = await fetch(`${DIRECTUS_URL}/items/sales_order_line_items`, {
+        const itemsRes = await fetch(`${DIRECTUS_URL}/items/sales_order_details`, {
             method: "POST",
             headers: fetchHeaders,
-            body: JSON.stringify(lineItemsPayload)
+            body: JSON.stringify(finalLineItems)
         });
 
-        if (!itemsRes.ok) return NextResponse.json({ success: false, error: await itemsRes.text() });
+        if (!itemsRes.ok) {
+            const errText = await itemsRes.text();
+            console.error("Lines Save Error:", errText);
+            return NextResponse.json({ success: false, error: errText });
+        }
+
         return NextResponse.json({ success: true, order_no: orderNo });
     } catch (e: any) {
+        console.error("Submission Exception:", e);
         return NextResponse.json({ success: false, error: e.message });
     }
 }
