@@ -45,18 +45,24 @@ export async function GET(req: NextRequest) {
         ]);
 
         // Build filters for Directus
-        const filter: any = {
+        interface DirectusFilter {
+            _and?: (DirectusFilter | Record<string, unknown>)[];
+            _or?: (DirectusFilter | Record<string, unknown>)[];
+            [key: string]: unknown;
+        }
+
+        const filter: DirectusFilter = {
             _and: [
                 { status: { _eq: "pending" } }
             ]
         };
 
         if (customerCode) {
-            filter._and.push({ customer_code: { _eq: customerCode } });
+            filter._and?.push({ customer_code: { _eq: customerCode } });
         }
 
         if (salesmanId) {
-            filter._and.push({ salesman_id: { _eq: parseInt(salesmanId) } });
+            filter._and?.push({ salesman_id: { _eq: parseInt(salesmanId) } });
         }
 
         if (search) {
@@ -79,7 +85,7 @@ export async function GET(req: NextRequest) {
                 .slice(0, 100)
                 .map(s => s.id);
 
-            const searchFilter: any = {
+            const searchFilter: DirectusFilter = {
                 _or: [
                     { sales_order_no: { _icontains: search } },
                     { attachment_name: { _icontains: search } }
@@ -87,14 +93,14 @@ export async function GET(req: NextRequest) {
             };
 
             if (matchingCustomerCodes.length > 0) {
-                searchFilter._or.push({ customer_code: { _in: matchingCustomerCodes } });
+                searchFilter._or?.push({ customer_code: { _in: matchingCustomerCodes } });
             }
 
             if (matchingSalesmanIds.length > 0) {
-                searchFilter._or.push({ salesman_id: { _in: matchingSalesmanIds } });
+                searchFilter._or?.push({ salesman_id: { _in: matchingSalesmanIds } });
             }
 
-            filter._and.push(searchFilter);
+            filter._and?.push(searchFilter);
         }
 
         const attachmentParams = new URL(DIRECTUS_URL + "/items/sales_order_attachment");
@@ -122,10 +128,10 @@ export async function GET(req: NextRequest) {
         );
 
         // Enrich each record with resolved names
-        const enriched = (attachmentJson.data || []).map((row: any) => ({
+        const enriched = (attachmentJson.data || []).map((row: Record<string, unknown>) => ({
             ...row,
-            salesman_name: salesmanMap.get(row.salesman_id) ?? `Salesman #${row.salesman_id}`,
-            customer_name: customerMap.get(row.customer_code) ?? row.customer_code,
+            salesman_name: salesmanMap.get(row.salesman_id as number) ?? `Salesman #${row.salesman_id}`,
+            customer_name: customerMap.get(row.customer_code as string) ?? row.customer_code,
         }));
 
         // Sort filter options safely
