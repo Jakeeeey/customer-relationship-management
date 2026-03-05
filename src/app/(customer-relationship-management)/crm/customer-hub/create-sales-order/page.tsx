@@ -14,12 +14,11 @@ import { cookies } from "next/headers";
 
 import ComingSoon from "../../_components/ComingSoon";
 
-export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const COOKIE_NAME = "vos_access_token";
 
-function decodeJwtPayload(token: string): any | null {
+function decodeJwtPayload(token: string): Record<string, unknown> | null {
     try {
         const parts = token.split(".");
         if (parts.length < 2) return null;
@@ -35,7 +34,7 @@ function decodeJwtPayload(token: string): any | null {
     }
 }
 
-function pickString(obj: any, keys: string[]): string {
+function pickString(obj: Record<string, unknown> | null | undefined, keys: string[]): string {
     for (const k of keys) {
         const v = obj?.[k];
         if (typeof v === "string" && v.trim()) return v.trim();
@@ -114,7 +113,7 @@ export default async function Page() {
             </header>
 
             {/* ✅ Only content scrolls inside RIGHT column */}
-            <main className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden p-2 sm:p-4">
+            <main className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden p-6 sm:p-8">
                 <ComingSoon />
             </main>
         </div>

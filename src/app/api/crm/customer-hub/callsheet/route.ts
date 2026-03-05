@@ -4,8 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 // CONFIG
 // ============================================================================
 
-const DIRECTUS_URL =
-    process.env.DIRECTUS_URL || "http://100.110.197.61:8056";
+const DIRECTUS_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -122,10 +121,10 @@ export async function GET(req: NextRequest) {
         );
 
         // Enrich each record with resolved names
-        const enriched = (attachmentJson.data || []).map((row: any) => ({
+        const enriched = (attachmentJson.data || []).map((row: Record<string, unknown>) => ({
             ...row,
-            salesman_name: salesmanMap.get(row.salesman_id) ?? `Salesman #${row.salesman_id}`,
-            customer_name: customerMap.get(row.customer_code) ?? row.customer_code,
+            salesman_name: salesmanMap.get(row.salesman_id as number) ?? `Salesman #${row.salesman_id}`,
+            customer_name: customerMap.get(row.customer_code as string) ?? row.customer_code,
         }));
 
         // Sort filter options safely

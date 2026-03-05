@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { RefreshCcw, AlertCircle, ServerCrash } from "lucide-react";
+import { RefreshCcw, ServerCrash } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface UniversalErrorProps {

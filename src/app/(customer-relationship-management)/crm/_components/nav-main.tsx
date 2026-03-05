@@ -1,11 +1,16 @@
-// src/app/(financial-management)/fm/_components/nav-main.tsx
 "use client";
 
 import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { cva, type VariantProps } from "class-variance-authority";
-import { ChevronRight, Dot, FileText, Folder, type LucideIcon } from "lucide-react";
+import { cva } from "class-variance-authority";
+import {
+    ChevronRight,
+    ChevronDown,
+    FileText,
+    Folder,
+    type LucideIcon,
+} from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -101,29 +106,27 @@ const ROW = "flex w-full min-w-0 flex-nowrap items-center overflow-hidden";
 const LABEL = "min-w-0 w-0 flex-1 truncate";
 
 /* ----------------------------- pill (hover + active) ------------------------ */
-/**
- * ✅ Only the pill paints hover. Outer row is always transparent.
- * ✅ Active stays for exact route only.
- * ✅ Pill radius now follows global --radius (wired to settings slider).
- */
+
 const PILL_BASE =
-    "flex min-w-0 flex-1 items-center gap-2 " +
+    "flex min-w-0 flex-1 items-center " +
     "rounded-[var(--radius)] px-3 py-1.5 " +
     "bg-transparent text-inherit shadow-none " +
     "transition-[background-color,color,box-shadow] duration-150";
 
+const GAP_L1 = "gap-2";
+const GAP_L2 = "gap-2";
+const GAP_L3 = "gap-2";
+
 const PILL_HOVER =
-    "hover:bg-[hsl(var(--vos-pill))] hover:text-[hsl(var(--vos-pill-foreground))] hover:shadow-sm";
+    "hover:bg-[hsl(var(--vos-pill))] hover:text-[hsl(var(--vos-pill-foreground))] hover:shadow-sm " +
+    "dark:hover:!text-black";
 
 const PILL_ACTIVE =
     "group-data-[active=true]:bg-[hsl(var(--vos-pill))] " +
     "group-data-[active=true]:text-[hsl(var(--vos-pill-foreground))] " +
-    "group-data-[active=true]:shadow-sm";
+    "group-data-[active=true]:shadow-sm " +
+    "dark:group-data-[active=true]:!text-black";
 
-/**
- * ✅ HARD OVERRIDE:
- * Remove any shadcn default hover/active background on L1/L2 buttons.
- */
 const OUTER_ROW_NO_GREY =
     "group !bg-transparent !shadow-none " +
     "!hover:bg-transparent !active:bg-transparent " +
@@ -132,37 +135,56 @@ const OUTER_ROW_NO_GREY =
 
 /* ---------------------------------- CVA ----------------------------------- */
 
-const subBtnVariants = cva(cn("relative w-full min-w-0 overflow-hidden justify-start !translate-x-0 rounded-md"), {
-    variants: {
-        level: {
-            2: "h-8 text-sm pl-7 pr-2",
-            3: "h-8 text-sm pl-12 pr-2",
+const subBtnVariants = cva(
+    cn("relative w-full min-w-0 overflow-hidden justify-start !translate-x-0 rounded-md"),
+    {
+        variants: {
+            level: {
+                2: "h-8 text-sm pl-7 pr-2",
+                3: "h-8 text-sm pl-12 pr-2",
+            },
         },
-    },
-    defaultVariants: { level: 2 },
-});
-
-type SubBtnVariant = VariantProps<typeof subBtnVariants>;
+        defaultVariants: { level: 2 },
+    }
+);
 
 /* ---------------------------------- icons --------------------------------- */
 
+const ICON_L1_CLASS = "size-5 shrink-0 text-current";
+const ICON_L2_CLASS = "size-4 shrink-0 text-current";
+const ICON_L3_CLASS = "size-4 shrink-0 text-current";
+
 function L2Icon({ node, kind }: { node: NavNode; kind: "leaf" | "parent" }) {
     const Icon = node.icon ?? (kind === "parent" ? Folder : FileText);
-    return <Icon className="size-4 shrink-0 text-sidebar-foreground/70" />;
+    return <Icon className={ICON_L2_CLASS} />;
 }
 
-function L3DotIcon() {
-    return <Dot className="size-3.5 shrink-0 text-sidebar-foreground/70" />;
+function L3Icon({ node }: { node: NavNode }) {
+    const Icon = node.icon ?? FileText;
+    return <Icon className={ICON_L3_CLASS} />;
 }
+
+/* ------------------------ dropdown animation (fixed) ------------------------ */
+/**
+ * ✅ Key fix:
+ * - Keep CollapsibleContent mounted (forceMount)
+ * - Animate a wrapper that always exists
+ * - Disable pointer events while closed
+ */
+const DROP_WRAP =
+    "grid transition-[grid-template-rows,opacity] duration-200 ease-out will-change-[grid-template-rows,opacity]";
+const DROP_OPEN = "grid-rows-[1fr] opacity-100 pointer-events-auto";
+const DROP_CLOSED = "grid-rows-[0fr] opacity-0 pointer-events-none";
+const DROP_INNER = "min-h-0 overflow-hidden";
+
+const CHEVRON_ANIM = "transition-transform duration-200 ease-out";
 
 /* -------------------------------- component -------------------------------- */
 
 export function NavMain({ items }: { items: NavNode[] }) {
     const pathname = normalizePath(usePathname() || "/");
-
     const [accentVars, setAccentVars] = React.useState(() => resolveAccentVars("amber"));
 
-    // ✅ initial read + same-tab live updates (accent + others)
     React.useEffect(() => {
         const applyFromStorage = () => {
             const s = readVOSThemeSettings();
@@ -172,14 +194,13 @@ export function NavMain({ items }: { items: NavNode[] }) {
         applyFromStorage();
 
         const onThemeSettingsChanged = () => applyFromStorage();
-        window.addEventListener(THEME_SETTINGS_EVENT, onThemeSettingsChanged as any);
+        window.addEventListener(THEME_SETTINGS_EVENT, onThemeSettingsChanged as EventListener);
 
         return () => {
-            window.removeEventListener(THEME_SETTINGS_EVENT, onThemeSettingsChanged as any);
+            window.removeEventListener(THEME_SETTINGS_EVENT, onThemeSettingsChanged as EventListener);
         };
     }, []);
 
-    // ✅ Parents still OPEN if child is active (no pill activation)
     const [openMap, setOpenMap] = React.useState<Record<string, boolean>>(() => {
         const initial: Record<string, boolean> = {};
         for (const l1 of items) {
@@ -245,19 +266,24 @@ export function NavMain({ items }: { items: NavNode[] }) {
                             onOpenChange={l1HasChildren ? (v) => setOpenMap((p) => ({ ...p, [l1.title]: v })) : undefined}
                         >
                             <SidebarMenuItem className="min-w-0 overflow-hidden">
-                                {/* ----------------------------- LEVEL 1 ----------------------------- */}
+                                {/* LEVEL 1 */}
                                 {l1HasChildren ? (
                                     <CollapsibleTrigger asChild>
                                         <SidebarMenuButton
                                             tooltip={l1.title}
                                             className={cn("cursor-pointer min-w-0 overflow-hidden", OUTER_ROW_NO_GREY)}
-                                            data-active={l1Exact} // exact only
+                                            data-active={l1Exact}
                                         >
                                             <div className={ROW}>
-                                                <div className={cn(PILL_BASE, PILL_HOVER, PILL_ACTIVE)}>
-                                                    {l1.icon ? <l1.icon className="shrink-0" /> : null}
+                                                <div className={cn(PILL_BASE, GAP_L1, PILL_HOVER, PILL_ACTIVE)}>
+                                                    {l1.icon ? <l1.icon className={ICON_L1_CLASS} /> : null}
                                                     <span className={LABEL}>{l1.title}</span>
-                                                    <ChevronRight className="ml-auto size-4 shrink-0 transition-transform data-[state=open]:rotate-90" />
+
+                                                    {l1Open ? (
+                                                        <ChevronDown className={cn("ml-auto size-4 shrink-0", CHEVRON_ANIM)} />
+                                                    ) : (
+                                                        <ChevronRight className={cn("ml-auto size-4 shrink-0", CHEVRON_ANIM)} />
+                                                    )}
                                                 </div>
                                             </div>
                                         </SidebarMenuButton>
@@ -267,19 +293,19 @@ export function NavMain({ items }: { items: NavNode[] }) {
                                         asChild
                                         tooltip={l1.title}
                                         className={cn("cursor-pointer min-w-0 overflow-hidden", OUTER_ROW_NO_GREY)}
-                                        data-active={l1Exact} // exact only
+                                        data-active={l1Exact}
                                     >
                                         {l1Clickable ? (
                                             <Link href={l1.url} className={ROW}>
-                                                <div className={cn(PILL_BASE, PILL_HOVER, PILL_ACTIVE)}>
-                                                    {l1.icon ? <l1.icon className="shrink-0" /> : null}
+                                                <div className={cn(PILL_BASE, GAP_L1, PILL_HOVER, PILL_ACTIVE)}>
+                                                    {l1.icon ? <l1.icon className={ICON_L1_CLASS} /> : null}
                                                     <span className={LABEL}>{l1.title}</span>
                                                 </div>
                                             </Link>
                                         ) : (
                                             <div className={ROW}>
-                                                <div className={cn(PILL_BASE, PILL_HOVER, PILL_ACTIVE)}>
-                                                    {l1.icon ? <l1.icon className="shrink-0" /> : null}
+                                                <div className={cn(PILL_BASE, GAP_L1, PILL_HOVER, PILL_ACTIVE)}>
+                                                    {l1.icon ? <l1.icon className={ICON_L1_CLASS} /> : null}
                                                     <span className={LABEL}>{l1.title}</span>
                                                 </div>
                                             </div>
@@ -287,113 +313,130 @@ export function NavMain({ items }: { items: NavNode[] }) {
                                     </SidebarMenuButton>
                                 )}
 
+                                {/* ✅ L1 dropdown animation wrapper (fixed) */}
                                 {l1HasChildren ? (
-                                    <CollapsibleContent>
-                                        {/* ----------------------------- LEVEL 2 WRAP ----------------------------- */}
-                                        <SidebarMenuSub className={SUB_WRAP_L2}>
-                                            {l1.items!.map((l2) => {
-                                                const l2HasChildren = !!l2.items?.length;
-                                                const l2Key = `${l1.title}::${l2.title}`;
-                                                const l2Open = l2HasChildren ? !!openMap[l2Key] : false;
+                                    <div className={cn(DROP_WRAP, l1Open ? DROP_OPEN : DROP_CLOSED)}>
+                                        <div className={DROP_INNER}>
+                                            <CollapsibleContent forceMount>
+                                                <div>
+                                                    <SidebarMenuSub className={SUB_WRAP_L2}>
+                                                        {l1.items!.map((l2) => {
+                                                            const l2HasChildren = !!l2.items?.length;
+                                                            const l2Key = `${l1.title}::${l2.title}`;
+                                                            const l2Open = l2HasChildren ? !!openMap[l2Key] : false;
 
-                                                const l2Exact = isRouteActiveExact(pathname, l2.url);
-                                                const l2Clickable = l2.url !== "#";
+                                                            const l2Exact = isRouteActiveExact(pathname, l2.url);
+                                                            const l2Clickable = l2.url !== "#";
 
-                                                if (!l2HasChildren) {
-                                                    return (
-                                                        <SidebarMenuSubItem key={l2.title} className="min-w-0 overflow-hidden">
-                                                            <SidebarMenuSubButton
-                                                                asChild
-                                                                isActive={l2Exact}
-                                                                data-active={l2Exact}
-                                                                className={cn("cursor-pointer", subBtnVariants({ level: 2 }), OUTER_ROW_NO_GREY)}
-                                                            >
-                                                                {l2Clickable ? (
-                                                                    <Link href={l2.url} className={ROW}>
-                                                                        <div className={cn(PILL_BASE, PILL_HOVER, PILL_ACTIVE)}>
-                                                                            <L2Icon node={l2} kind="leaf" />
-                                                                            <span className={LABEL}>{l2.title}</span>
-                                                                        </div>
-                                                                    </Link>
-                                                                ) : (
-                                                                    <div className={ROW}>
-                                                                        <div className={cn(PILL_BASE, PILL_HOVER, PILL_ACTIVE)}>
-                                                                            <L2Icon node={l2} kind="leaf" />
-                                                                            <span className={LABEL}>{l2.title}</span>
-                                                                        </div>
-                                                                    </div>
-                                                                )}
-                                                            </SidebarMenuSubButton>
-                                                        </SidebarMenuSubItem>
-                                                    );
-                                                }
+                                                            if (!l2HasChildren) {
+                                                                return (
+                                                                    <SidebarMenuSubItem key={l2.title} className="min-w-0 overflow-hidden">
+                                                                        <SidebarMenuSubButton
+                                                                            asChild
+                                                                            isActive={l2Exact}
+                                                                            data-active={l2Exact}
+                                                                            className={cn("cursor-pointer", subBtnVariants({ level: 2 }), OUTER_ROW_NO_GREY)}
+                                                                        >
+                                                                            {l2Clickable ? (
+                                                                                <Link href={l2.url} className={ROW}>
+                                                                                    <div className={cn(PILL_BASE, GAP_L2, PILL_HOVER, PILL_ACTIVE)}>
+                                                                                        <L2Icon node={l2} kind="leaf" />
+                                                                                        <span className={LABEL}>{l2.title}</span>
+                                                                                    </div>
+                                                                                </Link>
+                                                                            ) : (
+                                                                                <div className={ROW}>
+                                                                                    <div className={cn(PILL_BASE, GAP_L2, PILL_HOVER, PILL_ACTIVE)}>
+                                                                                        <L2Icon node={l2} kind="leaf" />
+                                                                                        <span className={LABEL}>{l2.title}</span>
+                                                                                    </div>
+                                                                                </div>
+                                                                            )}
+                                                                        </SidebarMenuSubButton>
+                                                                    </SidebarMenuSubItem>
+                                                                );
+                                                            }
 
-                                                return (
-                                                    <Collapsible
-                                                        key={l2.title}
-                                                        asChild
-                                                        open={l2Open}
-                                                        onOpenChange={(v) => setOpenMap((p) => ({ ...p, [l2Key]: v }))}
-                                                    >
-                                                        <SidebarMenuSubItem className="min-w-0 overflow-hidden">
-                                                            <CollapsibleTrigger asChild>
-                                                                <SidebarMenuSubButton
-                                                                    isActive={l2Exact}
-                                                                    data-active={l2Exact}
-                                                                    className={cn("cursor-pointer", subBtnVariants({ level: 2 }), OUTER_ROW_NO_GREY)}
+                                                            return (
+                                                                <Collapsible
+                                                                    key={l2.title}
+                                                                    asChild
+                                                                    open={l2Open}
+                                                                    onOpenChange={(v) => setOpenMap((p) => ({ ...p, [l2Key]: v }))}
                                                                 >
-                                                                    <div className={ROW}>
-                                                                        <div className={cn(PILL_BASE, PILL_HOVER, PILL_ACTIVE)}>
-                                                                            <L2Icon node={l2} kind="parent" />
-                                                                            <span className={LABEL}>{l2.title}</span>
-                                                                            <ChevronRight className="ml-auto size-4 shrink-0 transition-transform data-[state=open]:rotate-90" />
+                                                                    <SidebarMenuSubItem className="min-w-0 overflow-hidden">
+                                                                        <CollapsibleTrigger asChild>
+                                                                            <SidebarMenuSubButton
+                                                                                isActive={l2Exact}
+                                                                                data-active={l2Exact}
+                                                                                className={cn("cursor-pointer", subBtnVariants({ level: 2 }), OUTER_ROW_NO_GREY)}
+                                                                            >
+                                                                                <div className={ROW}>
+                                                                                    <div className={cn(PILL_BASE, GAP_L2, PILL_HOVER, PILL_ACTIVE)}>
+                                                                                        <L2Icon node={l2} kind="parent" />
+                                                                                        <span className={LABEL}>{l2.title}</span>
+
+                                                                                        {l2Open ? (
+                                                                                            <ChevronDown className={cn("ml-auto size-4 shrink-0", CHEVRON_ANIM)} />
+                                                                                        ) : (
+                                                                                            <ChevronRight className={cn("ml-auto size-4 shrink-0", CHEVRON_ANIM)} />
+                                                                                        )}
+                                                                                    </div>
+                                                                                </div>
+                                                                            </SidebarMenuSubButton>
+                                                                        </CollapsibleTrigger>
+
+                                                                        {/* ✅ L2 dropdown animation wrapper (fixed) */}
+                                                                        <div className={cn(DROP_WRAP, l2Open ? DROP_OPEN : DROP_CLOSED)}>
+                                                                            <div className={DROP_INNER}>
+                                                                                <CollapsibleContent forceMount>
+                                                                                    <div>
+                                                                                        <SidebarMenuSub className={SUB_WRAP_L3}>
+                                                                                            {l2.items!.map((l3) => {
+                                                                                                const l3Exact = isRouteActiveExact(pathname, l3.url);
+                                                                                                const l3Clickable = l3.url !== "#";
+
+                                                                                                return (
+                                                                                                    <SidebarMenuSubItem key={l3.title} className="min-w-0 overflow-hidden">
+                                                                                                        <SidebarMenuSubButton
+                                                                                                            asChild
+                                                                                                            isActive={l3Exact}
+                                                                                                            data-active={l3Exact}
+                                                                                                            className={cn("cursor-pointer", subBtnVariants({ level: 3 }), OUTER_ROW_NO_GREY)}
+                                                                                                        >
+                                                                                                            {l3Clickable ? (
+                                                                                                                <Link href={l3.url} className={ROW}>
+                                                                                                                    <div className={cn(PILL_BASE, GAP_L3, PILL_HOVER, PILL_ACTIVE)}>
+                                                                                                                        <L3Icon node={l3} />
+                                                                                                                        <span className={LABEL}>{l3.title}</span>
+                                                                                                                    </div>
+                                                                                                                </Link>
+                                                                                                            ) : (
+                                                                                                                <div className={ROW}>
+                                                                                                                    <div className={cn(PILL_BASE, GAP_L3, PILL_HOVER, PILL_ACTIVE)}>
+                                                                                                                        <L3Icon node={l3} />
+                                                                                                                        <span className={LABEL}>{l3.title}</span>
+                                                                                                                    </div>
+                                                                                                                </div>
+                                                                                                            )}
+                                                                                                        </SidebarMenuSubButton>
+                                                                                                    </SidebarMenuSubItem>
+                                                                                                );
+                                                                                            })}
+                                                                                        </SidebarMenuSub>
+                                                                                    </div>
+                                                                                </CollapsibleContent>
+                                                                            </div>
                                                                         </div>
-                                                                    </div>
-                                                                </SidebarMenuSubButton>
-                                                            </CollapsibleTrigger>
-
-                                                            <CollapsibleContent>
-                                                                {/* ----------------------------- LEVEL 3 WRAP ----------------------------- */}
-                                                                <SidebarMenuSub className={SUB_WRAP_L3}>
-                                                                    {l2.items!.map((l3) => {
-                                                                        const l3Exact = isRouteActiveExact(pathname, l3.url);
-                                                                        const l3Clickable = l3.url !== "#";
-
-                                                                        return (
-                                                                            <SidebarMenuSubItem key={l3.title} className="min-w-0 overflow-hidden">
-                                                                                <SidebarMenuSubButton
-                                                                                    asChild
-                                                                                    isActive={l3Exact}
-                                                                                    data-active={l3Exact}
-                                                                                    className={cn("cursor-pointer", subBtnVariants({ level: 3 }), OUTER_ROW_NO_GREY)}
-                                                                                >
-                                                                                    {l3Clickable ? (
-                                                                                        <Link href={l3.url} className={ROW}>
-                                                                                            <div className={cn(PILL_BASE, PILL_HOVER, PILL_ACTIVE)}>
-                                                                                                <L3DotIcon />
-                                                                                                <span className={LABEL}>{l3.title}</span>
-                                                                                            </div>
-                                                                                        </Link>
-                                                                                    ) : (
-                                                                                        <div className={ROW}>
-                                                                                            <div className={cn(PILL_BASE, PILL_HOVER, PILL_ACTIVE)}>
-                                                                                                <L3DotIcon />
-                                                                                                <span className={LABEL}>{l3.title}</span>
-                                                                                            </div>
-                                                                                        </div>
-                                                                                    )}
-                                                                                </SidebarMenuSubButton>
-                                                                            </SidebarMenuSubItem>
-                                                                        );
-                                                                    })}
-                                                                </SidebarMenuSub>
-                                                            </CollapsibleContent>
-                                                        </SidebarMenuSubItem>
-                                                    </Collapsible>
-                                                );
-                                            })}
-                                        </SidebarMenuSub>
-                                    </CollapsibleContent>
+                                                                    </SidebarMenuSubItem>
+                                                                </Collapsible>
+                                                            );
+                                                        })}
+                                                    </SidebarMenuSub>
+                                                </div>
+                                            </CollapsibleContent>
+                                        </div>
+                                    </div>
                                 ) : null}
                             </SidebarMenuItem>
                         </Collapsible>

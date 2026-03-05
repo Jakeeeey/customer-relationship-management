@@ -5,17 +5,10 @@ import Link from "next/link";
 import Image from "next/image";
 import {
     LayoutDashboard,
-    BookOpen,
-    Receipt,
-    HandCoins,
-    Landmark,
-    Wallet,
-    PiggyBank,
-    Scale,
-    ShieldCheck,
-    PlugZap,
+    Users,
     Bot,
-    SquareTerminal,
+    ClipboardList,
+    ShoppingCart,
 } from "lucide-react";
 
 import { NavMain } from "./nav-main";
@@ -35,19 +28,36 @@ import {
 const data = {
     navMain: [
         { title: "Dashboard", url: "/crm/", icon: LayoutDashboard },
-        { title: "Customer", url: "/crm/customer/", icon: LayoutDashboard },
+        { title: "Customer", url: "/crm/customer/", icon: Users },
         {
             title: "Customer Hub",
             url: "#",
             icon: Bot,
             items: [
                 {
-                    title: "Callsheet",
-                    url: "/crm/customer-hub/callsheet",
+                    title: "Callsheet Printable",
+                    url: "/crm/customer-hub/callsheet-printable",
+                    icon: ClipboardList,
                 },
                 {
-                    title: "Sales Order",
-                    url: "/crm/customer-hub/sales-order",
+                    title: "Callsheet",
+                    url: "/crm/customer-hub/callsheet",
+                    icon: ClipboardList,
+                },
+                {
+                    title: "Sales Order Report",
+                    url: "/crm/customer-hub/sales-order-report",
+                    icon: ShoppingCart,
+                },
+                {
+                    title: "Create Sales Order",
+                    url: "/crm/customer-hub/create-sales-order",
+                    icon: ShoppingCart,
+                },
+                {
+                    title: "Sales Order Approval",
+                    url: "/crm/customer-hub/sales-order-approval",
+                    icon: ClipboardList,
                 },
                 // { title: "Disbursement", url: "/fm/treasury/disbursement" },
                 // { title: "Remittances", url: "/fm/treasury/remittances" },
@@ -56,9 +66,19 @@ const data = {
     ],
 };
 
-export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
+export function AppSidebar({
+    className,
+    ...props
+}: React.ComponentProps<typeof Sidebar>) {
     return (
-        <Sidebar {...props}>
+        <Sidebar
+            {...props}
+            className={cn(
+                "border-r border-sidebar-border/60 dark:border-white/20",
+                "shadow-sm dark:shadow-[0_0_0_1px_rgba(255,255,255,0.10),0_16px_40px_-24px_rgba(0,0,0,0.9)]",
+                className
+            )}
+        >
             <SidebarHeader>
                 <SidebarMenu>
                     <SidebarMenuItem>
@@ -77,7 +97,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
                                 <div className="grid flex-1 text-left text-sm leading-tight">
                                     <span className="truncate font-medium">VOS Web</span>
-                                    <span className="truncate text-xs text-muted-foreground">Financial Management</span>
+                                    <span className="truncate text-xs text-muted-foreground">
+                                        Customer Relationship Management
+                                    </span>
                                 </div>
                             </Link>
                         </SidebarMenuButton>
@@ -88,7 +110,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             <Separator />
 
             <SidebarContent>
-                <div className="px-4 pt-3 pb-2 text-xs font-medium text-muted-foreground">Platform</div>
+                <div className="px-4 pt-3 pb-2 text-xs font-medium text-muted-foreground">
+                    Platform
+                </div>
 
                 <ScrollArea
                     className={cn(
@@ -106,7 +130,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
             <SidebarFooter className="p-0">
                 <Separator />
-                <div className="py-3 text-center text-xs text-muted-foreground">VOS Web v2.0</div>
+                <div className="py-3 text-center text-xs text-muted-foreground">
+                    VOS Web v2.0
+                </div>
             </SidebarFooter>
         </Sidebar>
     );

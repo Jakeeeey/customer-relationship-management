@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import { Loader2, AlertCircle } from "lucide-react";
-import { useForm } from "react-hook-form";
+import { useForm, FieldErrors, Resolver, SubmitHandler } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import {
@@ -35,27 +35,29 @@ const customerSchema = z.object({
     customer_code: z.string().min(1, "Customer code is required"),
     customer_name: z.string().min(1, "Customer name is required"),
     store_name: z.string().min(1, "Store name is required"),
-    store_signage: z.string().optional().or(z.literal("")),
+    store_signage: z.string(),
     contact_number: z.string().min(1, "Contact number is required"),
-    customer_email: z.string().email().optional().or(z.literal("")),
-    brgy: z.string().default(""),
-    city: z.string().default(""),
-    province: z.string().default(""),
-    tel_number: z.string().default(""),
-    customer_tin: z.string().default(""),
-    payment_term: z.coerce.number().default(0),
-    store_type: z.coerce.number().min(1, "Please select a store type"),
-    price_type: z.string().default(""),
-    isActive: z.coerce.number().default(1),
-    isVAT: z.coerce.number().default(0),
-    isEWT: z.coerce.number().default(0),
-    discount_type: z.coerce.number().nullable().optional().default(null),
-    division_id: z.coerce.number().nullable().optional().default(null),
-    department_id: z.coerce.number().nullable().optional().default(null),
-    encoder_id: z.number().default(1),
+    customer_email: z.string().email().or(z.literal("")),
+    brgy: z.string(),
+    city: z.string(),
+    province: z.string(),
+    type: z.enum(["Regular", "Employee"]),
+    user_id: z.coerce.number().nullable(),
+    tel_number: z.string(),
+    customer_tin: z.string(),
+    payment_term: z.coerce.number(),
+    store_type: z.coerce.number().nullable(),
+    price_type: z.string(),
+    isActive: z.coerce.number(),
+    isVAT: z.coerce.number(),
+    isEWT: z.coerce.number(),
+    discount_type: z.coerce.number().nullable(),
+    division_id: z.coerce.number().nullable(),
+    department_id: z.coerce.number().nullable(),
+    encoder_id: z.number(),
 });
 
-type CustomerFormValues = any; // Use any to bypass RHF Resolver variance issues in complex schemas
+type CustomerFormValues = z.infer<typeof customerSchema>;
 
 interface CustomerDialogProps {
     open: boolean;
@@ -75,19 +77,24 @@ export function CustomerDialog({
     const [activeTab, setActiveTab] = useState(defaultTab);
     const [storeTypes, setStoreTypes] = useState<ReferenceItem[]>([]);
     const [discountTypes, setDiscountTypes] = useState<ReferenceItem[]>([]);
+    const [users, setUsers] = useState<ReferenceItem[]>([]);
 
-    useEffect(() => {
+    // Reset tab when dialog opens - using the pattern for resetting state on prop change
+    const [prevOpen, setPrevOpen] = useState(open);
+    if (open !== prevOpen) {
+        setPrevOpen(open);
         if (open) {
-            setActiveTab(defaultTab || "basic");
+            setActiveTab(defaultTab);
         }
-    }, [open, defaultTab]);
+    }
 
     useEffect(() => {
         const fetchRefs = async () => {
             try {
-                const [storeRes, discRes] = await Promise.all([
+                const [storeRes, discRes, userRes] = await Promise.all([
                     fetch("/api/crm/customer/references?type=store_type"),
                     fetch("/api/crm/customer/references?type=discount_type"),
+                    fetch("/api/crm/customer/references?type=user"),
                 ]);
 
                 if (storeRes.ok) {
@@ -98,6 +105,10 @@ export function CustomerDialog({
                     const data = await discRes.json();
                     setDiscountTypes(data.data || []);
                 }
+                if (userRes.ok) {
+                    const data = await userRes.json();
+                    setUsers(data.data || []);
+                }
             } catch (err) {
                 console.error("Failed to fetch references", err);
             }
@@ -106,7 +117,7 @@ export function CustomerDialog({
     }, [open]);
 
     const form = useForm<CustomerFormValues>({
-        resolver: zodResolver(customerSchema),
+        resolver: zodResolver(customerSchema) as Resolver<CustomerFormValues>,
         defaultValues: {
             customer_code: "",
             customer_name: "",
@@ -128,6 +139,8 @@ export function CustomerDialog({
             discount_type: null,
             division_id: null,
             department_id: null,
+            type: "Regular",
+            user_id: null,
             encoder_id: 1,
         },
     });
@@ -155,6 +168,8 @@ export function CustomerDialog({
                 discount_type: customer.discount_type || null,
                 division_id: customer.division_id || null,
                 department_id: customer.department_id || null,
+                type: customer.type || "Regular",
+                user_id: customer.user_id || null,
                 encoder_id: customer.encoder_id || 1,
             });
         } else if (open) {
@@ -179,12 +194,14 @@ export function CustomerDialog({
                 discount_type: null,
                 division_id: null,
                 department_id: null,
+                type: "Regular",
+                user_id: null,
                 encoder_id: 1,
             });
         }
     }, [customer, form, open]);
 
-    const handleFormSubmit = async (values: CustomerFormValues) => {
+    const handleFormSubmit: SubmitHandler<CustomerFormValues> = async (values) => {
         try {
             await onSubmit(values);
             toast.success(`Customer ${customer ? "updated" : "created"} successfully`);
@@ -195,7 +212,7 @@ export function CustomerDialog({
         }
     };
 
-    const onFormError = (errors: any) => {
+    const onFormError = (errors: FieldErrors<CustomerFormValues>) => {
         console.log("Form Validation Errors:", errors);
         toast.error("Please fill in all required fields in Basic, Address, and Billing tabs.");
     };
@@ -222,9 +239,8 @@ export function CustomerDialog({
                                 </TabsList>
 
                                 <TabsContent value="basic" className="space-y-6 pb-6 mt-2">
-                                    <div className="grid grid-cols-2 gap-6">
+                                    <div className="grid grid-cols-3 gap-6">
                                         <FormField
-                                            control={form.control as any}
                                             name="customer_code"
                                             render={({ field }) => (
                                                 <FormItem>
@@ -237,7 +253,6 @@ export function CustomerDialog({
                                             )}
                                         />
                                         <FormField
-                                            control={form.control as any}
                                             name="customer_name"
                                             render={({ field }) => (
                                                 <FormItem>
@@ -249,11 +264,33 @@ export function CustomerDialog({
                                                 </FormItem>
                                             )}
                                         />
+                                        <FormField
+                                            name="type"
+                                            render={({ field }) => (
+                                                <FormItem>
+                                                    <FormLabel>Customer Type</FormLabel>
+                                                    <Select
+                                                        onValueChange={field.onChange}
+                                                        value={field.value}
+                                                    >
+                                                        <FormControl>
+                                                            <SelectTrigger>
+                                                                <SelectValue placeholder="Select Type" />
+                                                            </SelectTrigger>
+                                                        </FormControl>
+                                                        <SelectContent>
+                                                            <SelectItem value="Regular">Regular</SelectItem>
+                                                            <SelectItem value="Employee">Employee</SelectItem>
+                                                        </SelectContent>
+                                                    </Select>
+                                                    <FormMessage />
+                                                </FormItem>
+                                            )}
+                                        />
                                     </div>
 
-                                    <div className="grid grid-cols-1 gap-6">
+                                    <div className="grid grid-cols-2 gap-6">
                                         <FormField
-                                            control={form.control as any}
                                             name="store_type"
                                             render={({ field }) => (
                                                 <FormItem>
@@ -269,10 +306,43 @@ export function CustomerDialog({
                                                         </FormControl>
                                                         <SelectContent>
                                                             {storeTypes.map((type) => (
-                                                                <SelectItem key={type.id} value={type.id.toString()}>
-                                                                    {type.store_type}
-                                                                </SelectItem>
+                                                                type.id !== undefined && (
+                                                                    <SelectItem key={type.id} value={type.id.toString()}>
+                                                                        {type.store_type}
+                                                                    </SelectItem>
+                                                                )
                                                             ))}
+                                                        </SelectContent>
+                                                    </Select>
+                                                    <FormMessage />
+                                                </FormItem>
+                                            )}
+                                        />
+                                        <FormField
+                                            name="user_id"
+                                            render={({ field }) => (
+                                                <FormItem>
+                                                    <FormLabel>Linked User</FormLabel>
+                                                    <Select
+                                                        onValueChange={(val) => field.onChange(val === "null" ? null : parseInt(val))}
+                                                        value={field.value === null ? "null" : field.value?.toString()}
+                                                    >
+                                                        <FormControl>
+                                                            <SelectTrigger>
+                                                                <SelectValue placeholder="Select User" />
+                                                            </SelectTrigger>
+                                                        </FormControl>
+                                                        <SelectContent>
+                                                            <SelectItem value="null">None</SelectItem>
+                                                            {users.map((u: ReferenceItem) => {
+                                                                const uid = u.id || u.user_id;
+                                                                if (!uid) return null;
+                                                                return (
+                                                                    <SelectItem key={uid} value={uid.toString()}>
+                                                                        {[u.user_fname, u.user_mname, u.user_lname].filter(Boolean).join(" ")}
+                                                                    </SelectItem>
+                                                                );
+                                                            })}
                                                         </SelectContent>
                                                     </Select>
                                                     <FormMessage />
@@ -283,7 +353,6 @@ export function CustomerDialog({
 
                                     <div className="grid grid-cols-2 gap-6">
                                         <FormField
-                                            control={form.control as any}
                                             name="store_name"
                                             render={({ field }) => (
                                                 <FormItem>
@@ -296,7 +365,6 @@ export function CustomerDialog({
                                             )}
                                         />
                                         <FormField
-                                            control={form.control as any}
                                             name="store_signage"
                                             render={({ field }) => (
                                                 <FormItem>
@@ -311,7 +379,6 @@ export function CustomerDialog({
                                     </div>
 
                                     <FormField
-                                        control={form.control as any}
                                         name="customer_tin"
                                         render={({ field }) => (
                                             <FormItem>
@@ -328,7 +395,6 @@ export function CustomerDialog({
                                 <TabsContent value="address" className="space-y-6 pb-6 mt-2">
                                     <div className="grid grid-cols-3 gap-6">
                                         <FormField
-                                            control={form.control as any}
                                             name="brgy"
                                             render={({ field }) => (
                                                 <FormItem>
@@ -341,7 +407,6 @@ export function CustomerDialog({
                                             )}
                                         />
                                         <FormField
-                                            control={form.control as any}
                                             name="city"
                                             render={({ field }) => (
                                                 <FormItem>
@@ -354,7 +419,6 @@ export function CustomerDialog({
                                             )}
                                         />
                                         <FormField
-                                            control={form.control as any}
                                             name="province"
                                             render={({ field }) => (
                                                 <FormItem>
@@ -370,7 +434,6 @@ export function CustomerDialog({
 
                                     <div className="grid grid-cols-2 gap-6">
                                         <FormField
-                                            control={form.control as any}
                                             name="contact_number"
                                             render={({ field }) => (
                                                 <FormItem>
@@ -383,7 +446,6 @@ export function CustomerDialog({
                                             )}
                                         />
                                         <FormField
-                                            control={form.control as any}
                                             name="tel_number"
                                             render={({ field }) => (
                                                 <FormItem>
@@ -398,7 +460,6 @@ export function CustomerDialog({
                                     </div>
 
                                     <FormField
-                                        control={form.control as any}
                                         name="customer_email"
                                         render={({ field }) => (
                                             <FormItem>
@@ -415,7 +476,6 @@ export function CustomerDialog({
                                 <TabsContent value="billing" className="space-y-6 pb-6 mt-2">
                                     <div className="grid grid-cols-2 gap-6">
                                         <FormField
-                                            control={form.control as any}
                                             name="payment_term"
                                             render={({ field }) => (
                                                 <FormItem>
@@ -428,7 +488,6 @@ export function CustomerDialog({
                                             )}
                                         />
                                         <FormField
-                                            control={form.control as any}
                                             name="price_type"
                                             render={({ field }) => (
                                                 <FormItem>
@@ -444,7 +503,6 @@ export function CustomerDialog({
 
                                     <div className="grid grid-cols-2 gap-6">
                                         <FormField
-                                            control={form.control as any}
                                             name="discount_type"
                                             render={({ field }) => (
                                                 <FormItem>
@@ -461,9 +519,11 @@ export function CustomerDialog({
                                                         <SelectContent>
                                                             <SelectItem value="null">None</SelectItem>
                                                             {discountTypes.map((item) => (
-                                                                <SelectItem key={item.id} value={item.id.toString()}>
-                                                                    {item.discount_type}
-                                                                </SelectItem>
+                                                                item.id !== undefined && (
+                                                                    <SelectItem key={item.id} value={item.id.toString()}>
+                                                                        {item.discount_type}
+                                                                    </SelectItem>
+                                                                )
                                                             ))}
                                                         </SelectContent>
                                                     </Select>
@@ -475,7 +535,6 @@ export function CustomerDialog({
 
                                     <div className="flex flex-wrap gap-6 pt-2">
                                         <FormField
-                                            control={form.control as any}
                                             name="isActive"
                                             render={({ field }) => (
                                                 <FormItem className="flex flex-row items-start space-x-3 space-y-0">
@@ -492,7 +551,6 @@ export function CustomerDialog({
                                             )}
                                         />
                                         <FormField
-                                            control={form.control as any}
                                             name="isVAT"
                                             render={({ field }) => (
                                                 <FormItem className="flex flex-row items-start space-x-3 space-y-0">
@@ -509,7 +567,6 @@ export function CustomerDialog({
                                             )}
                                         />
                                         <FormField
-                                            control={form.control as any}
                                             name="isEWT"
                                             render={({ field }) => (
                                                 <FormItem className="flex flex-row items-start space-x-3 space-y-0">
