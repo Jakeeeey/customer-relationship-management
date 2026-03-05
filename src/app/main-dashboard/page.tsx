@@ -1,3 +1,4 @@
+// src/app/main-dashboard/page.tsx
 "use client";
 
 import * as React from "react";
@@ -18,6 +19,7 @@ import {
     FolderKanban,
     MessagesSquare,
     Activity,
+    BarChart3, // ✅ added for BIA
     Sun,
     Moon,
     Monitor,
@@ -93,6 +95,7 @@ const POSITION_ACCESS: Record<Position, string[]> = {
         "arf",
         "comms",
         "pm-monitoring",
+        "bia", // ✅ added
     ],
     Admin: [
         "scm",
@@ -104,6 +107,7 @@ const POSITION_ACCESS: Record<Position, string[]> = {
         "arf",
         "comms",
         "pm-monitoring",
+        "bia", // ✅ added
     ],
     "SCM Staff": ["scm", "mfg"],
     "Finance Staff": ["finance"],
@@ -130,7 +134,7 @@ const SUBSYSTEMS: SubsystemItem[] = [
         title: "Supply Chain Management",
         subtitle: "Procurement, inventory, logistics, distribution operations",
         href: "/scm",
-        status: "active",
+        status: "comingSoon",
         category: "Operations",
         icon: Boxes,
         tag: "SCM",
@@ -145,12 +149,34 @@ const SUBSYSTEMS: SubsystemItem[] = [
             { id: "fleet", title: "Fleet", status: "comingSoon" },
         ],
     },
+
+    // ✅ NEW: Business Intelligence & Analytics (no href yet)
+    {
+        id: "bia",
+        title: "Business Intelligence & Analytics",
+        subtitle: "Dashboards, KPIs, performance analytics, drill-down reporting",
+        href: "/bia",
+        status: "comingSoon",
+        category: "Monitoring & Oversight",
+        icon: BarChart3,
+        tag: "BIA",
+        accentClass:
+            "bg-indigo-500/10 text-indigo-600 dark:text-indigo-300 ring-1 ring-indigo-500/20",
+        submodules: [
+            { id: "executive", title: "Executive Dashboard", status: "comingSoon" },
+            { id: "managerial", title: "Managerial Views", status: "comingSoon" },
+            { id: "supervisory", title: "Supervisory Views", status: "comingSoon" },
+            { id: "sales-kpi", title: "Sales KPI", status: "comingSoon" },
+            { id: "inventory-analytics", title: "Inventory Analytics", status: "comingSoon" },
+        ],
+    },
+
     {
         id: "crm",
         title: "CRM",
         subtitle: "Customers, accounts, pipeline, quotations, after-sales linkage",
         href: "/crm",
-        status: "active",
+        status: "comingSoon",
         category: "Customer & Engagement",
         icon: Users,
         tag: "CRM",
@@ -169,7 +195,7 @@ const SUBSYSTEMS: SubsystemItem[] = [
         title: "Financial Management",
         subtitle: "General ledger, AR/AP, budgeting, cash & bank, compliance",
         href: "/fm",
-        status: "active",
+        status: "comingSoon",
         category: "Corporate Services",
         icon: Landmark,
         tag: "FIN",
