@@ -42,6 +42,11 @@ export function useSalesOrder() {
     const [lineItems, setLineItems] = useState<LineItem[]>([]);
     const [submitting, setSubmitting] = useState(false);
 
+    // Checkout State
+    const [isCheckout, setIsCheckout] = useState(false);
+    const [orderNo, setOrderNo] = useState("");
+    const [allocatedQuantities, setAllocatedQuantities] = useState<Record<string, number>>({});
+
     const selectedSalesman = useMemo(() => salesmen.find(s => (s.user_id || s.id)?.toString() === selectedSalesmanId), [salesmen, selectedSalesmanId]);
     const selectedAccount = useMemo(() => accounts.find(a => a.id.toString() === selectedAccountId), [accounts, selectedAccountId]);
     const selectedCustomer = useMemo(() => customers.find(c => c.id.toString() === selectedCustomerId), [customers, selectedCustomerId]);
@@ -128,7 +133,13 @@ export function useSalesOrder() {
             if (customer) {
                 setLoadingProducts(true);
                 salesOrderProvider.searchProducts("", customer.customer_code, Number(selectedSupplierId), priceType, Number(selectedCustomerId))
-                    .then(res => setSupplierProducts(Array.isArray(res) ? res : []))
+                    .then(res => {
+                        const productsWithMockStock = (Array.isArray(res) ? res : []).map(p => ({
+                            ...p,
+                            availableQty: Math.floor(Math.random() * 500) + 10 // Mock stock between 10 and 510
+                        }));
+                        setSupplierProducts(productsWithMockStock);
+                    })
                     .finally(() => setLoadingProducts(false));
             }
         } else {
@@ -138,6 +149,16 @@ export function useSalesOrder() {
 
     // Line Item Logic
     const addProduct = (product: any, quantity: number, uom: string) => {
+        // Check if product already exists in cart with the same UOM
+        const existingItem = lineItems.find(item =>
+            item.product.product_id === product.product_id && item.uom === uom
+        );
+
+        if (existingItem) {
+            updateLineItemQty(existingItem.id, existingItem.quantity + quantity);
+            return;
+        }
+
         const id = Math.random().toString(36).substr(2, 9);
         const basePrice = Number(product.base_price) || 0;
         const discounts = product.discounts || [];
@@ -155,7 +176,8 @@ export function useSalesOrder() {
             discounts,
             netAmount,
             totalAmount,
-            discountAmount: totalAmount - netAmount
+            discountAmount: totalAmount - netAmount,
+            availableQty: product.availableQty
         };
 
         setLineItems(prev => [...prev, newItem]);
@@ -184,8 +206,47 @@ export function useSalesOrder() {
     const summary = useMemo(() => {
         const totalAmount = lineItems.reduce((sum, item) => sum + item.totalAmount, 0);
         const netAmount = lineItems.reduce((sum, item) => sum + item.netAmount, 0);
-        return { totalAmount, netAmount, discountAmount: totalAmount - netAmount };
-    }, [lineItems]);
+
+        // Allocated total
+        const allocatedAmount = lineItems.reduce((sum, item) => {
+            const qty = allocatedQuantities[item.id] ?? item.quantity;
+            const netPrice = calculateChainNetPrice(item.unitPrice, item.discounts);
+            return sum + (netPrice * qty);
+        }, 0);
+
+        return { totalAmount, netAmount, discountAmount: totalAmount - netAmount, allocatedAmount };
+    }, [lineItems, allocatedQuantities]);
+
+    const isValidAllocation = useMemo(() => {
+        return lineItems.every(item => {
+            const allocated = allocatedQuantities[item.id] ?? item.quantity;
+            return allocated <= item.quantity && allocated >= 0;
+        });
+    }, [lineItems, allocatedQuantities]);
+
+    const enterCheckout = () => {
+        if (lineItems.length === 0) {
+            toast.error("No items in order");
+            return;
+        }
+
+        const now = new Date();
+        const generatedNo = `SO-${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}${String(now.getSeconds()).padStart(2, '0')}`;
+        setOrderNo(generatedNo);
+
+        // Initialize allocated quantities with Option B: min(ordered, available)
+        const initialAllocated: Record<string, number> = {};
+        lineItems.forEach(item => {
+            const available = item.availableQty ?? 999999;
+            initialAllocated[item.id] = Math.min(item.quantity, available);
+        });
+        setAllocatedQuantities(initialAllocated);
+        setIsCheckout(true);
+    };
+
+    const updateAllocatedQty = (id: string, qty: number) => {
+        setAllocatedQuantities(prev => ({ ...prev, [id]: qty }));
+    };
 
     const handleSubmitOrder = async () => {
         if (!selectedAccountId || !selectedCustomerId || !selectedSupplierId || !selectedReceiptTypeId) {
@@ -209,10 +270,20 @@ export function useSalesOrder() {
                 due_date: dueDate,
                 total_amount: summary.totalAmount,
                 discount_amount: summary.discountAmount,
-                net_amount: summary.netAmount
+                net_amount: summary.netAmount,
+                allocated_amount: summary.allocatedAmount,
+                order_no: orderNo,
+                order_status: "For Approval",
+                for_approval_at: new Date().toISOString()
             };
 
-            const result = await salesOrderProvider.createOrder(header, lineItems);
+            const itemsWithAllocation = lineItems.map(item => ({
+                ...item,
+                allocated_quantity: allocatedQuantities[item.id] ?? item.quantity,
+                allocated_amount: (calculateChainNetPrice(item.unitPrice, item.discounts)) * (allocatedQuantities[item.id] ?? item.quantity)
+            }));
+
+            const result = await salesOrderProvider.createOrder(header, itemsWithAllocation);
             if (result.success) {
                 toast.success(`Order created: ${result.order_no}`);
                 window.location.reload();
@@ -239,7 +310,8 @@ export function useSalesOrder() {
         supplierProducts, loadingProducts,
         lineItems,
         addProduct, removeLineItem, updateLineItemQty,
-        summary,
+        summary, isValidAllocation,
+        isCheckout, setIsCheckout, orderNo, enterCheckout, allocatedQuantities, updateAllocatedQty,
         handleSubmitOrder, submitting
     };
 }

@@ -40,9 +40,9 @@ export function SalesOrderEncoding({
         : [];
 
     return (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 xl:grid-cols-4 lg:grid-cols-3 gap-8">
             {/* Catalog Panel */}
-            <div className="lg:col-span-1 flex flex-col gap-4">
+            <div className="xl:col-span-1 lg:col-span-1 flex flex-col gap-4">
                 <Card className="flex-1 flex flex-col min-h-[600px] shadow-sm">
                     <CardHeader className="p-4 flex flex-row items-center justify-between border-b">
                         <CardTitle className="text-sm font-bold uppercase tracking-wider">Product Catalog</CardTitle>
@@ -132,7 +132,7 @@ export function SalesOrderEncoding({
             </div>
 
             {/* Cart Panel */}
-            <div className="lg:col-span-2 flex flex-col gap-4">
+            <div className="xl:col-span-3 lg:col-span-2 flex flex-col gap-4">
                 <Card className="flex-1 flex flex-col shadow-sm border-primary/20">
                     <CardHeader className="p-4 flex flex-row items-center justify-between border-b bg-primary/5">
                         <div className="flex items-center gap-2">
@@ -141,52 +141,77 @@ export function SalesOrderEncoding({
                         </div>
                         <Badge variant="default" className="text-[10px]">{lineItems.length} Lines</Badge>
                     </CardHeader>
-                    <CardContent className="p-0 flex-1 min-h-[400px]">
-                        <Table>
-                            <TableHeader className="bg-muted/30">
-                                <TableRow>
-                                    <TableHead className="text-[10px] font-black uppercase">Product Desc</TableHead>
-                                    <TableHead className="text-center text-[10px] font-black uppercase w-[100px]">Qty</TableHead>
-                                    <TableHead className="text-right text-[10px] font-black uppercase">Unit Net</TableHead>
-                                    <TableHead className="text-right text-[10px] font-black uppercase">Total</TableHead>
-                                    <TableHead className="w-[50px]"></TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {lineItems.map((item) => (
-                                    <TableRow key={item.id} className="hover:bg-muted/10">
-                                        <TableCell>
-                                            <div className="flex flex-col">
-                                                <span className="font-bold text-xs">{item.product.display_name}</span>
-                                                <span className="text-[9px] text-muted-foreground uppercase font-bold">{item.discountType}</span>
-                                            </div>
-                                        </TableCell>
-                                        <TableCell className="text-center">
-                                            <Input
-                                                type="number"
-                                                className="h-8 w-16 mx-auto text-center font-bold"
-                                                value={item.quantity}
-                                                onChange={(e) => updateLineItemQty(item.id, Number(e.target.value) || 0)}
-                                            />
-                                        </TableCell>
-                                        <TableCell className="text-right text-[11px] font-medium">{formatCurrency(item.netAmount / item.quantity)}</TableCell>
-                                        <TableCell className="text-right font-black text-sm text-primary">{formatCurrency(item.netAmount)}</TableCell>
-                                        <TableCell>
-                                            <Button variant="ghost" size="icon" className="text-destructive h-8 w-8 hover:bg-destructive/10" onClick={() => removeLineItem(item.id)}>
-                                                <Trash2 className="w-4 h-4" />
-                                            </Button>
-                                        </TableCell>
-                                    </TableRow>
-                                ))}
-                                {lineItems.length === 0 && (
+                    <CardContent className="p-0 flex-1 flex flex-col min-h-[400px]">
+                        <div className="flex-1 overflow-y-auto max-h-[600px] relative border-b">
+                            <Table>
+                                <TableHeader className="bg-muted/50 sticky top-0 z-10 shadow-sm">
                                     <TableRow>
-                                        <td colSpan={5} className="py-20 text-center text-muted-foreground text-xs italic">
-                                            Cart is empty. Select products from the catalog to begin.
-                                        </td>
+                                        <TableHead className="text-[10px] font-black uppercase bg-muted/50">Product Desc</TableHead>
+                                        <TableHead className="text-center text-[10px] font-black uppercase bg-muted/50">Available</TableHead>
+                                        <TableHead className="text-center text-[10px] font-black uppercase bg-muted/50">UOM</TableHead>
+                                        <TableHead className="text-center text-[10px] font-black uppercase w-[100px] bg-muted/50">Qty</TableHead>
+                                        <TableHead className="text-right text-[10px] font-black uppercase bg-muted/50">Unit Price</TableHead>
+                                        <TableHead className="text-center text-[10px] font-black uppercase bg-muted/50">Discounts</TableHead>
+                                        <TableHead className="text-right text-[10px] font-black uppercase bg-muted/50">Net Total</TableHead>
+                                        <TableHead className="w-[50px] bg-muted/50"></TableHead>
                                     </TableRow>
-                                )}
-                            </TableBody>
-                        </Table>
+                                </TableHeader>
+                                <TableBody>
+                                    {lineItems.map((item) => (
+                                        <TableRow key={item.id} className="hover:bg-muted/10">
+                                            <TableCell>
+                                                <div className="flex flex-col">
+                                                    <span className="font-bold text-[11px] leading-tight text-slate-900">{item.product.display_name}</span>
+                                                    <span className="text-[9px] text-primary/70 uppercase font-black tracking-tighter">{item.discountType}</span>
+                                                </div>
+                                            </TableCell>
+                                            <TableCell className="text-center">
+                                                <span className="font-black text-[11px] text-blue-600 tabular-nums">
+                                                    {item.availableQty?.toLocaleString() || "0"}
+                                                </span>
+                                            </TableCell>
+                                            <TableCell className="text-center">
+                                                <Badge variant="outline" className="text-[9px] font-bold px-1.5 py-0 border-slate-200 text-slate-500 whitespace-nowrap">
+                                                    {item.uom}
+                                                </Badge>
+                                            </TableCell>
+                                            <TableCell className="text-center">
+                                                <Input
+                                                    type="number"
+                                                    className="h-8 w-16 mx-auto text-center font-bold border-2 focus:border-primary transition-all"
+                                                    value={item.quantity}
+                                                    onChange={(e) => updateLineItemQty(item.id, Number(e.target.value) || 0)}
+                                                />
+                                            </TableCell>
+                                            <TableCell className="text-right text-[11px] font-medium text-slate-500 tabular-nums">{formatCurrency(item.unitPrice)}</TableCell>
+                                            <TableCell className="text-center">
+                                                <div className="flex flex-wrap justify-center gap-1">
+                                                    {item.discounts.map((d, i) => (
+                                                        <Badge key={i} className="text-[9px] px-1 bg-emerald-50 text-emerald-700 border-emerald-100 font-bold">
+                                                            -{d}%
+                                                        </Badge>
+                                                    ))}
+                                                    {item.discounts.length === 0 && <span className="text-[10px] text-slate-300 italic">None</span>}
+                                                </div>
+                                            </TableCell>
+                                            <TableCell className="text-right font-black text-sm text-primary tabular-nums whitespace-nowrap">{formatCurrency(item.netAmount)}</TableCell>
+                                            <TableCell>
+                                                <Button variant="ghost" size="icon" className="text-red-400 h-8 w-8 hover:bg-red-50 hover:text-red-600 transition-colors" onClick={() => removeLineItem(item.id)}>
+                                                    <Trash2 className="w-3.5 h-3.5" />
+                                                </Button>
+                                            </TableCell>
+                                        </TableRow>
+                                    ))}
+                                    {lineItems.length === 0 && (
+                                        <TableRow>
+                                            <td colSpan={7} className="py-20 text-center text-muted-foreground text-xs italic">
+                                                Cart is empty. Select products from the catalog to begin.
+                                            </td>
+                                        </TableRow>
+                                    )}
+                                </TableBody>
+                            </Table>
+                        </div>
                     </CardContent>
 
                     {/* Summary Footer */}

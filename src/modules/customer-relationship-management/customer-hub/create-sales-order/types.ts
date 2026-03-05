@@ -34,6 +34,7 @@ export interface Product {
     base_price: number;
     pieces_per_box: number; // For UOM logic
     uom: string;
+    availableQty?: number; // Stock level
 }
 
 export interface DiscountType {
@@ -59,6 +60,7 @@ export interface LineItem {
     netAmount: number;
     totalAmount: number; // Before discounts
     discountAmount: number;
+    availableQty?: number;
 }
 
 export interface SalesOrderHeader {

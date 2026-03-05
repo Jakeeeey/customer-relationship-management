@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Button } from "@/components/ui/button";
@@ -65,18 +66,17 @@ export function SalesOrderHeader({
     const [openSupplier, setOpenSupplier] = useState(false);
 
     return (
-        <Card className="shadow-sm border-muted-foreground/20">
-            <CardHeader className="pb-3 flex flex-row items-center justify-between">
-                <div>
-                    <CardTitle className="text-xl font-bold">New Sales Order</CardTitle>
-                    <CardDescription>Select entities and order metadata</CardDescription>
+        <Card className="shadow-sm border-muted-foreground/10 overflow-hidden">
+            <CardHeader className="py-4 px-6 flex flex-row items-center justify-between border-b bg-slate-50/50">
+                <div className="flex items-center gap-2">
+                    <span className="text-[10px] uppercase font-black text-slate-400 tracking-widest">Pricing Strategy</span>
+                    <Badge variant="secondary" className="font-black text-primary bg-primary/10 border-primary/20">TIER {priceType}</Badge>
                 </div>
-                <div className="text-right">
-                    <span className="text-[10px] uppercase font-black text-muted-foreground">Price Tier</span>
-                    <div className="text-xl font-black text-primary">TIER {priceType}</div>
+                <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest italic opacity-50">
+                    Configuration Phase
                 </div>
             </CardHeader>
-            <CardContent className="grid gap-4 md:grid-cols-4 sm:grid-cols-2">
+            <CardContent className="p-6 grid gap-6 xl:grid-cols-4 lg:grid-cols-4 md:grid-cols-2">
                 {/* 1. SALESMAN (USER) */}
                 <div className="flex flex-col gap-1.5">
                     <label className="text-xs font-bold uppercase text-muted-foreground">Salesman (User)</label>

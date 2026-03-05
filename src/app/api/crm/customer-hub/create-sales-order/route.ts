@@ -151,6 +151,12 @@ export async function GET(req: NextRequest) {
                     discountMap[tid].push(Number(item.line_id?.percentage) || 0);
                 });
 
+                const discountTypesRes = typeIds.size > 0 ? await fetchInChunks(`${DIRECTUS_URL}/items/discount_type?fields=id,discount_type`, Array.from(typeIds), "id") : [];
+                const discountTypeNameMap: Record<number, string> = {};
+                discountTypesRes.forEach((dt: any) => {
+                    discountTypeNameMap[Number(dt.id)] = dt.discount_type || "";
+                });
+
                 // 4. Assembly (Include ALL active family members)
                 const sellableItems = Array.from(allProductsMap.values()).filter((p: any) => p.isActive === 1 || p.isActive === true);
 
@@ -179,6 +185,9 @@ export async function GET(req: NextRequest) {
 
                     if (!winId && customerData?.discount_type) { winId = customerData.discount_type; level = "Default Customer Discount"; }
 
+                    const specificDiscountName = winId ? discountTypeNameMap[Number(winId)] : "";
+                    const displayLevel = specificDiscountName || level;
+
                     const parent = p.parent_id ? allProductsMap.get(Number(p.parent_id)) : null;
                     let displayName = p.product_name || p.description || "Unnamed Product";
 
@@ -197,7 +206,7 @@ export async function GET(req: NextRequest) {
                         display_name: displayName,
                         parent_product_name: parent?.product_name || null,
                         base_price: price,
-                        discount_level: level,
+                        discount_level: displayLevel,
                         discount_type: winId,
                         discounts: winId ? (discountMap[winId] || []) : []
                     };
