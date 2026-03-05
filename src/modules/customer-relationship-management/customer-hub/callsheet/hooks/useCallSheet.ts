@@ -9,15 +9,26 @@ interface UseCallSheetReturn {
     isError: boolean;
     error: Error | null;
     metadata: CallSheetAPIResponse["metadata"];
+    filterOptions: CallSheetAPIResponse["filterOptions"];
     page: number;
     pageSize: number;
+    search: string;
+    customerCode: string;
+    salesmanId: string;
     setPage: (page: number) => void;
     setPageSize: (pageSize: number) => void;
+    setSearch: (search: string) => void;
+    setCustomerCode: (code: string) => void;
+    setSalesmanId: (id: string) => void;
     refetch: () => Promise<void>;
 }
 
 export function useCallSheet(): UseCallSheetReturn {
     const [callsheets, setCallSheets] = useState<SalesOrderAttachment[]>([]);
+    const [filterOptions, setFilterOptions] = useState<CallSheetAPIResponse["filterOptions"]>({
+        salesmen: [],
+        customers: [],
+    });
     const [isLoading, setIsLoading] = useState(true);
     const [isError, setIsError] = useState(false);
     const [error, setError] = useState<Error | null>(null);
@@ -30,6 +41,9 @@ export function useCallSheet(): UseCallSheetReturn {
 
     const [page, setPage] = useState(1);
     const [pageSize, setPageSize] = useState(10);
+    const [search, setSearch] = useState("");
+    const [customerCode, setCustomerCode] = useState("");
+    const [salesmanId, setSalesmanId] = useState("");
 
     const hasLoadedRef = useRef(false);
 
@@ -45,6 +59,9 @@ export function useCallSheet(): UseCallSheetReturn {
             const params = new URLSearchParams({
                 page: page.toString(),
                 pageSize: pageSize.toString(),
+                search,
+                customer_code: customerCode,
+                salesman_id: salesmanId,
                 t: Date.now().toString(),
             });
 
@@ -60,6 +77,9 @@ export function useCallSheet(): UseCallSheetReturn {
 
             setCallSheets(data.callsheets || []);
             setMetadata(data.metadata);
+            if (data.filterOptions) {
+                setFilterOptions(data.filterOptions);
+            }
             hasLoadedRef.current = true;
         } catch (err) {
             setIsError(true);
@@ -68,7 +88,7 @@ export function useCallSheet(): UseCallSheetReturn {
         } finally {
             setIsLoading(false);
         }
-    }, [page, pageSize]);
+    }, [page, pageSize, search, customerCode, salesmanId]);
 
     useEffect(() => {
         fetchData(true);
@@ -88,10 +108,17 @@ export function useCallSheet(): UseCallSheetReturn {
         isError,
         error,
         metadata,
+        filterOptions,
         page,
         pageSize,
+        search,
+        customerCode,
+        salesmanId,
         setPage,
         setPageSize,
+        setSearch,
+        setCustomerCode,
+        setSalesmanId,
         refetch,
     };
 }
