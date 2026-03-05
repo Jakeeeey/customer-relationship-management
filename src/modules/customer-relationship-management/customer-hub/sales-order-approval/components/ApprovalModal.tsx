@@ -5,12 +5,12 @@ import { format } from "date-fns";
 import { Loader2, Check } from "lucide-react";
 
 import {
-    Sheet,
-    SheetContent,
-    SheetDescription,
-    SheetHeader,
-    SheetTitle,
-} from "@/components/ui/sheet";
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogHeader,
+    DialogTitle,
+} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
@@ -18,14 +18,14 @@ import { Separator } from "@/components/ui/separator";
 import type { CustomerGroup } from "../hooks/useSalesOrderApproval";
 import { getPaymentSummary } from "../providers/fetchProvider";
 
-interface ApprovalDrawerProps {
+interface ApprovalModalProps {
     group: CustomerGroup | null;
     open: boolean;
     onClose: () => void;
     onApprove: (orderIds: (string | number)[]) => Promise<boolean>;
 }
 
-export function ApprovalDrawer({ group, open, onClose, onApprove }: ApprovalDrawerProps) {
+export function ApprovalModal({ group, open, onClose, onApprove }: ApprovalModalProps) {
     const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
     const [loadingSummary, setLoadingSummary] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -96,13 +96,13 @@ export function ApprovalDrawer({ group, open, onClose, onApprove }: ApprovalDraw
     };
 
     return (
-        <Sheet open={open} onOpenChange={(val) => !val && onClose()}>
-            <SheetContent className="w-full sm:max-w-xl overflow-y-auto flex flex-col p-0">
-                <div className="p-6 pb-4">
-                    <SheetHeader>
-                        <SheetTitle className="text-xl">{group.customer_name}</SheetTitle>
-                        <SheetDescription>Customer Code: {group.customer_code}</SheetDescription>
-                    </SheetHeader>
+        <Dialog open={open} onOpenChange={(val) => !val && onClose()}>
+            <DialogContent className="w-full sm:max-w-2xl max-h-[90vh] flex flex-col p-0 overflow-hidden">
+                <div className="p-6 pb-4 shrink-0">
+                    <DialogHeader>
+                        <DialogTitle className="text-xl">{group.customer_name}</DialogTitle>
+                        <DialogDescription>Customer Code: {group.customer_code}</DialogDescription>
+                    </DialogHeader>
 
                     {/* Payment Summary Panel */}
                     <div className="mt-6 rounded-lg border bg-card text-card-foreground shadow-sm p-4">
@@ -111,16 +111,16 @@ export function ApprovalDrawer({ group, open, onClose, onApprove }: ApprovalDraw
                             {loadingSummary && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
                         </h4>
                         {!loadingSummary && (
-                            <div className="grid grid-cols-3 gap-4 text-sm">
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
                                 <div>
                                     <p className="text-muted-foreground mb-1">Invoice Total</p>
                                     <p className="font-medium">{formatCurrency(summary.invoiceTotal)}</p>
                                 </div>
-                                <div>
+                                <div className="sm:border-l sm:pl-4">
                                     <p className="text-muted-foreground mb-1">Paid Total</p>
                                     <p className="font-medium text-emerald-600">{formatCurrency(summary.paidTotal)}</p>
                                 </div>
-                                <div className="border-l pl-4">
+                                <div className="sm:border-l sm:pl-4">
                                     <p className="text-muted-foreground mb-1">Unpaid Total</p>
                                     <p className={`font-semibold ${summary.unpaidTotal > 0 ? 'text-destructive' : 'text-emerald-600'}`}>
                                         {formatCurrency(summary.unpaidTotal)}
@@ -172,8 +172,8 @@ export function ApprovalDrawer({ group, open, onClose, onApprove }: ApprovalDraw
                                         className={`flex-1 min-w-0 ${isActionable ? 'cursor-pointer' : ''}`}
                                         onClick={() => isActionable && handleToggleOne(order.order_id)}
                                     >
-                                        <div className="flex justify-between items-start mb-1">
-                                            <div className="flex items-center gap-2">
+                                        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1 sm:gap-4 mb-2 sm:mb-1">
+                                            <div className="flex flex-wrap items-center gap-2">
                                                 <p className="font-medium text-sm leading-none">{order.order_no}</p>
                                                 {!isActionable && (
                                                     <span className={`text-[10px] px-1.5 py-0.5 rounded-full border font-medium ${badgeColor}`}>
@@ -185,9 +185,9 @@ export function ApprovalDrawer({ group, open, onClose, onApprove }: ApprovalDraw
                                                 {formatCurrency(Number(order.net_amount) || 0)}
                                             </p>
                                         </div>
-                                        <div className="flex justify-between items-center text-xs text-muted-foreground mt-1">
-                                            <p>PO: {order.po_no || "N/A"}</p>
-                                            <p>{format(new Date(order.order_date), "MMM d, yyyy")}</p>
+                                        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center text-xs text-muted-foreground gap-1">
+                                            <p className="break-words">PO: {order.po_no || "N/A"}</p>
+                                            <p className="shrink-0">{format(new Date(order.order_date), "MMM d, yyyy")}</p>
                                         </div>
                                     </div>
                                 </div>
@@ -214,7 +214,7 @@ export function ApprovalDrawer({ group, open, onClose, onApprove }: ApprovalDraw
                         </Button>
                     </div>
                 )}
-            </SheetContent>
-        </Sheet>
+            </DialogContent>
+        </Dialog>
     );
 }
