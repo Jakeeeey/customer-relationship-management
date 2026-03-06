@@ -138,13 +138,13 @@ export function useSalesOrder() {
             const customer = customers.find(c => c.id.toString() === selectedCustomerId);
             if (customer) {
                 setLoadingProducts(true);
-                salesOrderProvider.searchProducts("", customer.customer_code, Number(selectedSupplierId), priceType, Number(selectedCustomerId), priceTypeId || undefined)
+                salesOrderProvider.searchProducts("", customer.customer_code, Number(selectedSupplierId), priceType, Number(selectedCustomerId), priceTypeId || undefined, selectedSalesmanId)
                     .then(res => {
-                        const productsWithMockStock = (Array.isArray(res) ? res : []).map(p => ({
+                        const productsWithRealInventory = (Array.isArray(res) ? res : []).map(p => ({
                             ...p,
-                            availableQty: Math.floor(Math.random() * 500) + 10 // Mock stock between 10 and 510
+                            availableQty: p.available_qty ?? 0
                         }));
-                        setSupplierProducts(productsWithMockStock);
+                        setSupplierProducts(productsWithRealInventory);
                     })
                     .finally(() => setLoadingProducts(false));
             }
@@ -240,6 +240,7 @@ export function useSalesOrder() {
             allocatedGross,
             allocatedNet,
             allocatedDiscount,
+            allocatedAmount: allocatedNet,
             discountAmount: allocatedDiscount // Ito ang ipapasa sa discount_amount sa API (Allocated Discount)
         };
     }, [lineItems, allocatedQuantities]);

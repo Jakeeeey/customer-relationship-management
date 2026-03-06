@@ -9,4 +9,5 @@ export interface LineItem {
     netAmount: number;
     totalAmount: number;
     discountAmount: number;
+    availableQty?: number;
 }

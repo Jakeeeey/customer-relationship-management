@@ -92,8 +92,19 @@ export async function GET(req: NextRequest) {
                 const supplierId = supplierIdRaw ? Number(supplierIdRaw) : null;
                 const priceType = req.nextUrl.searchParams.get("price_type") || req.nextUrl.searchParams.get("priceType") || "A";
                 const priceTypeId = req.nextUrl.searchParams.get("price_type_id") || req.nextUrl.searchParams.get("priceTypeId");
+                const salesmanId = req.nextUrl.searchParams.get("salesman_id") || req.nextUrl.searchParams.get("salesmanId");
 
                 if (!customerCode || !supplierId) return NextResponse.json({ error: "customer_code and supplier_id required" }, { status: 400 });
+
+                // Resolve Branch ID from Salesman if provided
+                let branchId = null;
+                if (salesmanId) {
+                    const smRes = await fetch(`${DIRECTUS_URL}/items/salesman/${salesmanId}?fields=branch_code,branch_id`, { headers: fetchHeaders });
+                    if (smRes.ok) {
+                        const smData = (await smRes.json()).data;
+                        branchId = smData?.branch_code ? Number(smData.branch_code) : (smData?.branch_id ? Number(smData.branch_id) : null);
+                    }
+                }
 
                 const priceField = `price${priceType.toUpperCase()}`;
 
@@ -192,7 +203,24 @@ export async function GET(req: NextRequest) {
                     discountTypeNameMap[Number(dt.id)] = dt.discount_type || "";
                 });
 
-                // 4. Assembly (Include ALL active family members)
+                // 5. Fetch Dynamic Inventory from View (if branchId is available)
+                let inventoryMap: Record<number, number> = {};
+                if (branchId) {
+                    try {
+                        const invUrl = `${DIRECTUS_URL}/items/v_running_inventory?filter[branch_id][_eq]=${branchId}&filter[supplier_id][_eq]=${supplierId}&limit=-1`;
+                        const invRes = await fetch(invUrl, { headers: fetchHeaders });
+                        if (invRes.ok) {
+                            const invData = (await invRes.json()).data || [];
+                            invData.forEach((inv: any) => {
+                                inventoryMap[Number(inv.product_id)] = Number(inv.running_inventory_unit) || 0;
+                            });
+                        }
+                    } catch (e) {
+                        console.error("Failed to fetch inventory view:", e);
+                    }
+                }
+
+                // 6. Assembly (Include ALL active family members)
                 const sellableItems = Array.from(allProductsMap.values()).filter((p: any) => p.isActive === 1 || p.isActive === true);
 
                 const finalProducts = sellableItems.map((p: any) => {
@@ -247,7 +275,8 @@ export async function GET(req: NextRequest) {
                         base_price: price,
                         discount_level: displayLevel,
                         discount_type: winId,
-                        discounts: winId ? (discountMap[winId] || []) : []
+                        discounts: winId ? (discountMap[winId] || []) : [],
+                        available_qty: inventoryMap[Number(p.product_id)] ?? 0
                     };
                 });
 
