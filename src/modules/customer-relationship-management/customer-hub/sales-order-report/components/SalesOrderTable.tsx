@@ -12,6 +12,7 @@ import { SalesOrder, Customer, Salesman, Branch, Supplier } from "../types";
 
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react";
+import { formatCurrency } from "@/lib/utils";
 
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -53,25 +54,23 @@ export function SalesOrderTable({
             <div className="rounded-md border bg-card overflow-x-auto">
                 <Table>
                     <TableHeader>
-                        <TableRow className="bg-muted/50">
-                            <TableHead rowSpan={2} className="align-middle border-r">Order Date</TableHead>
-                            <TableHead colSpan={2} className="text-center border-b border-r">Order No</TableHead>
-                            <TableHead rowSpan={2} className="align-middle border-r">Supplier</TableHead>
-                            <TableHead colSpan={2} className="text-center border-b border-r">Customer</TableHead>
-                            <TableHead colSpan={2} className="text-center border-b border-r">Salesman</TableHead>
-                            <TableHead rowSpan={2} className="align-middle border-r">Branch</TableHead>
-                            <TableHead rowSpan={2} className="align-middle border-r">Created Date</TableHead>
-                            <TableHead rowSpan={2} className="align-middle text-right border-r">Total Amount</TableHead>
-                            <TableHead rowSpan={2} className="align-middle text-right border-r">Allocated Amount</TableHead>
-                            <TableHead rowSpan={2} className="align-middle">Status</TableHead>
+                        <TableRow className="bg-muted/50 h-8">
+                            <TableHead rowSpan={2} className="align-middle border-r text-[10px] font-bold uppercase py-1 px-2">Order Date</TableHead>
+                            <TableHead colSpan={2} className="text-center border-b border-r text-[10px] font-bold uppercase py-1 px-2">Order No</TableHead>
+                            <TableHead rowSpan={2} className="align-middle border-r text-[10px] font-bold uppercase py-1 px-2">Supplier</TableHead>
+                            <TableHead className="align-middle border-r text-[10px] font-bold uppercase py-1 px-2" rowSpan={2}>Customer</TableHead>
+                            <TableHead className="align-middle border-r text-[10px] font-bold uppercase py-1 px-2" rowSpan={2}>Salesman</TableHead>
+                            <TableHead rowSpan={2} className="align-middle border-r text-[10px] font-bold uppercase py-1 px-2">Branch</TableHead>
+                            <TableHead rowSpan={2} className="align-middle border-r text-[10px] font-bold uppercase py-1 px-2">Created</TableHead>
+                            <TableHead rowSpan={2} className="align-middle text-right border-r text-[10px] font-bold uppercase py-1 px-2">Total Amt</TableHead>
+                            <TableHead rowSpan={2} className="align-middle text-right border-r text-[10px] font-bold uppercase py-1 px-2">Discount</TableHead>
+                            <TableHead rowSpan={2} className="align-middle text-right border-r text-[10px] font-bold uppercase py-1 px-2">Net Amt</TableHead>
+                            <TableHead rowSpan={2} className="align-middle text-right border-r text-[10px] font-bold uppercase py-1 px-2">Alloc Amt</TableHead>
+                            <TableHead rowSpan={2} className="align-middle text-[10px] font-bold uppercase py-1 px-2">Status</TableHead>
                         </TableRow>
-                        <TableRow className="bg-muted/50">
-                            <TableHead className="border-r">SO No</TableHead>
-                            <TableHead className="border-r">PO No</TableHead>
-                            <TableHead className="border-r">Store Name</TableHead>
-                            <TableHead className="border-r">Code</TableHead>
-                            <TableHead className="border-r">Name</TableHead>
-                            <TableHead className="border-r">Code</TableHead>
+                        <TableRow className="bg-muted/50 h-8">
+                            <TableHead className="border-r text-[9px] font-bold py-1 px-2">SO NO</TableHead>
+                            <TableHead className="border-r text-[9px] font-bold py-1 px-2">PO NO</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -107,47 +106,47 @@ export function SalesOrderTable({
                                 <TableRow
                                     key={order.order_id}
                                     className={`cursor-pointer transition-colors hover:bg-muted/50 ${selectedOrderId === order.order_id
-                                            ? "bg-primary/5 hover:bg-primary/10 border-l-2 border-l-primary"
-                                            : ""
+                                        ? "bg-primary/5 hover:bg-primary/10 border-l-2 border-l-primary"
+                                        : ""
                                         }`}
                                     onClick={() => onRowClick?.(order)}
                                 >
-                                    <TableCell className="border-r">{order.order_date || "-"}</TableCell>
-                                    <TableCell className="border-r">{order.order_no || "-"}</TableCell>
-                                    <TableCell className="border-r">{order.po_no || "-"}</TableCell>
-                                    <TableCell className="border-r">
+                                    <TableCell className="border-r py-1.5 px-2 text-xs">{order.order_date || "-"}</TableCell>
+                                    <TableCell className="border-r py-1.5 px-2 text-xs font-medium">{order.order_no || "-"}</TableCell>
+                                    <TableCell className="border-r py-1.5 px-2 text-[10px]">{order.po_no || "-"}</TableCell>
+                                    <TableCell className="border-r py-1.5 px-2 text-[10px]">
                                         {suppliers.find(s => s.id === order.supplier_id)?.supplier_shortcut || order.supplier_id || "-"}
                                     </TableCell>
-                                    <TableCell className="border-r">
+                                    <TableCell className="border-r py-1.5 px-2 text-[10px] leading-tight max-w-[150px] truncate">
                                         {customers.find(c => c.customer_code === order.customer_code)?.store_name || "-"}
                                     </TableCell>
-                                    <TableCell className="border-r">{order.customer_code || "-"}</TableCell>
-                                    <TableCell className="border-r">
+                                    <TableCell className="border-r py-1.5 px-2 text-[10px] leading-tight">
                                         {salesmen.find(s => s.id === order.salesman_id)?.salesman_name || "-"}
                                     </TableCell>
-                                    <TableCell className="border-r">
-                                        {salesmen.find(s => s.id === order.salesman_id)?.salesman_code || order.salesman_id || "-"}
-                                    </TableCell>
-                                    <TableCell className="border-r">
+                                    <TableCell className="border-r py-1.5 px-2 text-[10px]">
                                         {branches.find(b => b.id === order.branch_id)?.branch_name || "-"}
                                     </TableCell>
-                                    <TableCell className="border-r">{order.created_date?.split("T")[0] || "-"}</TableCell>
-                                    <TableCell className="text-right border-r">
-                                        {new Intl.NumberFormat("en-PH", {
-                                            style: "currency",
-                                            currency: "PHP",
-                                        }).format(order.total_amount || 0)}
+                                    <TableCell className="border-r py-1.5 px-2 text-[10px]">{order.created_date?.split("T")[0] || "-"}</TableCell>
+                                    <TableCell className="text-right border-r py-1.5 px-2 text-[11px] font-mono">
+                                        {formatCurrency(order.total_amount)}
                                     </TableCell>
-                                    <TableCell className="text-right border-r">
-                                        {new Intl.NumberFormat("en-PH", {
-                                            style: "currency",
-                                            currency: "PHP",
-                                        }).format(order.allocated_amount || 0)}
+                                    <TableCell className="text-right border-r py-1.5 px-2 text-[11px] font-mono text-muted-foreground">
+                                        {formatCurrency(order.discount_amount || 0)}
                                     </TableCell>
-                                    <TableCell>
-                                        <span className={`px-2 py-1 rounded-full text-xs font-semibold ${order.order_status === "For Approval"
-                                            ? "bg-yellow-100 text-yellow-800"
-                                            : "bg-blue-100 text-blue-800"
+                                    <TableCell className="text-right border-r py-1.5 px-2 text-[11px] font-mono font-medium">
+                                        {formatCurrency(order.net_amount || 0)}
+                                    </TableCell>
+                                    <TableCell className="text-right border-r py-1.5 px-2 text-[11px] font-mono font-bold text-primary">
+                                        {formatCurrency(order.allocated_amount)}
+                                    </TableCell>
+                                    <TableCell className="py-1 px-2">
+                                        <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase ${order.order_status === "For Approval"
+                                            ? "bg-yellow-100 text-yellow-800 border border-yellow-200"
+                                            : order.order_status === "Posted"
+                                                ? "bg-emerald-100 text-emerald-800 border border-emerald-200"
+                                                : order.order_status === "Cancelled"
+                                                    ? "bg-red-100 text-red-800 border border-red-200"
+                                                    : "bg-blue-100 text-blue-800 border border-blue-200"
                                             }`}>
                                             {order.order_status || "PENDING"}
                                         </span>

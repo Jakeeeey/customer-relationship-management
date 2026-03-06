@@ -32,3 +32,9 @@ export async function getProducts(supplierId: string | number) {
     const json = await res.json();
     return json.data || [];
 }
+export async function getMonthlyAverage(customerCode: string) {
+    const res = await fetch(`/api/crm/customer-hub/callsheet-printable?type=mo-avg&customerCode=${customerCode}`);
+    if (!res.ok) throw new Error("Failed to fetch MO AVG");
+    const json = await res.json();
+    return json.data || {};
+}
