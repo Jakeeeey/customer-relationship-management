@@ -4,9 +4,9 @@ import React from "react";
 import { useCustomers } from "./hooks/useCustomers";
 import { CustomerTable } from "./components/CustomerTable";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { AlertCircle, RefreshCw, UserPlus } from "lucide-react";
+import { AlertCircle, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { toast } from "sonner";
+import { Customer } from "./types";
 
 export default function CustomerModule() {
     const {
@@ -30,11 +30,11 @@ export default function CustomerModule() {
         updateCustomer,
     } = useCustomers();
 
-    const handleCreate = async (data: any) => {
+    const handleCreate = async (data: Partial<Customer>) => {
         await createCustomer(data);
     };
 
-    const handleUpdate = async (id: number, data: any) => {
+    const handleUpdate = async (id: number, data: Partial<Customer>) => {
         await updateCustomer(id, data);
     };
 

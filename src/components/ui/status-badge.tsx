@@ -3,15 +3,15 @@
 
 import * as React from "react";
 import { Badge } from "@/components/ui/badge";
-import { cn } from "@/lib/utils/cn";
+import { cn } from "@/lib/utils";
 
 export type StatusTone = "neutral" | "success" | "warning" | "info" | "destructive";
 
 export function StatusBadge({
-                                children,
-                                tone = "neutral",
-                                className,
-                            }: {
+    children,
+    tone = "neutral",
+    className,
+}: {
     children: React.ReactNode;
     tone?: StatusTone;
     className?: string;

@@ -1,4 +1,3 @@
-/* src/app/globals.css */
 @import "tailwindcss";
 @import "tw-animate-css";
 
@@ -324,5 +323,14 @@ html.theme-switching * {
   html.theme-switching,
   html.theme-switching * {
     transition: none !important;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
   }
 }

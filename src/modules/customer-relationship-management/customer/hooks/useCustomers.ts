@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState, useCallback, useMemo, useRef } from "react";
-import type { CustomerWithRelations, Customer, BankAccount, CustomersAPIResponse } from "../types";
+import { useEffect, useState, useCallback, useRef } from "react";
+import type { CustomerWithRelations, Customer, BankAccount, CustomersAPIResponse, ReferenceItem } from "../types";
 
 interface UseCustomersReturn {
     customers: CustomerWithRelations[];
@@ -81,7 +81,7 @@ export function useCustomers(): UseCustomersReturn {
             if (userRes.ok) {
                 const userData = await userRes.json();
                 const mapping: Record<number, string> = {};
-                (userData.data || []).forEach((u: any) => {
+                (userData.data || []).forEach((u: ReferenceItem) => {
                     const fullName = [u.user_fname, u.user_mname, u.user_lname].filter(Boolean).join(" ");
                     const uid = u.id || u.user_id;
                     if (uid) {

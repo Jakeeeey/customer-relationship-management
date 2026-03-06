@@ -1,7 +1,6 @@
 "use client";
 
 import { Skeleton } from "@/components/ui/skeleton";
-import { Card, CardContent } from "@/components/ui/card";
 import { Package2 } from "lucide-react";
 
 export function SalesOrderSkeleton() {

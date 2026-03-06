@@ -66,9 +66,19 @@ const data = {
     ],
 };
 
-export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
+export function AppSidebar({
+    className,
+    ...props
+}: React.ComponentProps<typeof Sidebar>) {
     return (
-        <Sidebar {...props}>
+        <Sidebar
+            {...props}
+            className={cn(
+                "border-r border-sidebar-border/60 dark:border-white/20",
+                "shadow-sm dark:shadow-[0_0_0_1px_rgba(255,255,255,0.10),0_16px_40px_-24px_rgba(0,0,0,0.9)]",
+                className
+            )}
+        >
             <SidebarHeader>
                 <SidebarMenu>
                     <SidebarMenuItem>

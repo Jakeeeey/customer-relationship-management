@@ -23,7 +23,7 @@ export async function GET(req: NextRequest) {
             const smData = json.data || [];
 
             const userIds = new Set<string>();
-            smData.forEach((s: any) => {
+            smData.forEach((s: Record<string, unknown>) => {
                 if (s.employee_id) userIds.add(s.employee_id.toString());
                 else if (s.encoder_id) userIds.add(s.encoder_id.toString());
             });
@@ -62,7 +62,7 @@ export async function GET(req: NextRequest) {
             const csJson = await csRes.json();
             const csData = csJson.data || [];
 
-            const customerIds = csData.map((cs: any) => cs.customer_id);
+            const customerIds = csData.map((cs: { customer_id: unknown }) => cs.customer_id);
             if (customerIds.length === 0) return NextResponse.json({ data: [] });
 
             const idsStr = customerIds.join(',');
@@ -94,7 +94,7 @@ export async function GET(req: NextRequest) {
             const psJson = await psRes.json();
             const psData = psJson.data || [];
 
-            const productIds = psData.map((ps: any) => ps.product_id);
+            const productIds = psData.map((ps: { product_id: unknown }) => ps.product_id);
             if (productIds.length === 0) return NextResponse.json({ data: [] });
 
             const idsStr = productIds.join(',');
@@ -105,8 +105,8 @@ export async function GET(req: NextRequest) {
             const pJson = await pRes.json();
             const products = pJson.data || [];
 
-            const parentIds = products.map((p: any) => p.parent_id).filter(Boolean);
-            let parents: any[] = [];
+            const parentIds = products.map((p: Record<string, unknown>) => p.parent_id).filter(Boolean);
+            let parents: unknown[] = [];
             if (parentIds.length > 0) {
                 const uniqueParentIds = [...new Set(parentIds)];
                 // Chunk the parent IDs to avoid URL length limits
@@ -128,9 +128,9 @@ export async function GET(req: NextRequest) {
                 }
             }
 
-            let children: any[] = [];
+            let children: unknown[] = [];
             if (productIds.length > 0) {
-                const uniqueProductIds = [...new Set(productIds)];
+                const uniqueProductIds = [...new Set(productIds as number[])];
                 const chunkSize = 50;
                 for (let i = 0; i < uniqueProductIds.length; i += chunkSize) {
                     const chunk = uniqueProductIds.slice(i, i + chunkSize);
@@ -149,9 +149,9 @@ export async function GET(req: NextRequest) {
                 }
             }
 
-            const allProductsMap = new Map();
-            const addToMap = (list: any[]) => {
-                for (const p of list) {
+            const allProductsMap = new Map<number, unknown>();
+            const addToMap = (list: unknown[]) => {
+                for (const p of list as Record<string, unknown>[]) {
                     if (!allProductsMap.has(Number(p.product_id))) {
                         allProductsMap.set(Number(p.product_id), p);
                     }
@@ -164,12 +164,13 @@ export async function GET(req: NextRequest) {
 
             const allProducts = Array.from(allProductsMap.values());
 
-            const result = allProducts.map((p: any) => {
-                const parentIdVal = Number(p.parent_id);
-                const parent = parentIdVal ? allProductsMap.get(parentIdVal) : null;
+            const result = allProducts.map((p: unknown) => {
+                const product = p as Record<string, unknown>;
+                const parentIdVal = Number(product.parent_id);
+                const parent = parentIdVal ? allProductsMap.get(parentIdVal) as Record<string, unknown> : null;
 
                 // Use description if available, else product_name
-                let display_name = p.description ? p.description : p.product_name;
+                let display_name = product.description ? product.description : product.product_name;
 
                 // If it's a child product but has no description/name, fallback to parent's name
                 if (!display_name && parent) {
@@ -177,9 +178,9 @@ export async function GET(req: NextRequest) {
                 }
 
                 return {
-                    ...p,
-                    display_name: display_name || "Unnamed Product",
-                    parent_product_name: parent?.product_name || null,
+                    ...product,
+                    display_name: display_name as string || "Unnamed Product",
+                    parent_product_name: (parent?.product_name as string) || null,
                     parent_product: parent || null,
                 };
             });
