@@ -9,7 +9,7 @@ import { Loader2, PackagePlus } from "lucide-react";
 export default function CreateSalesOrderModule() {
     const {
         salesmen, selectedSalesmanId, handleSalesmanChange, selectedSalesman,
-        accounts, selectedAccountId, handleAccountChange, selectedAccount, loadingAccounts,
+        accounts, handleAccountChange, selectedAccount, loadingAccounts,
         customers, selectedCustomerId, handleCustomerChange, selectedCustomer, loadingCustomers,
         suppliers, selectedSupplierId, handleSupplierChange, selectedSupplier, loadingSuppliers,
         receiptTypes, selectedReceiptTypeId, setSelectedReceiptTypeId, selectedReceiptType,
@@ -65,12 +65,12 @@ export default function CreateSalesOrderModule() {
                     orderRemarks={orderRemarks}
                     setOrderRemarks={setOrderRemarks}
                     header={{
-                        salesman: salesmen.find(s => (s.user_id || s.id)?.toString() === selectedSalesmanId),
-                        account: selectedAccount,
-                        customer: selectedCustomer,
-                        supplier: selectedSupplier,
-                        receiptType: selectedReceiptType,
-                        salesType: selectedSalesType,
+                        salesman: salesmen.find(s => (s.user_id || s.id)?.toString() === selectedSalesmanId) || null,
+                        account: selectedAccount || null,
+                        customer: selectedCustomer || null,
+                        supplier: selectedSupplier || null,
+                        receiptType: selectedReceiptType || null,
+                        salesType: selectedSalesType || null,
                         dueDate,
                         deliveryDate,
                         poNo

@@ -11,7 +11,7 @@ interface Product {
 
 interface SaleOrderDetail {
     product_id: number | Product;
-    [key: string]: any;
+    [key: string]: string | number | boolean | Product | null | undefined;
 }
 
 export async function GET(req: NextRequest) {
@@ -56,11 +56,12 @@ export async function GET(req: NextRequest) {
             // Simple filter for mo-avg: just get items for specific orders if possible, 
             // but for now let's try to fix the existing filter to be more compatible.
             // Directus deep filter syntax check: invoice_no.order_id.customer_code
+            let jsonItems;
             const filter = {
                 "_and": [
-                    { "invoice_no": { "is_remitted": { "_eq": 1 } } },
-                    { "invoice_no": { "order_id": { "customer_code": { "_eq": customerCode } } } },
-                    { "invoice_no": { "order_id": { "order_date": { "_gte": dateStr } } } }
+                    { "invoice_no": { "isRemitted": { "_eq": 1 } } },
+                    { "invoice_no": { "customer_code": { "_eq": customerCode } } },
+                    { "invoice_no": { "invoice_date": { "_gte": dateStr } } }
                 ]
             };
 
@@ -72,11 +73,35 @@ export async function GET(req: NextRequest) {
             if (!res.ok) {
                 const errText = await res.text();
                 console.error(`[DEBUG] MO AVG API Error: Status ${res.status}`, errText);
-                return NextResponse.json({ error: `MO AVG Fetch Error: ${res.status}`, details: errText }, { status: res.status });
+
+                // Fallback attempt: Try without the isRemitted filter if it's the culprit
+                if (errText.includes("isRemitted") || errText.includes("field") || res.status === 400) {
+                    console.log("[DEBUG] MO AVG Fallback: Attempting without isRemitted filter...");
+                    const fallbackFilter = {
+                        "_and": [
+                            { "invoice_no": { "order_id": { "customer_code": { "_eq": customerCode } } } },
+                            { "invoice_no": { "order_id": { "order_date": { "_gte": dateStr } } } }
+                        ]
+                    };
+                    const fallbackUrl = `${BASE_URL}/sales_invoice_details?filter=${encodeURIComponent(JSON.stringify(fallbackFilter))}&fields=product_id,quantity&limit=-1`;
+                    const fallbackRes = await fetch(fallbackUrl, { headers });
+                    if (fallbackRes.ok) {
+                        const json = await fallbackRes.json();
+                        const items = json.data || [];
+                        console.log(`[DEBUG] MO AVG (Fallback) Items fetched: ${items.length}`);
+                        // Update items to continue processing below
+                        jsonItems = items;
+                    } else {
+                        return NextResponse.json({ error: `MO AVG Fetch Error: ${res.status}`, details: errText }, { status: res.status });
+                    }
+                } else {
+                    return NextResponse.json({ error: `MO AVG Fetch Error: ${res.status}`, details: errText }, { status: res.status });
+                }
+            } else {
+                jsonItems = (await res.json()).data || [];
             }
 
-            const json = await res.json();
-            const items = json.data || [];
+            const items = jsonItems;
             console.log(`[DEBUG] MO AVG Items fetched: ${items.length}`);
 
             // Aggregate by product_id
@@ -166,7 +191,7 @@ export async function GET(req: NextRequest) {
         ].join(",");
 
         // Construct filter object
-        const filters: Record<string, any>[] = [];
+        const filters: Record<string, string | number | boolean | object>[] = [];
 
         if (search) {
             filters.push({

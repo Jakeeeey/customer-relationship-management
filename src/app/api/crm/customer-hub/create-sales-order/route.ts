@@ -34,6 +34,7 @@ export const dynamic = "force-dynamic";
 
 const DIRECTUS_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
 const DIRECTUS_TOKEN = process.env.DIRECTUS_STATIC_TOKEN;
+const SPRING_API_BASE_URL = process.env.SPRING_API_BASE_URL;
 
 const fetchHeaders = {
     Authorization: `Bearer ${DIRECTUS_TOKEN}`,
@@ -42,7 +43,6 @@ const fetchHeaders = {
 
 interface DirectusItem {
     id: number | string;
-    [key: string]: unknown;
 }
 
 interface ProductItem extends DirectusItem {
@@ -52,10 +52,19 @@ interface ProductItem extends DirectusItem {
     product_code?: string;
     parent_id?: number | null;
     isActive?: number | boolean;
-    unit_of_measurement?: number;
+    unit_of_measurement?: number | string;
     product_category?: number;
     product_brand?: number;
     [key: string]: unknown;
+}
+
+interface DiscountItem {
+    product_id?: number;
+    category_id?: number;
+    brand_id?: number;
+    discount_type?: number;
+    discount_type_id?: number;
+    unit_price?: number | string;
 }
 
 export async function GET(req: NextRequest) {
@@ -67,7 +76,7 @@ export async function GET(req: NextRequest) {
             const smData = (await res.json()).data || [];
             const userIds = new Set<string>();
 
-            smData.forEach((s: any) => {
+            smData.forEach((s: { employee_id?: number | string; encoder_id?: number | string }) => {
                 const uid = s.employee_id || s.encoder_id;
                 if (uid) userIds.add(uid.toString());
             });
@@ -89,7 +98,7 @@ export async function GET(req: NextRequest) {
             if (!salesmanId) return NextResponse.json({ error: "salesman_id required" }, { status: 400 });
             const csRes = await fetch(`${DIRECTUS_URL}/items/customer_salesmen?filter[salesman_id][_eq]=${salesmanId}&limit=-1`, { headers: fetchHeaders });
             const csData = (await csRes.json()).data || [];
-            const ids = csData.map((cs: any) => cs.customer_id);
+            const ids = csData.map((cs: { customer_id: number | string }) => cs.customer_id);
             if (ids.length === 0) return NextResponse.json([]);
             const cRes = await fetch(`${DIRECTUS_URL}/items/customer?filter[id][_in]=${ids.join(',')}&limit=-1`, { headers: fetchHeaders });
             return NextResponse.json((await cRes.json()).data || []);
@@ -119,23 +128,14 @@ export async function GET(req: NextRequest) {
                 const supplierId = supplierIdRaw ? Number(supplierIdRaw) : null;
                 const priceType = req.nextUrl.searchParams.get("price_type") || req.nextUrl.searchParams.get("priceType") || "A";
                 const priceTypeId = req.nextUrl.searchParams.get("price_type_id") || req.nextUrl.searchParams.get("priceTypeId");
-                const salesmanId = req.nextUrl.searchParams.get("salesman_id") || req.nextUrl.searchParams.get("salesmanId");
+
 
                 if (!customerCode || !supplierId) return NextResponse.json({ error: "customer_code and supplier_id required" }, { status: 400 });
 
-                let branchId = null;
-                if (salesmanId) {
-                    const smRes = await fetch(`${DIRECTUS_URL}/items/salesman/${salesmanId}?fields=branch_code,branch_id`, { headers: fetchHeaders });
-                    if (smRes.ok) {
-                        const smData = (await smRes.json()).data;
-                        branchId = smData?.branch_code ? Number(smData.branch_code) : (smData?.branch_id ? Number(smData.branch_id) : null);
-                    }
-                }
 
-                const priceField = `price${priceType.toUpperCase()}`;
 
-                const fetchInChunks = async (urlBase: string, ids: (string | number)[], filterField: string) => {
-                    let results: any[] = [];
+                const fetchInChunks = async <T = Record<string, unknown>>(urlBase: string, ids: (string | number)[], filterField: string): Promise<T[]> => {
+                    let results: T[] = [];
                     const chunkSize = 80;
                     const cleanBase = urlBase.replace(/[?&]limit=-1$/, "");
                     const connector = cleanBase.includes("?") ? "&" : "?";
@@ -151,25 +151,27 @@ export async function GET(req: NextRequest) {
                     return results;
                 };
 
+                const priceField = `price${priceType.toUpperCase()}`;
+
                 const psRes = await fetch(`${DIRECTUS_URL}/items/product_per_supplier?filter[supplier_id][_eq]=${supplierId}&fields=product_id&limit=-1`, { headers: fetchHeaders });
                 const psJson = await psRes.json();
                 const psData = psJson.data || [];
-                const linkedProductIds = psData.map((ps: any) => {
+                const linkedProductIds = psData.map((ps: { product_id: number | { id?: number; product_id?: number } }) => {
                     if (ps.product_id && typeof ps.product_id === 'object') return ps.product_id.id || ps.product_id.product_id;
                     return ps.product_id;
                 }).filter(Boolean);
 
                 if (linkedProductIds.length === 0) return NextResponse.json([]);
 
-                const initialProducts: ProductItem[] = await fetchInChunks(`${DIRECTUS_URL}/items/products?filter[isActive][_eq]=1`, linkedProductIds, "product_id");
+                const initialProducts = await fetchInChunks<ProductItem>(`${DIRECTUS_URL}/items/products?filter[isActive][_eq]=1`, linkedProductIds, "product_id");
                 const parentIds = Array.from(new Set(initialProducts.map(p => p.parent_id).filter((id): id is number => !!id)));
-                const parents: ProductItem[] = parentIds.length > 0 ? await fetchInChunks(`${DIRECTUS_URL}/items/products`, parentIds, "product_id") : [];
-                const children: ProductItem[] = await fetchInChunks(`${DIRECTUS_URL}/items/products?filter[isActive][_eq]=1`, linkedProductIds, "parent_id");
+                const parents = parentIds.length > 0 ? await fetchInChunks<ProductItem>(`${DIRECTUS_URL}/items/products`, parentIds, "product_id") : [];
+                const children = await fetchInChunks<ProductItem>(`${DIRECTUS_URL}/items/products?filter[isActive][_eq]=1`, linkedProductIds, "parent_id");
 
                 const unitsRes = await fetch(`${DIRECTUS_URL}/items/units?limit=-1`, { headers: fetchHeaders });
                 const unitsData = (await unitsRes.json()).data || [];
                 const unitMap: Record<number, string> = {};
-                unitsData.forEach((u: any) => { unitMap[Number(u.unit_id)] = u.unit_name || ""; });
+                unitsData.forEach((u: { unit_id: number | string; unit_name?: string }) => { unitMap[Number(u.unit_id)] = u.unit_name || ""; });
 
                 const allProductsMap = new Map<number, ProductItem>();
                 [...parents, ...initialProducts, ...children].forEach(p => {
@@ -178,11 +180,11 @@ export async function GET(req: NextRequest) {
                 });
 
                 const allIds = Array.from(allProductsMap.keys());
-                const l1Items = await fetchInChunks(`${DIRECTUS_URL}/items/product_per_customer?filter[customer_code][_eq]=${customerCode}&fields=product_id,unit_price,discount_type`, allIds, "product_id");
-                const l2Items = (await (await fetch(`${DIRECTUS_URL}/items/supplier_category_discount_per_customer?filter[customer_code][_eq]=${customerCode}&filter[supplier_id][_eq]=${supplierId}&limit=-1`, { headers: fetchHeaders })).json()).data || [];
-                const l3Items = await fetchInChunks(`${DIRECTUS_URL}/items/product_per_supplier?filter[supplier_id][_eq]=${supplierId}&fields=product_id,discount_type`, allIds, "product_id");
+                const l1Items = await fetchInChunks<DiscountItem>(`${DIRECTUS_URL}/items/product_per_customer?filter[customer_code][_eq]=${customerCode}&fields=product_id,unit_price,discount_type`, allIds, "product_id");
+                const l2Items: DiscountItem[] = (await (await fetch(`${DIRECTUS_URL}/items/supplier_category_discount_per_customer?filter[customer_code][_eq]=${customerCode}&filter[supplier_id][_eq]=${supplierId}&limit=-1`, { headers: fetchHeaders })).json()).data || [];
+                const l3Items = await fetchInChunks<DiscountItem>(`${DIRECTUS_URL}/items/product_per_supplier?filter[supplier_id][_eq]=${supplierId}&fields=product_id,discount_type`, allIds, "product_id");
 
-                let l4Items: any[] = [];
+                let l4Items: DiscountItem[] = [];
                 if (customerId) {
                     const l4Res = await fetch(`${DIRECTUS_URL}/items/customer_discount_brand?filter[customer_id][_eq]=${customerId}&limit=-1`, { headers: fetchHeaders });
                     l4Items = (await l4Res.json()).data || [];
@@ -191,53 +193,37 @@ export async function GET(req: NextRequest) {
                 const customerRes = await fetch(`${DIRECTUS_URL}/items/customer?filter[customer_code][_eq]=${customerCode}&fields=discount_type`, { headers: fetchHeaders });
                 const customerData = (await customerRes.json()).data?.[0];
 
-                let priceOverrides: Record<number, number> = {};
+                const priceOverrides: Record<number, number> = {};
                 if (priceTypeId) {
                     const poRes = await fetch(`${DIRECTUS_URL}/items/product_per_price_type?filter[price_type_id][_eq]=${priceTypeId}&limit=-1`, { headers: fetchHeaders });
-                    const poData = (await poRes.json()).data || [];
-                    poData.forEach((po: any) => {
+                    const poData: { product_id: number | string; price: number | string }[] = (await poRes.json()).data || [];
+                    poData.forEach((po: { product_id: number | string; price: number | string }) => {
                         priceOverrides[Number(po.product_id)] = Number(po.price);
                     });
                 }
 
                 const typeIds = new Set(
-                    l1Items.map((i: any) => i.discount_type)
-                        .concat(l2Items.map((i: any) => i.discount_type))
-                        .concat(l3Items.map((i: any) => i.discount_type))
-                        .concat(l4Items.map((i: any) => i.discount_type_id))
+                    l1Items.map((i: DiscountItem) => i.discount_type)
+                        .concat(l2Items.map((i: DiscountItem) => i.discount_type))
+                        .concat(l3Items.map((i: DiscountItem) => i.discount_type))
+                        .concat(l4Items.map((i: DiscountItem) => i.discount_type_id))
                         .concat([customerData?.discount_type])
                         .filter(Boolean)
                 );
 
-                const lpdtItems = typeIds.size > 0 ? await fetchInChunks(`${DIRECTUS_URL}/items/line_per_discount_type?fields=type_id,line_id.percentage&sort=id`, Array.from(typeIds) as (string | number)[], "type_id") : [];
+                const lpdtItems = typeIds.size > 0 ? await fetchInChunks<{ type_id: number; line_id: { percentage: number } }>(`${DIRECTUS_URL}/items/line_per_discount_type?fields=type_id,line_id.percentage&sort=id`, Array.from(typeIds) as (string | number)[], "type_id") : [];
                 const discountMap: Record<number, number[]> = {};
-                lpdtItems.forEach((item: any) => {
+                lpdtItems.forEach((item: { type_id: number | string; line_id?: { percentage: number | string } }) => {
                     const tid = Number(item.type_id);
                     if (!discountMap[tid]) discountMap[tid] = [];
                     discountMap[tid].push(Number(item.line_id?.percentage) || 0);
                 });
 
-                const discountTypesRes = typeIds.size > 0 ? await fetchInChunks(`${DIRECTUS_URL}/items/discount_type?fields=id,discount_type`, Array.from(typeIds) as (string | number)[], "id") : [];
+                const discountTypesRes = typeIds.size > 0 ? await fetchInChunks<{ id: number; discount_type: string }>(`${DIRECTUS_URL}/items/discount_type?fields=id,discount_type`, Array.from(typeIds) as (string | number)[], "id") : [];
                 const discountTypeNameMap: Record<number, string> = {};
-                discountTypesRes.forEach((dt: any) => {
+                discountTypesRes.forEach((dt: { id: number | string; discount_type?: string }) => {
                     discountTypeNameMap[Number(dt.id)] = dt.discount_type || "";
                 });
-
-                let inventoryMap: Record<number, number> = {};
-                if (branchId) {
-                    try {
-                        const invUrl = `${DIRECTUS_URL}/items/v_running_inventory?filter[branch_id][_eq]=${branchId}&filter[supplier_id][_eq]=${supplierId}&limit=-1`;
-                        const invRes = await fetch(invUrl, { headers: fetchHeaders });
-                        if (invRes.ok) {
-                            const invData = (await invRes.json()).data || [];
-                            invData.forEach((inv: any) => {
-                                inventoryMap[Number(inv.product_id)] = Number(inv.running_inventory_unit) || 0;
-                            });
-                        }
-                    } catch (e) {
-                        console.error("Failed to fetch inventory view:", e);
-                    }
-                }
 
                 const sellableItems = Array.from(allProductsMap.values()).filter(p => p.isActive === 1 || p.isActive === true);
 
@@ -247,21 +233,21 @@ export async function GET(req: NextRequest) {
 
                     let price = priceOverrides[Number(p.product_id)] || Number(p[priceField] as number) || Number(p.price_per_unit) || 0;
 
-                    const l1 = l1Items.find((i: any) => i.product_id === p.product_id);
+                    const l1 = l1Items.find((item: DiscountItem) => item.product_id === p.product_id);
                     if (l1) { winId = l1.discount_type; price = Number(l1.unit_price) || price; level = "Customer-Specific Price Override"; }
 
                     if (!winId) {
-                        const l2 = l2Items.find((i: any) => i.category_id === p.product_category || !i.category_id || i.category_id === 0);
+                        const l2 = l2Items.find((item: DiscountItem) => item.category_id === p.product_category || !item.category_id || item.category_id === 0);
                         if (l2) { winId = l2.discount_type; level = "Supplier Category Discount"; }
                     }
 
                     if (!winId) {
-                        const l3 = l3Items.find((i: any) => i.product_id === p.product_id) || l3Items.find((i: any) => p.parent_id && i.product_id === p.parent_id);
+                        const l3 = l3Items.find((item: DiscountItem) => item.product_id === p.product_id) || l3Items.find((item: DiscountItem) => p.parent_id && item.product_id === p.parent_id);
                         if (l3) { winId = l3.discount_type; level = "Supplier Product Discount"; }
                     }
 
                     if (!winId) {
-                        const l4 = l4Items.find((i: any) => i.brand_id === p.product_brand);
+                        const l4 = l4Items.find((item: DiscountItem) => item.brand_id === p.product_brand);
                         if (l4) { winId = l4.discount_type_id; level = "Customer Brand Discount"; }
                     }
 
@@ -290,8 +276,7 @@ export async function GET(req: NextRequest) {
                         base_price: price,
                         discount_level: displayLevel,
                         discount_type: winId,
-                        discounts: winId ? (discountMap[winId] || []) : [],
-                        available_qty: inventoryMap[Number(p.product_id)] ?? 0
+                        discounts: winId ? (discountMap[winId] || []) : []
                     };
                 });
 
@@ -359,7 +344,7 @@ export async function POST(req: NextRequest) {
             }
         }
 
-        const lineItemsPayload = items.map((item: any) => {
+        const lineItemsPayload = items.map((item: { unitPrice: number; quantity: number; allocated_quantity?: number; netAmount: number; product: { product_id: number; discount_type?: number }; remarks?: string }) => {
             const unitPrice = Number(item.unitPrice) || 0;
             const orderedQty = Number(item.quantity) || 0;
             const allocatedQty = Number(item.allocated_quantity) || orderedQty;
@@ -437,7 +422,12 @@ export async function POST(req: NextRequest) {
         const hJson = await hRes.json();
         const soId = hJson.data.order_id || hJson.data.id;
 
-        const finalLineItems = lineItemsPayload.map(({ _ordered_gross, _ordered_discount, ...li }: { _ordered_gross: number; _ordered_discount: number;[key: string]: any }) => ({ ...li, order_id: soId }));
+        const finalLineItems = lineItemsPayload.map((item: { _ordered_gross?: number; _ordered_discount?: number;[key: string]: unknown }) => {
+            const li = { ...item };
+            delete li._ordered_gross;
+            delete li._ordered_discount;
+            return { ...li, order_id: soId };
+        });
 
         const itemsRes = await fetch(`${DIRECTUS_URL}/items/sales_order_details`, {
             method: "POST",

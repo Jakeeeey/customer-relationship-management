@@ -11,7 +11,7 @@ import {
 import { SalesOrder, Customer, Salesman, Branch, Supplier } from "../types";
 
 import { Button } from "@/components/ui/button";
-import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Info } from "lucide-react";
+import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 
 import { Skeleton } from "@/components/ui/skeleton";

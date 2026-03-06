@@ -56,12 +56,14 @@ export function SalesOrderFormFields({ appliedFilters, onSearch, salesmen, branc
             if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
         };
         // We only want to re-run this when search changes or when onSearch changes
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [draftFilters.search, onSearch]);
 
     // For other filters, we search immediately
     useEffect(() => {
         onSearch(draftFilters);
         // Explicit dependencies to satisfy ESLint while avoiding infinite loops
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [
         onSearch,
         draftFilters.startDate,

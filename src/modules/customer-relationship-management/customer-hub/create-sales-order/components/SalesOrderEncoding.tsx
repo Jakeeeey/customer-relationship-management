@@ -8,13 +8,13 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Search, Plus, Trash2, Loader2, ShoppingCart } from "lucide-react";
 import { formatCurrency, calculateChainNetPrice } from "../utils/priceCalc";
-import { LineItem } from "../types";
+import { LineItem, Product } from "../types";
 
 interface SalesOrderEncodingProps {
-    products: any[];
+    products: Product[];
     loadingProducts: boolean;
     lineItems: LineItem[];
-    addProduct: (product: any, qty: number, uom: string) => void;
+    addProduct: (product: Product, qty: number, uom: string) => void;
     removeLineItem: (id: string) => void;
     updateLineItemQty: (id: string, qty: number) => void;
     summary: { totalAmount: number; netAmount: number; discountAmount: number };
@@ -112,6 +112,7 @@ export function SalesOrderEncoding({
                                                             <span key={i} className="text-[10px] font-bold px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded border border-amber-200">-{d}%</span>
                                                         ))}
                                                     </div>
+
                                                 </div>
                                             </div>
                                             <Button
@@ -147,7 +148,7 @@ export function SalesOrderEncoding({
                                 <TableHeader className="bg-muted/50 sticky top-0 z-10 shadow-sm">
                                     <TableRow>
                                         <TableHead className="text-[10px] font-black uppercase bg-muted/50">Product Desc</TableHead>
-                                        <TableHead className="text-center text-[10px] font-black uppercase bg-muted/50">Available</TableHead>
+
                                         <TableHead className="text-center text-[10px] font-black uppercase bg-muted/50">UOM</TableHead>
                                         <TableHead className="text-center text-[10px] font-black uppercase w-[100px] bg-muted/50">Qty</TableHead>
                                         <TableHead className="text-right text-[10px] font-black uppercase bg-muted/50">Unit Price</TableHead>
@@ -165,11 +166,7 @@ export function SalesOrderEncoding({
                                                     <span className="text-[9px] text-primary/70 uppercase font-black tracking-tighter">{item.discountType}</span>
                                                 </div>
                                             </TableCell>
-                                            <TableCell className="text-center">
-                                                <span className="font-black text-[11px] text-blue-600 tabular-nums">
-                                                    {item.availableQty?.toLocaleString() || "0"}
-                                                </span>
-                                            </TableCell>
+
                                             <TableCell className="text-center">
                                                 <Badge variant="outline" className="text-[9px] font-bold px-1.5 py-0 border-slate-200 text-slate-500 whitespace-nowrap">
                                                     {item.uom}

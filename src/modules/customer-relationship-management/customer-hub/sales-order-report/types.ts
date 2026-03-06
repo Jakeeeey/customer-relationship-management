@@ -39,7 +39,7 @@ export interface SalesOrder {
 
 export interface SalesOrderDetail {
     detail_id: number;
-    product_id: number;
+    product_id: number | { product_name: string; product_code: string };
     order_id: number;
     unit_price: number;
     ordered_quantity: number;

@@ -1,14 +1,14 @@
 "use client";
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowLeft, CheckCircle2, Package, Calculator, Receipt, ShoppingBag, AlertCircle, Loader2, MessageSquare } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Package, Calculator, AlertCircle, Loader2, MessageSquare } from "lucide-react";
 import { formatCurrency, calculateChainNetPrice } from "../utils/priceCalc";
-import { LineItem } from "../types";
+import { LineItem, Salesman, Customer, Supplier, ReceiptType, SalesType } from "../types";
 
 interface SalesOrderCheckoutProps {
     orderNo: string;
@@ -33,12 +33,12 @@ interface SalesOrderCheckoutProps {
     orderRemarks: string;
     setOrderRemarks: (val: string) => void;
     header: {
-        salesman: any;
-        account: any;
-        customer: any;
-        supplier: any;
-        receiptType: any;
-        salesType: any;
+        salesman: Salesman | null;
+        account: Salesman | null;
+        customer: Customer | null;
+        supplier: Supplier | null;
+        receiptType: ReceiptType | null;
+        salesType: SalesType | null;
         dueDate: string;
         deliveryDate: string;
         poNo: string;
@@ -123,7 +123,7 @@ export function SalesOrderCheckout({
                                     <TableHeader className="bg-slate-50 sticky top-0 z-10 shadow-sm">
                                         <TableRow className="hover:bg-transparent">
                                             <TableHead className="py-5 px-8 text-[10px] font-black uppercase tracking-widest text-slate-500 bg-slate-50">Product Specification</TableHead>
-                                            <TableHead className="text-center text-[10px] font-black uppercase tracking-widest text-slate-500 bg-slate-50">Available</TableHead>
+
                                             <TableHead className="text-center text-[10px] font-black uppercase tracking-widest text-slate-500 bg-slate-50">Ordered</TableHead>
                                             <TableHead className="text-center text-[10px] font-black uppercase tracking-widest text-slate-900 bg-slate-100/50">Allocated</TableHead>
                                             <TableHead className="text-right text-[10px] font-black uppercase tracking-widest text-slate-500 bg-slate-50">Unit Price</TableHead>
@@ -154,11 +154,7 @@ export function SalesOrderCheckout({
                                                             </div>
                                                         </div>
                                                     </TableCell>
-                                                    <TableCell className="text-center">
-                                                        <span className="font-black text-blue-600 tabular-nums text-sm">
-                                                            {item.availableQty?.toLocaleString() || "0"}
-                                                        </span>
-                                                    </TableCell>
+
                                                     <TableCell className="text-center font-bold text-slate-400 tabular-nums">{item.quantity}</TableCell>
                                                     <TableCell className="text-center bg-slate-50/30 relative py-8">
                                                         <Input

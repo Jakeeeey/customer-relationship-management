@@ -34,17 +34,17 @@ export interface Product {
     product_id: number;
     product_name?: string;
     product_code?: string;
+    description?: string;
     display_name?: string;
     base_price: number;
     discount_level?: string;
     discounts: number[];
-    available_qty?: number;
-    availableQty?: number;
     category_id?: number;
     brand_id?: number;
     pieces_per_box?: number;
     uom?: string;
-    [key: string]: any;
+    parent_product_name?: string;
+    [key: string]: unknown;
 }
 
 export interface LineItem {
@@ -58,7 +58,6 @@ export interface LineItem {
     netAmount: number;
     totalAmount: number;
     discountAmount: number;
-    availableQty?: number;
 }
 
 export interface SalesOrderHeader {
@@ -84,6 +83,7 @@ export interface SalesOrderHeader {
 export interface ReceiptType {
     id: number | string;
     type: string;
+    shortcut?: string;
 }
 
 export interface SalesType {

@@ -21,7 +21,7 @@ export function useSalesOrder() {
 
     const [suppliers, setSuppliers] = useState<Supplier[]>([]);
     const [selectedSupplierId, setSelectedSupplierId] = useState<string>("");
-    const [loadingSuppliers, setLoadingSuppliers] = useState(false);
+    const loadingSuppliers = false;
 
     // Meta Settings
     const [receiptTypes, setReceiptTypes] = useState<ReceiptType[]>([]);
@@ -146,12 +146,8 @@ export function useSalesOrder() {
             if (customerCode) {
                 setLoadingProducts(true);
                 salesOrderProvider.searchProducts("", customerCode, Number(supplierId), priceType, Number(customerId), priceTypeId || undefined, sSalesmanId)
-                    .then(res => {
-                        const productsWithRealInventory = (Array.isArray(res) ? res : []).map((p: any) => ({
-                            ...p,
-                            availableQty: p.available_qty ?? 0
-                        }));
-                        setSupplierProducts(productsWithRealInventory);
+                    .then((res: Product[]) => {
+                        setSupplierProducts(Array.isArray(res) ? res : []);
                     })
                     .finally(() => setLoadingProducts(false));
             }
@@ -189,8 +185,7 @@ export function useSalesOrder() {
             discounts,
             netAmount,
             totalAmount,
-            discountAmount: totalAmount - netAmount,
-            availableQty: product.availableQty
+            discountAmount: totalAmount - netAmount
         };
 
         setLineItems(prev => [...prev, newItem]);
@@ -223,7 +218,7 @@ export function useSalesOrder() {
             const netPrice = calculateChainNetPrice(item.unitPrice, item.discounts);
             return sum + (netPrice * item.quantity);
         }, 0);
-        const orderedDiscount = orderedGross - orderedNet;
+        // const orderedDiscount = orderedGross - orderedNet;
 
         // Allocated totals (Base lang sa kung ano ang ibibigay o "allocated")
         const allocatedGross = lineItems.reduce((sum, item) => {
@@ -284,8 +279,7 @@ export function useSalesOrder() {
         // Initialize allocated quantities with Option B: min(ordered, available)
         const initialAllocated: Record<string, number> = {};
         lineItems.forEach(item => {
-            const available = item.availableQty ?? 999999;
-            initialAllocated[item.id] = Math.min(item.quantity, available);
+            initialAllocated[item.id] = item.quantity;
         });
         setAllocatedQuantities(initialAllocated);
         setIsCheckout(true);
@@ -338,7 +332,23 @@ export function useSalesOrder() {
             const res = await salesOrderProvider.createOrder(payload, itemsWithAllocation);
             if (res.success) {
                 toast.success(`Order created: ${res.order_no}`);
-                window.location.reload();
+                // Instead of reload, reset the local state
+                setLineItems([]);
+                setAllocatedQuantities({});
+                setOrderRemarks("");
+                setIsCheckout(false);
+                setPoNo("");
+                setDueDate("");
+                setDeliveryDate("");
+                // Clear selection IDs to reset dropdowns
+                setSelectedSalesmanId("");
+                setSelectedAccountId("");
+                setSelectedCustomerId("");
+                setSelectedSupplierId("");
+                setSelectedReceiptTypeId("");
+
+                // Optional: Force a refresh of product inventory if needed
+                // But definitely avoid the jarring reload
             } else {
                 toast.error(res.error || "Failed to create order");
             }
