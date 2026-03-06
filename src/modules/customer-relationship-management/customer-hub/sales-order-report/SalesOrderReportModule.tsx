@@ -5,9 +5,8 @@ import { SalesOrder, SalesOrderDetail, Customer, Salesman, Branch, Supplier } fr
 import { fetchSalesOrderData } from "./providers/fetchProvider";
 import { SalesOrderFormFields } from "./components/SalesOrderFormFields";
 import { SalesOrderTable } from "./components/SalesOrderTable";
-import { SalesOrderSummary } from "./components/SalesOrderSummary";
-import { Button } from "@/components/ui/button";
-import { Package2, Plus, Loader2 } from "lucide-react";
+import { SalesOrderDetailsModal } from "./components/SalesOrderDetailsModal";
+import { Package2, Loader2, Info } from "lucide-react";
 
 import { SalesOrderSkeleton } from "./components/SalesOrderSkeleton";
 
@@ -21,42 +20,40 @@ export default function SalesOrderReportModule() {
     const [branches, setBranches] = useState<Branch[]>([]);
     const [suppliers, setSuppliers] = useState<Supplier[]>([]);
     const [currentPage, setCurrentPage] = useState(1);
-    const pageSize = 15;
+    const pageSize = 50;
     const [totalOrders, setTotalOrders] = useState(0);
+    const [aggregates, setAggregates] = useState({ total_amount: 0, allocated_amount: 0 });
     const [error, setError] = useState<string | null>(null);
+    const [selectedOrder, setSelectedOrder] = useState<SalesOrder | null>(null);
+    const [isModalOpen, setIsModalOpen] = useState(false);
     const [appliedFilters, setAppliedFilters] = useState({
         search: "",
         dateCreated: "",
         orderDate: "",
         deliveryDate: "",
         dueDate: "",
+        startDate: "",
+        endDate: "",
+        salesmanId: "",
+        branchId: "",
+        status: "",
     });
 
     const loadData = async (page: number, filtersToUse: any) => {
-        const hasDateFilter = filtersToUse.dateCreated ||
-            filtersToUse.orderDate ||
-            filtersToUse.deliveryDate ||
-            filtersToUse.dueDate;
-
-        if (!hasDateFilter) {
-            setSalesOrders([]);
-            setTotalOrders(0);
-            setOrder({});
-            setDetails([]);
-            setLoading(false);
-            return;
-        }
-
+        // Removed mandatory filter restriction to allow initial data load
         setLoading(true);
         try {
-            // Clean up empty filters
+            // Clean up empty filters and "none" values
             const activeFilters = Object.fromEntries(
-                Object.entries(filtersToUse).filter(([_, v]) => v !== "")
+                Object.entries(filtersToUse).filter(([_, v]) => v !== "" && v !== "none")
             ) as Record<string, string>;
 
             const data = await fetchSalesOrderData(page, pageSize, activeFilters);
             setSalesOrders(data.salesOrders);
             setTotalOrders(data.meta.total_count);
+            if (data.meta.aggregates) {
+                setAggregates(data.meta.aggregates);
+            }
 
             if (data.salesOrders.length > 0) {
                 // By default, select the first order if none is currently selected 
@@ -79,6 +76,11 @@ export default function SalesOrderReportModule() {
         }
     };
 
+    const handleRowClick = (so: SalesOrder) => {
+        setSelectedOrder(so);
+        setIsModalOpen(true);
+    };
+
     const handleSearch = (newFilters: any) => {
         setAppliedFilters(newFilters);
         setCurrentPage(1); // Reset to first page on new search
@@ -94,48 +96,80 @@ export default function SalesOrderReportModule() {
 
     if (error) {
         return (
-            <div className="flex h-[60vh] items-center justify-center">
-                <p className="text-destructive font-medium">Error: {error}</p>
+            <div className="flex h-[60vh] flex-col items-center justify-center gap-4">
+                <p className="text-destructive font-bold text-lg">Report Error</p>
+                <div className="bg-destructive/10 p-4 rounded-lg border border-destructive/20 max-w-2xl text-center">
+                    <p className="text-destructive font-medium">{error}</p>
+                </div>
+                <button
+                    onClick={() => window.location.reload()}
+                    className="mt-2 px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors"
+                >
+                    Retry Loading
+                </button>
             </div>
         );
     }
 
     return (
-        <div className="space-y-8 animate-in fade-in duration-500">
+        <div className="space-y-5 animate-in fade-in duration-500">
             {/* Header Area */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
-                        <Package2 className="h-6 w-6" />
+                    <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
+                        <Package2 className="h-5 w-5" />
                     </div>
                     <div>
-                        <h1 className="text-2xl font-bold tracking-tight">Sales Order Report</h1>
-                        <p className="text-sm text-muted-foreground">Manage and review sales order details</p>
+                        <h1 className="text-xl font-bold tracking-tight leading-tight">Sales Order Report</h1>
+                        <p className="text-[10px] text-muted-foreground uppercase font-medium tracking-wider">Customer Relationship Management</p>
                     </div>
                 </div>
             </div>
 
-            {/* Form Fields */}
-            <section className="bg-card rounded-xl border p-6 shadow-sm">
+            {/* Aggregates Summary Cards - More compact */}
+            {salesOrders.length > 0 && (
+                <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+                    <div className="bg-primary/5 rounded-lg border border-primary/20 p-3 shadow-none">
+                        <p className="text-[10px] font-bold text-primary uppercase tracking-wider mb-0.5">Grand Total (Allocated)</p>
+                        <p className="text-lg font-black text-primary">
+                            {new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP" }).format(aggregates.allocated_amount)}
+                        </p>
+                    </div>
+                    <div className="bg-card rounded-lg border p-3 shadow-none">
+                        <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-0.5">Total Ordered Amount</p>
+                        <p className="text-lg font-bold">
+                            {new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP" }).format(aggregates.total_amount)}
+                        </p>
+                    </div>
+                    <div className="bg-card rounded-lg border p-3 shadow-none">
+                        <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-0.5">Total Orders</p>
+                        <p className="text-lg font-bold">{totalOrders}</p>
+                    </div>
+                </div>
+            )}
+
+            {/* Form Fields - Compact container */}
+            <section className="bg-card rounded-lg shadow-none">
                 <SalesOrderFormFields
                     order={order}
                     appliedFilters={appliedFilters}
                     onSearch={handleSearch}
+                    salesmen={salesmen}
+                    branches={branches}
                 />
             </section>
 
-            {/* Main Content Area: Table and Summary side-by-side */}
-            <div className="grid grid-cols-1 xl:grid-cols-4 gap-8 items-start">
-                {/* Product Table - Takes 3/4 width on large screens */}
-                <section className="space-y-4 xl:col-span-3 order-2 xl:order-1">
-                    <div className="flex items-center justify-between px-1">
-                        <h2 className="text-xl font-bold text-primary flex items-center gap-2">
-                            Sales Order List
-                            <span className="text-xs font-normal text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
-                                {totalOrders} total
-                            </span>
-                        </h2>
-                    </div>
+            {/* Main Content Area: Full Width Table - Tightened */}
+            <div className="space-y-3">
+                <div className="flex items-center justify-between px-1">
+                    <h2 className="text-base font-bold text-primary flex items-center gap-2 uppercase tracking-wide">
+                        Sales Order List
+                        <span className="text-[10px] font-bold text-muted-foreground bg-muted px-2 py-0.5 rounded-md border">
+                            {totalOrders} RECORDS
+                        </span>
+                    </h2>
+                </div>
+                <section className="bg-card rounded-lg border shadow-sm overflow-hidden">
                     <SalesOrderTable
                         orders={salesOrders}
                         customers={customers}
@@ -147,24 +181,22 @@ export default function SalesOrderReportModule() {
                         pageSize={pageSize}
                         onPageChange={setCurrentPage}
                         isLoading={loading}
-                        hasActiveDate={!!(appliedFilters.dateCreated || appliedFilters.orderDate || appliedFilters.deliveryDate || appliedFilters.dueDate)}
-                        selectedOrderId={order.order_id}
-                        onRowClick={setOrder}
+                        hasActiveDate={true}
+                        selectedOrderId={selectedOrder?.order_id || undefined}
+                        onRowClick={handleRowClick}
                     />
                 </section>
-
-                {/* Summary Section - Takes 1/4 width on large screens */}
-                <section className="space-y-4 xl:col-span-1 order-1 xl:order-2 self-start">
-                    <div className="flex items-center px-1">
-                        <h2 className="text-xl font-bold text-primary">
-                            Order Summary
-                        </h2>
-                    </div>
-                    <div className="bg-card rounded-xl border p-6 shadow-sm">
-                        <SalesOrderSummary order={order} />
-                    </div>
-                </section>
             </div>
+
+            {/* Details Modal */}
+            <SalesOrderDetailsModal
+                isOpen={isModalOpen}
+                onClose={() => setIsModalOpen(false)}
+                order={selectedOrder}
+                customers={customers}
+                salesmen={salesmen}
+                branches={branches}
+            />
 
             <div className="h-8" /> {/* Spacer */}
         </div>

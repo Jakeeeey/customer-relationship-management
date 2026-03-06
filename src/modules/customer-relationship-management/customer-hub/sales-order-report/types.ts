@@ -96,5 +96,9 @@ export interface SalesOrderDataResponse {
     suppliers: Supplier[];
     meta: {
         total_count: number;
+        aggregates?: {
+            total_amount: number;
+            allocated_amount: number;
+        };
     };
 }

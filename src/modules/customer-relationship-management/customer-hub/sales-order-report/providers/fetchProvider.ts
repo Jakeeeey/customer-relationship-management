@@ -11,9 +11,29 @@ export const fetchSalesOrderData = async (
         ...filters
     });
 
-    const response = await fetch(`/api/crm/customer-hub/sales-order?${queryParams.toString()}`);
+    const response = await fetch(`/api/crm/customer-hub/sales-order-report?${queryParams.toString()}`);
     if (!response.ok) {
-        throw new Error("Failed to fetch sales order data");
+        let errText = "Failed to fetch sales order data";
+        try {
+            const errJson = await response.json();
+            errText = errJson.error || errJson.message || JSON.stringify(errJson);
+        } catch {
+            errText = await response.text() || response.statusText;
+        }
+        throw new Error(errText);
     }
     return response.json() as Promise<SalesOrderDataResponse>;
+};
+
+export const fetchSalesOrderDetails = async (orderId: number) => {
+    const response = await fetch(`/api/crm/customer-hub/sales-order-report?orderId=${orderId}`);
+    if (!response.ok) {
+        throw new Error("Failed to fetch order details");
+    }
+    const json = await response.json();
+    return json.data || [];
+};
+
+export const salesOrderProvider = {
+    getSalesOrderDetails: fetchSalesOrderDetails
 };

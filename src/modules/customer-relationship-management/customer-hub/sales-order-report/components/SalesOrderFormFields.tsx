@@ -10,10 +10,9 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { Card, CardContent } from "@/components/ui/card";
-import { SalesOrder } from "../types";
+import { SalesOrder, Salesman, Branch } from "../types";
 import { Search, Calendar } from "lucide-react";
-import { useState } from "react";
-import { Button } from "@/components/ui/button";
+import { useEffect, useState, useRef } from "react";
 
 interface SalesOrderFormFieldsProps {
     order: Partial<SalesOrder>;
@@ -23,99 +22,160 @@ interface SalesOrderFormFieldsProps {
         orderDate: string;
         deliveryDate: string;
         dueDate: string;
+        startDate: string;
+        endDate: string;
+        salesmanId: string;
+        branchId: string;
+        status: string;
     };
     onSearch: (filters: any) => void;
+    salesmen: Salesman[];
+    branches: Branch[];
 }
 
-export function SalesOrderFormFields({ order, appliedFilters, onSearch }: SalesOrderFormFieldsProps) {
+export function SalesOrderFormFields({ order, appliedFilters, onSearch, salesmen, branches }: SalesOrderFormFieldsProps) {
     const [draftFilters, setDraftFilters] = useState(appliedFilters);
+    const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
     const handleInputChange = (key: string, value: string) => {
         setDraftFilters(prev => ({ ...prev, [key]: value }));
     };
 
-    return (
-        <Card className="border-none shadow-none">
-            <CardContent className="p-0 space-y-8">
-                {/* Unified Search Section */}
-                <div className="space-y-4">
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2 text-primary">
-                            <Search className="h-4 w-4" />
-                            <h3 className="text-sm font-semibold uppercase tracking-wider">Search Filters</h3>
-                        </div>
-                        <Button
-                            onClick={() => onSearch(draftFilters)}
-                            className="bg-primary text-primary-foreground hover:bg-primary/90 px-8"
-                        >
-                            <Search className="mr-2 h-4 w-4" />
-                            Search
-                        </Button>
-                    </div>
-                    <div className="grid grid-cols-1 gap-6">
-                        <div className="space-y-2">
-                            <Label htmlFor="unifiedSearch" className="text-xs font-bold text-muted-foreground uppercase">
-                                General Search
-                            </Label>
-                            <div className="relative">
-                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                                <Input
-                                    id="unifiedSearch"
-                                    className="pl-10 h-12 text-base shadow-sm border-2 focus-visible:ring-primary"
-                                    placeholder="Search by Order No, Customer Code, or PO No..."
-                                    value={draftFilters.search}
-                                    onChange={(e) => handleInputChange("search", e.target.value)}
-                                />
-                            </div>
-                        </div>
-                    </div>
-                </div>
+    // Auto-search logic
+    useEffect(() => {
+        // For search text, we use debounce
+        if (searchTimeoutRef.current) {
+            clearTimeout(searchTimeoutRef.current);
+        }
 
-                {/* Date Filters Section */}
-                <div className="space-y-4 pt-6 border-t">
-                    <div className="flex items-center gap-2 text-primary">
-                        <Calendar className="h-4 w-4" />
-                        <h3 className="text-sm font-semibold uppercase tracking-wider">Date Filters</h3>
+        searchTimeoutRef.current = setTimeout(() => {
+            onSearch(draftFilters);
+        }, 500); // 500ms debounce
+
+        return () => {
+            if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+        };
+    }, [draftFilters.search]);
+
+    // For other filters, we search immediately
+    useEffect(() => {
+        onSearch(draftFilters);
+    }, [
+        draftFilters.startDate,
+        draftFilters.endDate,
+        draftFilters.salesmanId,
+        draftFilters.branchId,
+        draftFilters.status,
+        draftFilters.dateCreated,
+        draftFilters.orderDate,
+        draftFilters.deliveryDate,
+        draftFilters.dueDate
+    ]);
+
+    return (
+        <Card className="border shadow-sm bg-muted/30">
+            <CardContent className="p-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-3">
+                    {/* General Search */}
+                    <div className="lg:col-span-2 xl:col-span-2 flex flex-col gap-1.5">
+                        <Label htmlFor="unifiedSearch" className="text-[10px] font-bold text-muted-foreground uppercase pl-1">
+                            Search Order / Customer
+                        </Label>
+                        <div className="relative">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/60" />
+                            <Input
+                                id="unifiedSearch"
+                                className="pl-9 h-9 text-sm shadow-sm focus-visible:ring-primary/50"
+                                placeholder="Order No, Customer Code..."
+                                value={draftFilters.search}
+                                onChange={(e) => handleInputChange("search", e.target.value)}
+                            />
+                        </div>
                     </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                        <div className="space-y-2">
-                            <Label htmlFor="dateCreated" className="text-xs font-bold text-muted-foreground uppercase">Date Created</Label>
+
+                    {/* Salesman */}
+                    <div className="flex flex-col gap-1.5">
+                        <Label className="text-[10px] font-bold text-muted-foreground uppercase pl-1">Salesman</Label>
+                        <Select
+                            value={draftFilters.salesmanId}
+                            onValueChange={(val) => handleInputChange("salesmanId", val)}
+                        >
+                            <SelectTrigger className="h-9 text-sm shadow-sm">
+                                <SelectValue placeholder="All Salesmen" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="none">All Salesmen</SelectItem>
+                                {salesmen.map(sm => (
+                                    <SelectItem key={sm.id} value={sm.id.toString()}>{sm.salesman_name}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+
+                    {/* Branch */}
+                    <div className="flex flex-col gap-1.5">
+                        <Label className="text-[10px] font-bold text-muted-foreground uppercase pl-1">Branch</Label>
+                        <Select
+                            value={draftFilters.branchId}
+                            onValueChange={(val) => handleInputChange("branchId", val)}
+                        >
+                            <SelectTrigger className="h-9 text-sm shadow-sm">
+                                <SelectValue placeholder="All Branches" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="none">All Branches</SelectItem>
+                                {branches.map(b => (
+                                    <SelectItem key={b.id} value={b.id.toString()}>{b.branch_name}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+
+                    {/* Status */}
+                    <div className="flex flex-col gap-1.5">
+                        <Label className="text-[10px] font-bold text-muted-foreground uppercase pl-1">Status</Label>
+                        <Select
+                            value={draftFilters.status}
+                            onValueChange={(val) => handleInputChange("status", val)}
+                        >
+                            <SelectTrigger className="h-9 text-sm shadow-sm">
+                                <SelectValue placeholder="All Status" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="none">All Status</SelectItem>
+                                <SelectItem value="For Approval">For Approval</SelectItem>
+                                <SelectItem value="For Consolidation">For Consolidation</SelectItem>
+                                <SelectItem value="For Picking">For Picking</SelectItem>
+                                <SelectItem value="For Invoicing">For Invoicing</SelectItem>
+                                <SelectItem value="For Loading">For Loading</SelectItem>
+                                <SelectItem value="For Shipping">For Shipping</SelectItem>
+                                <SelectItem value="En Route">En Route</SelectItem>
+                                <SelectItem value="Delivered">Delivered</SelectItem>
+                                <SelectItem value="On Hold">On Hold</SelectItem>
+                                <SelectItem value="Cancelled">Cancelled</SelectItem>
+                                <SelectItem value="Not Fulfilled">Not Fulfilled</SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
+
+                    {/* Date Range */}
+                    <div className="lg:col-span-2 flex flex-col gap-1.5">
+                        <Label className="text-[10px] font-bold text-muted-foreground uppercase pl-1 flex items-center gap-1">
+                            <Calendar className="h-3 w-3" /> Order Date Range
+                        </Label>
+                        <div className="flex items-center gap-2">
                             <Input
-                                id="dateCreated"
                                 type="date"
-                                className="h-11 border-2 shadow-sm"
-                                value={draftFilters.dateCreated}
-                                onChange={(e) => handleInputChange("dateCreated", e.target.value)}
+                                className="h-9 text-sm shadow-sm px-2 bg-background"
+                                value={draftFilters.startDate}
+                                onChange={(e) => handleInputChange("startDate", e.target.value)}
                             />
-                        </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="orderDate" className="text-xs font-bold text-muted-foreground uppercase">Order Date</Label>
+                            <span className="text-muted-foreground text-xs font-bold uppercase">to</span>
                             <Input
-                                id="orderDate"
                                 type="date"
-                                className="h-11 border-2 shadow-sm"
-                                value={draftFilters.orderDate}
-                                onChange={(e) => handleInputChange("orderDate", e.target.value)}
-                            />
-                        </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="deliveryDate" className="text-xs font-bold text-muted-foreground uppercase">Delivery Date</Label>
-                            <Input
-                                id="deliveryDate"
-                                type="date"
-                                className="h-11 border-2 shadow-sm"
-                                value={draftFilters.deliveryDate}
-                                onChange={(e) => handleInputChange("deliveryDate", e.target.value)}
-                            />
-                        </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="dueDate" className="text-xs font-bold text-muted-foreground uppercase">Due Date</Label>
-                            <Input
-                                id="dueDate"
-                                type="date"
-                                className="h-11 border-2 shadow-sm"
-                                value={draftFilters.dueDate}
-                                onChange={(e) => handleInputChange("dueDate", e.target.value)}
+                                className="h-9 text-sm shadow-sm px-2 bg-background"
+                                value={draftFilters.endDate}
+                                onChange={(e) => handleInputChange("endDate", e.target.value)}
                             />
                         </div>
                     </div>
