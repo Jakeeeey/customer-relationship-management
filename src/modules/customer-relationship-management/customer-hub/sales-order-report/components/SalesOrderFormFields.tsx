@@ -10,57 +10,60 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { Card, CardContent } from "@/components/ui/card";
-import { SalesOrder, Salesman, Branch } from "../types";
+import { Salesman, Branch } from "../types";
 import { Search, Calendar } from "lucide-react";
 import { useEffect, useState, useRef } from "react";
 
+interface AppliedFilters {
+    search: string;
+    dateCreated: string;
+    orderDate: string;
+    deliveryDate: string;
+    dueDate: string;
+    startDate: string;
+    endDate: string;
+    salesmanId: string;
+    branchId: string;
+    status: string;
+}
+
 interface SalesOrderFormFieldsProps {
-    order: Partial<SalesOrder>;
-    appliedFilters: {
-        search: string;
-        dateCreated: string;
-        orderDate: string;
-        deliveryDate: string;
-        dueDate: string;
-        startDate: string;
-        endDate: string;
-        salesmanId: string;
-        branchId: string;
-        status: string;
-    };
-    onSearch: (filters: any) => void;
+    appliedFilters: AppliedFilters;
+    onSearch: (filters: AppliedFilters) => void;
     salesmen: Salesman[];
     branches: Branch[];
 }
 
-export function SalesOrderFormFields({ order, appliedFilters, onSearch, salesmen, branches }: SalesOrderFormFieldsProps) {
-    const [draftFilters, setDraftFilters] = useState(appliedFilters);
+export function SalesOrderFormFields({ appliedFilters, onSearch, salesmen, branches }: SalesOrderFormFieldsProps) {
+    const [draftFilters, setDraftFilters] = useState<AppliedFilters>(appliedFilters);
     const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-    const handleInputChange = (key: string, value: string) => {
+    const handleInputChange = (key: keyof AppliedFilters, value: string) => {
         setDraftFilters(prev => ({ ...prev, [key]: value }));
     };
 
-    // Auto-search logic
+    // Auto-search logic for text search (debounced)
     useEffect(() => {
-        // For search text, we use debounce
         if (searchTimeoutRef.current) {
             clearTimeout(searchTimeoutRef.current);
         }
 
         searchTimeoutRef.current = setTimeout(() => {
             onSearch(draftFilters);
-        }, 500); // 500ms debounce
+        }, 500);
 
         return () => {
             if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
         };
-    }, [draftFilters.search]);
+        // We only want to re-run this when search changes or when onSearch changes
+    }, [draftFilters.search, onSearch]);
 
     // For other filters, we search immediately
     useEffect(() => {
         onSearch(draftFilters);
+        // Explicit dependencies to satisfy ESLint while avoiding infinite loops
     }, [
+        onSearch,
         draftFilters.startDate,
         draftFilters.endDate,
         draftFilters.salesmanId,

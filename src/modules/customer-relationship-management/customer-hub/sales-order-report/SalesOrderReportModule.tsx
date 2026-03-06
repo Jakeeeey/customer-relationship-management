@@ -1,20 +1,31 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { SalesOrder, SalesOrderDetail, Customer, Salesman, Branch, Supplier } from "./types";
+import { SalesOrder, Customer, Salesman, Branch, Supplier } from "./types";
 import { fetchSalesOrderData } from "./providers/fetchProvider";
 import { SalesOrderFormFields } from "./components/SalesOrderFormFields";
 import { SalesOrderTable } from "./components/SalesOrderTable";
 import { SalesOrderDetailsModal } from "./components/SalesOrderDetailsModal";
-import { Package2, Loader2, Info } from "lucide-react";
+import { Package2 } from "lucide-react";
 
 import { SalesOrderSkeleton } from "./components/SalesOrderSkeleton";
+
+interface AppliedFilters {
+    search: string;
+    dateCreated: string;
+    orderDate: string;
+    deliveryDate: string;
+    dueDate: string;
+    startDate: string;
+    endDate: string;
+    salesmanId: string;
+    branchId: string;
+    status: string;
+}
 
 export default function SalesOrderReportModule() {
     const [loading, setLoading] = useState(false);
     const [salesOrders, setSalesOrders] = useState<SalesOrder[]>([]);
-    const [order, setOrder] = useState<Partial<SalesOrder>>({});
-    const [details, setDetails] = useState<SalesOrderDetail[]>([]);
     const [customers, setCustomers] = useState<Customer[]>([]);
     const [salesmen, setSalesmen] = useState<Salesman[]>([]);
     const [branches, setBranches] = useState<Branch[]>([]);
@@ -26,7 +37,7 @@ export default function SalesOrderReportModule() {
     const [error, setError] = useState<string | null>(null);
     const [selectedOrder, setSelectedOrder] = useState<SalesOrder | null>(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
-    const [appliedFilters, setAppliedFilters] = useState({
+    const [appliedFilters, setAppliedFilters] = useState<AppliedFilters>({
         search: "",
         dateCreated: "",
         orderDate: "",
@@ -39,13 +50,13 @@ export default function SalesOrderReportModule() {
         status: "",
     });
 
-    const loadData = async (page: number, filtersToUse: any) => {
+    const loadData = async (page: number, filtersToUse: AppliedFilters) => {
         // Removed mandatory filter restriction to allow initial data load
         setLoading(true);
         try {
             // Clean up empty filters and "none" values
             const activeFilters = Object.fromEntries(
-                Object.entries(filtersToUse).filter(([_, v]) => v !== "" && v !== "none")
+                Object.entries(filtersToUse).filter(([key, v]) => key && v !== "" && v !== "none")
             ) as Record<string, string>;
 
             const data = await fetchSalesOrderData(page, pageSize, activeFilters);
@@ -56,21 +67,14 @@ export default function SalesOrderReportModule() {
             }
 
             if (data.salesOrders.length > 0) {
-                // By default, select the first order if none is currently selected 
-                setOrder(data.salesOrders[0]);
-                // Set details to empty as we're not fetching them for now
-                setDetails([]);
-
                 setCustomers(data.customers);
                 setSalesmen(data.salesmen);
                 setBranches(data.branches);
                 setSuppliers(data.suppliers);
-            } else {
-                setOrder({});
-                setDetails([]);
             }
-        } catch (err: any) {
-            setError(err.message);
+        } catch (err: unknown) {
+            const e = err as Error;
+            setError(e.message);
         } finally {
             setLoading(false);
         }
@@ -81,7 +85,7 @@ export default function SalesOrderReportModule() {
         setIsModalOpen(true);
     };
 
-    const handleSearch = (newFilters: any) => {
+    const handleSearch = (newFilters: AppliedFilters) => {
         setAppliedFilters(newFilters);
         setCurrentPage(1); // Reset to first page on new search
     };
@@ -151,7 +155,6 @@ export default function SalesOrderReportModule() {
             {/* Form Fields - Compact container */}
             <section className="bg-card rounded-lg shadow-none">
                 <SalesOrderFormFields
-                    order={order}
                     appliedFilters={appliedFilters}
                     onSearch={handleSearch}
                     salesmen={salesmen}

@@ -16,13 +16,33 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { salesOrderProvider } from "../providers/fetchProvider";
 import { Badge } from "@/components/ui/badge";
 import { formatCurrency } from "@/lib/utils";
-import { Loader2, Package, ShoppingBag, Truck, Calendar, User, Store, Tag, CornerDownRight } from "lucide-react";
+import { Package, ShoppingBag, Truck, Calendar, User, Store, CornerDownRight, BarChart3 } from "lucide-react";
 import { SalesOrder, Customer, Salesman, Branch } from "../types";
 import { Separator } from "@/components/ui/separator";
+
+interface OrderDetailItem {
+    product_id: number | {
+        product_id: number;
+        id?: number;
+        product_name?: string;
+        display_name?: string;
+        description?: string;
+        product_code?: string;
+    };
+    unit_price: number;
+    ordered_quantity: number;
+    allocated_quantity: number;
+    served_quantity?: number;
+    gross_amount: number;
+    discount_amount: number;
+    net_amount: number;
+    allocated_amount: number;
+    remarks?: string;
+}
 
 interface SalesOrderDetailsModalProps {
     isOpen: boolean;
@@ -34,31 +54,47 @@ interface SalesOrderDetailsModalProps {
 }
 
 export function SalesOrderDetailsModal({ isOpen, onClose, order, customers, salesmen, branches }: SalesOrderDetailsModalProps) {
-    const [details, setDetails] = useState<any[]>([]);
+    const [details, setDetails] = useState<OrderDetailItem[]>([]);
+    const [moAvgs, setMoAvgs] = useState<Record<number, number>>({});
     const [isLoading, setIsLoading] = useState(false);
+
+    const loadDetails = useCallback(async () => {
+        if (!order?.order_id) return;
+        setIsLoading(true);
+        console.log(`[CLIENT] Fetching details and MO AVG for OrderID: ${order.order_id}`);
+
+        // Fetch Details
+        try {
+            const detailsData = await salesOrderProvider.getSalesOrderDetails(order.order_id);
+            setDetails(detailsData || []);
+        } catch (error) {
+            console.error("Failed to load order details:", error);
+            setDetails([]);
+        }
+
+        // Fetch MO AVG (non-blocking)
+        try {
+            if (order.customer_code) {
+                const moAvgData = await salesOrderProvider.getMonthlyAverage(order.customer_code);
+                setMoAvgs(moAvgData || {});
+            }
+        } catch (error) {
+            console.error("Failed to fetch monthly average:", error);
+            // Default to empty object if MO AVG fails
+            setMoAvgs({});
+        } finally {
+            setIsLoading(false);
+        }
+    }, [order?.order_id, order?.customer_code]);
 
     useEffect(() => {
         if (isOpen && order?.order_id) {
             loadDetails();
         } else {
             setDetails([]);
+            setMoAvgs({});
         }
-    }, [isOpen, order?.order_id]);
-
-    const loadDetails = async () => {
-        if (!order?.order_id) return;
-        setIsLoading(true);
-        try {
-            console.log(`[CLIENT] Fetching details for OrderID: ${order.order_id}`);
-            const data = await salesOrderProvider.getSalesOrderDetails(order.order_id);
-            console.log(`[CLIENT] Received ${data?.length || 0} items`);
-            setDetails(data || []);
-        } catch (error) {
-            console.error("Failed to load details:", error);
-        } finally {
-            setIsLoading(false);
-        }
-    };
+    }, [isOpen, order?.order_id, loadDetails]);
 
     if (!order) return null;
 
@@ -155,6 +191,7 @@ export function SalesOrderDetailsModal({ isOpen, onClose, order, customers, sale
                             <TableRow className="hover:bg-transparent">
                                 <TableHead className="w-[300px] font-black uppercase text-[10px]">Product Description</TableHead>
                                 <TableHead className="text-right font-black uppercase text-[10px]">Unit Price</TableHead>
+                                <TableHead className="text-right font-black uppercase text-[10px] bg-blue-50/50 text-blue-700 border-x border-blue-100/30">MO AVG</TableHead>
                                 <TableHead className="text-right font-black uppercase text-[10px]">Ordered</TableHead>
                                 <TableHead className="text-right font-black uppercase text-[10px]">Allocated</TableHead>
                                 <TableHead className="text-right font-black uppercase text-[10px]">Served</TableHead>
@@ -168,12 +205,12 @@ export function SalesOrderDetailsModal({ isOpen, onClose, order, customers, sale
                             {isLoading ? (
                                 Array.from({ length: 5 }).map((_, i) => (
                                     <TableRow key={i}>
-                                        <TableCell colSpan={9} className="py-6"><div className="h-4 bg-muted animate-pulse rounded-full" /></TableCell>
+                                        <TableCell colSpan={10} className="py-6"><div className="h-4 bg-muted animate-pulse rounded-full" /></TableCell>
                                     </TableRow>
                                 ))
                             ) : details.length === 0 ? (
                                 <TableRow>
-                                    <TableCell colSpan={9} className="text-center py-20">
+                                    <TableCell colSpan={10} className="text-center py-20">
                                         <div className="flex flex-col items-center gap-2 text-muted-foreground">
                                             <Package className="h-12 w-12 opacity-20" />
                                             <p className="text-sm font-medium">No line items found for this order.</p>
@@ -182,55 +219,66 @@ export function SalesOrderDetailsModal({ isOpen, onClose, order, customers, sale
                                     </TableCell>
                                 </TableRow>
                             ) : (
-                                details.map((item, idx) => (
-                                    <TableRow key={idx} className="hover:bg-muted/30">
-                                        <TableCell className="py-3 px-4">
-                                            <div className="flex flex-col gap-0.5">
-                                                <div className="flex items-center gap-2">
-                                                    <p className="font-bold text-sm text-foreground group-hover:text-primary transition-colors">
-                                                        {typeof item.product_id === 'object'
-                                                            ? (item.product_id?.display_name || item.product_id?.product_name || `Product ${item.product_id?.product_id || item.product_id?.id || "Unknown"}`)
-                                                            : `Product ${item.product_id}`}
-                                                    </p>
-                                                    {typeof item.product_id === 'object' && (item.product_id?.product_code || item.product_id?.product_id) && (
-                                                        <span className="text-[10px] font-mono bg-muted px-1.5 py-0.5 rounded text-muted-foreground border border-muted-foreground/10">
-                                                            {item.product_id.product_code || item.product_id.product_id}
-                                                        </span>
+                                details.map((item, idx) => {
+                                    const productId = typeof item.product_id === 'object' ? item.product_id?.product_id : item.product_id;
+                                    const moAvg = moAvgs[Number(productId)] || 0;
+
+                                    return (
+                                        <TableRow key={idx} className="hover:bg-muted/30 group">
+                                            <TableCell className="py-3 px-4">
+                                                <div className="flex flex-col gap-0.5">
+                                                    <div className="flex items-center gap-2">
+                                                        <p className="font-bold text-sm text-foreground group-hover:text-primary transition-colors">
+                                                            {typeof item.product_id === 'object'
+                                                                ? (item.product_id?.display_name || item.product_id?.product_name || item.product_id?.description || `Product ${item.product_id?.product_id || item.product_id?.id || "Unknown"}`)
+                                                                : `Product ${item.product_id}`}
+                                                        </p>
+                                                        {typeof item.product_id === 'object' && (item.product_id?.product_code || item.product_id?.product_id) && (
+                                                            <span className="text-[10px] font-mono bg-muted px-1.5 py-0.5 rounded text-muted-foreground border border-muted-foreground/10">
+                                                                {item.product_id.product_code || item.product_id.product_id}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    {item.remarks && (
+                                                        <p className="text-[11px] text-muted-foreground italic flex items-center gap-1">
+                                                            <CornerDownRight className="h-3 w-3 inline opacity-50" />
+                                                            {item.remarks}
+                                                        </p>
                                                     )}
                                                 </div>
-                                                {item.remarks && (
-                                                    <p className="text-[11px] text-muted-foreground italic flex items-center gap-1">
-                                                        <CornerDownRight className="h-3 w-3 inline opacity-50" />
-                                                        {item.remarks}
-                                                    </p>
-                                                )}
-                                            </div>
-                                        </TableCell>
-                                        <TableCell className="text-right py-3 px-4 font-mono text-[13px]">{formatCurrency(item.unit_price)}</TableCell>
-                                        <TableCell className="text-right py-3 px-4">
-                                            <div className="flex flex-col items-end gap-1">
-                                                <span className="font-bold text-sm">{item.ordered_quantity}</span>
-                                            </div>
-                                        </TableCell>
-                                        <TableCell className="text-right py-3 px-4">
-                                            <Badge
-                                                variant={item.allocated_quantity < item.ordered_quantity ? "destructive" : "secondary"}
-                                                className="h-6 px-2 font-bold tabular-nums"
-                                            >
-                                                {item.allocated_quantity}
-                                            </Badge>
-                                        </TableCell>
-                                        <TableCell className="text-right py-3 px-4 text-muted-foreground font-medium">{item.served_quantity || 0}</TableCell>
-                                        <TableCell className="text-right py-3 px-4 font-mono text-[12px]">{formatCurrency(item.gross_amount)}</TableCell>
-                                        <TableCell className="text-right py-3 px-4 font-mono text-[12px] text-destructive/80 font-medium">
-                                            {item.discount_amount > 0 ? `-${formatCurrency(item.discount_amount)}` : "-"}
-                                        </TableCell>
-                                        <TableCell className="text-right py-3 px-4 font-mono text-[12px] font-medium">{formatCurrency(item.net_amount)}</TableCell>
-                                        <TableCell className="text-right py-3 px-4 font-black font-mono text-sm text-primary bg-primary/5 border-l border-primary/10">
-                                            {formatCurrency(item.allocated_amount)}
-                                        </TableCell>
-                                    </TableRow>
-                                ))
+                                            </TableCell>
+                                            <TableCell className="text-right py-3 px-4 font-mono text-[13px]">{formatCurrency(item.unit_price)}</TableCell>
+                                            <TableCell className="text-right py-3 px-4 bg-blue-50/20 font-bold text-blue-700 border-x border-blue-100/20 tabular-nums">
+                                                <div className="flex items-center justify-end gap-1.5">
+                                                    <BarChart3 className="h-3 w-3 opacity-40" />
+                                                    {moAvg}
+                                                </div>
+                                            </TableCell>
+                                            <TableCell className="text-right py-3 px-4">
+                                                <div className="flex flex-col items-end gap-1">
+                                                    <span className="font-bold text-sm">{item.ordered_quantity}</span>
+                                                </div>
+                                            </TableCell>
+                                            <TableCell className="text-right py-3 px-4">
+                                                <Badge
+                                                    variant={item.allocated_quantity < item.ordered_quantity ? "destructive" : "secondary"}
+                                                    className="h-6 px-2 font-bold tabular-nums"
+                                                >
+                                                    {item.allocated_quantity}
+                                                </Badge>
+                                            </TableCell>
+                                            <TableCell className="text-right py-3 px-4 text-muted-foreground font-medium">{item.served_quantity || 0}</TableCell>
+                                            <TableCell className="text-right py-3 px-4 font-mono text-[12px]">{formatCurrency(item.gross_amount)}</TableCell>
+                                            <TableCell className="text-right py-3 px-4 font-mono text-[12px] text-destructive/80 font-medium">
+                                                {item.discount_amount > 0 ? `-${formatCurrency(item.discount_amount)}` : "-"}
+                                            </TableCell>
+                                            <TableCell className="text-right py-3 px-4 font-mono text-[12px] font-medium">{formatCurrency(item.net_amount)}</TableCell>
+                                            <TableCell className="text-right py-3 px-4 font-black font-mono text-sm text-primary bg-primary/5 border-l border-primary/10">
+                                                {formatCurrency(item.allocated_amount)}
+                                            </TableCell>
+                                        </TableRow>
+                                    );
+                                })
                             )}
                         </TableBody>
                     </Table>

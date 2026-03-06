@@ -3,12 +3,19 @@ import { SalesOrderDataResponse } from "../types";
 export const fetchSalesOrderData = async (
     page: number = 1,
     pageSize: number = 15,
-    filters: Record<string, string> = {}
+    filters: Record<string, string | number | undefined> = {}
 ) => {
+    const cleanedFilters: Record<string, string> = {};
+    Object.entries(filters).forEach(([key, value]) => {
+        if (value !== undefined && value !== null) {
+            cleanedFilters[key] = String(value);
+        }
+    });
+
     const queryParams = new URLSearchParams({
         page: page.toString(),
         pageSize: pageSize.toString(),
-        ...filters
+        ...cleanedFilters
     });
 
     const response = await fetch(`/api/crm/customer-hub/sales-order-report?${queryParams.toString()}`);
@@ -34,6 +41,16 @@ export const fetchSalesOrderDetails = async (orderId: number) => {
     return json.data || [];
 };
 
+export const fetchMonthlyAverage = async (customerCode: string) => {
+    const response = await fetch(`/api/crm/customer-hub/sales-order-report?type=mo-avg&customerCode=${customerCode}`);
+    if (!response.ok) {
+        throw new Error("Failed to fetch monthly average");
+    }
+    const json = await response.json();
+    return json.data || {};
+};
+
 export const salesOrderProvider = {
-    getSalesOrderDetails: fetchSalesOrderDetails
+    getSalesOrderDetails: fetchSalesOrderDetails,
+    getMonthlyAverage: fetchMonthlyAverage
 };

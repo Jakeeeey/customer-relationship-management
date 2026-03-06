@@ -1,33 +1,33 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
-import { LineItem } from "../types";
+import { useState, useEffect, useMemo, useCallback } from "react";
+import { LineItem, Salesman, Customer, Supplier, Product, ReceiptType, SalesType } from "../types";
 import { salesOrderProvider } from "../providers/fetchProvider";
 import { calculateChainNetPrice } from "../utils/priceCalc";
 import { toast } from "sonner";
 
 export function useSalesOrder() {
     // Selection State (IDs for dropdowns)
-    const [salesmen, setSalesmen] = useState<any[]>([]);
+    const [salesmen, setSalesmen] = useState<Salesman[]>([]);
     const [selectedSalesmanId, setSelectedSalesmanId] = useState<string>("");
 
-    const [accounts, setAccounts] = useState<any[]>([]);
+    const [accounts, setAccounts] = useState<Salesman[]>([]);
     const [selectedAccountId, setSelectedAccountId] = useState<string>("");
     const [loadingAccounts, setLoadingAccounts] = useState(false);
 
-    const [customers, setCustomers] = useState<any[]>([]);
+    const [customers, setCustomers] = useState<Customer[]>([]);
     const [selectedCustomerId, setSelectedCustomerId] = useState<string>("");
     const [loadingCustomers, setLoadingCustomers] = useState(false);
 
-    const [suppliers, setSuppliers] = useState<any[]>([]);
+    const [suppliers, setSuppliers] = useState<Supplier[]>([]);
     const [selectedSupplierId, setSelectedSupplierId] = useState<string>("");
     const [loadingSuppliers, setLoadingSuppliers] = useState(false);
 
     // Meta Settings
-    const [receiptTypes, setReceiptTypes] = useState<any[]>([]);
+    const [receiptTypes, setReceiptTypes] = useState<ReceiptType[]>([]);
     const [selectedReceiptTypeId, setSelectedReceiptTypeId] = useState<string>("");
 
-    const [salesTypes, setSalesTypes] = useState<any[]>([]);
+    const [salesTypes, setSalesTypes] = useState<SalesType[]>([]);
     const [selectedSalesTypeId, setSelectedSalesTypeId] = useState<string>("1");
 
     const [dueDate, setDueDate] = useState<string>("");
@@ -37,7 +37,7 @@ export function useSalesOrder() {
     const [priceTypeId, setPriceTypeId] = useState<number | null>(null);
 
     // Product Results
-    const [supplierProducts, setSupplierProducts] = useState<any[]>([]);
+    const [supplierProducts, setSupplierProducts] = useState<Product[]>([]);
     const [loadingProducts, setLoadingProducts] = useState(false);
 
     // Cart
@@ -73,6 +73,8 @@ export function useSalesOrder() {
                 setSalesTypes(data);
                 if (data.length > 0 && !selectedSalesTypeId) setSelectedSalesTypeId(data[0].id.toString());
             });
+        // We only want this to run once on mount
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     // Change Handlers
@@ -136,11 +138,16 @@ export function useSalesOrder() {
     useEffect(() => {
         if (selectedCustomerId && selectedSupplierId) {
             const customer = customers.find(c => c.id.toString() === selectedCustomerId);
-            if (customer) {
+            const customerCode = customer?.customer_code;
+            const customerId = selectedCustomerId;
+            const supplierId = selectedSupplierId;
+            const sSalesmanId = selectedSalesmanId;
+
+            if (customerCode) {
                 setLoadingProducts(true);
-                salesOrderProvider.searchProducts("", customer.customer_code, Number(selectedSupplierId), priceType, Number(selectedCustomerId), priceTypeId || undefined, selectedSalesmanId)
+                salesOrderProvider.searchProducts("", customerCode, Number(supplierId), priceType, Number(customerId), priceTypeId || undefined, sSalesmanId)
                     .then(res => {
-                        const productsWithRealInventory = (Array.isArray(res) ? res : []).map(p => ({
+                        const productsWithRealInventory = (Array.isArray(res) ? res : []).map((p: any) => ({
                             ...p,
                             availableQty: p.available_qty ?? 0
                         }));
@@ -151,10 +158,10 @@ export function useSalesOrder() {
         } else {
             setSupplierProducts([]);
         }
-    }, [selectedCustomerId, selectedSupplierId, priceType, customers]);
+    }, [selectedCustomerId, selectedSupplierId, priceType, priceTypeId, selectedSalesmanId, customers]);
 
     // Line Item Logic
-    const addProduct = (product: any, quantity: number, uom: string) => {
+    const addProduct = (product: Product, quantity: number, uom: string) => {
         // Check if product already exists in cart with the same UOM
         const existingItem = lineItems.find(item =>
             item.product.product_id === product.product_id && item.uom === uom
@@ -178,7 +185,7 @@ export function useSalesOrder() {
             quantity,
             uom,
             unitPrice: basePrice,
-            discountType: product.discount_level,
+            discountType: product.discount_level || undefined,
             discounts,
             netAmount,
             totalAmount,
@@ -288,7 +295,7 @@ export function useSalesOrder() {
         setAllocatedQuantities(prev => ({ ...prev, [id]: qty }));
     };
 
-    const handleSubmitOrder = async () => {
+    const handleSubmitOrder = useCallback(async () => {
         if (!selectedAccountId || !selectedCustomerId || !selectedSupplierId || !selectedReceiptTypeId) {
             toast.error("Please complete all header selections");
             return;
@@ -303,7 +310,7 @@ export function useSalesOrder() {
             // I-prepare ang final payload para sa pag-save ng order
             const payload = {
                 customer_id: Number(selectedCustomerId),
-                customer_code: selectedCustomer.customer_code,
+                customer_code: selectedCustomer?.customer_code,
                 salesman_id: Number(selectedAccountId),
                 supplier_id: Number(selectedSupplierId),
                 receipt_type: Number(selectedReceiptTypeId),
@@ -335,12 +342,13 @@ export function useSalesOrder() {
             } else {
                 toast.error(res.error || "Failed to create order");
             }
-        } catch (e) {
-            toast.error("Submission error");
+        } catch (e: unknown) {
+            const err = e as Error;
+            toast.error(err.message || "Submission error");
         } finally {
             setSubmitting(false);
         }
-    };
+    }, [selectedAccountId, selectedCustomerId, selectedSupplierId, selectedReceiptTypeId, lineItems, selectedCustomer, selectedSalesTypeId, poNo, dueDate, deliveryDate, summary, orderNo, orderRemarks, allocatedQuantities]);
 
     return {
         salesmen, selectedSalesmanId, handleSalesmanChange, selectedSalesman,

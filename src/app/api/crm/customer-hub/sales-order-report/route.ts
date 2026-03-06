@@ -2,8 +2,21 @@ import { NextRequest, NextResponse } from "next/server";
 
 const BASE_URL = `${process.env.NEXT_PUBLIC_API_BASE_URL}/items`;
 
+interface Product {
+    product_id: number;
+    product_name: string;
+    description: string;
+    product_code: string;
+}
+
+interface SaleOrderDetail {
+    product_id: number | Product;
+    [key: string]: any;
+}
+
 export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
+    const type = searchParams.get("type");
     const page = parseInt(searchParams.get("page") || "1");
     const pageSize = parseInt(searchParams.get("pageSize") || "15");
     const offset = (page - 1) * pageSize;
@@ -20,11 +33,73 @@ export async function GET(req: NextRequest) {
     const branchId = searchParams.get("branchId");
     const status = searchParams.get("status");
     const orderId = searchParams.get("orderId");
+    const customerCode = searchParams.get("customerCode");
 
     const token = process.env.DIRECTUS_STATIC_TOKEN;
     const headers: Record<string, string> = {};
     if (token) {
         headers["Authorization"] = `Bearer ${token}`;
+    }
+
+    // MO AVG Calculation Logic
+    if (type === "mo-avg") {
+        try {
+            if (!customerCode) {
+                return NextResponse.json({ error: "customerCode required for MO AVG" }, { status: 400 });
+            }
+
+            // Calculate date 5 months ago (start of month)
+            const now = new Date();
+            const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 5, 1);
+            const dateStr = sixMonthsAgo.toISOString().split('T')[0];
+
+            // Simple filter for mo-avg: just get items for specific orders if possible, 
+            // but for now let's try to fix the existing filter to be more compatible.
+            // Directus deep filter syntax check: invoice_no.order_id.customer_code
+            const filter = {
+                "_and": [
+                    { "invoice_no": { "is_remitted": { "_eq": 1 } } },
+                    { "invoice_no": { "order_id": { "customer_code": { "_eq": customerCode } } } },
+                    { "invoice_no": { "order_id": { "order_date": { "_gte": dateStr } } } }
+                ]
+            };
+
+            const url = `${BASE_URL}/sales_invoice_details?filter=${encodeURIComponent(JSON.stringify(filter))}&fields=product_id,quantity&limit=-1`;
+            console.log(`[DEBUG] MO AVG Fetch URL: ${url}`);
+
+            const res = await fetch(url, { headers });
+
+            if (!res.ok) {
+                const errText = await res.text();
+                console.error(`[DEBUG] MO AVG API Error: Status ${res.status}`, errText);
+                return NextResponse.json({ error: `MO AVG Fetch Error: ${res.status}`, details: errText }, { status: res.status });
+            }
+
+            const json = await res.json();
+            const items = json.data || [];
+            console.log(`[DEBUG] MO AVG Items fetched: ${items.length}`);
+
+            // Aggregate by product_id
+            const aggregates: Record<number, number> = {};
+            items.forEach((item: { product_id: number; quantity: number }) => {
+                const pid = Number(item.product_id);
+                if (pid) {
+                    aggregates[pid] = (aggregates[pid] || 0) + (Number(item.quantity) || 0);
+                }
+            });
+
+            // Calculate average per month (6 months total)
+            const results: Record<number, number> = {};
+            Object.entries(aggregates).forEach(([pid, total]) => {
+                results[Number(pid)] = Number((total / 6.0).toFixed(2));
+            });
+
+            return NextResponse.json({ data: results });
+        } catch (error: unknown) {
+            const err = error as Error;
+            console.error("[DEBUG] MO AVG calculation error:", err);
+            return NextResponse.json({ error: err.message }, { status: 500 });
+        }
     }
 
     if (orderId) {
@@ -39,27 +114,31 @@ export async function GET(req: NextRequest) {
             }
 
             const json = await res.json();
-            const details = json.data || [];
+            const details: SaleOrderDetail[] = json.data || [];
 
             // Manual join for product descriptions
             if (details.length > 0) {
-                const productIds = Array.from(new Set(details.map((d: any) => d.product_id).filter(Boolean)));
+                const productIds = Array.from(new Set(details.map((d: SaleOrderDetail) => {
+                    if (typeof d.product_id === 'number') return d.product_id;
+                    return null;
+                }).filter(Boolean)));
+
                 if (productIds.length > 0) {
                     const productsUrl = `${BASE_URL}/products?filter[product_id][_in]=${productIds.join(',')}&fields=product_id,product_name,description,product_code&limit=-1`;
                     console.log(`[DEBUG] Fetching products for join. URL: ${productsUrl}`);
                     const pRes = await fetch(productsUrl, { headers });
                     if (pRes.ok) {
                         const pJson = await pRes.json();
-                        const productMap = new Map();
-                        (pJson.data || []).forEach((p: any) => {
+                        const productMap = new Map<number, Product>();
+                        (pJson.data || []).forEach((p: Product) => {
                             const pid = Number(p.product_id);
                             if (pid) productMap.set(pid, p);
                         });
 
-                        details.forEach((d: any) => {
+                        details.forEach((d: SaleOrderDetail) => {
                             const pid = Number(d.product_id);
                             if (productMap.has(pid)) {
-                                d.product_id = productMap.get(pid); // Transform ID to Object
+                                d.product_id = productMap.get(pid) as Product; // Transform ID to Object
                             }
                         });
                     } else {
@@ -69,9 +148,10 @@ export async function GET(req: NextRequest) {
             }
 
             return NextResponse.json({ data: details });
-        } catch (error: any) {
-            console.error("[DEBUG] Order details join error:", error);
-            return NextResponse.json({ error: error.message, stack: error.stack }, { status: 500 });
+        } catch (error: unknown) {
+            const err = error as Error;
+            console.error("[DEBUG] Order details join error:", err);
+            return NextResponse.json({ error: err.message }, { status: 500 });
         }
     }
 
@@ -86,7 +166,7 @@ export async function GET(req: NextRequest) {
         ].join(",");
 
         // Construct filter object
-        const filters: any[] = [];
+        const filters: Record<string, any>[] = [];
 
         if (search) {
             filters.push({
@@ -113,7 +193,7 @@ export async function GET(req: NextRequest) {
 
         // New range and specific filters
         // Helper to check if a string looks like a valid date YYYY-MM-DD
-        const isValidDate = (d: any) => d && typeof d === 'string' && d.length >= 10 && d !== "null" && d !== "undefined";
+        const isValidDate = (d: string | null) => d && typeof d === 'string' && d.length >= 10 && d !== "null" && d !== "undefined";
 
         if (isValidDate(startDate) && isValidDate(endDate)) {
             filters.push({ "order_date": { "_between": [startDate, endDate] } });
@@ -146,8 +226,9 @@ export async function GET(req: NextRequest) {
                 }
                 const json = await res.json();
                 return { data: json.data || [] };
-            } catch (err: any) {
-                console.error(`[DEBUG] Fetch exception for ${name}:`, err.message);
+            } catch (err: unknown) {
+                const e = err as Error;
+                console.error(`[DEBUG] Fetch exception for ${name}:`, e.message);
                 return { data: [] };
             }
         };
@@ -188,12 +269,13 @@ export async function GET(req: NextRequest) {
                 aggregates: aggregatesRes.data?.[0]?.sum || { total_amount: 0, allocated_amount: 0 }
             }
         });
-    } catch (error: any) {
-        console.error("[DEBUG] [FATAL] Global API Error:", error);
+    } catch (error: unknown) {
+        const err = error as Error;
+        console.error("[DEBUG] [FATAL] Global API Error:", err);
         return NextResponse.json(
             {
-                error: error.message || "Internal Server Error",
-                details: error.stack,
+                error: err.message || "Internal Server Error",
+                details: err.stack,
                 context: "Global GET handler"
             },
             { status: 500 }

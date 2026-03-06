@@ -12,31 +12,33 @@ import { Check, ChevronsUpDown, Calendar as CalendarIcon, Hash } from "lucide-re
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 
+import { Salesman, Customer, Supplier } from "../types";
+
 interface SalesOrderHeaderProps {
-    salesmen: any[];
-    selectedSalesman: any;
+    salesmen: Salesman[];
+    selectedSalesman: Salesman | undefined;
     onSalesmanChange: (id: string) => void;
 
-    accounts: any[];
-    selectedAccount: any;
+    accounts: Salesman[];
+    selectedAccount: Salesman | undefined;
     loadingAccounts: boolean;
     onAccountChange: (id: string) => void;
 
-    customers: any[];
-    selectedCustomer: any;
+    customers: Customer[];
+    selectedCustomer: Customer | undefined;
     loadingCustomers: boolean;
     onCustomerChange: (id: string) => void;
 
-    suppliers: any[];
-    selectedSupplier: any;
+    suppliers: Supplier[];
+    selectedSupplier: Supplier | undefined;
     loadingSuppliers: boolean;
     onSupplierChange: (id: string) => void;
 
-    receiptTypes: any[];
+    receiptTypes: { id: number | string; type: string }[];
     selectedReceiptTypeId: string;
     onReceiptTypeChange: (id: string) => void;
 
-    salesTypes: any[];
+    salesTypes: { id: number | string; operation_name: string }[];
     selectedSalesTypeId: string;
     onSalesTypeChange: (id: string) => void;
 
