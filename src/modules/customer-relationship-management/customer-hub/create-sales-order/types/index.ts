@@ -90,3 +90,23 @@ export interface SalesType {
     id: number | string;
     operation_name: string;
 }
+
+export interface RunningInventoryItem {
+    id: string;
+    productId: number;
+    productCode: string;
+    productName: string;
+    productBarcode: string | null;
+    productBrand: string;
+    productCategory: string;
+    unitName: string;
+    unitCount: number;
+    branchId: number;
+    branchName: string;
+    lastCutoff: string;
+    lastCountUnit: number;
+    movementAfterUnit: number;
+    runningInventoryUnit: number;
+    supplierShortcut: string;
+    supplierId: number;
+}

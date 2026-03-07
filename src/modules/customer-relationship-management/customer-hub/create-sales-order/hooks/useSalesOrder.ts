@@ -39,6 +39,7 @@ export function useSalesOrder() {
     // Product Results
     const [supplierProducts, setSupplierProducts] = useState<Product[]>([]);
     const [loadingProducts, setLoadingProducts] = useState(false);
+    const [inventory, setInventory] = useState<Record<number, number>>({});
 
     // Cart
     const [lineItems, setLineItems] = useState<LineItem[]>([]);
@@ -145,14 +146,29 @@ export function useSalesOrder() {
 
             if (customerCode) {
                 setLoadingProducts(true);
-                salesOrderProvider.searchProducts("", customerCode, Number(supplierId), priceType, Number(customerId), priceTypeId || undefined, sSalesmanId)
-                    .then((res: Product[]) => {
-                        setSupplierProducts(Array.isArray(res) ? res : []);
+
+                // Concurrent fetch for products and inventory
+                Promise.all([
+                    salesOrderProvider.searchProducts("", customerCode, Number(supplierId), priceType, Number(customerId), priceTypeId || undefined, sSalesmanId),
+                    salesOrderProvider.getInventory().catch(err => {
+                        console.error("Inventory fetch failed:", err);
+                        return [];
                     })
-                    .finally(() => setLoadingProducts(false));
+                ]).then(([productsData, inventoryData]) => {
+                    setSupplierProducts(Array.isArray(productsData) ? productsData : []);
+
+                    const invMap: Record<number, number> = {};
+                    if (Array.isArray(inventoryData)) {
+                        inventoryData.forEach(item => {
+                            invMap[item.productId] = item.unitCount;
+                        });
+                    }
+                    setInventory(invMap);
+                }).finally(() => setLoadingProducts(false));
             }
         } else {
             setSupplierProducts([]);
+            setInventory({});
         }
     }, [selectedCustomerId, selectedSupplierId, priceType, priceTypeId, selectedSalesmanId, customers]);
 
@@ -372,6 +388,7 @@ export function useSalesOrder() {
         poNo, setPoNo,
         priceType,
         supplierProducts, loadingProducts,
+        inventory, // Add inventory to the returned object
         lineItems,
         addProduct, removeLineItem, updateLineItemQty,
         summary, isValidAllocation,

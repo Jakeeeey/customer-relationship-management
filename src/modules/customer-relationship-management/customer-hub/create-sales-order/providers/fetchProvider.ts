@@ -1,6 +1,6 @@
 "use client";
 
-import { Salesman, Customer, Supplier, Product } from "../types";
+import { Salesman, Customer, Supplier, Product, RunningInventoryItem } from "../types";
 
 const API_BASE = "/api/crm/customer-hub/create-sales-order";
 
@@ -34,6 +34,13 @@ export const salesOrderProvider = {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ header, items })
         });
+        return res.json();
+    },
+
+    getInventory: async (params?: Record<string, string>): Promise<RunningInventoryItem[]> => {
+        const query = params ? `&${new URLSearchParams(params).toString()}` : "";
+        const res = await fetch(`${API_BASE}?action=inventory${query}`);
+        if (!res.ok) throw new Error("Failed to fetch inventory");
         return res.json();
     }
 };

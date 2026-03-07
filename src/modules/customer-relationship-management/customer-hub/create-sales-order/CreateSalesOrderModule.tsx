@@ -19,6 +19,7 @@ export default function CreateSalesOrderModule() {
         poNo, setPoNo,
         priceType,
         supplierProducts, loadingProducts,
+        inventory,
         lineItems, addProduct, removeLineItem, updateLineItemQty,
         summary, isValidAllocation,
         isCheckout, setIsCheckout, orderNo, enterCheckout, allocatedQuantities, updateAllocatedQty,
@@ -55,6 +56,7 @@ export default function CreateSalesOrderModule() {
                 <SalesOrderCheckout
                     orderNo={orderNo}
                     lineItems={lineItems}
+                    inventory={inventory}
                     allocatedQuantities={allocatedQuantities}
                     updateAllocatedQty={updateAllocatedQty}
                     summary={summary}
@@ -124,6 +126,7 @@ export default function CreateSalesOrderModule() {
                         <SalesOrderEncoding
                             products={supplierProducts}
                             loadingProducts={loadingProducts}
+                            inventory={inventory}
                             lineItems={lineItems}
                             addProduct={addProduct}
                             removeLineItem={removeLineItem}

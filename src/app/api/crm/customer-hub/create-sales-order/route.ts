@@ -287,6 +287,49 @@ export async function GET(req: NextRequest) {
             }
         }
 
+        if (action === "inventory") {
+            const cookieStore = await cookies();
+            const token = cookieStore.get(COOKIE_NAME)?.value;
+
+            if (!token) {
+                return NextResponse.json(
+                    { ok: false, message: "Unauthorized: Missing access token" },
+                    { status: 401 },
+                );
+            }
+
+            const { searchParams } = new URL(req.url);
+            const targetUrl = new URL(
+                `${SPRING_API_BASE_URL?.replace(/\/$/, "")}/api/view-running-inventory-by-unit/all`,
+            );
+
+            searchParams.forEach((value, key) => {
+                if (key !== "action") targetUrl.searchParams.append(key, value);
+            });
+
+            try {
+                const springRes = await fetch(targetUrl.toString(), {
+                    method: "GET",
+                    headers: {
+                        "Content-Type": "application/json",
+                        Authorization: `Bearer ${token}`,
+                    },
+                    cache: "no-store",
+                });
+
+                if (!springRes.ok) {
+                    console.error("[INVENTORY-API] Upstream error:", springRes.status, springRes.statusText);
+                    return NextResponse.json({ ok: false, status: springRes.status }, { status: springRes.status });
+                }
+
+                const data = await springRes.json();
+                return NextResponse.json(data);
+            } catch (err: any) {
+                console.error("[INVENTORY-API] Request failed:", err.message);
+                return NextResponse.json({ ok: false, error: "Gateway Error" }, { status: 502 });
+            }
+        }
+
         return NextResponse.json({ error: "Invalid action" }, { status: 400 });
     } catch (e: unknown) {
         const err = e as Error;

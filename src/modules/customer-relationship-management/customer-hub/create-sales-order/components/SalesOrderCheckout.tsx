@@ -14,6 +14,7 @@ interface SalesOrderCheckoutProps {
     orderNo: string;
     lineItems: LineItem[];
     allocatedQuantities: Record<string, number>;
+    inventory?: Record<number, number>;
     updateAllocatedQty: (id: string, qty: number) => void;
     summary: {
         totalAmount: number;
@@ -46,7 +47,7 @@ interface SalesOrderCheckoutProps {
 }
 
 export function SalesOrderCheckout({
-    orderNo, lineItems, allocatedQuantities, updateAllocatedQty,
+    orderNo, lineItems, allocatedQuantities, inventory = {}, updateAllocatedQty,
     summary, onBack, onConfirm, submitting, header, isValidAllocation,
     orderRemarks, setOrderRemarks
 }: SalesOrderCheckoutProps) {
@@ -123,7 +124,7 @@ export function SalesOrderCheckout({
                                     <TableHeader className="bg-slate-50 sticky top-0 z-10 shadow-sm">
                                         <TableRow className="hover:bg-transparent">
                                             <TableHead className="py-5 px-8 text-[10px] font-black uppercase tracking-widest text-slate-500 bg-slate-50">Product Specification</TableHead>
-
+                                            <TableHead className="text-center text-[10px] font-black uppercase tracking-widest text-slate-500 bg-slate-50">Available</TableHead>
                                             <TableHead className="text-center text-[10px] font-black uppercase tracking-widest text-slate-500 bg-slate-50">Ordered</TableHead>
                                             <TableHead className="text-center text-[10px] font-black uppercase tracking-widest text-slate-900 bg-slate-100/50">Allocated</TableHead>
                                             <TableHead className="text-right text-[10px] font-black uppercase tracking-widest text-slate-500 bg-slate-50">Unit Price</TableHead>
@@ -155,6 +156,11 @@ export function SalesOrderCheckout({
                                                         </div>
                                                     </TableCell>
 
+                                                    <TableCell className="text-center border-x border-slate-50">
+                                                        <Badge variant="secondary" className="text-[11px] font-black bg-slate-100 text-slate-600">
+                                                            {inventory[item.product.product_id] !== undefined ? inventory[item.product.product_id] : 0}
+                                                        </Badge>
+                                                    </TableCell>
                                                     <TableCell className="text-center font-bold text-slate-400 tabular-nums">{item.quantity}</TableCell>
                                                     <TableCell className="text-center bg-slate-50/30 relative py-8">
                                                         <Input

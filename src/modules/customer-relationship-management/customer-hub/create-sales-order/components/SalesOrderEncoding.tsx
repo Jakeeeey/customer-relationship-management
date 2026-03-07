@@ -13,6 +13,7 @@ import { LineItem, Product } from "../types";
 interface SalesOrderEncodingProps {
     products: Product[];
     loadingProducts: boolean;
+    inventory: Record<number, number>;
     lineItems: LineItem[];
     addProduct: (product: Product, qty: number, uom: string) => void;
     removeLineItem: (id: string) => void;
@@ -23,7 +24,7 @@ interface SalesOrderEncodingProps {
 }
 
 export function SalesOrderEncoding({
-    products, loadingProducts, lineItems,
+    products, loadingProducts, inventory, lineItems,
     addProduct, removeLineItem, updateLineItemQty,
     summary, onSubmit, submitting
 }: SalesOrderEncodingProps) {
@@ -107,12 +108,19 @@ export function SalesOrderEncoding({
                                                             {p.discount_level}
                                                         </span>
                                                     </div>
-                                                    <div className="flex gap-1">
-                                                        {(p.discounts || []).map((d: number, i: number) => (
-                                                            <span key={i} className="text-[10px] font-bold px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded border border-amber-200">-{d}%</span>
-                                                        ))}
+                                                    <div className="flex gap-1 items-center">
+                                                        <div className="flex gap-1">
+                                                            {(p.discounts || []).map((d: number, i: number) => (
+                                                                <span key={i} className="text-[10px] font-bold px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded border border-amber-200">-{d}%</span>
+                                                            ))}
+                                                        </div>
+                                                        <div className="flex items-center gap-1.5 ml-auto">
+                                                            <span className="text-[9px] font-black text-slate-400 uppercase">Available:</span>
+                                                            <Badge variant="secondary" className="text-[10px] font-black bg-slate-100 text-slate-700 h-5 px-1.5">
+                                                                {inventory[p.product_id] !== undefined ? inventory[p.product_id] : 0}
+                                                            </Badge>
+                                                        </div>
                                                     </div>
-
                                                 </div>
                                             </div>
                                             <Button
