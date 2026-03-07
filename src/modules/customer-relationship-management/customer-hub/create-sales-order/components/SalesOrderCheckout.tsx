@@ -171,27 +171,38 @@ export function SalesOrderCheckout({
                                                         </div>
                                                     </TableCell>
                                                     <TableCell className="text-center bg-slate-50/30 relative py-8">
-                                                        <Input
-                                                            type="number"
-                                                            className={`h-11 w-24 mx-auto text-center font-black text-base border-2 transition-all rounded-xl shadow-inner ${allocatedQty > item.quantity
-                                                                ? "border-red-500 ring-red-100 ring-4 bg-red-50"
-                                                                : "border-slate-200 focus:border-primary focus:ring-primary/10 bg-white"
-                                                                }`}
-                                                            value={allocatedQty}
-                                                            onChange={(e) => updateAllocatedQty(item.id, Number(e.target.value) || 0)}
-                                                        />
-                                                        <div className="mt-1.5 flex flex-col items-center">
-                                                            <span className="text-[9px] font-black text-primary/60 uppercase tracking-widest leading-none">{item.uom}</span>
-                                                            <span className="text-[8px] text-slate-400 font-bold mt-1">
-                                                                {Number(item.quantity) * (Number(item.product.unit_of_measurement_count) || 1)} Total PCS
-                                                            </span>
-                                                        </div>
-                                                        {allocatedQty > item.quantity && (
-                                                            <div className="absolute left-1/2 -translate-x-1/2 bottom-1.5 flex items-center gap-1 bg-red-500 text-[7px] text-white px-2 py-0.5 rounded-full font-black uppercase tracking-widest shadow-lg animate-in fade-in slide-in-from-top-1 duration-300 z-50">
-                                                                <AlertCircle className="w-2 h-2" />
-                                                                Limit Exceeded
-                                                            </div>
-                                                        )}
+                                                        {(() => {
+                                                            const availLimit = inventory[item.product.product_id] || 0;
+                                                            const isExceedingOrder = allocatedQty > item.quantity;
+                                                            const isExceedingInventory = allocatedQty > availLimit;
+                                                            const hasError = isExceedingOrder || isExceedingInventory;
+
+                                                            return (
+                                                                <>
+                                                                    <Input
+                                                                        type="number"
+                                                                        className={`h-11 w-24 mx-auto text-center font-black text-base border-2 transition-all rounded-xl shadow-inner ${hasError
+                                                                            ? "border-red-500 ring-red-100 ring-4 bg-red-50"
+                                                                            : "border-slate-200 focus:border-primary focus:ring-primary/10 bg-white"
+                                                                            }`}
+                                                                        value={allocatedQty}
+                                                                        onChange={(e) => updateAllocatedQty(item.id, Number(e.target.value) || 0)}
+                                                                    />
+                                                                    <div className="mt-1.5 flex flex-col items-center">
+                                                                        <span className="text-[9px] font-black text-primary/60 uppercase tracking-widest leading-none">{item.uom}</span>
+                                                                        <span className="text-[8px] text-slate-400 font-bold mt-1">
+                                                                            {Number(item.quantity) * (Number(item.product.unit_of_measurement_count) || 1)} Total PCS
+                                                                        </span>
+                                                                    </div>
+                                                                    {hasError && (
+                                                                        <div className="absolute left-1/2 -translate-x-1/2 bottom-1.5 flex items-center gap-1 bg-red-500 text-[7px] text-white px-2 py-0.5 rounded-full font-black uppercase tracking-widest shadow-lg animate-in fade-in slide-in-from-top-1 duration-300 z-50 whitespace-nowrap">
+                                                                            <AlertCircle className="w-2 h-2" />
+                                                                            {isExceedingInventory ? "Draft Exceeds Available" : "Exceeds Ordered Qty"}
+                                                                        </div>
+                                                                    )}
+                                                                </>
+                                                            );
+                                                        })()}
                                                     </TableCell>
                                                     <TableCell className="text-right font-medium text-slate-400 tabular-nums text-xs">{formatCurrency(item.unitPrice)}</TableCell>
                                                     <TableCell className="text-center">

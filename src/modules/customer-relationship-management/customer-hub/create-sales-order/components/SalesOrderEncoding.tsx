@@ -169,6 +169,9 @@ export function SalesOrderEncoding({
                                                 <Badge variant="outline" className="text-[9px] font-bold px-1.5 py-0 border-slate-200 text-slate-500 whitespace-nowrap">
                                                     {item.uom}
                                                 </Badge>
+                                                <div className="text-[8px] text-slate-400 font-bold mt-1 uppercase whitespace-nowrap">
+                                                    {item.product.unit_of_measurement_count} PCS/{item.uom}
+                                                </div>
                                             </TableCell>
                                             <TableCell className="text-center">
                                                 <Input

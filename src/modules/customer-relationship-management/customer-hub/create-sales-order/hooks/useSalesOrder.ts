@@ -161,7 +161,9 @@ export function useSalesOrder() {
                     const invMap: Record<number, number> = {};
                     if (Array.isArray(inventoryData)) {
                         inventoryData.forEach(item => {
-                            invMap[item.productId] = item.unitCount;
+                            const pid = Number(item.productId);
+                            const count = Number(item.unitCount) || 0;
+                            invMap[pid] = (invMap[pid] || 0) + count;
                         });
                     }
                     setInventory(invMap);
@@ -267,9 +269,11 @@ export function useSalesOrder() {
     const isValidAllocation = useMemo(() => {
         return lineItems.every(item => {
             const allocated = allocatedQuantities[item.id] ?? item.quantity;
-            return allocated <= item.quantity && allocated >= 0;
+            const available = inventory[item.product.product_id] ?? 0;
+            // Valid if non-negative, <= ordered, AND <= available
+            return allocated >= 0 && allocated <= item.quantity && allocated <= available;
         });
-    }, [lineItems, allocatedQuantities]);
+    }, [lineItems, allocatedQuantities, inventory]);
 
     const enterCheckout = () => {
         if (lineItems.length === 0) {
@@ -350,6 +354,10 @@ export function useSalesOrder() {
         }
         if (lineItems.length === 0) {
             toast.error("No items in order");
+            return;
+        }
+        if (!isValidAllocation) {
+            toast.error("Allocation exceeds order limits or inventory availability.");
             return;
         }
 
