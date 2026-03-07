@@ -5,6 +5,7 @@ import { LineItem, Salesman, Customer, Supplier, Product, ReceiptType, SalesType
 import { salesOrderProvider } from "../providers/fetchProvider";
 import { calculateChainNetPrice } from "../utils/priceCalc";
 import { toast } from "sonner";
+import { decomposeQuantity } from "../utils/uomDecomposer";
 
 export function useSalesOrder() {
     // Selection State (IDs for dropdowns)
@@ -39,6 +40,7 @@ export function useSalesOrder() {
     // Product Results
     const [supplierProducts, setSupplierProducts] = useState<Product[]>([]);
     const [loadingProducts, setLoadingProducts] = useState(false);
+    const [inventory, setInventory] = useState<Record<number, number>>({});
 
     // Cart
     const [lineItems, setLineItems] = useState<LineItem[]>([]);
@@ -145,14 +147,31 @@ export function useSalesOrder() {
 
             if (customerCode) {
                 setLoadingProducts(true);
-                salesOrderProvider.searchProducts("", customerCode, Number(supplierId), priceType, Number(customerId), priceTypeId || undefined, sSalesmanId)
-                    .then((res: Product[]) => {
-                        setSupplierProducts(Array.isArray(res) ? res : []);
+
+                // Concurrent fetch for products and inventory
+                Promise.all([
+                    salesOrderProvider.searchProducts("", customerCode, Number(supplierId), priceType, Number(customerId), priceTypeId || undefined, sSalesmanId),
+                    salesOrderProvider.getInventory().catch(err => {
+                        console.error("Inventory fetch failed:", err);
+                        return [];
                     })
-                    .finally(() => setLoadingProducts(false));
+                ]).then(([productsData, inventoryData]) => {
+                    setSupplierProducts(Array.isArray(productsData) ? productsData : []);
+
+                    const invMap: Record<number, number> = {};
+                    if (Array.isArray(inventoryData)) {
+                        inventoryData.forEach(item => {
+                            const pid = Number(item.productId);
+                            const count = Number(item.unitCount) || 0;
+                            invMap[pid] = (invMap[pid] || 0) + count;
+                        });
+                    }
+                    setInventory(invMap);
+                }).finally(() => setLoadingProducts(false));
             }
         } else {
             setSupplierProducts([]);
+            setInventory({});
         }
     }, [selectedCustomerId, selectedSupplierId, priceType, priceTypeId, selectedSalesmanId, customers]);
 
@@ -250,9 +269,11 @@ export function useSalesOrder() {
     const isValidAllocation = useMemo(() => {
         return lineItems.every(item => {
             const allocated = allocatedQuantities[item.id] ?? item.quantity;
-            return allocated <= item.quantity && allocated >= 0;
+            const available = inventory[item.product.product_id] ?? 0;
+            // Valid if non-negative, <= ordered, AND <= available
+            return allocated >= 0 && allocated <= item.quantity && allocated <= available;
         });
-    }, [lineItems, allocatedQuantities]);
+    }, [lineItems, allocatedQuantities, inventory]);
 
     const enterCheckout = () => {
         if (lineItems.length === 0) {
@@ -276,9 +297,46 @@ export function useSalesOrder() {
         const generatedNo = `SO-${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}${String(now.getSeconds()).padStart(2, '0')}`;
         setOrderNo(generatedNo);
 
-        // Initialize allocated quantities with Option B: min(ordered, available)
-        const initialAllocated: Record<string, number> = {};
+        // UOM Decomposition Logic:
+        // Before entering checkout, we "explode" the existing line items into the 
+        // most efficient UOMs (Box, Pack/Tie, Pieces) using sibling product variants.
+        const decomposedLines: LineItem[] = [];
+
         lineItems.forEach(item => {
+            // Find total count in base pieces
+            const totalPcs = item.quantity * (Number(item.product.unit_of_measurement_count) || 1);
+
+            // decomposeQuantity will return an array of {product, quantity} using siblings with higher UOMs
+            const splits = decomposeQuantity(totalPcs, item.product, supplierProducts);
+
+            splits.forEach(split => {
+                const basePrice = Number(split.product.base_price) || 0;
+                const discounts = split.product.discounts || [];
+                const netUnitPrice = calculateChainNetPrice(basePrice, discounts);
+                const totalAmountLine = basePrice * split.quantity;
+                const netAmountLine = netUnitPrice * split.quantity;
+
+                decomposedLines.push({
+                    id: Math.random().toString(36).substr(2, 9),
+                    product: split.product,
+                    quantity: split.quantity,
+                    uom: split.product.uom || "PCS",
+                    unitPrice: basePrice,
+                    discountType: split.product.discount_level || undefined,
+                    discounts,
+                    netAmount: netAmountLine,
+                    totalAmount: totalAmountLine,
+                    discountAmount: totalAmountLine - netAmountLine
+                });
+            });
+        });
+
+        // Use the newly decomposed lines for the checkout view
+        setLineItems(decomposedLines);
+
+        // Initialize allocated quantities with total fulfillment
+        const initialAllocated: Record<string, number> = {};
+        decomposedLines.forEach(item => {
             initialAllocated[item.id] = item.quantity;
         });
         setAllocatedQuantities(initialAllocated);
@@ -296,6 +354,10 @@ export function useSalesOrder() {
         }
         if (lineItems.length === 0) {
             toast.error("No items in order");
+            return;
+        }
+        if (!isValidAllocation) {
+            toast.error("Allocation exceeds order limits or inventory availability.");
             return;
         }
 
@@ -372,6 +434,7 @@ export function useSalesOrder() {
         poNo, setPoNo,
         priceType,
         supplierProducts, loadingProducts,
+        inventory, // Add inventory to the returned object
         lineItems,
         addProduct, removeLineItem, updateLineItemQty,
         summary, isValidAllocation,

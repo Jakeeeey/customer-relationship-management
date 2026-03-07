@@ -13,6 +13,7 @@ import { LineItem, Product } from "../types";
 interface SalesOrderEncodingProps {
     products: Product[];
     loadingProducts: boolean;
+    inventory: Record<number, number>;
     lineItems: LineItem[];
     addProduct: (product: Product, qty: number, uom: string) => void;
     removeLineItem: (id: string) => void;
@@ -23,7 +24,7 @@ interface SalesOrderEncodingProps {
 }
 
 export function SalesOrderEncoding({
-    products, loadingProducts, lineItems,
+    products, loadingProducts, inventory, lineItems,
     addProduct, removeLineItem, updateLineItemQty,
     summary, onSubmit, submitting
 }: SalesOrderEncodingProps) {
@@ -79,17 +80,7 @@ export function SalesOrderEncoding({
                                                 <span className="font-bold text-sm leading-tight text-foreground">
                                                     {p.display_name}
                                                 </span>
-                                                {p.parent_product_name && p.display_name !== p.parent_product_name && (
-                                                    <span className="text-[10px] text-primary/70 font-bold uppercase mt-0.5">
-                                                        {p.parent_product_name}
-                                                    </span>
-                                                )}
 
-                                                {p.description && (
-                                                    <span className="text-[10px] text-muted-foreground mt-1 line-clamp-2 italic">
-                                                        {p.description}
-                                                    </span>
-                                                )}
 
                                                 <div className="flex items-center justify-between mt-2">
                                                     <div className="flex flex-col">
@@ -104,15 +95,22 @@ export function SalesOrderEncoding({
                                                             </span>
                                                         </div>
                                                         <span className="text-[9px] text-muted-foreground font-bold uppercase">
-                                                            {p.discount_level}
+                                                            {p.discount_level} • {p.unit_of_measurement_count} PCS/{p.uom || 'Unit'}
                                                         </span>
                                                     </div>
-                                                    <div className="flex gap-1">
-                                                        {(p.discounts || []).map((d: number, i: number) => (
-                                                            <span key={i} className="text-[10px] font-bold px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded border border-amber-200">-{d}%</span>
-                                                        ))}
+                                                    <div className="flex gap-1 items-center">
+                                                        <div className="flex gap-1">
+                                                            {(p.discounts || []).map((d: number, i: number) => (
+                                                                <span key={i} className="text-[10px] font-bold px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded border border-amber-200">-{d}%</span>
+                                                            ))}
+                                                        </div>
+                                                        <div className="flex items-center gap-1.5 ml-auto">
+                                                            <span className="text-[9px] font-black text-slate-400 uppercase">Available:</span>
+                                                            <Badge variant="secondary" className="text-[10px] font-black bg-slate-100 text-slate-700 h-5 px-1.5">
+                                                                {inventory[p.product_id] !== undefined ? inventory[p.product_id] : 0}
+                                                            </Badge>
+                                                        </div>
                                                     </div>
-
                                                 </div>
                                             </div>
                                             <Button
@@ -171,11 +169,14 @@ export function SalesOrderEncoding({
                                                 <Badge variant="outline" className="text-[9px] font-bold px-1.5 py-0 border-slate-200 text-slate-500 whitespace-nowrap">
                                                     {item.uom}
                                                 </Badge>
+                                                <div className="text-[8px] text-slate-400 font-bold mt-1 uppercase whitespace-nowrap">
+                                                    {item.product.unit_of_measurement_count} PCS/{item.uom}
+                                                </div>
                                             </TableCell>
                                             <TableCell className="text-center">
                                                 <Input
                                                     type="number"
-                                                    className="h-8 w-16 mx-auto text-center font-bold border-2 focus:border-primary transition-all"
+                                                    className="h-9 w-24 mx-auto text-center font-black border-2 focus:border-primary transition-all shadow-sm"
                                                     value={item.quantity}
                                                     onChange={(e) => updateLineItemQty(item.id, Number(e.target.value) || 0)}
                                                 />

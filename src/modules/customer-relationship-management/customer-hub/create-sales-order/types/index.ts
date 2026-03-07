@@ -43,6 +43,11 @@ export interface Product {
     brand_id?: number;
     pieces_per_box?: number;
     uom?: string;
+    parent_id?: number | null;
+    unit_of_measurement?: number;
+    unit_of_measurement_count?: number;
+    uom_name?: string;
+    uom_shortcut?: string;
     parent_product_name?: string;
     [key: string]: unknown;
 }
@@ -89,4 +94,24 @@ export interface ReceiptType {
 export interface SalesType {
     id: number | string;
     operation_name: string;
+}
+
+export interface RunningInventoryItem {
+    id: string;
+    productId: number;
+    productCode: string;
+    productName: string;
+    productBarcode: string | null;
+    productBrand: string;
+    productCategory: string;
+    unitName: string;
+    unitCount: number;
+    branchId: number;
+    branchName: string;
+    lastCutoff: string;
+    lastCountUnit: number;
+    movementAfterUnit: number;
+    runningInventoryUnit: number;
+    supplierShortcut: string;
+    supplierId: number;
 }
