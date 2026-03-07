@@ -86,17 +86,7 @@ export default function SalesmanManagementModule() {
         }
     }, [debouncedSearch, statusFilter, fetchData]);
 
-    // Load active salesmen for succession when modal opens
-    useEffect(() => {
-        if (deactivateModal) {
-            loadActiveSalesmen();
-        } else {
-            setActiveSalesmenForSuccession([]);
-            setReassignmentSalesmanId("");
-        }
-    }, [deactivateModal]);
-
-    const loadActiveSalesmen = async () => {
+    const loadActiveSalesmen = useCallback(async () => {
         setLoadingActive(true);
         try {
             // Fetch a large enough batch of active salesmen for the dropdown
@@ -107,7 +97,17 @@ export default function SalesmanManagementModule() {
         } finally {
             setLoadingActive(false);
         }
-    };
+    }, [selectedSalesman]);
+
+    // Load active salesmen for succession when modal opens
+    useEffect(() => {
+        if (deactivateModal) {
+            loadActiveSalesmen();
+        } else {
+            setActiveSalesmenForSuccession([]);
+            setReassignmentSalesmanId("");
+        }
+    }, [deactivateModal, loadActiveSalesmen]);
 
     // Infinite Scroll Implementation
     const observer = useRef<IntersectionObserver | null>(null);
