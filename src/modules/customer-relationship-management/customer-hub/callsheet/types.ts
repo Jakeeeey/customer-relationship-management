@@ -34,6 +34,10 @@ export interface CallSheetAPIResponse {
         pageSize: number;
         lastUpdated: string;
     };
+    filterOptions?: {
+        salesmen: { id: number; salesman_name: string }[];
+        customers: { customer_code: string; customer_name: string }[];
+    };
 }
 
 // ============================================================================

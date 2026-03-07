@@ -188,9 +188,70 @@ export async function GET(req: NextRequest) {
             return NextResponse.json({ data: result });
         }
 
+        if (type === "mo-avg") {
+            const customerCode = req.nextUrl.searchParams.get("customerCode");
+            if (!customerCode) return NextResponse.json({ error: "customerCode required" }, { status: 400 });
+
+            const now = new Date();
+            const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 5, 1);
+            const dateStr = sixMonthsAgo.toISOString().split('T')[0];
+
+            const filter = {
+                "_and": [
+                    { "invoice_no": { "isRemitted": { "_eq": 1 } } },
+                    { "invoice_no": { "customer_code": { "_eq": customerCode } } },
+                    { "invoice_no": { "invoice_date": { "_gte": dateStr } } }
+                ]
+            };
+
+            const url = `${DIRECTUS_URL}/items/sales_invoice_details?filter=${encodeURIComponent(JSON.stringify(filter))}&fields=product_id,quantity&limit=-1`;
+            const res = await fetch(url, { headers: fetchHeaders });
+
+            if (!res.ok) {
+                const errText = await res.text();
+                // Fallback attempt
+                const fallbackFilter = {
+                    "_and": [
+                        { "invoice_no": { "customer_code": { "_eq": customerCode } } },
+                        { "invoice_no": { "invoice_date": { "_gte": dateStr } } }
+                    ]
+                };
+                const fallbackUrl = `${DIRECTUS_URL}/items/sales_invoice_details?filter=${encodeURIComponent(JSON.stringify(fallbackFilter))}&fields=product_id,quantity&limit=-1`;
+                const fallbackRes = await fetch(fallbackUrl, { headers: fetchHeaders });
+                if (fallbackRes.ok) {
+                    const json = await fallbackRes.json();
+                    const items = json.data || [];
+                    const aggregates: Record<number, number> = {};
+                    items.forEach((item: { product_id: number; quantity: number }) => {
+                        const pid = Number(item.product_id);
+                        if (pid) aggregates[pid] = (aggregates[pid] || 0) + (Number(item.quantity) || 0);
+                    });
+                    const results: Record<number, number> = {};
+                    Object.entries(aggregates).forEach(([pid, total]) => {
+                        results[Number(pid)] = Number((total / 6.0).toFixed(2));
+                    });
+                    return NextResponse.json({ data: results });
+                }
+                return NextResponse.json({ error: "Failed to fetch MO AVG", details: errText }, { status: res.status });
+            }
+
+            const json = await res.json();
+            const items = json.data || [];
+            const aggregates: Record<number, number> = {};
+            items.forEach((item: { product_id: number; quantity: number }) => {
+                const pid = Number(item.product_id);
+                if (pid) aggregates[pid] = (aggregates[pid] || 0) + (Number(item.quantity) || 0);
+            });
+            const results: Record<number, number> = {};
+            Object.entries(aggregates).forEach(([pid, total]) => {
+                results[Number(pid)] = Number((total / 6.0).toFixed(2));
+            });
+            return NextResponse.json({ data: results });
+        }
+
         return NextResponse.json({ error: "Invalid type parameter" }, { status: 400 });
-    } catch (e) {
-        console.error("API error", e);
+    } catch (error: unknown) {
+        console.error("API error", error);
         return NextResponse.json({ error: "Internal Error" }, { status: 500 });
     }
 }
