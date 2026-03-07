@@ -163,18 +163,35 @@ export async function GET(req: NextRequest) {
 
                 if (linkedProductIds.length === 0) return NextResponse.json([]);
 
-                const initialProducts = await fetchInChunks<ProductItem>(`${DIRECTUS_URL}/items/products?filter[isActive][_eq]=1`, linkedProductIds, "product_id");
-                const parentIds = Array.from(new Set(initialProducts.map(p => p.parent_id).filter((id): id is number => !!id)));
-                const parents = parentIds.length > 0 ? await fetchInChunks<ProductItem>(`${DIRECTUS_URL}/items/products`, parentIds, "product_id") : [];
-                const children = await fetchInChunks<ProductItem>(`${DIRECTUS_URL}/items/products?filter[isActive][_eq]=1`, linkedProductIds, "parent_id");
+                const initialProducts = await fetchInChunks<ProductItem>(`${DIRECTUS_URL}/items/products?filter[isActive][_eq]=1&fields=*,unit_of_measurement.unit_name`, linkedProductIds, "product_id");
+
+                // Collect all involved parents
+                const directParentIds = initialProducts.map(p => p.parent_id).filter((id): id is number => !!id);
+                // Also treat initial products with parent_id as null as their own family anchors
+                const selfParentIds = initialProducts.filter(p => !p.parent_id).map(p => Number(p.product_id));
+                const allFamilyAnchorIds = Array.from(new Set([...directParentIds, ...selfParentIds]));
+
+                // Fetch all members of these product families to get sibling UOMs
+                const familyMembers = allFamilyAnchorIds.length > 0
+                    ? await fetchInChunks<ProductItem>(`${DIRECTUS_URL}/items/products?filter[isActive][_eq]=1&fields=*,unit_of_measurement.unit_name`, allFamilyAnchorIds, "parent_id")
+                    : [];
+
+                const anchors = allFamilyAnchorIds.length > 0
+                    ? await fetchInChunks<ProductItem>(`${DIRECTUS_URL}/items/products?filter[isActive][_eq]=1&fields=*,unit_of_measurement.unit_name`, allFamilyAnchorIds, "product_id")
+                    : [];
 
                 const unitsRes = await fetch(`${DIRECTUS_URL}/items/units?limit=-1`, { headers: fetchHeaders });
                 const unitsData = (await unitsRes.json()).data || [];
-                const unitMap: Record<number, string> = {};
-                unitsData.forEach((u: { unit_id: number | string; unit_name?: string }) => { unitMap[Number(u.unit_id)] = u.unit_name || ""; });
+                const unitMap: Record<number, { name: string; shortcut: string }> = {};
+                unitsData.forEach((u: { unit_id: number | string; unit_name?: string; unit_shortcut?: string }) => {
+                    unitMap[Number(u.unit_id)] = {
+                        name: u.unit_name || "",
+                        shortcut: u.unit_shortcut || ""
+                    };
+                });
 
                 const allProductsMap = new Map<number, ProductItem>();
-                [...parents, ...initialProducts, ...children].forEach(p => {
+                [...anchors, ...initialProducts, ...familyMembers].forEach(p => {
                     const id = Number(p.product_id);
                     if (id && !allProductsMap.has(id)) allProductsMap.set(id, p);
                 });
@@ -257,22 +274,34 @@ export async function GET(req: NextRequest) {
                     const displayLevel = specificDiscountName || level;
 
                     const parent = p.parent_id ? allProductsMap.get(Number(p.parent_id)) : null;
-                    let displayName = p.product_name || p.description || "Unnamed Product";
+                    let displayName = p.description || "Unnamed Product";
 
                     const uomId = Number(p.unit_of_measurement);
-                    let uomName = uomId && unitMap[uomId] ? unitMap[uomId] : "";
+                    const uomInfo = uomId && unitMap[uomId] ? unitMap[uomId] : { name: "", shortcut: "" };
+                    let uomName = uomInfo.name;
+                    const uomShortcut = uomInfo.shortcut;
+
                     if (uomName && typeof uomName === 'string') {
                         if (uomName.toLowerCase() === "pcs") uomName = "Pieces";
                         else uomName = uomName.charAt(0).toUpperCase() + uomName.slice(1).toLowerCase();
                     }
-                    if (uomName && typeof uomName === 'string' && !displayName.toLowerCase().includes(uomName.toLowerCase())) {
-                        displayName = `${displayName} ${uomName}`;
+
+                    // Append UOM to display name if not already present
+                    if (uomShortcut && !displayName.toLowerCase().includes(uomShortcut.toLowerCase())) {
+                        displayName = `${displayName} (${uomShortcut})`;
+                    } else if (uomName && !displayName.toLowerCase().includes(uomName.toLowerCase())) {
+                        displayName = `${displayName} (${uomName})`;
                     }
 
                     return {
                         ...p,
                         display_name: displayName,
-                        parent_product_name: parent?.product_name || null,
+                        parent_product_name: parent?.description || null,
+                        parent_id: p.parent_id || null,
+                        unit_of_measurement_count: Number(p.unit_of_measurement_count) || 1,
+                        uom: uomShortcut || uomName || "PCS",
+                        uom_name: uomName,
+                        uom_shortcut: uomShortcut,
                         base_price: price,
                         discount_level: displayLevel,
                         discount_type: winId,
@@ -324,8 +353,9 @@ export async function GET(req: NextRequest) {
 
                 const data = await springRes.json();
                 return NextResponse.json(data);
-            } catch (err: any) {
-                console.error("[INVENTORY-API] Request failed:", err.message);
+            } catch (err: unknown) {
+                const error = err as Error;
+                console.error("[INVENTORY-API] Request failed:", error.message);
                 return NextResponse.json({ ok: false, error: "Gateway Error" }, { status: 502 });
             }
         }

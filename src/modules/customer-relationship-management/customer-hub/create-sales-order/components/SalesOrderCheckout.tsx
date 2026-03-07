@@ -161,7 +161,15 @@ export function SalesOrderCheckout({
                                                             {inventory[item.product.product_id] !== undefined ? inventory[item.product.product_id] : 0}
                                                         </Badge>
                                                     </TableCell>
-                                                    <TableCell className="text-center font-bold text-slate-400 tabular-nums">{item.quantity}</TableCell>
+                                                    <TableCell className="text-center font-black text-slate-900 tabular-nums">
+                                                        <div className="flex flex-col items-center">
+                                                            <span className="text-lg leading-none">{item.quantity}</span>
+                                                            <span className="text-[9px] text-muted-foreground uppercase font-black mt-1 tracking-widest">{item.uom}</span>
+                                                            <span className="text-[8px] text-slate-400 font-bold mt-1">
+                                                                {item.product.unit_of_measurement_count} PCS/{item.uom}
+                                                            </span>
+                                                        </div>
+                                                    </TableCell>
                                                     <TableCell className="text-center bg-slate-50/30 relative py-8">
                                                         <Input
                                                             type="number"
@@ -172,6 +180,12 @@ export function SalesOrderCheckout({
                                                             value={allocatedQty}
                                                             onChange={(e) => updateAllocatedQty(item.id, Number(e.target.value) || 0)}
                                                         />
+                                                        <div className="mt-1.5 flex flex-col items-center">
+                                                            <span className="text-[9px] font-black text-primary/60 uppercase tracking-widest leading-none">{item.uom}</span>
+                                                            <span className="text-[8px] text-slate-400 font-bold mt-1">
+                                                                {Number(item.quantity) * (Number(item.product.unit_of_measurement_count) || 1)} Total PCS
+                                                            </span>
+                                                        </div>
                                                         {allocatedQty > item.quantity && (
                                                             <div className="absolute left-1/2 -translate-x-1/2 bottom-1.5 flex items-center gap-1 bg-red-500 text-[7px] text-white px-2 py-0.5 rounded-full font-black uppercase tracking-widest shadow-lg animate-in fade-in slide-in-from-top-1 duration-300 z-50">
                                                                 <AlertCircle className="w-2 h-2" />

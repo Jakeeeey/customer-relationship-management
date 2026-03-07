@@ -43,6 +43,11 @@ export interface Product {
     brand_id?: number;
     pieces_per_box?: number;
     uom?: string;
+    parent_id?: number | null;
+    unit_of_measurement?: number;
+    unit_of_measurement_count?: number;
+    uom_name?: string;
+    uom_shortcut?: string;
     parent_product_name?: string;
     [key: string]: unknown;
 }

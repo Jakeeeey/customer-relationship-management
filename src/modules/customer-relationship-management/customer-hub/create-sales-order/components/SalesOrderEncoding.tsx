@@ -80,17 +80,7 @@ export function SalesOrderEncoding({
                                                 <span className="font-bold text-sm leading-tight text-foreground">
                                                     {p.display_name}
                                                 </span>
-                                                {p.parent_product_name && p.display_name !== p.parent_product_name && (
-                                                    <span className="text-[10px] text-primary/70 font-bold uppercase mt-0.5">
-                                                        {p.parent_product_name}
-                                                    </span>
-                                                )}
 
-                                                {p.description && (
-                                                    <span className="text-[10px] text-muted-foreground mt-1 line-clamp-2 italic">
-                                                        {p.description}
-                                                    </span>
-                                                )}
 
                                                 <div className="flex items-center justify-between mt-2">
                                                     <div className="flex flex-col">
@@ -105,7 +95,7 @@ export function SalesOrderEncoding({
                                                             </span>
                                                         </div>
                                                         <span className="text-[9px] text-muted-foreground font-bold uppercase">
-                                                            {p.discount_level}
+                                                            {p.discount_level} • {p.unit_of_measurement_count} PCS/{p.uom || 'Unit'}
                                                         </span>
                                                     </div>
                                                     <div className="flex gap-1 items-center">
@@ -183,7 +173,7 @@ export function SalesOrderEncoding({
                                             <TableCell className="text-center">
                                                 <Input
                                                     type="number"
-                                                    className="h-8 w-16 mx-auto text-center font-bold border-2 focus:border-primary transition-all"
+                                                    className="h-9 w-24 mx-auto text-center font-black border-2 focus:border-primary transition-all shadow-sm"
                                                     value={item.quantity}
                                                     onChange={(e) => updateLineItemQty(item.id, Number(e.target.value) || 0)}
                                                 />
