@@ -59,6 +59,11 @@ const data = {
                     url: "/crm/customer-hub/sales-order-approval",
                     icon: ClipboardList,
                 },
+                {
+                    title: "Salesman Management",
+                    url: "/crm/customer-hub/salesman-management",
+                    icon: Users,
+                },
                 // { title: "Disbursement", url: "/fm/treasury/disbursement" },
                 // { title: "Remittances", url: "/fm/treasury/remittances" },
             ],
