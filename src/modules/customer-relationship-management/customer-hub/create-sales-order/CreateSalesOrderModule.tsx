@@ -12,14 +12,14 @@ export default function CreateSalesOrderModule() {
         accounts, handleAccountChange, selectedAccount, loadingAccounts,
         customers, selectedCustomerId, handleCustomerChange, selectedCustomer, loadingCustomers,
         suppliers, selectedSupplierId, handleSupplierChange, selectedSupplier, loadingSuppliers,
+        branches, selectedBranchId, setSelectedBranchId, selectedBranch,
         receiptTypes, selectedReceiptTypeId, setSelectedReceiptTypeId, selectedReceiptType,
         salesTypes, selectedSalesTypeId, setSelectedSalesTypeId, selectedSalesType,
         dueDate, setDueDate,
         deliveryDate, setDeliveryDate,
         poNo, setPoNo,
-        priceType,
+        priceType, priceTypeId, priceTypeModels,
         supplierProducts, loadingProducts,
-        inventory,
         lineItems, addProduct, removeLineItem, updateLineItemQty,
         summary, isValidAllocation,
         isCheckout, setIsCheckout, orderNo, enterCheckout, allocatedQuantities, updateAllocatedQty,
@@ -56,7 +56,6 @@ export default function CreateSalesOrderModule() {
                 <SalesOrderCheckout
                     orderNo={orderNo}
                     lineItems={lineItems}
-                    inventory={inventory}
                     allocatedQuantities={allocatedQuantities}
                     updateAllocatedQty={updateAllocatedQty}
                     summary={summary}
@@ -71,6 +70,7 @@ export default function CreateSalesOrderModule() {
                         account: selectedAccount || null,
                         customer: selectedCustomer || null,
                         supplier: selectedSupplier || null,
+                        branch: selectedBranch || null,
                         receiptType: selectedReceiptType || null,
                         salesType: selectedSalesType || null,
                         dueDate,
@@ -101,6 +101,10 @@ export default function CreateSalesOrderModule() {
                         loadingSuppliers={loadingSuppliers}
                         onSupplierChange={handleSupplierChange}
 
+                        branches={branches}
+                        selectedBranchId={selectedBranchId}
+                        onBranchChange={setSelectedBranchId}
+
                         receiptTypes={receiptTypes}
                         selectedReceiptTypeId={selectedReceiptTypeId}
                         onReceiptTypeChange={setSelectedReceiptTypeId}
@@ -119,6 +123,8 @@ export default function CreateSalesOrderModule() {
                         onPoNoChange={setPoNo}
 
                         priceType={priceType}
+                        priceTypeId={priceTypeId}
+                        priceTypeModels={priceTypeModels}
                     />
 
                     {/* Encoding & Cart Section */}
@@ -126,7 +132,6 @@ export default function CreateSalesOrderModule() {
                         <SalesOrderEncoding
                             products={supplierProducts}
                             loadingProducts={loadingProducts}
-                            inventory={inventory}
                             lineItems={lineItems}
                             addProduct={addProduct}
                             removeLineItem={removeLineItem}

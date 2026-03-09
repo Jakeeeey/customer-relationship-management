@@ -13,7 +13,6 @@ import { LineItem, Product } from "../types";
 interface SalesOrderEncodingProps {
     products: Product[];
     loadingProducts: boolean;
-    inventory: Record<number, number>;
     lineItems: LineItem[];
     addProduct: (product: Product, qty: number, uom: string) => void;
     removeLineItem: (id: string) => void;
@@ -24,7 +23,7 @@ interface SalesOrderEncodingProps {
 }
 
 export function SalesOrderEncoding({
-    products, loadingProducts, inventory, lineItems,
+    products, loadingProducts, lineItems,
     addProduct, removeLineItem, updateLineItemQty,
     summary, onSubmit, submitting
 }: SalesOrderEncodingProps) {
@@ -95,7 +94,7 @@ export function SalesOrderEncoding({
                                                             </span>
                                                         </div>
                                                         <span className="text-[9px] text-muted-foreground font-bold uppercase">
-                                                            {p.discount_level} • {p.unit_of_measurement_count} PCS/{p.uom || 'Unit'}
+                                                            {p.discount_level} {p.uom ? `• ${p.uom}` : ''}
                                                         </span>
                                                     </div>
                                                     <div className="flex gap-1 items-center">
@@ -105,10 +104,6 @@ export function SalesOrderEncoding({
                                                             ))}
                                                         </div>
                                                         <div className="flex items-center gap-1.5 ml-auto">
-                                                            <span className="text-[9px] font-black text-slate-400 uppercase">Available:</span>
-                                                            <Badge variant="secondary" className="text-[10px] font-black bg-slate-100 text-slate-700 h-5 px-1.5">
-                                                                {inventory[p.product_id] !== undefined ? inventory[p.product_id] : 0}
-                                                            </Badge>
                                                         </div>
                                                     </div>
                                                 </div>
@@ -169,9 +164,6 @@ export function SalesOrderEncoding({
                                                 <Badge variant="outline" className="text-[9px] font-bold px-1.5 py-0 border-slate-200 text-slate-500 whitespace-nowrap">
                                                     {item.uom}
                                                 </Badge>
-                                                <div className="text-[8px] text-slate-400 font-bold mt-1 uppercase whitespace-nowrap">
-                                                    {item.product.unit_of_measurement_count} PCS/{item.uom}
-                                                </div>
                                             </TableCell>
                                             <TableCell className="text-center">
                                                 <Input

@@ -11,6 +11,7 @@ export interface Salesman {
     user_lname?: string;
     price_type?: PriceType;
     price_type_id?: number | null;
+    branch_code?: number | null;
     status?: string;
 }
 
@@ -21,6 +22,7 @@ export interface Customer {
     store_name: string;
     salesman_id?: number;
     price_type?: PriceType;
+    price_type_id?: number | null;
     discount_type_id?: number;
 }
 
@@ -70,6 +72,8 @@ export interface SalesOrderHeader {
     customer_code?: string;
     salesman_id: number;
     supplier_id: number;
+    branch_id: number;
+    price_type_id?: number | null;
     receipt_type: number;
     sales_type: number;
     po_no: string;
@@ -96,22 +100,16 @@ export interface SalesType {
     operation_name: string;
 }
 
-export interface RunningInventoryItem {
-    id: string;
-    productId: number;
-    productCode: string;
-    productName: string;
-    productBarcode: string | null;
-    productBrand: string;
-    productCategory: string;
-    unitName: string;
-    unitCount: number;
-    branchId: number;
-    branchName: string;
-    lastCutoff: string;
-    lastCountUnit: number;
-    movementAfterUnit: number;
-    runningInventoryUnit: number;
-    supplierShortcut: string;
-    supplierId: number;
+export interface Branch {
+    id: number | string;
+    branch_name: string;
+    branch_code: string;
 }
+
+export interface PriceTypeModel {
+    price_type_id: number;
+    price_type_name: string;
+    sort?: number;
+}
+
+

@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
+export const dynamic = "force-dynamic";
+
 const BASE_URL = `${process.env.NEXT_PUBLIC_API_BASE_URL}/items`;
 
 interface Product {
@@ -266,7 +268,7 @@ export async function GET(req: NextRequest) {
             suppliersRes,
             aggregatesRes
         ] = await Promise.all([
-            fetch(`${BASE_URL}/sales_order?limit=${pageSize}&offset=${offset}&meta=*&fields=${salesOrderFields}${filterParam}`, { headers }),
+            fetch(`${BASE_URL}/sales_order?limit=${pageSize}&offset=${offset}&sort=-order_date,-created_date&meta=*&fields=${salesOrderFields}${filterParam}`, { headers }),
             safeFetch(`${BASE_URL}/customer?limit=-1&fields=id,customer_code,customer_name,store_name,city,province`, "customer"),
             safeFetch(`${BASE_URL}/salesman?limit=-1&fields=id,salesman_code,salesman_name,truck_plate`, "salesman"),
             safeFetch(`${BASE_URL}/branches?limit=-1&fields=id,branch_code,branch_name`, "branches"),
@@ -290,7 +292,7 @@ export async function GET(req: NextRequest) {
             branches: branchesRes.data,
             suppliers: suppliersRes.data,
             meta: {
-                total_count: salesOrdersData.meta?.filter_count || 0,
+                total_count: salesOrdersData.meta?.filter_count ?? salesOrdersData.meta?.total_count ?? 0,
                 aggregates: aggregatesRes.data?.[0]?.sum || { total_amount: 0, allocated_amount: 0 }
             }
         });
@@ -305,5 +307,63 @@ export async function GET(req: NextRequest) {
             },
             { status: 500 }
         );
+    }
+}
+
+export async function DELETE(req: NextRequest) {
+    const { searchParams } = new URL(req.url);
+    const orderId = searchParams.get("orderId");
+
+    if (!orderId) {
+        return NextResponse.json({ error: "orderId is required" }, { status: 400 });
+    }
+
+    const token = process.env.DIRECTUS_STATIC_TOKEN;
+    const headers: Record<string, string> = {
+        "Content-Type": "application/json"
+    };
+    if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+    }
+
+    try {
+        console.log(`[DEBUG] Attempting to delete sales order ${orderId} and its details...`);
+
+        // 1. Delete sales order details first
+        const detailsFilter = { "order_id": { "_eq": orderId } };
+        const detailsDeleteUrl = `${BASE_URL}/sales_order_details?filter=${encodeURIComponent(JSON.stringify(detailsFilter))}`;
+        const detailsDeleteRes = await fetch(detailsDeleteUrl, {
+            method: "DELETE",
+            headers
+        });
+
+        if (!detailsDeleteRes.ok && detailsDeleteRes.status !== 204 && detailsDeleteRes.status !== 404) {
+            const errText = await detailsDeleteRes.text();
+            console.error(`[DEBUG] Failed to delete details: ${detailsDeleteRes.status}`, errText);
+            // We'll try to delete the main order anyway, as details might not exist
+        }
+
+        // 2. Delete the sales order
+        const orderDeleteUrl = `${BASE_URL}/sales_order/${orderId}`;
+        const orderDeleteRes = await fetch(orderDeleteUrl, {
+            method: "DELETE",
+            headers
+        });
+
+        if (!orderDeleteRes.ok) {
+            const errText = await orderDeleteRes.text();
+            console.error(`[DEBUG] Failed to delete order: ${orderDeleteRes.status}`, errText);
+            return NextResponse.json({
+                error: `Failed to delete sales order: ${orderDeleteRes.status}`,
+                details: errText
+            }, { status: orderDeleteRes.status });
+        }
+
+        console.log(`[DEBUG] Sales order ${orderId} deleted successfully.`);
+        return NextResponse.json({ success: true, message: "Sales order deleted successfully" });
+    } catch (error: unknown) {
+        const err = error as Error;
+        console.error("[DEBUG] Delete error:", err);
+        return NextResponse.json({ error: err.message }, { status: 500 });
     }
 }
