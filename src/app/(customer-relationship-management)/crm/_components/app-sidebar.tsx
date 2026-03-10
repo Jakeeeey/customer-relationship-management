@@ -30,6 +30,11 @@ const data = {
         { title: "Dashboard", url: "/crm/", icon: LayoutDashboard },
         { title: "Customer", url: "/crm/customer/", icon: Users },
         {
+            title: "Salesman Management",
+            url: "/crm/customer-hub/salesman-management",
+            icon: Users,
+        },
+        {
             title: "Customer Hub",
             url: "#",
             icon: Bot,
@@ -58,11 +63,6 @@ const data = {
                     title: "Sales Order Approval",
                     url: "/crm/customer-hub/sales-order-approval",
                     icon: ClipboardList,
-                },
-                {
-                    title: "Salesman Management",
-                    url: "/crm/customer-hub/salesman-management",
-                    icon: Users,
                 },
                 // { title: "Disbursement", url: "/fm/treasury/disbursement" },
                 // { title: "Remittances", url: "/fm/treasury/remittances" },

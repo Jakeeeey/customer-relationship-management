@@ -32,8 +32,10 @@ export function useSalesOrderApproval() {
     // Filters
     const [statusFilter, setStatusFilter] = useState("For Approval");
     const [searchTerm, setSearchTerm] = useState("");
+    const [startDate, setStartDate] = useState("");
+    const [endDate, setEndDate] = useState("");
 
-    const fetchOrders = async (isLoadMore = false, currentSearch = searchTerm, currentStatus = statusFilter, currentPage = page) => {
+    const fetchOrders = async (isLoadMore = false, currentSearch = searchTerm, currentStatus = statusFilter, currentPage = page, currentStart = startDate, currentEnd = endDate) => {
         const fetchPage = isLoadMore ? currentPage + 1 : 1;
 
         if (isLoadMore) {
@@ -43,7 +45,7 @@ export function useSalesOrderApproval() {
         }
 
         try {
-            const result = await getPendingOrders(currentStatus, currentSearch, fetchPage, 30);
+            const result = await getPendingOrders(currentStatus, currentSearch, fetchPage, 30, currentStart, currentEnd);
 
             if (isLoadMore) {
                 setGroupedCustomers(prev => [...prev, ...result.data]);
@@ -67,11 +69,11 @@ export function useSalesOrderApproval() {
     // Debounce search and status changes
     useEffect(() => {
         const timeoutId = setTimeout(() => {
-            fetchOrders(false, searchTerm, statusFilter, 1);
+            fetchOrders(false, searchTerm, statusFilter, 1, startDate, endDate);
         }, 400); // 400ms debounce
         return () => clearTimeout(timeoutId);
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [statusFilter, searchTerm]);
+    }, [statusFilter, searchTerm, startDate, endDate]);
 
     const handleApproveBulk = async (orderIds: (string | number)[]) => {
         try {
@@ -80,7 +82,7 @@ export function useSalesOrderApproval() {
                 description: `Successfully moved ${orderIds.length} order(s) to For Consolidation.`,
             });
             // Refresh from page 1
-            fetchOrders(false, searchTerm, statusFilter, 1);
+            fetchOrders(false, searchTerm, statusFilter, 1, startDate, endDate);
             return true;
         } catch {
             toast.error("Error", {
@@ -92,11 +94,11 @@ export function useSalesOrderApproval() {
 
     const loadNextPage = () => {
         if (!loadingMore && hasMore && !loadingOrders) {
-            fetchOrders(true, searchTerm, statusFilter, page);
+            fetchOrders(true, searchTerm, statusFilter, page, startDate, endDate);
         }
     };
 
-    const refreshOrders = () => fetchOrders(false, searchTerm, statusFilter, 1);
+    const refreshOrders = () => fetchOrders(false, searchTerm, statusFilter, 1, startDate, endDate);
 
     return {
         // We no longer strictly need the flat orders list, but if UI expects it we could flatten it.
@@ -110,6 +112,10 @@ export function useSalesOrderApproval() {
         setStatusFilter,
         searchTerm,
         setSearchTerm,
+        startDate,
+        setStartDate,
+        endDate,
+        setEndDate,
         handleApproveBulk,
         refreshOrders,
     };

@@ -61,5 +61,12 @@ export const salesmanProvider = {
             body: JSON.stringify(data)
         });
         return res.json();
+    },
+
+    deleteSalesman: async (id: number): Promise<{ success: boolean; deletedAssignments?: number; error?: string }> => {
+        const res = await fetch(`${API_BASE}?id=${id}`, {
+            method: "DELETE",
+        });
+        return res.json();
     }
 };

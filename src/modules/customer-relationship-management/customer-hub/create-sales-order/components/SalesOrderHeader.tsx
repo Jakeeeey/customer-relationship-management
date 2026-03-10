@@ -77,6 +77,7 @@ export function SalesOrderHeader({
     const [openAccount, setOpenAccount] = useState(false);
     const [openCustomer, setOpenCustomer] = useState(false);
     const [openSupplier, setOpenSupplier] = useState(false);
+    const [openBranch, setOpenBranch] = useState(false);
 
     return (
         <Card className="shadow-sm border-muted-foreground/10 overflow-hidden">
@@ -249,16 +250,43 @@ export function SalesOrderHeader({
 
                 <div className="flex flex-col gap-1.5">
                     <label className="text-xs font-bold uppercase text-muted-foreground">Branch <span className="text-red-500">*</span></label>
-                    <Select value={selectedBranchId} onValueChange={onBranchChange}>
-                        <SelectTrigger className="h-9 text-xs"><SelectValue placeholder="Select branch" /></SelectTrigger>
-                        <SelectContent>
-                            {branches.map(b => (
-                                <SelectItem key={b.id} value={b.id.toString()}>
-                                    {b.branch_name} ({b.branch_code})
-                                </SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
+                    <Popover open={openBranch} onOpenChange={setOpenBranch}>
+                        <PopoverTrigger asChild>
+                            <Button variant="outline" className="w-full justify-between font-normal h-9 text-xs">
+                                <span className="truncate">
+                                    {selectedBranchId && branches.find(b => b.id.toString() === selectedBranchId)
+                                        ? `${branches.find(b => b.id.toString() === selectedBranchId)!.branch_name} (${branches.find(b => b.id.toString() === selectedBranchId)!.branch_code})`
+                                        : "Select branch..."}
+                                </span>
+                                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                            </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-[300px] p-0" align="start" sideOffset={4}>
+                            <Command onWheel={(e) => e.stopPropagation()}>
+                                <CommandInput placeholder="Search branch..." />
+                                <CommandList>
+                                    <CommandEmpty>No branch found.</CommandEmpty>
+                                    <CommandGroup>
+                                        <div className="max-h-[300px] overflow-y-auto custom-scrollbar">
+                                            {branches.map(b => (
+                                                <CommandItem
+                                                    key={b.id}
+                                                    value={`${b.branch_name} ${b.branch_code}`}
+                                                    onSelect={() => {
+                                                        onBranchChange(b.id.toString());
+                                                        setOpenBranch(false);
+                                                    }}
+                                                >
+                                                    <Check className={cn("mr-2 h-4 w-4", selectedBranchId === b.id.toString() ? "opacity-100" : "opacity-0")} />
+                                                    {b.branch_name} ({b.branch_code})
+                                                </CommandItem>
+                                            ))}
+                                        </div>
+                                    </CommandGroup>
+                                </CommandList>
+                            </Command>
+                        </PopoverContent>
+                    </Popover>
                 </div>
 
                 <div className="flex flex-col gap-1.5">
