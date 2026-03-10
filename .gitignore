@@ -42,3 +42,4 @@ next-env.d.ts
 
 # agent workflow
 /.agent
+assets/audio/*.mp3
