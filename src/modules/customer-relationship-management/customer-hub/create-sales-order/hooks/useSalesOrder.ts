@@ -1,11 +1,11 @@
 "use client";
 
 import { useState, useEffect, useMemo, useCallback } from "react";
-import { LineItem, Salesman, Customer, Supplier, Product, ReceiptType, SalesType } from "../types";
+import { LineItem, Salesman, Customer, Supplier, Product, ReceiptType, SalesType, Branch, PriceTypeModel } from "../types";
 import { salesOrderProvider } from "../providers/fetchProvider";
 import { calculateChainNetPrice } from "../utils/priceCalc";
 import { toast } from "sonner";
-import { decomposeQuantity } from "../utils/uomDecomposer";
+
 
 export function useSalesOrder() {
     // Selection State (IDs for dropdowns)
@@ -24,6 +24,11 @@ export function useSalesOrder() {
     const [selectedSupplierId, setSelectedSupplierId] = useState<string>("");
     const loadingSuppliers = false;
 
+    const [branches, setBranches] = useState<Branch[]>([]);
+    const [selectedBranchId, setSelectedBranchId] = useState<string>("");
+
+    const [priceTypeModels, setPriceTypeModels] = useState<PriceTypeModel[]>([]);
+
     // Meta Settings
     const [receiptTypes, setReceiptTypes] = useState<ReceiptType[]>([]);
     const [selectedReceiptTypeId, setSelectedReceiptTypeId] = useState<string>("");
@@ -40,7 +45,6 @@ export function useSalesOrder() {
     // Product Results
     const [supplierProducts, setSupplierProducts] = useState<Product[]>([]);
     const [loadingProducts, setLoadingProducts] = useState(false);
-    const [inventory, setInventory] = useState<Record<number, number>>({});
 
     // Cart
     const [lineItems, setLineItems] = useState<LineItem[]>([]);
@@ -58,11 +62,14 @@ export function useSalesOrder() {
     const selectedSupplier = useMemo(() => suppliers.find(s => s.id.toString() === selectedSupplierId), [suppliers, selectedSupplierId]);
     const selectedReceiptType = useMemo(() => receiptTypes.find(rt => rt.id.toString() === selectedReceiptTypeId), [receiptTypes, selectedReceiptTypeId]);
     const selectedSalesType = useMemo(() => salesTypes.find(st => st.id.toString() === selectedSalesTypeId), [salesTypes, selectedSalesTypeId]);
+    const selectedBranch = useMemo(() => branches.find(b => b.id.toString() === selectedBranchId), [branches, selectedBranchId]);
 
     // Initial Data Fetch
     useEffect(() => {
         salesOrderProvider.getSalesmen().then(setSalesmen);
         salesOrderProvider.getSuppliers().then(setSuppliers);
+        salesOrderProvider.getBranches().then(setBranches);
+        salesOrderProvider.getPriceTypes().then(setPriceTypeModels);
         fetch("/api/crm/customer-hub/create-sales-order?action=invoice_types")
             .then(r => r.json())
             .then(data => {
@@ -110,6 +117,9 @@ export function useSalesOrder() {
         if (account) {
             setPriceType(account.price_type || "A");
             setPriceTypeId(account.price_type_id || null);
+            if (account.branch_code) {
+                setSelectedBranchId(account.branch_code.toString());
+            }
         }
 
         if (id) {
@@ -128,7 +138,10 @@ export function useSalesOrder() {
     const handleCustomerChange = (id: string) => {
         setSelectedCustomerId(id);
         const customer = customers.find(c => c.id.toString() === id);
-        if (customer?.price_type) setPriceType(customer.price_type);
+        if (customer) {
+            if (customer.price_type) setPriceType(customer.price_type);
+            if (customer.price_type_id) setPriceTypeId(Number(customer.price_type_id));
+        }
     };
 
     const handleSupplierChange = (id: string) => {
@@ -148,30 +161,14 @@ export function useSalesOrder() {
             if (customerCode) {
                 setLoadingProducts(true);
 
-                // Concurrent fetch for products and inventory
-                Promise.all([
-                    salesOrderProvider.searchProducts("", customerCode, Number(supplierId), priceType, Number(customerId), priceTypeId || undefined, sSalesmanId),
-                    salesOrderProvider.getInventory().catch(err => {
-                        console.error("Inventory fetch failed:", err);
-                        return [];
-                    })
-                ]).then(([productsData, inventoryData]) => {
-                    setSupplierProducts(Array.isArray(productsData) ? productsData : []);
-
-                    const invMap: Record<number, number> = {};
-                    if (Array.isArray(inventoryData)) {
-                        inventoryData.forEach(item => {
-                            const pid = Number(item.productId);
-                            const count = Number(item.unitCount) || 0;
-                            invMap[pid] = (invMap[pid] || 0) + count;
-                        });
-                    }
-                    setInventory(invMap);
-                }).finally(() => setLoadingProducts(false));
+                // Concurrent fetch for products
+                salesOrderProvider.searchProducts("", customerCode, Number(supplierId), priceType, Number(customerId), priceTypeId || undefined, sSalesmanId)
+                    .then((productsData) => {
+                        setSupplierProducts(Array.isArray(productsData) ? productsData : []);
+                    }).finally(() => setLoadingProducts(false));
             }
         } else {
             setSupplierProducts([]);
-            setInventory({});
         }
     }, [selectedCustomerId, selectedSupplierId, priceType, priceTypeId, selectedSalesmanId, customers]);
 
@@ -269,11 +266,10 @@ export function useSalesOrder() {
     const isValidAllocation = useMemo(() => {
         return lineItems.every(item => {
             const allocated = allocatedQuantities[item.id] ?? item.quantity;
-            const available = inventory[item.product.product_id] ?? 0;
-            // Valid if non-negative, <= ordered, AND <= available
-            return allocated >= 0 && allocated <= item.quantity && allocated <= available;
+            // Valid if non-negative and <= ordered
+            return allocated >= 0 && allocated <= item.quantity;
         });
-    }, [lineItems, allocatedQuantities, inventory]);
+    }, [lineItems, allocatedQuantities]);
 
     const enterCheckout = () => {
         if (lineItems.length === 0) {
@@ -300,43 +296,9 @@ export function useSalesOrder() {
         // UOM Decomposition Logic:
         // Before entering checkout, we "explode" the existing line items into the 
         // most efficient UOMs (Box, Pack/Tie, Pieces) using sibling product variants.
-        const decomposedLines: LineItem[] = [];
-
-        lineItems.forEach(item => {
-            // Find total count in base pieces
-            const totalPcs = item.quantity * (Number(item.product.unit_of_measurement_count) || 1);
-
-            // decomposeQuantity will return an array of {product, quantity} using siblings with higher UOMs
-            const splits = decomposeQuantity(totalPcs, item.product, supplierProducts);
-
-            splits.forEach(split => {
-                const basePrice = Number(split.product.base_price) || 0;
-                const discounts = split.product.discounts || [];
-                const netUnitPrice = calculateChainNetPrice(basePrice, discounts);
-                const totalAmountLine = basePrice * split.quantity;
-                const netAmountLine = netUnitPrice * split.quantity;
-
-                decomposedLines.push({
-                    id: Math.random().toString(36).substr(2, 9),
-                    product: split.product,
-                    quantity: split.quantity,
-                    uom: split.product.uom || "PCS",
-                    unitPrice: basePrice,
-                    discountType: split.product.discount_level || undefined,
-                    discounts,
-                    netAmount: netAmountLine,
-                    totalAmount: totalAmountLine,
-                    discountAmount: totalAmountLine - netAmountLine
-                });
-            });
-        });
-
-        // Use the newly decomposed lines for the checkout view
-        setLineItems(decomposedLines);
-
         // Initialize allocated quantities with total fulfillment
         const initialAllocated: Record<string, number> = {};
-        decomposedLines.forEach(item => {
+        lineItems.forEach(item => {
             initialAllocated[item.id] = item.quantity;
         });
         setAllocatedQuantities(initialAllocated);
@@ -348,7 +310,7 @@ export function useSalesOrder() {
     };
 
     const handleSubmitOrder = useCallback(async () => {
-        if (!selectedAccountId || !selectedCustomerId || !selectedSupplierId || !selectedReceiptTypeId) {
+        if (!selectedAccountId || !selectedCustomerId || !selectedSupplierId || !selectedReceiptTypeId || !selectedBranchId) {
             toast.error("Please complete all header selections");
             return;
         }
@@ -369,6 +331,8 @@ export function useSalesOrder() {
                 customer_code: selectedCustomer?.customer_code,
                 salesman_id: Number(selectedAccountId),
                 supplier_id: Number(selectedSupplierId),
+                branch_id: Number(selectedBranchId),
+                price_type_id: priceTypeId ? Number(priceTypeId) : null,
                 receipt_type: Number(selectedReceiptTypeId),
                 sales_type: Number(selectedSalesTypeId),
                 po_no: poNo,
@@ -408,6 +372,7 @@ export function useSalesOrder() {
                 setSelectedCustomerId("");
                 setSelectedSupplierId("");
                 setSelectedReceiptTypeId("");
+                setSelectedBranchId("");
 
                 // Optional: Force a refresh of product inventory if needed
                 // But definitely avoid the jarring reload
@@ -420,21 +385,21 @@ export function useSalesOrder() {
         } finally {
             setSubmitting(false);
         }
-    }, [selectedAccountId, selectedCustomerId, selectedSupplierId, selectedReceiptTypeId, lineItems, selectedCustomer, selectedSalesTypeId, poNo, dueDate, deliveryDate, summary, orderNo, orderRemarks, allocatedQuantities, isValidAllocation]);
+    }, [selectedAccountId, selectedCustomerId, selectedSupplierId, selectedReceiptTypeId, selectedBranchId, priceTypeId, lineItems, selectedCustomer, selectedSalesTypeId, poNo, dueDate, deliveryDate, summary, orderNo, orderRemarks, allocatedQuantities, isValidAllocation]);
 
     return {
         salesmen, selectedSalesmanId, handleSalesmanChange, selectedSalesman,
         accounts, selectedAccountId, handleAccountChange, selectedAccount, loadingAccounts,
         customers, selectedCustomerId, handleCustomerChange, selectedCustomer, loadingCustomers,
         suppliers, selectedSupplierId, handleSupplierChange, selectedSupplier, loadingSuppliers,
+        branches, selectedBranchId, setSelectedBranchId, selectedBranch,
         receiptTypes, selectedReceiptTypeId, setSelectedReceiptTypeId, selectedReceiptType,
         salesTypes, selectedSalesTypeId, setSelectedSalesTypeId, selectedSalesType,
         dueDate, setDueDate,
         deliveryDate, setDeliveryDate,
         poNo, setPoNo,
-        priceType,
+        priceType, priceTypeId, priceTypeModels,
         supplierProducts, loadingProducts,
-        inventory, // Add inventory to the returned object
         lineItems,
         addProduct, removeLineItem, updateLineItemQty,
         summary, isValidAllocation,

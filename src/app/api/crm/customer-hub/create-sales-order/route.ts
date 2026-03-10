@@ -34,7 +34,7 @@ export const dynamic = "force-dynamic";
 
 const DIRECTUS_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
 const DIRECTUS_TOKEN = process.env.DIRECTUS_STATIC_TOKEN;
-const SPRING_API_BASE_URL = process.env.SPRING_API_BASE_URL;
+// const SPRING_API_BASE_URL = process.env.SPRING_API_BASE_URL; // Reserved for future use
 
 const fetchHeaders = {
     Authorization: `Bearer ${DIRECTUS_TOKEN}`,
@@ -88,8 +88,18 @@ export async function GET(req: NextRequest) {
 
         if (action === "accounts") {
             const userId = req.nextUrl.searchParams.get("user_id");
-            const url = `${DIRECTUS_URL}/items/salesman?filter[_or][0][employee_id][_eq]=${userId}&filter[_or][1][encoder_id][_eq]=${userId}&filter[isActive][_eq]=1&fields=id,salesman_name,salesman_code,price_type,price_type_id,truck_plate&limit=-1`;
+            const url = `${DIRECTUS_URL}/items/salesman?filter[_or][0][employee_id][_eq]=${userId}&filter[_or][1][encoder_id][_eq]=${userId}&filter[isActive][_eq]=1&fields=id,salesman_name,salesman_code,price_type,price_type_id,truck_plate,branch_code&limit=-1`;
             const res = await fetch(url, { headers: fetchHeaders });
+            return NextResponse.json((await res.json()).data || []);
+        }
+
+        if (action === "branches") {
+            const res = await fetch(`${DIRECTUS_URL}/items/branches?filter[isActive][_eq]=1&limit=-1`, { headers: fetchHeaders });
+            return NextResponse.json((await res.json()).data || []);
+        }
+
+        if (action === "price_types") {
+            const res = await fetch(`${DIRECTUS_URL}/items/price_types?sort=sort&limit=-1`, { headers: fetchHeaders });
             return NextResponse.json((await res.json()).data || []);
         }
 
@@ -212,7 +222,7 @@ export async function GET(req: NextRequest) {
 
                 const priceOverrides: Record<number, number> = {};
                 if (priceTypeId) {
-                    const poRes = await fetch(`${DIRECTUS_URL}/items/product_per_price_type?filter[price_type_id][_eq]=${priceTypeId}&limit=-1`, { headers: fetchHeaders });
+                    const poRes = await fetch(`${DIRECTUS_URL}/items/product_per_price_type?filter[price_type_id][_eq]=${priceTypeId}&filter[status][_eq]=published&limit=-1`, { headers: fetchHeaders });
                     const poData: { product_id: number | string; price: number | string }[] = (await poRes.json()).data || [];
                     poData.forEach((po: { product_id: number | string; price: number | string }) => {
                         priceOverrides[Number(po.product_id)] = Number(po.price);
@@ -316,49 +326,7 @@ export async function GET(req: NextRequest) {
             }
         }
 
-        if (action === "inventory") {
-            const cookieStore = await cookies();
-            const token = cookieStore.get(COOKIE_NAME)?.value;
 
-            if (!token) {
-                return NextResponse.json(
-                    { ok: false, message: "Unauthorized: Missing access token" },
-                    { status: 401 },
-                );
-            }
-
-            const { searchParams } = new URL(req.url);
-            const targetUrl = new URL(
-                `${SPRING_API_BASE_URL?.replace(/\/$/, "")}/api/view-running-inventory-by-unit/all`,
-            );
-
-            searchParams.forEach((value, key) => {
-                if (key !== "action") targetUrl.searchParams.append(key, value);
-            });
-
-            try {
-                const springRes = await fetch(targetUrl.toString(), {
-                    method: "GET",
-                    headers: {
-                        "Content-Type": "application/json",
-                        Authorization: `Bearer ${token}`,
-                    },
-                    cache: "no-store",
-                });
-
-                if (!springRes.ok) {
-                    console.error("[INVENTORY-API] Upstream error:", springRes.status, springRes.statusText);
-                    return NextResponse.json({ ok: false, status: springRes.status }, { status: springRes.status });
-                }
-
-                const data = await springRes.json();
-                return NextResponse.json(data);
-            } catch (err: unknown) {
-                const error = err as Error;
-                console.error("[INVENTORY-API] Request failed:", error.message);
-                return NextResponse.json({ ok: false, error: "Gateway Error" }, { status: 502 });
-            }
-        }
 
         return NextResponse.json({ error: "Invalid action" }, { status: 400 });
     } catch (e: unknown) {
@@ -404,8 +372,8 @@ export async function POST(req: NextRequest) {
             console.error("Failed to resolve created_by from JWT:", e);
         }
 
-        let branchId = null;
-        if (header.salesman_id) {
+        let branchId = header.branch_id || null;
+        if (!branchId && header.salesman_id) {
             const smRes = await fetch(`${DIRECTUS_URL}/items/salesman/${header.salesman_id}?fields=branch_code,branch_id`, { headers: fetchHeaders });
             if (smRes.ok) {
                 const smData = (await smRes.json()).data;
@@ -464,6 +432,7 @@ export async function POST(req: NextRequest) {
             salesman_id: header.salesman_id,
             supplier_id: header.supplier_id,
             branch_id: branchId,
+            price_type_id: header.price_type_id || null,
             receipt_type: header.receipt_type,
             sales_type: header.sales_type || 1,
             order_date: now.toISOString().split('T')[0],

@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect, useRef, useMemo } from "react";
+
 import {
     Table,
     TableBody,
@@ -11,7 +13,7 @@ import {
 import { SalesOrder, Customer, Salesman, Branch, Supplier } from "../types";
 
 import { Button } from "@/components/ui/button";
-import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react";
+import { Trash2, Loader2 } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 
 import { Skeleton } from "@/components/ui/skeleton";
@@ -22,10 +24,10 @@ interface SalesOrderTableProps {
     salesmen: Salesman[];
     branches: Branch[];
     suppliers: Supplier[];
-    currentPage: number;
     totalOrders: number;
     pageSize: number;
-    onPageChange: (page: number) => void;
+    onLoadMore: () => void;
+    onDelete?: (order: SalesOrder) => void;
     isLoading?: boolean;
     hasActiveDate?: boolean;
     selectedOrderId?: string | number;
@@ -38,16 +40,51 @@ export function SalesOrderTable({
     salesmen,
     branches,
     suppliers,
-    currentPage,
     totalOrders,
     pageSize,
-    onPageChange,
+    onLoadMore,
+    onDelete,
     isLoading = false,
     hasActiveDate = false,
     selectedOrderId,
     onRowClick
 }: SalesOrderTableProps) {
-    const totalPages = Math.ceil(totalOrders / pageSize);
+    const observerTarget = useRef<HTMLDivElement>(null);
+
+    // Highly optimize Lookups to avoid O(N*M) lagging on scroll!
+    const customerMap = useMemo(() => new Map(customers.map(c => [c.customer_code, c.store_name])), [customers]);
+    const salesmanMap = useMemo(() => new Map(salesmen.map(s => [s.id, s.salesman_name])), [salesmen]);
+    const branchMap = useMemo(() => new Map(branches.map(b => [b.id, b.branch_name])), [branches]);
+    const supplierMap = useMemo(() => new Map(suppliers.map(s => [s.id, s.supplier_shortcut])), [suppliers]);
+
+    // Use refs so the observer callback always sees fresh values without re-creating
+    const isLoadingRef = useRef(isLoading);
+    const hasMoreRef = useRef(orders.length < totalOrders);
+    const onLoadMoreRef = useRef(onLoadMore);
+
+    // Keep refs in sync (must be inside useEffect to avoid "Cannot access refs during render")
+    useEffect(() => {
+        isLoadingRef.current = isLoading;
+        hasMoreRef.current = orders.length < totalOrders;
+        onLoadMoreRef.current = onLoadMore;
+    });
+
+    useEffect(() => {
+        const target = observerTarget.current;
+        if (!target) return;
+
+        const observer = new IntersectionObserver(
+            (entries) => {
+                if (entries[0].isIntersecting && !isLoadingRef.current && hasMoreRef.current) {
+                    onLoadMoreRef.current();
+                }
+            },
+            { threshold: 0.1, rootMargin: "0px 0px 400px 0px" }
+        );
+
+        observer.observe(target);
+        return () => observer.disconnect();
+    }, []); // Empty deps — observer is created ONCE, refs handle the rest
 
     return (
         <div className="space-y-4">
@@ -66,7 +103,8 @@ export function SalesOrderTable({
                             <TableHead rowSpan={2} className="align-middle text-right border-r text-[10px] font-bold uppercase py-1 px-2">Discount</TableHead>
                             <TableHead rowSpan={2} className="align-middle text-right border-r text-[10px] font-bold uppercase py-1 px-2">Net Amt</TableHead>
                             <TableHead rowSpan={2} className="align-middle text-right border-r text-[10px] font-bold uppercase py-1 px-2">Alloc Amt</TableHead>
-                            <TableHead rowSpan={2} className="align-middle text-[10px] font-bold uppercase py-1 px-2">Status</TableHead>
+                            <TableHead rowSpan={2} className="align-middle border-r text-[10px] font-bold uppercase py-1 px-2">Status</TableHead>
+                            <TableHead rowSpan={2} className="align-middle text-center text-[10px] font-bold uppercase py-1 px-2">Actions</TableHead>
                         </TableRow>
                         <TableRow className="bg-muted/50 h-8">
                             <TableHead className="border-r text-[9px] font-bold py-1 px-2">SO NO</TableHead>
@@ -89,12 +127,13 @@ export function SalesOrderTable({
                                     <TableCell className="border-r"><Skeleton className="h-4 w-24" /></TableCell>
                                     <TableCell className="text-right border-r"><Skeleton className="h-4 w-20 ml-auto" /></TableCell>
                                     <TableCell className="text-right border-r"><Skeleton className="h-4 w-20 ml-auto" /></TableCell>
-                                    <TableCell><Skeleton className="h-6 w-20 rounded-full" /></TableCell>
+                                    <TableCell className="border-r"><Skeleton className="h-6 w-20 rounded-full" /></TableCell>
+                                    <TableCell><Skeleton className="h-4 w-8" /></TableCell>
                                 </TableRow>
                             ))
                         ) : orders.length === 0 ? (
                             <TableRow>
-                                <TableCell colSpan={13} className="h-24 text-center text-muted-foreground">
+                                <TableCell colSpan={14} className="h-24 text-center text-muted-foreground">
                                     {!hasActiveDate
                                         ? "Please select a date filter to view sales orders."
                                         : "No orders found for the selected filters."
@@ -102,9 +141,9 @@ export function SalesOrderTable({
                                 </TableCell>
                             </TableRow>
                         ) : (
-                            orders.map((order) => (
+                            orders.map((order, index) => (
                                 <TableRow
-                                    key={order.order_id}
+                                    key={`${order.order_id}-${index}`}
                                     className={`cursor-pointer transition-colors hover:bg-muted/50 ${selectedOrderId === order.order_id
                                         ? "bg-primary/5 hover:bg-primary/10 border-l-2 border-l-primary"
                                         : ""
@@ -115,16 +154,16 @@ export function SalesOrderTable({
                                     <TableCell className="border-r py-1.5 px-2 text-xs font-medium">{order.order_no || "-"}</TableCell>
                                     <TableCell className="border-r py-1.5 px-2 text-[10px]">{order.po_no || "-"}</TableCell>
                                     <TableCell className="border-r py-1.5 px-2 text-[10px]">
-                                        {suppliers.find(s => s.id === order.supplier_id)?.supplier_shortcut || order.supplier_id || "-"}
+                                        {(order.supplier_id ? supplierMap.get(order.supplier_id) : null) || order.supplier_id || "-"}
                                     </TableCell>
                                     <TableCell className="border-r py-1.5 px-2 text-[10px] leading-tight max-w-[150px] truncate">
-                                        {customers.find(c => c.customer_code === order.customer_code)?.store_name || "-"}
+                                        {(order.customer_code ? customerMap.get(order.customer_code) : null) || "-"}
                                     </TableCell>
                                     <TableCell className="border-r py-1.5 px-2 text-[10px] leading-tight">
-                                        {salesmen.find(s => s.id === order.salesman_id)?.salesman_name || "-"}
+                                        {(order.salesman_id ? salesmanMap.get(order.salesman_id) : null) || "-"}
                                     </TableCell>
                                     <TableCell className="border-r py-1.5 px-2 text-[10px]">
-                                        {branches.find(b => b.id === order.branch_id)?.branch_name || "-"}
+                                        {(order.branch_id ? branchMap.get(order.branch_id) : null) || "-"}
                                     </TableCell>
                                     <TableCell className="border-r py-1.5 px-2 text-[10px]">{order.created_date?.split("T")[0] || "-"}</TableCell>
                                     <TableCell className="text-right border-r py-1.5 px-2 text-[11px] font-mono">
@@ -139,7 +178,7 @@ export function SalesOrderTable({
                                     <TableCell className="text-right border-r py-1.5 px-2 text-[11px] font-mono font-bold text-primary">
                                         {formatCurrency(order.allocated_amount)}
                                     </TableCell>
-                                    <TableCell className="py-1 px-2">
+                                    <TableCell className="border-r py-1 px-2">
                                         <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase ${order.order_status === "For Approval"
                                             ? "bg-yellow-100 text-yellow-800 border border-yellow-200"
                                             : order.order_status === "Posted"
@@ -151,61 +190,73 @@ export function SalesOrderTable({
                                             {order.order_status || "PENDING"}
                                         </span>
                                     </TableCell>
+                                    <TableCell className="py-1 px-2 text-center">
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                onDelete?.(order);
+                                            }}
+                                        >
+                                            <Trash2 className="h-4 w-4" />
+                                        </Button>
+                                    </TableCell>
                                 </TableRow>
                             ))
                         )}
+                        {/* Loading skeleton rows at bottom while fetching more */}
+                        {isLoading && orders.length > 0 &&
+                            Array.from({ length: 5 }).map((_, i) => (
+                                <TableRow key={`loading-${i}`} className="animate-pulse">
+                                    <TableCell className="border-r py-1.5 px-2"><Skeleton className="h-3.5 w-16" /></TableCell>
+                                    <TableCell className="border-r py-1.5 px-2"><Skeleton className="h-3.5 w-24" /></TableCell>
+                                    <TableCell className="border-r py-1.5 px-2"><Skeleton className="h-3.5 w-16" /></TableCell>
+                                    <TableCell className="border-r py-1.5 px-2"><Skeleton className="h-3.5 w-12" /></TableCell>
+                                    <TableCell className="border-r py-1.5 px-2"><Skeleton className="h-3.5 w-28" /></TableCell>
+                                    <TableCell className="border-r py-1.5 px-2"><Skeleton className="h-3.5 w-20" /></TableCell>
+                                    <TableCell className="border-r py-1.5 px-2"><Skeleton className="h-3.5 w-16" /></TableCell>
+                                    <TableCell className="border-r py-1.5 px-2"><Skeleton className="h-3.5 w-16" /></TableCell>
+                                    <TableCell className="border-r py-1.5 px-2"><Skeleton className="h-3.5 w-16" /></TableCell>
+                                    <TableCell className="border-r py-1.5 px-2"><Skeleton className="h-3.5 w-12" /></TableCell>
+                                    <TableCell className="border-r py-1.5 px-2"><Skeleton className="h-3.5 w-16" /></TableCell>
+                                    <TableCell className="border-r py-1.5 px-2"><Skeleton className="h-3.5 w-16" /></TableCell>
+                                    <TableCell className="border-r py-1.5 px-2"><Skeleton className="h-5 w-16 rounded-full" /></TableCell>
+                                    <TableCell className="py-1.5 px-2"><Skeleton className="h-3.5 w-6" /></TableCell>
+                                </TableRow>
+                            ))
+                        }
                     </TableBody>
                 </Table>
             </div>
 
-            {/* Pagination Controls */}
-            <div className="flex items-center justify-between px-2 py-1">
-                <div className="text-sm text-muted-foreground">
-                    Showing {orders.length} of {totalOrders} orders
+            {/* Bottom status area */}
+            <div className="flex flex-col items-center justify-center px-2 py-3 gap-2">
+                <div className="text-xs text-muted-foreground w-full text-center">
+                    Showing {orders.length} {orders.length !== totalOrders ? `of ${totalOrders}` : ""} records
+                    {orders.length < totalOrders && (
+                        <span className="ml-1 opacity-60">• Scroll for more</span>
+                    )}
                 </div>
-                <div className="flex items-center space-x-6 lg:space-x-8">
-                    <div className="flex w-[100px] items-center justify-center text-sm font-medium">
-                        Page {currentPage} of {totalPages || 1}
+                {orders.length < totalOrders && (
+                    <div className="w-full max-w-xs mx-auto">
+                        <div className="h-1 w-full bg-muted rounded-full overflow-hidden">
+                            <div
+                                className="h-full bg-primary/40 rounded-full transition-all duration-500 ease-out"
+                                style={{ width: `${Math.min((orders.length / totalOrders) * 100, 100)}%` }}
+                            />
+                        </div>
                     </div>
-                    <div className="flex items-center space-x-2">
-                        <Button
-                            variant="outline"
-                            className="hidden h-8 w-8 p-0 lg:flex"
-                            onClick={() => onPageChange(1)}
-                            disabled={currentPage === 1}
-                        >
-                            <span className="sr-only">Go to first page</span>
-                            <ChevronsLeft className="h-4 w-4" />
-                        </Button>
-                        <Button
-                            variant="outline"
-                            className="h-8 w-8 p-0"
-                            onClick={() => onPageChange(currentPage - 1)}
-                            disabled={currentPage === 1}
-                        >
-                            <span className="sr-only">Go to previous page</span>
-                            <ChevronLeft className="h-4 w-4" />
-                        </Button>
-                        <Button
-                            variant="outline"
-                            className="h-8 w-8 p-0"
-                            onClick={() => onPageChange(currentPage + 1)}
-                            disabled={currentPage === totalPages || totalPages === 0}
-                        >
-                            <span className="sr-only">Go to next page</span>
-                            <ChevronRight className="h-4 w-4" />
-                        </Button>
-                        <Button
-                            variant="outline"
-                            className="hidden h-8 w-8 p-0 lg:flex"
-                            onClick={() => onPageChange(totalPages)}
-                            disabled={currentPage === totalPages || totalPages === 0}
-                        >
-                            <span className="sr-only">Go to last page</span>
-                            <ChevronsRight className="h-4 w-4" />
-                        </Button>
+                )}
+                {isLoading && orders.length > 0 && (
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                        Loading more orders...
                     </div>
-                </div>
+                )}
+                {/* Invisible sentinel for intersection observer */}
+                <div ref={observerTarget} className="h-1 w-full" />
             </div>
         </div>
     );
