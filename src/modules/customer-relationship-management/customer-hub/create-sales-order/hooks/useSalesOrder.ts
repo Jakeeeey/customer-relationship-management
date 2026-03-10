@@ -5,7 +5,7 @@ import { LineItem, Salesman, Customer, Supplier, Product, ReceiptType, SalesType
 import { salesOrderProvider } from "../providers/fetchProvider";
 import { calculateChainNetPrice } from "../utils/priceCalc";
 import { toast } from "sonner";
-import { decomposeQuantity } from "../utils/uomDecomposer";
+
 
 export function useSalesOrder() {
     // Selection State (IDs for dropdowns)
@@ -385,7 +385,7 @@ export function useSalesOrder() {
         } finally {
             setSubmitting(false);
         }
-    }, [selectedAccountId, selectedCustomerId, selectedSupplierId, selectedReceiptTypeId, lineItems, selectedCustomer, selectedSalesTypeId, poNo, dueDate, deliveryDate, summary, orderNo, orderRemarks, allocatedQuantities, isValidAllocation]);
+    }, [selectedAccountId, selectedCustomerId, selectedSupplierId, selectedReceiptTypeId, selectedBranchId, priceTypeId, lineItems, selectedCustomer, selectedSalesTypeId, poNo, dueDate, deliveryDate, summary, orderNo, orderRemarks, allocatedQuantities, isValidAllocation]);
 
     return {
         salesmen, selectedSalesmanId, handleSalesmanChange, selectedSalesman,

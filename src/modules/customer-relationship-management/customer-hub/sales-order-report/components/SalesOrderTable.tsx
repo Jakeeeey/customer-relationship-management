@@ -62,10 +62,12 @@ export function SalesOrderTable({
     const hasMoreRef = useRef(orders.length < totalOrders);
     const onLoadMoreRef = useRef(onLoadMore);
 
-    // Keep refs in sync
-    isLoadingRef.current = isLoading;
-    hasMoreRef.current = orders.length < totalOrders;
-    onLoadMoreRef.current = onLoadMore;
+    // Keep refs in sync (must be inside useEffect to avoid "Cannot access refs during render")
+    useEffect(() => {
+        isLoadingRef.current = isLoading;
+        hasMoreRef.current = orders.length < totalOrders;
+        onLoadMoreRef.current = onLoadMore;
+    });
 
     useEffect(() => {
         const target = observerTarget.current;

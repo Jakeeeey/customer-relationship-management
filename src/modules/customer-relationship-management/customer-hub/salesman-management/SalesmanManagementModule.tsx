@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { Plus, Users, Search, Truck, CheckCircle2, AlertTriangle, Loader2, ChevronsUpDown, Check, UserPlus, Hash, Building2, MapPin, Settings2 } from "lucide-react";
+import { Plus, Users, Search, Truck, CheckCircle2, AlertTriangle, Loader2, ChevronsUpDown, Check, UserPlus, Hash, Building2, Settings2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
