@@ -58,6 +58,7 @@ interface SalesOrderHeaderProps {
     priceType: string;
     priceTypeId?: number | null;
     priceTypeModels?: PriceTypeModel[];
+    previewOrderNo?: string;
 }
 
 export function SalesOrderHeader({
@@ -71,7 +72,8 @@ export function SalesOrderHeader({
     deliveryDate, onDeliveryDateChange,
     poNo, onPoNoChange,
     branches, selectedBranchId, onBranchChange,
-    priceType, priceTypeId, priceTypeModels
+    priceType, priceTypeId, priceTypeModels,
+    previewOrderNo
 }: SalesOrderHeaderProps) {
     const [openSalesman, setOpenSalesman] = useState(false);
     const [openAccount, setOpenAccount] = useState(false);
@@ -90,8 +92,16 @@ export function SalesOrderHeader({
                             : `TIER ${priceType}`}
                     </Badge>
                 </div>
-                <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest italic opacity-50">
-                    Configuration Phase
+                <div className="flex flex-col items-end gap-1">
+                    <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest italic opacity-50">
+                        Configuration Phase
+                    </div>
+                    {previewOrderNo && (
+                        <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-slate-200/50 border border-slate-300/50">
+                            <span className="text-[9px] font-black text-slate-500 uppercase tracking-tighter">Draft SO#</span>
+                            <span className="text-[10px] font-bold text-slate-900 tracking-tight font-mono">{previewOrderNo}</span>
+                        </div>
+                    )}
                 </div>
             </CardHeader>
             <CardContent className="p-6 grid gap-6 xl:grid-cols-4 lg:grid-cols-4 md:grid-cols-2">

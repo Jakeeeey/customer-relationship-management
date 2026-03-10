@@ -22,7 +22,7 @@ export default function CreateSalesOrderModule() {
         supplierProducts, loadingProducts,
         lineItems, addProduct, removeLineItem, updateLineItemQty,
         summary, isValidAllocation,
-        isCheckout, setIsCheckout, orderNo, enterCheckout, allocatedQuantities, updateAllocatedQty,
+        isCheckout, setIsCheckout, orderNo, previewOrderNo, enterCheckout, allocatedQuantities, updateAllocatedQty,
         orderRemarks, setOrderRemarks,
         handleSubmitOrder, submitting
     } = useSalesOrder();
@@ -125,6 +125,7 @@ export default function CreateSalesOrderModule() {
                         priceType={priceType}
                         priceTypeId={priceTypeId}
                         priceTypeModels={priceTypeModels}
+                        previewOrderNo={previewOrderNo}
                     />
 
                     {/* Encoding & Cart Section */}

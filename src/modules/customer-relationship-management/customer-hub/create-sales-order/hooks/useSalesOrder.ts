@@ -64,6 +64,17 @@ export function useSalesOrder() {
     const selectedSalesType = useMemo(() => salesTypes.find(st => st.id.toString() === selectedSalesTypeId), [salesTypes, selectedSalesTypeId]);
     const selectedBranch = useMemo(() => branches.find(b => b.id.toString() === selectedBranchId), [branches, selectedBranchId]);
 
+    // Auto-generate preview SO# (Not the final one yet - that's set on enterCheckout)
+    const previewOrderNo = useMemo(() => {
+        if (!selectedSupplierId) return "DRAFT-SO";
+        const prefix = selectedSupplier?.supplier_shortcut || "SO";
+        // We use a fixed string "PENDING" or similar for the timestamp part to avoid constant churn in encoding view
+        // OR just show SO-YYYYMMDD part
+        const now = new Date();
+        const datePart = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`;
+        return `${prefix}-${datePart}XXXXX`;
+    }, [selectedSupplier, selectedSupplierId]);
+
     // Initial Data Fetch
     useEffect(() => {
         salesOrderProvider.getSalesmen().then(setSalesmen);
@@ -290,7 +301,8 @@ export function useSalesOrder() {
         }
 
         const now = new Date();
-        const generatedNo = `SO-${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}${String(now.getSeconds()).padStart(2, '0')}`;
+        const prefix = selectedSupplier?.supplier_shortcut || "SO";
+        const generatedNo = `${prefix}-${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}${String(now.getSeconds()).padStart(2, '0')}`;
         setOrderNo(generatedNo);
 
         // UOM Decomposition Logic:
@@ -403,7 +415,7 @@ export function useSalesOrder() {
         lineItems,
         addProduct, removeLineItem, updateLineItemQty,
         summary, isValidAllocation,
-        isCheckout, setIsCheckout, orderNo, enterCheckout, allocatedQuantities, updateAllocatedQty,
+        isCheckout, setIsCheckout, orderNo, previewOrderNo, enterCheckout, allocatedQuantities, updateAllocatedQty,
         orderRemarks, setOrderRemarks,
         handleSubmitOrder, submitting
     };

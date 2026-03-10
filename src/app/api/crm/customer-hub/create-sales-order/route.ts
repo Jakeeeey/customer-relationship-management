@@ -340,7 +340,26 @@ export async function POST(req: NextRequest) {
         const body = await req.json();
         const { header, items } = body;
         const now = new Date();
-        const orderNo = header.order_no || `SO-${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}${String(now.getSeconds()).padStart(2, '0')}`;
+
+        // Enhance fallback generation if order_no is missing
+        let orderNo = header.order_no;
+        if (!orderNo) {
+            let prefix = "SO";
+            if (header.supplier_id) {
+                try {
+                    const supRes = await fetch(`${DIRECTUS_URL}/items/suppliers/${header.supplier_id}?fields=supplier_shortcut`, { headers: fetchHeaders });
+                    if (supRes.ok) {
+                        const supData = (await supRes.json()).data;
+                        if (supData?.supplier_shortcut) {
+                            prefix = supData.supplier_shortcut;
+                        }
+                    }
+                } catch (e) {
+                    console.error("Failed to fetch supplier shortcut for fallback order_no:", e);
+                }
+            }
+            orderNo = `${prefix}-${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}${String(now.getSeconds()).padStart(2, '0')}`;
+        }
 
         let createdBy: number | null = null;
         try {
