@@ -261,6 +261,9 @@ export function useSalesOrder() {
 
         const allocatedDiscount = allocatedGross - allocatedNet;
 
+        const vattableSales = allocatedNet / 1.12;
+        const vatAmount = allocatedNet - vattableSales;
+
         return {
             totalAmount: orderedNet, // Ito ang ipapasa sa total_amount sa API (Ordered Net)
             netAmount: orderedNet,
@@ -270,7 +273,9 @@ export function useSalesOrder() {
             allocatedNet,
             allocatedDiscount,
             allocatedAmount: allocatedNet,
-            discountAmount: allocatedDiscount // Ito ang ipapasa sa discount_amount sa API (Allocated Discount)
+            discountAmount: allocatedDiscount, // Ito ang ipapasa sa discount_amount sa API (Allocated Discount)
+            vattableSales,
+            vatAmount
         };
     }, [lineItems, allocatedQuantities]);
 

@@ -80,6 +80,18 @@ export function SalesOrderEncoding({
                                                     {p.display_name}
                                                 </span>
 
+                                                <div className="flex flex-wrap gap-1 mt-1">
+                                                    {p.brand_name && (
+                                                        <Badge variant="secondary" className="text-[8px] font-black uppercase px-1 py-0 h-3.5 bg-blue-50 text-blue-600 border-blue-100">
+                                                            {p.brand_name}
+                                                        </Badge>
+                                                    )}
+                                                    {p.category_name && (
+                                                        <Badge variant="secondary" className="text-[8px] font-black uppercase px-1 py-0 h-3.5 bg-slate-100 text-slate-500 border-slate-200">
+                                                            {p.category_name}
+                                                        </Badge>
+                                                    )}
+                                                </div>
 
                                                 <div className="flex items-center justify-between mt-2">
                                                     <div className="flex flex-col">
@@ -99,9 +111,12 @@ export function SalesOrderEncoding({
                                                     </div>
                                                     <div className="flex gap-1 items-center">
                                                         <div className="flex gap-1">
-                                                            {(p.discounts || []).map((d: number, i: number) => (
-                                                                <span key={i} className="text-[10px] font-bold px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded border border-amber-200">-{d}%</span>
-                                                            ))}
+                                                            {p.discount_level && (
+                                                                <span className="text-[10px] font-black px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded border border-amber-200 uppercase tracking-tighter shadow-sm">
+                                                                    {p.discount_level}
+                                                                </span>
+                                                            )}
+                                                            {!p.discount_level && <span className="text-[10px] text-slate-300 italic">No Discount</span>}
                                                         </div>
                                                         <div className="flex items-center gap-1.5 ml-auto">
                                                         </div>
@@ -146,7 +161,7 @@ export function SalesOrderEncoding({
                                         <TableHead className="text-center text-[10px] font-black uppercase w-[100px] bg-muted/50">Qty</TableHead>
                                         <TableHead className="text-right text-[10px] font-black uppercase bg-muted/50">Unit Price</TableHead>
                                         <TableHead className="text-center text-[10px] font-black uppercase bg-muted/50">Discounts</TableHead>
-                                        <TableHead className="text-right text-[10px] font-black uppercase bg-muted/50">Net Total</TableHead>
+                                        <TableHead className="text-right text-[10px] font-black uppercase bg-muted/50">Total</TableHead>
                                         <TableHead className="w-[50px] bg-muted/50"></TableHead>
                                     </TableRow>
                                 </TableHeader>
@@ -156,7 +171,19 @@ export function SalesOrderEncoding({
                                             <TableCell>
                                                 <div className="flex flex-col">
                                                     <span className="font-bold text-[11px] leading-tight text-slate-900">{item.product.display_name}</span>
-                                                    <span className="text-[9px] text-primary/70 uppercase font-black tracking-tighter">{item.discountType}</span>
+                                                    <div className="flex flex-wrap gap-1 mt-0.5">
+                                                        {item.product.brand_name && (
+                                                            <Badge variant="secondary" className="text-[7px] font-black uppercase px-1 py-0 h-3 bg-blue-50 text-blue-600 border-blue-100">
+                                                                {item.product.brand_name}
+                                                            </Badge>
+                                                        )}
+                                                        {item.product.category_name && (
+                                                            <Badge variant="secondary" className="text-[7px] font-black uppercase px-1 py-0 h-3 bg-slate-100 text-slate-500 border-slate-200">
+                                                                {item.product.category_name}
+                                                            </Badge>
+                                                        )}
+                                                    </div>
+                                                    <span className="text-[9px] text-primary/70 uppercase font-black tracking-tighter mt-1">{item.discountType}</span>
                                                 </div>
                                             </TableCell>
 
@@ -176,12 +203,12 @@ export function SalesOrderEncoding({
                                             <TableCell className="text-right text-[11px] font-medium text-slate-500 tabular-nums">{formatCurrency(item.unitPrice)}</TableCell>
                                             <TableCell className="text-center">
                                                 <div className="flex flex-wrap justify-center gap-1">
-                                                    {item.discounts.map((d, i) => (
-                                                        <Badge key={i} className="text-[9px] px-1 bg-emerald-50 text-emerald-700 border-emerald-100 font-bold">
-                                                            -{d}%
+                                                    {item.discountType && (
+                                                        <Badge className="text-[9px] px-1.5 py-0.5 bg-emerald-50 text-emerald-700 border-emerald-100 font-black uppercase tracking-tighter">
+                                                            {item.discountType}
                                                         </Badge>
-                                                    ))}
-                                                    {item.discounts.length === 0 && <span className="text-[10px] text-slate-300 italic">None</span>}
+                                                    )}
+                                                    {!item.discountType && <span className="text-[10px] text-slate-300 italic">None</span>}
                                                 </div>
                                             </TableCell>
                                             <TableCell className="text-right font-black text-sm text-primary tabular-nums whitespace-nowrap">{formatCurrency(item.netAmount)}</TableCell>
@@ -215,7 +242,7 @@ export function SalesOrderEncoding({
                             <span className="font-bold text-lg text-amber-600">-{formatCurrency(summary.discountAmount)}</span>
                         </div>
                         <div className="flex flex-col bg-primary/10 p-3 rounded-lg border border-primary/30">
-                            <span className="text-[10px] font-black uppercase text-primary">Payable Amount</span>
+                            <span className="text-[10px] font-black uppercase text-primary">Net Amount</span>
                             <span className="text-2xl font-black text-primary">{formatCurrency(summary.netAmount)}</span>
                         </div>
                         <Button

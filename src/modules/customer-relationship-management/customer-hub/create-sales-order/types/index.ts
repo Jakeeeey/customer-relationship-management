@@ -43,7 +43,9 @@ export interface Product {
     discount_level?: string;
     discounts: number[];
     category_id?: number;
+    category_name?: string | null;
     brand_id?: number;
+    brand_name?: string | null;
     pieces_per_box?: number;
     uom?: string;
     parent_id?: number | null;

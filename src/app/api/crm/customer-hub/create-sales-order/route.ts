@@ -173,7 +173,7 @@ export async function GET(req: NextRequest) {
 
                 if (linkedProductIds.length === 0) return NextResponse.json([]);
 
-                const initialProducts = await fetchInChunks<ProductItem>(`${DIRECTUS_URL}/items/products?filter[isActive][_eq]=1&fields=*,unit_of_measurement.unit_name`, linkedProductIds, "product_id");
+                const initialProducts = await fetchInChunks<ProductItem>(`${DIRECTUS_URL}/items/products?filter[isActive][_eq]=1&fields=*,unit_of_measurement.unit_name,product_category.category_name,product_brand.brand_name`, linkedProductIds, "product_id");
 
                 // Collect all involved parents
                 const directParentIds = initialProducts.map(p => p.parent_id).filter((id): id is number => !!id);
@@ -183,11 +183,11 @@ export async function GET(req: NextRequest) {
 
                 // Fetch all members of these product families to get sibling UOMs
                 const familyMembers = allFamilyAnchorIds.length > 0
-                    ? await fetchInChunks<ProductItem>(`${DIRECTUS_URL}/items/products?filter[isActive][_eq]=1&fields=*,unit_of_measurement.unit_name`, allFamilyAnchorIds, "parent_id")
+                    ? await fetchInChunks<ProductItem>(`${DIRECTUS_URL}/items/products?filter[isActive][_eq]=1&fields=*,unit_of_measurement.unit_name,product_category.category_name,product_brand.brand_name`, allFamilyAnchorIds, "parent_id")
                     : [];
 
                 const anchors = allFamilyAnchorIds.length > 0
-                    ? await fetchInChunks<ProductItem>(`${DIRECTUS_URL}/items/products?filter[isActive][_eq]=1&fields=*,unit_of_measurement.unit_name`, allFamilyAnchorIds, "product_id")
+                    ? await fetchInChunks<ProductItem>(`${DIRECTUS_URL}/items/products?filter[isActive][_eq]=1&fields=*,unit_of_measurement.unit_name,product_category.category_name,product_brand.brand_name`, allFamilyAnchorIds, "product_id")
                     : [];
 
                 const unitsRes = await fetch(`${DIRECTUS_URL}/items/units?limit=-1`, { headers: fetchHeaders });
@@ -315,7 +315,9 @@ export async function GET(req: NextRequest) {
                         base_price: price,
                         discount_level: displayLevel,
                         discount_type: winId,
-                        discounts: winId ? (discountMap[winId] || []) : []
+                        discounts: winId ? (discountMap[winId] || []) : [],
+                        category_name: (p.product_category as any)?.category_name || null,
+                        brand_name: (p.product_brand as any)?.brand_name || null
                     };
                 });
 
