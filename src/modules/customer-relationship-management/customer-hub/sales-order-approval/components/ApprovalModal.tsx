@@ -28,7 +28,10 @@ import type { SalesOrder, OrderDetail } from "../hooks/useSalesOrderApproval";
 import { getPaymentSummary, getOrderDetails, getInvoiceDetails } from "../providers/fetchProvider";
 <<<<<<< Updated upstream
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
 =======
+=======
+>>>>>>> Stashed changes
 =======
 >>>>>>> Stashed changes
 
@@ -407,6 +410,7 @@ export function ApprovalModal({
 
 <<<<<<< Updated upstream
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
                                 {isActionable && (
                                     <>
                                         <Button
@@ -491,6 +495,32 @@ export function ApprovalModal({
                                 )}
 
 >>>>>>> Stashed changes
+=======
+                                {(isActionable || order.order_status === "For Approval") && (
+                                    <Button
+                                        variant="destructive"
+                                        className="font-black px-6 gap-2 h-11"
+                                        disabled={isSubmitting}
+                                        onClick={() => handleSaveAndAction("cancel")}
+                                    >
+                                        <Trash2 className="h-4 w-4" />
+                                        Cancel Order
+                                    </Button>
+                                )}
+
+                                {canHold && (
+                                    <Button
+                                        variant="secondary"
+                                        className="font-black px-6 gap-2 h-11 bg-slate-200 hover:bg-slate-300 text-slate-800 border border-slate-300"
+                                        disabled={isSubmitting}
+                                        onClick={() => handleSaveAndAction("hold")}
+                                    >
+                                        <AlertCircle className="h-4 w-4" />
+                                        On Hold
+                                    </Button>
+                                )}
+
+>>>>>>> Stashed changes
                                 {isActionable && (
                                     <Button
                                         className="font-black px-8 gap-2 bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg h-11"
@@ -501,6 +531,9 @@ export function ApprovalModal({
                                         Approve Order
                                     </Button>
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
+>>>>>>> Stashed changes
+=======
 >>>>>>> Stashed changes
 =======
 >>>>>>> Stashed changes

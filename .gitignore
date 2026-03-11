@@ -43,3 +43,5 @@ next-env.d.ts
 # agent workflow
 /.agent
 # assets/audio/*.mp3
+src/modules/customer-relationship-management/customer-hub/sales-order-approval/components/ApprovalModal.tsx
+src/app/api/crm/customer-hub/sales-order-approval/route.ts

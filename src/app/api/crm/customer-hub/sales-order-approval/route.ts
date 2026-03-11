@@ -241,9 +241,12 @@ export async function GET(req: NextRequest) {
 
 <<<<<<< Updated upstream
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
             // 2. Fetch Invoice Details using the numeric invoice_id as the FK (invoice_no field in schema)
             const detUrl = `${DIRECTUS_URL}/items/sales_invoice_details?filter[invoice_no][_eq]=${invoice.invoice_id}&fields=*&limit=-1`;
 =======
+=======
+>>>>>>> Stashed changes
 =======
 >>>>>>> Stashed changes
             // 2. Fetch Invoice Details
@@ -256,6 +259,9 @@ export async function GET(req: NextRequest) {
             };
             const detUrl = `${DIRECTUS_URL}/items/sales_invoice_details?filter=${encodeURIComponent(JSON.stringify(detFilter))}&fields=*&limit=-1`;
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
+>>>>>>> Stashed changes
+=======
 >>>>>>> Stashed changes
 =======
 >>>>>>> Stashed changes
