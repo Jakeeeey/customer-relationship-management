@@ -184,7 +184,7 @@ export function useSalesOrder() {
         } else {
             setSupplierProducts([]);
         }
-    }, [selectedCustomerId, selectedSupplierId, priceType, priceTypeId, selectedSalesmanId, customers]);
+    }, [selectedCustomerId, selectedSupplierId, priceType, priceTypeId, selectedAccountId, selectedBranchId, customers]);
 
     // Line Item Logic
     const addProduct = (product: Product, quantity: number, uom: string) => {

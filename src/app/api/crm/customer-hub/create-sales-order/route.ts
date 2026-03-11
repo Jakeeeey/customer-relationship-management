@@ -187,7 +187,7 @@ export async function GET(req: NextRequest) {
 
                 if (salesmanId || queryBranchId) {
                     try {
-                        let branchId: any = queryBranchId;
+                        let branchId: string | number | null = queryBranchId;
 
                         // If no branchId was passed but we have salesmanId, try to look it up (fallback)
                         if (!branchId && salesmanId) {
@@ -199,7 +199,8 @@ export async function GET(req: NextRequest) {
                                 if (smData) {
                                     branchId = smData.branch_code || smData.branch_id;
                                     if (branchId && typeof branchId === 'object') {
-                                        branchId = branchId.id || branchId.branch_code || branchId.branch_id;
+                                        const obj = branchId as { id?: number | string; branch_code?: number | string; branch_id?: number | string };
+                                        branchId = obj.id || obj.branch_code || obj.branch_id || null;
                                     }
                                 }
                             }
@@ -229,7 +230,7 @@ export async function GET(req: NextRequest) {
                                     }
 
                                     // filter STRICTLY by the salesman's branch
-                                    invData.forEach((item: any) => {
+                                    invData.forEach((item: { branchId?: number | string; branch_id?: number | string; productId?: number | string; product_id?: number | string; runningInventoryUnit?: number | string; running_inventory_unit?: number | string; unitCount?: number | string; unit_count?: number | string }) => {
                                         // The Spring Boot API uses camelCase (productId, branchId, runningInventoryUnit, unitCount)
                                         const itemBranchId = item.branchId || item.branch_id;
                                         if (itemBranchId && Number(itemBranchId) === Number(branchId)) {
