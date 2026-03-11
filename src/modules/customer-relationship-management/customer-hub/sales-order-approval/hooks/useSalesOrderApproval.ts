@@ -1,6 +1,16 @@
 import { useState, useEffect } from "react";
-import { getPendingOrders, approveOrders } from "../providers/fetchProvider";
+import { getPendingOrders, updateOrders, updateOrderDetails } from "../providers/fetchProvider";
 import { toast } from "sonner";
+
+export interface OrderDetail {
+    order_detail_id: number;
+    product_id: any;
+    unit_price: number;
+    ordered_quantity: number;
+    allocated_quantity: number;
+    discount_amount: number;
+    net_amount: number;
+}
 
 export interface SalesOrder {
     order_id: number;
@@ -11,19 +21,14 @@ export interface SalesOrder {
     salesman_id: string;
     order_date: string;
     total_amount: number;
+    allocated_amount?: number;
+    discount_amount?: number;
     net_amount: number;
     order_status: string;
 }
 
-export interface CustomerGroup {
-    customer_code: string;
-    customer_name: string;
-    orders: SalesOrder[];
-    total_net_amount: number;
-}
-
 export function useSalesOrderApproval() {
-    const [groupedCustomers, setGroupedCustomers] = useState<CustomerGroup[]>([]);
+    const [orders, setOrders] = useState<SalesOrder[]>([]);
     const [loadingOrders, setLoadingOrders] = useState(false);
     const [loadingMore, setLoadingMore] = useState(false);
     const [page, setPage] = useState(1);
@@ -48,9 +53,9 @@ export function useSalesOrderApproval() {
             const result = await getPendingOrders(currentStatus, currentSearch, fetchPage, 30, currentStart, currentEnd);
 
             if (isLoadMore) {
-                setGroupedCustomers(prev => [...prev, ...result.data]);
+                setOrders(prev => [...prev, ...result.data]);
             } else {
-                setGroupedCustomers(result.data);
+                setOrders(result.data);
             }
 
             setPage(result.metadata.page);
@@ -75,19 +80,44 @@ export function useSalesOrderApproval() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [statusFilter, searchTerm, startDate, endDate]);
 
-    const handleApproveBulk = async (orderIds: (string | number)[]) => {
+    const handleApprove = async (orderIds: (string | number)[]) => {
         try {
-            await approveOrders(orderIds);
-            toast.success("Orders Approved", {
-                description: `Successfully moved ${orderIds.length} order(s) to For Consolidation.`,
-            });
-            // Refresh from page 1
-            fetchOrders(false, searchTerm, statusFilter, 1, startDate, endDate);
+            await updateOrders(orderIds, "approve");
+            toast.success("Orders Approved");
+            refreshOrders();
             return true;
         } catch {
-            toast.error("Error", {
-                description: "Failed to approve the orders. Please try again.",
-            });
+            return false;
+        }
+    };
+
+    const handleHold = async (orderIds: (string | number)[]) => {
+        try {
+            await updateOrders(orderIds, "hold");
+            toast.success("Orders Put on Hold");
+            refreshOrders();
+            return true;
+        } catch {
+            return false;
+        }
+    };
+
+    const handleCancel = async (orderIds: (string | number)[]) => {
+        try {
+            await updateOrders(orderIds, "cancel");
+            toast.success("Orders Cancelled");
+            refreshOrders();
+            return true;
+        } catch {
+            return false;
+        }
+    };
+
+    const handleSaveDetails = async (orderId: number, header: any, items: any[]) => {
+        try {
+            await updateOrderDetails(orderId, header, items);
+            return true;
+        } catch {
             return false;
         }
     };
@@ -101,9 +131,7 @@ export function useSalesOrderApproval() {
     const refreshOrders = () => fetchOrders(false, searchTerm, statusFilter, 1, startDate, endDate);
 
     return {
-        // We no longer strictly need the flat orders list, but if UI expects it we could flatten it.
-        // For now, the hook only returns groupedCustomers.
-        groupedCustomers,
+        orders,
         loadingOrders,
         loadingMore,
         hasMore,
@@ -116,7 +144,10 @@ export function useSalesOrderApproval() {
         setStartDate,
         endDate,
         setEndDate,
-        handleApproveBulk,
+        handleApprove,
+        handleHold,
+        handleCancel,
+        handleSaveDetails,
         refreshOrders,
     };
 }

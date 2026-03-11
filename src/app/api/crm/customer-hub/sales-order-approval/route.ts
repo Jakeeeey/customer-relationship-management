@@ -219,6 +219,62 @@ export async function GET(req: NextRequest) {
             });
         }
 
+        if (type === "invoice-details") {
+            const orderId = req.nextUrl.searchParams.get("orderId");
+            const orderNo = req.nextUrl.searchParams.get("orderNo");
+            if (!orderId) return NextResponse.json({ error: "orderId required" }, { status: 400 });
+
+            // 1. Fetch Invoice
+            // Check both numeric ID and formatted No as order_id in sales_invoice table
+            let invUrl = `${DIRECTUS_URL}/items/sales_invoice?fields=*&limit=1`;
+            const orFilters = [{ order_id: { _eq: orderId } }];
+            if (orderNo) orFilters.push({ order_id: { _eq: orderNo } });
+            invUrl += `&filter=${encodeURIComponent(JSON.stringify({ _or: orFilters }))}`;
+
+            const invRes = await fetch(invUrl, { headers: fetchHeaders });
+            if (!invRes.ok) return NextResponse.json({ error: "Failed to fetch invoice" }, { status: 500 });
+
+            const invJson = await invRes.json();
+            const invoice = invJson.data?.[0];
+
+            if (!invoice) return NextResponse.json({ data: null, message: "No invoice found" });
+
+            // 2. Fetch Invoice Details using the numeric invoice_id as the FK (invoice_no field in schema)
+            const detUrl = `${DIRECTUS_URL}/items/sales_invoice_details?filter[invoice_no][_eq]=${invoice.invoice_id}&fields=*&limit=-1`;
+            const detRes = await fetch(detUrl, { headers: fetchHeaders });
+            if (!detRes.ok) return NextResponse.json({ error: "Failed to fetch invoice details" }, { status: 500 });
+
+            const detJson = await detRes.ok ? await detRes.json() : { data: [] };
+            const details = detJson.data || [];
+
+            // 3. Manual Product Join
+            if (details.length > 0) {
+                const productIds = Array.from(new Set(details.map((d: any) => d.product_id))).filter(Boolean);
+                if (productIds.length > 0) {
+                    const pUrl = `${DIRECTUS_URL}/items/products?filter[product_id][_in]=${productIds.join(',')}&fields=product_id,product_name,product_code,description&limit=-1`;
+                    const pRes = await fetch(pUrl, { headers: fetchHeaders });
+                    if (pRes.ok) {
+                        const pJson = await pRes.json();
+                        const pMap = new Map((pJson.data || []).map((p: any) => [Number(p.product_id), p]));
+
+                        details.forEach((d: any) => {
+                            const pid = Number(d.product_id);
+                            if (pMap.has(pid)) {
+                                d.product_id = pMap.get(pid);
+                            }
+                        });
+                    }
+                }
+            }
+
+            return NextResponse.json({
+                data: {
+                    invoice,
+                    details
+                }
+            });
+        }
+
         return NextResponse.json({ error: "Invalid type parameter" }, { status: 400 });
     } catch (e) {
         console.error("API error", e);
