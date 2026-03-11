@@ -129,6 +129,66 @@ export async function GET(req: NextRequest) {
         }
     }
 
+    if (type === "invoice-details") {
+        try {
+            const orderId = searchParams.get("orderId");
+            const orderNo = searchParams.get("orderNo");
+            if (!orderId) return NextResponse.json({ error: "orderId required" }, { status: 400 });
+
+            // 1. Fetch Invoice
+            let invUrl = `${BASE_URL}/sales_invoice?fields=*&limit=1`;
+            const orFilters = [{ order_id: { _eq: orderId } }];
+            if (orderNo) orFilters.push({ order_id: { _eq: orderNo } });
+            invUrl += `&filter=${encodeURIComponent(JSON.stringify({ _or: orFilters }))}`;
+
+            const invRes = await fetch(invUrl, { headers });
+            if (!invRes.ok) return NextResponse.json({ error: "Failed to fetch invoice" }, { status: 500 });
+
+            const invJson = await invRes.json();
+            const invoice = invJson.data?.[0];
+
+            if (!invoice) return NextResponse.json({ data: null, message: "No invoice found" });
+
+            // 2. Fetch Invoice Details using the numeric invoice_id as the FK (invoice_no field in schema)
+            const detUrl = `${BASE_URL}/sales_invoice_details?filter[invoice_no][_eq]=${invoice.invoice_id}&fields=*&limit=-1`;
+            const detRes = await fetch(detUrl, { headers });
+            if (!detRes.ok) return NextResponse.json({ error: "Failed to fetch invoice details" }, { status: 500 });
+
+            const detJson = await detRes.json();
+            const details = detJson.data || [];
+
+            // 3. Manual Product Join
+            if (details.length > 0) {
+                const productIds = Array.from(new Set(details.map((d: { product_id: number | string }) => d.product_id))).filter(Boolean);
+                if (productIds.length > 0) {
+                    const pUrl = `${BASE_URL}/products?filter[product_id][_in]=${productIds.join(',')}&fields=product_id,product_name,product_code,description&limit=-1`;
+                    const pRes = await fetch(pUrl, { headers });
+                    if (pRes.ok) {
+                        const pJson = await pRes.json();
+                        const pMap = new Map((pJson.data || []).map((p: { product_id: number | string, product_name: string, description: string, product_code: string }) => [Number(p.product_id), p]));
+
+                        details.forEach((d: { product_id: number | string | Record<string, unknown> }) => {
+                            const pid = Number(d.product_id);
+                            if (pMap.has(pid)) {
+                                d.product_id = pMap.get(pid) as Record<string, unknown>;
+                            }
+                        });
+                    }
+                }
+            }
+
+            return NextResponse.json({
+                data: {
+                    invoice,
+                    details
+                }
+            });
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : String(error);
+            return NextResponse.json({ error: message }, { status: 500 });
+        }
+    }
+
     if (orderId) {
         try {
             const url = `${BASE_URL}/sales_order_details?filter[order_id][_eq]=${orderId}&limit=-1&fields=*`;
