@@ -27,6 +27,13 @@ export interface SalesOrder {
     order_status: string;
 }
 
+export interface CustomerGroup {
+    customer_code: string;
+    customer_name: string;
+    orders: SalesOrder[];
+    total_net_amount: number;
+}
+
 export function useSalesOrderApproval() {
     const [orders, setOrders] = useState<SalesOrder[]>([]);
     const [loadingOrders, setLoadingOrders] = useState(false);
