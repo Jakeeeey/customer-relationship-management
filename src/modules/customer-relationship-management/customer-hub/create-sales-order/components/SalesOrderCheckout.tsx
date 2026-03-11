@@ -25,6 +25,8 @@ interface SalesOrderCheckoutProps {
         allocatedGross: number;
         allocatedNet: number;
         allocatedDiscount: number;
+        vattableSales: number;
+        vatAmount: number;
     };
     onBack: () => void;
     onConfirm: () => void;
@@ -104,8 +106,8 @@ export function SalesOrderCheckout({
                                         </span>
                                     </div>
                                     <div className="flex flex-col">
-                                        <span className="text-[10px] font-black text-muted-foreground uppercase tracking-wider mb-1">Account Rep</span>
-                                        <span className="text-xs font-bold text-indigo-600">{header.account?.salesman_name || "N/A"}</span>
+                                        <span className="text-[10px] font-black text-muted-foreground uppercase tracking-wider mb-1">Salesman</span>
+                                        <span className="text-xs font-bold text-indigo-600">{header.account?.salesman_name || "N/A"} {header.account?.salesman_code ? `(${header.account.salesman_code})` : ""}</span>
                                     </div>
                                     <div className="flex flex-col">
                                         <span className="text-[10px] font-black text-muted-foreground uppercase tracking-wider mb-1">Delivery Date</span>
@@ -148,6 +150,18 @@ export function SalesOrderCheckout({
                                                             <span className="font-bold text-sm text-slate-900 group-hover:text-primary transition-colors italic">
                                                                 {item.product.display_name}
                                                             </span>
+                                                            <div className="flex flex-wrap gap-1 mb-1">
+                                                                {item.product.brand_name && (
+                                                                    <Badge variant="outline" className="text-[7px] font-black uppercase px-1 py-0 border-blue-100 bg-blue-50/50 text-blue-500">
+                                                                        {item.product.brand_name}
+                                                                    </Badge>
+                                                                )}
+                                                                {item.product.category_name && (
+                                                                    <Badge variant="outline" className="text-[7px] font-black uppercase px-1 py-0 border-slate-100 bg-slate-50/50 text-slate-400">
+                                                                        {item.product.category_name}
+                                                                    </Badge>
+                                                                )}
+                                                            </div>
                                                             <div className="flex items-center gap-2">
                                                                 <Badge variant="outline" className="text-[9px] font-black px-1.5 py-0 border-slate-200 text-slate-400">
                                                                     {item.uom}
@@ -155,6 +169,11 @@ export function SalesOrderCheckout({
                                                                 <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-tighter">
                                                                     {item.discountType}
                                                                 </span>
+                                                                <div className="flex items-center gap-1 text-[9px] font-black uppercase tracking-tighter ml-auto">
+                                                                    <span className="text-indigo-400">UC: {Number(item.product.unit_count) || 1}</span>
+                                                                    <span className="text-slate-300">•</span>
+                                                                    <span className="text-slate-400">Av: {Number(item.product.available_qty) || 0}</span>
+                                                                </div>
                                                             </div>
                                                         </div>
                                                     </TableCell>
@@ -197,12 +216,12 @@ export function SalesOrderCheckout({
                                                     <TableCell className="text-right font-medium text-slate-400 tabular-nums text-xs">{formatCurrency(item.unitPrice)}</TableCell>
                                                     <TableCell className="text-center">
                                                         <div className="flex flex-wrap justify-center gap-1">
-                                                            {item.discounts.map((d, i) => (
-                                                                <Badge key={i} className="text-[8px] px-1 py-0 bg-slate-100 text-slate-600 border-slate-200 font-bold">
-                                                                    -{d}%
+                                                            {item.discountType && (
+                                                                <Badge className="text-[8px] px-1.5 py-0.5 bg-slate-100 text-slate-600 border-slate-200 font-black uppercase tracking-tighter">
+                                                                    {item.discountType}
                                                                 </Badge>
-                                                            ))}
-                                                            {item.discounts.length === 0 && <span className="text-[10px] text-slate-300 italic">None</span>}
+                                                            )}
+                                                            {!item.discountType && <span className="text-[10px] text-slate-300 italic">None</span>}
                                                         </div>
                                                     </TableCell>
                                                     <TableCell className="text-right py-6 px-8">
@@ -236,36 +255,20 @@ export function SalesOrderCheckout({
                                 </div>
                                 <div className="flex justify-between items-center group">
                                     <div className="flex flex-col">
-                                        <span className="text-xs text-amber-500 font-bold uppercase tracking-wider group-hover:text-amber-400 transition-colors">Tier Discounts</span>
+                                        <span className="text-xs text-amber-500 font-bold uppercase tracking-wider group-hover:text-amber-400 transition-colors">Discounts</span>
                                         <span className="text-[9px] text-slate-500 font-bold">Allocated Deductions</span>
                                     </div>
-                                    {/* Allocated Discount: Discount na para lang sa allocated quantity */}
                                     <span className="text-sm font-bold tabular-nums text-amber-500">-{formatCurrency(summary.allocatedDiscount)}</span>
                                 </div>
+
+                                <div className="pt-4 border-t border-slate-800 space-y-3">
+                                    <div className="flex justify-between items-center opacity-80">
+                                        <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">VAT</span>
+                                        <span className="text-xs font-bold tabular-nums">{formatCurrency(summary.vatAmount)}</span>
+                                    </div>
+                                </div>
+
                                 <div className="pt-6 border-t border-slate-800 space-y-4">
-                                    <div className="flex flex-col gap-2">
-                                        <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-slate-500">
-                                            <MessageSquare className="w-3 h-3" />
-                                            Order Remarks
-                                        </div>
-                                        {/* Dito pwedeng mag-input ng special instructions para sa order */}
-                                        <Textarea
-                                            placeholder="Add special instructions, delivery notes, etc."
-                                            className="bg-slate-800/50 border-slate-700 text-slate-200 text-xs min-h-[80px] focus:border-primary/50 transition-all resize-none"
-                                            value={orderRemarks}
-                                            onChange={(e) => setOrderRemarks(e.target.value)}
-                                        />
-                                    </div>
-                                    <div className="flex justify-between items-center pt-4 border-t border-slate-800">
-                                        <div className="flex flex-col">
-                                            <span className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Order Total</span>
-                                            <span className="text-xs text-slate-300 font-medium tabular-nums opacity-60">Full Fulfillment (Net)</span>
-                                        </div>
-                                        {/* Order Total: Net amount base sa buong ordered quantity */}
-                                        <span className="text-base font-bold text-slate-400 tabular-nums">
-                                            {formatCurrency(summary.orderedNet)}
-                                        </span>
-                                    </div>
                                     <div className="flex justify-between items-center pt-4 border-t border-slate-800/50">
                                         <div className="flex flex-col">
                                             <span className="text-[10px] text-primary font-black uppercase tracking-widest">Actual Fulfillment</span>
@@ -275,6 +278,20 @@ export function SalesOrderCheckout({
                                         <span className="text-3xl font-black text-emerald-400 tabular-nums tracking-tighter decoration-emerald-500/30 underline underline-offset-8">
                                             {formatCurrency(summary.allocatedNet)}
                                         </span>
+                                    </div>
+
+                                    {/* Order Remarks: Moved below actual fulfillment */}
+                                    <div className="flex flex-col gap-2 pt-4 border-t border-slate-800/50">
+                                        <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-slate-500">
+                                            <MessageSquare className="w-3 h-3" />
+                                            Order Remarks
+                                        </div>
+                                        <Textarea
+                                            placeholder="Add special instructions, delivery notes, etc."
+                                            className="bg-slate-800/50 border-slate-700 text-slate-200 text-xs min-h-[80px] focus:border-primary/50 transition-all resize-none"
+                                            value={orderRemarks}
+                                            onChange={(e) => setOrderRemarks(e.target.value)}
+                                        />
                                     </div>
                                 </div>
                             </div>
@@ -301,7 +318,7 @@ export function SalesOrderCheckout({
                                         </span>
                                     ) : (
                                         <span className="flex items-center gap-3">
-                                            Commit Sales Order
+                                            SUBMIT SALES ORDER
                                             <CheckCircle2 className="w-6 h-6 text-slate-950/50" />
                                         </span>
                                     )}

@@ -34,7 +34,7 @@ export const dynamic = "force-dynamic";
 
 const DIRECTUS_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
 const DIRECTUS_TOKEN = process.env.DIRECTUS_STATIC_TOKEN;
-// const SPRING_API_BASE_URL = process.env.SPRING_API_BASE_URL; // Reserved for future use
+const SPRING_API_BASE_URL = process.env.SPRING_API_BASE_URL || "";
 
 const fetchHeaders = {
     Authorization: `Bearer ${DIRECTUS_TOKEN}`,
@@ -131,6 +131,8 @@ export async function GET(req: NextRequest) {
 
         if (action === "products") {
             try {
+                const salesmanId = req.nextUrl.searchParams.get("salesman_id") || req.nextUrl.searchParams.get("salesmanId");
+                console.log(`[InventoryDebug] Action: products, SalesmanID: ${salesmanId}`);
                 const customerCode = req.nextUrl.searchParams.get("customer_code") || req.nextUrl.searchParams.get("customerCode");
                 const customerIdRaw = req.nextUrl.searchParams.get("customer_id") || req.nextUrl.searchParams.get("customerId");
                 const customerId = customerIdRaw ? Number(customerIdRaw) : null;
@@ -139,10 +141,10 @@ export async function GET(req: NextRequest) {
                 const priceType = req.nextUrl.searchParams.get("price_type") || req.nextUrl.searchParams.get("priceType") || "A";
                 const priceTypeId = req.nextUrl.searchParams.get("price_type_id") || req.nextUrl.searchParams.get("priceTypeId");
 
-
-                if (!customerCode || !supplierId) return NextResponse.json({ error: "customer_code and supplier_id required" }, { status: 400 });
-
-
+                if (!customerCode || !supplierId) {
+                    console.log(`[InventoryDebug] Missing customerCode or supplierId`);
+                    return NextResponse.json({ error: "customer_code and supplier_id required" }, { status: 400 });
+                }
 
                 const fetchInChunks = async <T = Record<string, unknown>>(urlBase: string, ids: (string | number)[], filterField: string): Promise<T[]> => {
                     let results: T[] = [];
@@ -163,17 +165,98 @@ export async function GET(req: NextRequest) {
 
                 const priceField = `price${priceType.toUpperCase()}`;
 
+                // --- 1. Fetch Linkages (Product per Supplier) ---
                 const psRes = await fetch(`${DIRECTUS_URL}/items/product_per_supplier?filter[supplier_id][_eq]=${supplierId}&fields=product_id&limit=-1`, { headers: fetchHeaders });
                 const psJson = await psRes.json();
                 const psData = psJson.data || [];
+                console.log(`[InventoryDebug] Linked products count: ${psData.length}`);
+
                 const linkedProductIds = psData.map((ps: { product_id: number | { id?: number; product_id?: number } }) => {
                     if (ps.product_id && typeof ps.product_id === 'object') return ps.product_id.id || ps.product_id.product_id;
                     return ps.product_id;
                 }).filter(Boolean);
 
-                if (linkedProductIds.length === 0) return NextResponse.json([]);
+                if (linkedProductIds.length === 0) {
+                    console.log(`[InventoryDebug] No linked products found for supplier ${supplierId}`);
+                    return NextResponse.json([]);
+                }
 
-                const initialProducts = await fetchInChunks<ProductItem>(`${DIRECTUS_URL}/items/products?filter[isActive][_eq]=1&fields=*,unit_of_measurement.unit_name`, linkedProductIds, "product_id");
+                // --- Start Inventory Fetch from Spring Boot ---
+                const inventoryMap: Record<number, { available: number; unitCount: number }> = {};
+                const queryBranchId = req.nextUrl.searchParams.get("branch_id") || req.nextUrl.searchParams.get("branchId");
+
+                if (salesmanId || queryBranchId) {
+                    try {
+                        let branchId: string | number | null = queryBranchId;
+
+                        // If no branchId was passed but we have salesmanId, try to look it up (fallback)
+                        if (!branchId && salesmanId) {
+                            const smUrl = `${DIRECTUS_URL}/items/salesman?filter[id][_eq]=${salesmanId}&fields=id,branch_id,branch_code&limit=1`;
+                            const smRes = await fetch(smUrl, { headers: fetchHeaders });
+                            if (smRes.ok) {
+                                const smResJson = await smRes.json();
+                                const smData = Array.isArray(smResJson.data) ? smResJson.data[0] : null;
+                                if (smData) {
+                                    branchId = smData.branch_code || smData.branch_id;
+                                    if (branchId && typeof branchId === 'object') {
+                                        const obj = branchId as { id?: number | string; branch_code?: number | string; branch_id?: number | string };
+                                        branchId = obj.id || obj.branch_code || obj.branch_id || null;
+                                    }
+                                }
+                            }
+                        }
+
+                        console.log(`[InventoryDebug] Final Branch ID: ${branchId}`);
+
+                        if (branchId && SPRING_API_BASE_URL) {
+                            const cookieStore = await cookies();
+                            const token = cookieStore.get(COOKIE_NAME)?.value;
+
+                            // Fetch running inventory by unit
+                            const invUrl = `${SPRING_API_BASE_URL.replace(/\/$/, "")}/api/view-running-inventory-by-unit/all`;
+                            console.log(`[InventoryDebug] Fetching Inventory from: ${invUrl}`);
+                            const inventoryRes = await fetch(invUrl, {
+                                headers: token ? { "Authorization": `Bearer ${token}` } : {},
+                                cache: 'no-store'
+                            });
+                            if (inventoryRes.ok) {
+                                const invJson = await inventoryRes.json();
+                                const invData = Array.isArray(invJson) ? invJson : (invJson.data || []);
+                                console.log(`[InventoryDebug] Inventory Records Received: ${invData.length}`);
+                                if (Array.isArray(invData)) {
+                                    console.log(`[InventoryDebug] Matching for Branch ID: ${branchId} (Type: ${typeof branchId})`);
+                                    if (invData.length > 0) {
+                                        console.log(`[InventoryDebug] Sample Inv Item:`, JSON.stringify(invData[0]));
+                                    }
+
+                                    // filter STRICTLY by the salesman's branch
+                                    invData.forEach((item: { branchId?: number | string; branch_id?: number | string; productId?: number | string; product_id?: number | string; runningInventoryUnit?: number | string; running_inventory_unit?: number | string; unitCount?: number | string; unit_count?: number | string }) => {
+                                        // The Spring Boot API uses camelCase (productId, branchId, runningInventoryUnit, unitCount)
+                                        const itemBranchId = item.branchId || item.branch_id;
+                                        if (itemBranchId && Number(itemBranchId) === Number(branchId)) {
+                                            const pid = Number(item.productId || item.product_id);
+                                            if (pid) {
+                                                inventoryMap[pid] = {
+                                                    available: Number(item.runningInventoryUnit || item.running_inventory_unit) || 0,
+                                                    unitCount: Number(item.unitCount || item.unit_count) || 1
+                                                };
+                                            }
+                                        }
+                                    });
+                                }
+                            } else {
+                                console.log(`[InventoryDebug] Spring Boot Fetch Error: ${inventoryRes.status}`);
+                            }
+                        } else {
+                            console.log(`[InventoryDebug] No Branch ID found for salesman ${salesmanId}`);
+                        }
+                    } catch (e) {
+                        console.error("[InventoryDebug] Failed to fetch inventory from Spring Boot:", e);
+                    }
+                }
+                // --- End Inventory Fetch ---
+
+                const initialProducts = await fetchInChunks<ProductItem>(`${DIRECTUS_URL}/items/products?filter[isActive][_eq]=1&fields=*,unit_of_measurement.unit_name,product_category.category_name,product_brand.brand_name`, linkedProductIds, "product_id");
 
                 // Collect all involved parents
                 const directParentIds = initialProducts.map(p => p.parent_id).filter((id): id is number => !!id);
@@ -183,11 +266,11 @@ export async function GET(req: NextRequest) {
 
                 // Fetch all members of these product families to get sibling UOMs
                 const familyMembers = allFamilyAnchorIds.length > 0
-                    ? await fetchInChunks<ProductItem>(`${DIRECTUS_URL}/items/products?filter[isActive][_eq]=1&fields=*,unit_of_measurement.unit_name`, allFamilyAnchorIds, "parent_id")
+                    ? await fetchInChunks<ProductItem>(`${DIRECTUS_URL}/items/products?filter[isActive][_eq]=1&fields=*,unit_of_measurement.unit_name,product_category.category_name,product_brand.brand_name`, allFamilyAnchorIds, "parent_id")
                     : [];
 
                 const anchors = allFamilyAnchorIds.length > 0
-                    ? await fetchInChunks<ProductItem>(`${DIRECTUS_URL}/items/products?filter[isActive][_eq]=1&fields=*,unit_of_measurement.unit_name`, allFamilyAnchorIds, "product_id")
+                    ? await fetchInChunks<ProductItem>(`${DIRECTUS_URL}/items/products?filter[isActive][_eq]=1&fields=*,unit_of_measurement.unit_name,product_category.category_name,product_brand.brand_name`, allFamilyAnchorIds, "product_id")
                     : [];
 
                 const unitsRes = await fetch(`${DIRECTUS_URL}/items/units?limit=-1`, { headers: fetchHeaders });
@@ -315,7 +398,11 @@ export async function GET(req: NextRequest) {
                         base_price: price,
                         discount_level: displayLevel,
                         discount_type: winId,
-                        discounts: winId ? (discountMap[winId] || []) : []
+                        discounts: winId ? (discountMap[winId] || []) : [],
+                        category_name: (p.product_category as { category_name?: string })?.category_name || null,
+                        brand_name: (p.product_brand as { brand_name?: string })?.brand_name || null,
+                        available_qty: inventoryMap[Number(p.product_id)]?.available ?? 0,
+                        unit_count: inventoryMap[Number(p.product_id)]?.unitCount ?? (Number(p.unit_of_measurement_count) || 1)
                     };
                 });
 
@@ -340,7 +427,26 @@ export async function POST(req: NextRequest) {
         const body = await req.json();
         const { header, items } = body;
         const now = new Date();
-        const orderNo = header.order_no || `SO-${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}${String(now.getSeconds()).padStart(2, '0')}`;
+
+        // Enhance fallback generation if order_no is missing
+        let orderNo = header.order_no;
+        if (!orderNo) {
+            let prefix = "SO";
+            if (header.supplier_id) {
+                try {
+                    const supRes = await fetch(`${DIRECTUS_URL}/items/suppliers/${header.supplier_id}?fields=supplier_shortcut`, { headers: fetchHeaders });
+                    if (supRes.ok) {
+                        const supData = (await supRes.json()).data;
+                        if (supData?.supplier_shortcut) {
+                            prefix = supData.supplier_shortcut;
+                        }
+                    }
+                } catch (e) {
+                    console.error("Failed to fetch supplier shortcut for fallback order_no:", e);
+                }
+            }
+            orderNo = `${prefix}-${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}${String(now.getSeconds()).padStart(2, '0')}`;
+        }
 
         let createdBy: number | null = null;
         try {

@@ -159,3 +159,43 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ success: false, error: err.message }, { status: 500 });
     }
 }
+
+export async function DELETE(req: NextRequest) {
+    const id = req.nextUrl.searchParams.get("id");
+    if (!id) return NextResponse.json({ error: "ID required" }, { status: 400 });
+
+    try {
+        // 1. Delete all customer_salesmen assignments for this salesman
+        const assignmentsRes = await fetch(
+            `${DIRECTUS_URL}/items/customer_salesmen?filter[salesman_id][_eq]=${id}&fields=id&limit=-1`,
+            { headers: fetchHeaders }
+        );
+        const assignments = (await assignmentsRes.json()).data || [];
+
+        if (assignments.length > 0) {
+            const assignmentIds = assignments.map((a: { id: number }) => a.id);
+            // Directus batch delete
+            await fetch(`${DIRECTUS_URL}/items/customer_salesmen`, {
+                method: "DELETE",
+                headers: fetchHeaders,
+                body: JSON.stringify(assignmentIds)
+            });
+        }
+
+        // 2. Delete the salesman record
+        const delRes = await fetch(`${DIRECTUS_URL}/items/salesman/${id}`, {
+            method: "DELETE",
+            headers: fetchHeaders
+        });
+
+        if (!delRes.ok && delRes.status !== 204) {
+            const errText = await delRes.text();
+            return NextResponse.json({ success: false, error: errText }, { status: 500 });
+        }
+
+        return NextResponse.json({ success: true, deletedAssignments: assignments.length });
+    } catch (e: unknown) {
+        const err = e as Error;
+        return NextResponse.json({ success: false, error: err.message }, { status: 500 });
+    }
+}

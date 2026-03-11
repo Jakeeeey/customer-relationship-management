@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { Plus, Users, Search, Truck, CheckCircle2, AlertTriangle, Loader2, ChevronsUpDown, Check, UserPlus, Hash, Building2, Settings2 } from "lucide-react";
+import { Plus, Users, Search, Truck, CheckCircle2, AlertTriangle, Loader2, ChevronsUpDown, Check, UserPlus, Hash, Building2, Settings2, Trash2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -41,6 +41,12 @@ export default function SalesmanManagementModule() {
     const [customerCount, setCustomerCount] = useState(0);
     const [reassignmentSalesmanId, setReassignmentSalesmanId] = useState<string>("");
     const [isProcessing, setIsProcessing] = useState(false);
+
+    // Delete Salesman State
+    const [deleteModal, setDeleteModal] = useState(false);
+    const [deleteSalesman, setDeleteSalesman] = useState<Salesman | null>(null);
+    const [deleteCustomerCount, setDeleteCustomerCount] = useState(0);
+    const [isDeleting, setIsDeleting] = useState(false);
 
     // New Salesman Modal State
     const [createModal, setCreateModal] = useState(false);
@@ -238,6 +244,28 @@ export default function SalesmanManagementModule() {
         }
     };
 
+    // Delete Salesman Handler
+    const handleDeleteSalesman = async () => {
+        if (!deleteSalesman) return;
+        setIsDeleting(true);
+        try {
+            const res = await salesmanProvider.deleteSalesman(deleteSalesman.id);
+            if (res.success) {
+                toast.success(`${deleteSalesman.salesman_name.toUpperCase()} has been permanently deleted.`);
+                setDeleteModal(false);
+                setDeleteSalesman(null);
+                setDeleteCustomerCount(0);
+                fetchData(1, debouncedSearch, statusFilter, true);
+            } else {
+                toast.error(res.error || "Failed to delete salesman.");
+            }
+        } catch {
+            toast.error("Critical error during deletion.");
+        } finally {
+            setIsDeleting(false);
+        }
+    };
+
     // Infinite Scroll Implementation
     const observer = useRef<IntersectionObserver | null>(null);
     const lastElementRef = useCallback((node: HTMLDivElement | null) => {
@@ -423,7 +451,21 @@ export default function SalesmanManagementModule() {
                                             </div>
                                         </TableCell>
                                         <TableCell className="text-right px-6">
-                                            <Button variant="ghost" size="sm" className="text-[10px] font-black uppercase text-primary hover:bg-primary/10 transition-colors">Config</Button>
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                className="text-[10px] font-black uppercase text-red-500 hover:bg-red-50 hover:text-red-700 transition-colors gap-1.5"
+                                                onClick={async (e) => {
+                                                    e.stopPropagation();
+                                                    setDeleteSalesman(s);
+                                                    const count = await salesmanProvider.getCustomerCount(s.id);
+                                                    setDeleteCustomerCount(count);
+                                                    setDeleteModal(true);
+                                                }}
+                                            >
+                                                <Trash2 className="w-3.5 h-3.5" />
+                                                Delete
+                                            </Button>
                                         </TableCell>
                                     </TableRow>
                                 ))}
@@ -957,6 +999,84 @@ export default function SalesmanManagementModule() {
                             >
                                 {isCreating ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <UserPlus className="w-4 h-4 mr-2" />}
                                 {isCreating ? "ENLISTING SALESMAN..." : "CONFIRM ENLISTMENT"}
+                            </Button>
+                        </div>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* ═══════════════════════════════════════════════════════════ */}
+            {/* DELETE SALESMAN CONFIRMATION DIALOG                       */}
+            {/* ═══════════════════════════════════════════════════════════ */}
+            <Dialog open={deleteModal} onOpenChange={(open) => { if (!open && !isDeleting) { setDeleteModal(false); setDeleteSalesman(null); } }}>
+                <DialogContent className="sm:max-w-[440px] p-0 overflow-hidden border-none shadow-2xl rounded-2xl bg-white animate-in zoom-in-95 duration-200">
+                    <DialogHeader className="p-8 border-b bg-red-50/50">
+                        <div className="flex items-center gap-4">
+                            <div className="h-12 w-12 rounded-2xl bg-red-500/10 flex items-center justify-center text-red-600 shadow-inner shrink-0">
+                                <Trash2 className="h-6 w-6" />
+                            </div>
+                            <div>
+                                <DialogTitle className="text-xl font-black text-slate-900 uppercase tracking-tighter">Delete Salesman</DialogTitle>
+                                <DialogDescription className="text-slate-500 text-[10px] font-black uppercase tracking-[0.2em] mt-1 leading-none">
+                                    Permanent Removal Protocol
+                                </DialogDescription>
+                            </div>
+                        </div>
+                    </DialogHeader>
+
+                    <div className="p-8 space-y-6">
+                        {/* Salesman Identity */}
+                        <div className="space-y-1.5 p-4 rounded-xl bg-slate-50 border border-slate-100">
+                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none">Target Salesman</p>
+                            <p className="text-[13px] font-black text-slate-900 uppercase tracking-tight">{deleteSalesman?.salesman_name}</p>
+                            <div className="flex items-center gap-2 mt-1">
+                                <Badge variant="outline" className="text-[8px] font-bold px-1.5 h-4 border-slate-200 text-slate-400">
+                                    {deleteSalesman?.salesman_code}
+                                </Badge>
+                                <span className="text-[9px] text-slate-400 font-bold uppercase">EMP ID: {deleteSalesman?.employee_id}</span>
+                            </div>
+                        </div>
+
+                        {/* Impact Summary */}
+                        <div className="grid grid-cols-1 gap-3">
+                            <div className="flex items-center justify-between p-4 rounded-xl bg-slate-900 border border-slate-800 shadow-lg shadow-slate-200">
+                                <div className="space-y-0.5">
+                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none">Customer Assignments</p>
+                                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Will be removed</p>
+                                </div>
+                                <p className="text-2xl font-black text-white tracking-tighter">{deleteCustomerCount}</p>
+                            </div>
+                        </div>
+
+                        {/* Warning */}
+                        <div className="flex items-start gap-3 p-4 rounded-xl bg-red-50 border border-red-100">
+                            <AlertTriangle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
+                            <div className="space-y-1">
+                                <p className="text-[10px] font-black text-red-700 uppercase tracking-wide">This action is irreversible</p>
+                                <p className="text-[9px] font-bold text-red-500/80 uppercase tracking-wider leading-relaxed">
+                                    The salesman record and all customer assignments will be permanently deleted. Historical sales orders will be preserved.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <DialogFooter className="p-6 pt-0">
+                        <div className="flex gap-3 w-full">
+                            <Button
+                                variant="outline"
+                                className="flex-1 font-black uppercase text-[10px] tracking-widest h-12 rounded-xl border-2 hover:bg-slate-50"
+                                onClick={() => { setDeleteModal(false); setDeleteSalesman(null); }}
+                                disabled={isDeleting}
+                            >
+                                Cancel
+                            </Button>
+                            <Button
+                                className="flex-[2] font-black uppercase text-[10px] tracking-widest h-12 rounded-xl shadow-2xl bg-red-600 hover:bg-red-700 disabled:opacity-20 transition-all"
+                                onClick={handleDeleteSalesman}
+                                disabled={isDeleting}
+                            >
+                                {isDeleting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Trash2 className="w-4 h-4 mr-2" />}
+                                {isDeleting ? "DELETING..." : "CONFIRM DELETE"}
                             </Button>
                         </div>
                     </DialogFooter>

@@ -58,6 +58,7 @@ interface SalesOrderHeaderProps {
     priceType: string;
     priceTypeId?: number | null;
     priceTypeModels?: PriceTypeModel[];
+    previewOrderNo?: string;
 }
 
 export function SalesOrderHeader({
@@ -71,26 +72,36 @@ export function SalesOrderHeader({
     deliveryDate, onDeliveryDateChange,
     poNo, onPoNoChange,
     branches, selectedBranchId, onBranchChange,
-    priceType, priceTypeId, priceTypeModels
+    priceType, priceTypeId, priceTypeModels,
+    previewOrderNo
 }: SalesOrderHeaderProps) {
     const [openSalesman, setOpenSalesman] = useState(false);
     const [openAccount, setOpenAccount] = useState(false);
     const [openCustomer, setOpenCustomer] = useState(false);
     const [openSupplier, setOpenSupplier] = useState(false);
+    const [openBranch, setOpenBranch] = useState(false);
 
     return (
         <Card className="shadow-sm border-muted-foreground/10 overflow-hidden">
             <CardHeader className="py-4 px-6 flex flex-row items-center justify-between border-b bg-slate-50/50">
                 <div className="flex items-center gap-2">
-                    <span className="text-[10px] uppercase font-black text-slate-400 tracking-widest">Pricing Strategy</span>
+                    <span className="text-[10px] uppercase font-black text-slate-400 tracking-widest">Price Type </span>
                     <Badge variant="secondary" className="font-black text-primary bg-primary/10 border-primary/20">
                         {priceTypeId && priceTypeModels?.find(p => p.price_type_id === priceTypeId)?.price_type_name
                             ? priceTypeModels.find(p => p.price_type_id === priceTypeId)!.price_type_name
-                            : `TIER ${priceType}`}
+                            : ` ${priceType}`}
                     </Badge>
                 </div>
-                <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest italic opacity-50">
-                    Configuration Phase
+                <div className="flex flex-col items-end gap-1">
+                    <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest italic opacity-50">
+                        Configuration Phase
+                    </div>
+                    {previewOrderNo && (
+                        <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-slate-200/50 border border-slate-300/50">
+                            <span className="text-[9px] font-black text-slate-500 uppercase tracking-tighter">Draft SO#</span>
+                            <span className="text-[10px] font-bold text-slate-900 tracking-tight font-mono">{previewOrderNo}</span>
+                        </div>
+                    )}
                 </div>
             </CardHeader>
             <CardContent className="p-6 grid gap-6 xl:grid-cols-4 lg:grid-cols-4 md:grid-cols-2">
@@ -249,16 +260,43 @@ export function SalesOrderHeader({
 
                 <div className="flex flex-col gap-1.5">
                     <label className="text-xs font-bold uppercase text-muted-foreground">Branch <span className="text-red-500">*</span></label>
-                    <Select value={selectedBranchId} onValueChange={onBranchChange}>
-                        <SelectTrigger className="h-9 text-xs"><SelectValue placeholder="Select branch" /></SelectTrigger>
-                        <SelectContent>
-                            {branches.map(b => (
-                                <SelectItem key={b.id} value={b.id.toString()}>
-                                    {b.branch_name} ({b.branch_code})
-                                </SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
+                    <Popover open={openBranch} onOpenChange={setOpenBranch}>
+                        <PopoverTrigger asChild>
+                            <Button variant="outline" className="w-full justify-between font-normal h-9 text-xs">
+                                <span className="truncate">
+                                    {selectedBranchId && branches.find(b => b.id.toString() === selectedBranchId)
+                                        ? `${branches.find(b => b.id.toString() === selectedBranchId)!.branch_name} (${branches.find(b => b.id.toString() === selectedBranchId)!.branch_code})`
+                                        : "Select branch..."}
+                                </span>
+                                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                            </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-[300px] p-0" align="start" sideOffset={4}>
+                            <Command onWheel={(e) => e.stopPropagation()}>
+                                <CommandInput placeholder="Search branch..." />
+                                <CommandList>
+                                    <CommandEmpty>No branch found.</CommandEmpty>
+                                    <CommandGroup>
+                                        <div className="max-h-[300px] overflow-y-auto custom-scrollbar">
+                                            {branches.map(b => (
+                                                <CommandItem
+                                                    key={b.id}
+                                                    value={`${b.branch_name} ${b.branch_code}`}
+                                                    onSelect={() => {
+                                                        onBranchChange(b.id.toString());
+                                                        setOpenBranch(false);
+                                                    }}
+                                                >
+                                                    <Check className={cn("mr-2 h-4 w-4", selectedBranchId === b.id.toString() ? "opacity-100" : "opacity-0")} />
+                                                    {b.branch_name} ({b.branch_code})
+                                                </CommandItem>
+                                            ))}
+                                        </div>
+                                    </CommandGroup>
+                                </CommandList>
+                            </Command>
+                        </PopoverContent>
+                    </Popover>
                 </div>
 
                 <div className="flex flex-col gap-1.5">

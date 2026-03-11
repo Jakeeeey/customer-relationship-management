@@ -1,4 +1,4 @@
-export async function getPendingOrders(status: string = "For Approval", search: string = "", page: number = 1, limit: number = 50) {
+export async function getPendingOrders(status: string = "For Approval", search: string = "", page: number = 1, limit: number = 50, startDate: string = "", endDate: string = "") {
     const params = new URLSearchParams({
         type: "orders",
         status,
@@ -6,6 +6,9 @@ export async function getPendingOrders(status: string = "For Approval", search: 
         page: page.toString(),
         limit: limit.toString()
     });
+
+    if (startDate) params.append("startDate", startDate);
+    if (endDate) params.append("endDate", endDate);
 
     const res = await fetch(`/api/crm/customer-hub/sales-order-approval?${params.toString()}`);
     if (!res.ok) throw new Error("Failed to fetch pending orders");

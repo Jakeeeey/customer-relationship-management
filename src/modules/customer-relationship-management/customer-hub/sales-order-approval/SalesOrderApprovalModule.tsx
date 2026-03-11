@@ -42,6 +42,10 @@ export default function SalesOrderApprovalModule() {
         setStatusFilter,
         searchTerm,
         setSearchTerm,
+        startDate,
+        setStartDate,
+        endDate,
+        setEndDate,
         handleApproveBulk,
         refreshOrders
     } = useSalesOrderApproval();
@@ -89,8 +93,8 @@ export default function SalesOrderApprovalModule() {
             </div>
 
             {/* Filters */}
-            <div className="flex flex-col sm:flex-row gap-4">
-                <div className="relative flex-1">
+            <div className="flex flex-col lg:flex-row gap-4">
+                <div className="relative flex-1 min-w-[200px]">
                     <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                     <Input
                         placeholder="Search customer, order no, or PO no..."
@@ -99,9 +103,31 @@ export default function SalesOrderApprovalModule() {
                         onChange={(e) => setSearchTerm(e.target.value)}
                     />
                 </div>
-                <div className="w-full sm:w-[200px]">
+
+                <div className="flex flex-col sm:flex-row gap-2">
+                    <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold uppercase text-muted-foreground whitespace-nowrap">From:</span>
+                        <Input
+                            type="date"
+                            className="w-[140px] text-xs h-9"
+                            value={startDate}
+                            onChange={(e) => setStartDate(e.target.value)}
+                        />
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold uppercase text-muted-foreground whitespace-nowrap">To:</span>
+                        <Input
+                            type="date"
+                            className="w-[140px] text-xs h-9"
+                            value={endDate}
+                            onChange={(e) => setEndDate(e.target.value)}
+                        />
+                    </div>
+                </div>
+
+                <div className="w-full lg:w-[200px]">
                     <Select value={statusFilter} onValueChange={setStatusFilter}>
-                        <SelectTrigger>
+                        <SelectTrigger className="h-9">
                             <SelectValue placeholder="Status" />
                         </SelectTrigger>
                         <SelectContent>

@@ -29,6 +29,7 @@ export interface Customer {
 export interface Supplier {
     id: number | string;
     supplier_name: string;
+    supplier_shortcut?: string;
     trade_type?: "Trade" | "Non-Trade";
 }
 
@@ -42,7 +43,9 @@ export interface Product {
     discount_level?: string;
     discounts: number[];
     category_id?: number;
+    category_name?: string | null;
     brand_id?: number;
+    brand_name?: string | null;
     pieces_per_box?: number;
     uom?: string;
     parent_id?: number | null;
@@ -51,6 +54,8 @@ export interface Product {
     uom_name?: string;
     uom_shortcut?: string;
     parent_product_name?: string;
+    available_qty?: number | null;
+    unit_count?: number | null;
     [key: string]: unknown;
 }
 

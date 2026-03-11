@@ -19,6 +19,8 @@ export async function GET(req: NextRequest) {
             const search = req.nextUrl.searchParams.get("search") || "";
             const page = parseInt(req.nextUrl.searchParams.get("page") || "1", 10);
             const limit = parseInt(req.nextUrl.searchParams.get("limit") || "30", 10);
+            const startDate = req.nextUrl.searchParams.get("startDate");
+            const endDate = req.nextUrl.searchParams.get("endDate");
 
             // 1. Build Directus Filter
             const filter: { _and: Record<string, unknown>[] } = { _and: [] };
@@ -26,7 +28,14 @@ export async function GET(req: NextRequest) {
             if (statusFilter !== "All") {
                 filter._and.push({ order_status: { _eq: statusFilter } });
             }
-            // If status is All, we might still want to exclude some statuses if needed, but "All" usually means All. Keep as is.
+
+            if (startDate && endDate) {
+                filter._and.push({ order_date: { _between: [startDate, endDate] } });
+            } else if (startDate) {
+                filter._and.push({ order_date: { _gte: startDate } });
+            } else if (endDate) {
+                filter._and.push({ order_date: { _lte: endDate } });
+            }
 
             if (search) {
                 // Since customer_name isn't natively on sales_order, we need to find matching customers first

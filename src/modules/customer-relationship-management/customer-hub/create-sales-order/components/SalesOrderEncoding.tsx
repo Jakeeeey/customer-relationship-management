@@ -80,6 +80,18 @@ export function SalesOrderEncoding({
                                                     {p.display_name}
                                                 </span>
 
+                                                <div className="flex flex-wrap gap-1 mt-1">
+                                                    {p.brand_name && (
+                                                        <Badge variant="secondary" className="text-[8px] font-black uppercase px-1 py-0 h-3.5 bg-blue-50 text-blue-600 border-blue-100">
+                                                            {p.brand_name}
+                                                        </Badge>
+                                                    )}
+                                                    {p.category_name && (
+                                                        <Badge variant="secondary" className="text-[8px] font-black uppercase px-1 py-0 h-3.5 bg-slate-100 text-slate-500 border-slate-200">
+                                                            {p.category_name}
+                                                        </Badge>
+                                                    )}
+                                                </div>
 
                                                 <div className="flex items-center justify-between mt-2">
                                                     <div className="flex flex-col">
@@ -93,17 +105,18 @@ export function SalesOrderEncoding({
                                                                 {formatCurrency(netPrice)}
                                                             </span>
                                                         </div>
-                                                        <span className="text-[9px] text-muted-foreground font-bold uppercase">
+                                                        <span className="text-[9px] text-muted-foreground font-black uppercase tracking-tighter">
                                                             {p.discount_level} {p.uom ? `• ${p.uom}` : ''}
                                                         </span>
                                                     </div>
                                                     <div className="flex gap-1 items-center">
                                                         <div className="flex gap-1">
-                                                            {(p.discounts || []).map((d: number, i: number) => (
-                                                                <span key={i} className="text-[10px] font-bold px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded border border-amber-200">-{d}%</span>
-                                                            ))}
-                                                        </div>
-                                                        <div className="flex items-center gap-1.5 ml-auto">
+                                                            {p.discount_level && (
+                                                                <span className="text-[10px] font-black px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded border border-amber-200 uppercase tracking-tighter shadow-sm">
+                                                                    {p.discount_level}
+                                                                </span>
+                                                            )}
+                                                            {!p.discount_level && <span className="text-[10px] text-slate-300 italic">No Discount</span>}
                                                         </div>
                                                     </div>
                                                 </div>
@@ -122,11 +135,11 @@ export function SalesOrderEncoding({
                             </div>
                         )}
                     </CardContent>
-                </Card>
-            </div>
+                </Card >
+            </div >
 
             {/* Cart Panel */}
-            <div className="xl:col-span-3 lg:col-span-2 flex flex-col gap-4">
+            < div className="xl:col-span-3 lg:col-span-2 flex flex-col gap-4" >
                 <Card className="flex-1 flex flex-col shadow-sm border-primary/20">
                     <CardHeader className="p-4 flex flex-row items-center justify-between border-b bg-primary/5">
                         <div className="flex items-center gap-2">
@@ -143,10 +156,12 @@ export function SalesOrderEncoding({
                                         <TableHead className="text-[10px] font-black uppercase bg-muted/50">Product Desc</TableHead>
 
                                         <TableHead className="text-center text-[10px] font-black uppercase bg-muted/50">UOM</TableHead>
+                                        <TableHead className="text-center text-[10px] font-black uppercase bg-muted/50">UC</TableHead>
                                         <TableHead className="text-center text-[10px] font-black uppercase w-[100px] bg-muted/50">Qty</TableHead>
                                         <TableHead className="text-right text-[10px] font-black uppercase bg-muted/50">Unit Price</TableHead>
                                         <TableHead className="text-center text-[10px] font-black uppercase bg-muted/50">Discounts</TableHead>
-                                        <TableHead className="text-right text-[10px] font-black uppercase bg-muted/50">Net Total</TableHead>
+                                        <TableHead className="text-center text-[10px] font-black uppercase bg-muted/50">Available</TableHead>
+                                        <TableHead className="text-right text-[10px] font-black uppercase bg-muted/50">Total</TableHead>
                                         <TableHead className="w-[50px] bg-muted/50"></TableHead>
                                     </TableRow>
                                 </TableHeader>
@@ -156,14 +171,31 @@ export function SalesOrderEncoding({
                                             <TableCell>
                                                 <div className="flex flex-col">
                                                     <span className="font-bold text-[11px] leading-tight text-slate-900">{item.product.display_name}</span>
-                                                    <span className="text-[9px] text-primary/70 uppercase font-black tracking-tighter">{item.discountType}</span>
+                                                    <div className="flex flex-wrap gap-1 mt-0.5">
+                                                        {item.product.brand_name && (
+                                                            <Badge variant="secondary" className="text-[7px] font-black uppercase px-1 py-0 h-3 bg-blue-50 text-blue-600 border-blue-100">
+                                                                {item.product.brand_name}
+                                                            </Badge>
+                                                        )}
+                                                        {item.product.category_name && (
+                                                            <Badge variant="secondary" className="text-[7px] font-black uppercase px-1 py-0 h-3 bg-slate-100 text-slate-500 border-slate-200">
+                                                                {item.product.category_name}
+                                                            </Badge>
+                                                        )}
+                                                    </div>
+                                                    <div className="flex items-center gap-2 mt-1">
+                                                        <span className="text-[9px] text-primary/70 uppercase font-black tracking-tighter">{item.discountType}</span>
+                                                    </div>
                                                 </div>
                                             </TableCell>
 
-                                            <TableCell className="text-center">
+                                            <TableCell className="text-center border-x border-muted/20">
                                                 <Badge variant="outline" className="text-[9px] font-bold px-1.5 py-0 border-slate-200 text-slate-500 whitespace-nowrap">
                                                     {item.uom}
                                                 </Badge>
+                                            </TableCell>
+                                            <TableCell className="text-center text-[10px] font-black text-indigo-500 border-r border-muted/20">
+                                                {Number(item.product.unit_count) || 1}
                                             </TableCell>
                                             <TableCell className="text-center">
                                                 <Input
@@ -176,15 +208,20 @@ export function SalesOrderEncoding({
                                             <TableCell className="text-right text-[11px] font-medium text-slate-500 tabular-nums">{formatCurrency(item.unitPrice)}</TableCell>
                                             <TableCell className="text-center">
                                                 <div className="flex flex-wrap justify-center gap-1">
-                                                    {item.discounts.map((d, i) => (
-                                                        <Badge key={i} className="text-[9px] px-1 bg-emerald-50 text-emerald-700 border-emerald-100 font-bold">
-                                                            -{d}%
+                                                    {item.discountType && (
+                                                        <Badge className="text-[9px] px-1.5 py-0.5 bg-emerald-50 text-emerald-700 border-emerald-100 font-black uppercase tracking-tighter">
+                                                            {item.discountType}
                                                         </Badge>
-                                                    ))}
-                                                    {item.discounts.length === 0 && <span className="text-[10px] text-slate-300 italic">None</span>}
+                                                    )}
+                                                    {!item.discountType && <span className="text-[10px] text-slate-300 italic">None</span>}
                                                 </div>
                                             </TableCell>
-                                            <TableCell className="text-right font-black text-sm text-primary tabular-nums whitespace-nowrap">{formatCurrency(item.netAmount)}</TableCell>
+                                            <TableCell className="text-center border-l border-muted/20">
+                                                <span className={`text-[10px] font-black tabular-nums ${(Number(item.product.available_qty) || 0) > 0 ? "text-slate-600" : "text-red-500"}`}>
+                                                    {Number(item.product.available_qty) || 0}
+                                                </span>
+                                            </TableCell>
+                                            <TableCell className="text-right text-[11px] font-black text-slate-900 tabular-nums">{formatCurrency(item.netAmount)}</TableCell>
                                             <TableCell>
                                                 <Button variant="ghost" size="icon" className="text-red-400 h-8 w-8 hover:bg-red-50 hover:text-red-600 transition-colors" onClick={() => removeLineItem(item.id)}>
                                                     <Trash2 className="w-3.5 h-3.5" />
@@ -194,7 +231,7 @@ export function SalesOrderEncoding({
                                     ))}
                                     {lineItems.length === 0 && (
                                         <TableRow>
-                                            <td colSpan={7} className="py-20 text-center text-muted-foreground text-xs italic">
+                                            <td colSpan={9} className="py-20 text-center text-muted-foreground text-xs italic">
                                                 Cart is empty. Select products from the catalog to begin.
                                             </td>
                                         </TableRow>
@@ -215,7 +252,7 @@ export function SalesOrderEncoding({
                             <span className="font-bold text-lg text-amber-600">-{formatCurrency(summary.discountAmount)}</span>
                         </div>
                         <div className="flex flex-col bg-primary/10 p-3 rounded-lg border border-primary/30">
-                            <span className="text-[10px] font-black uppercase text-primary">Payable Amount</span>
+                            <span className="text-[10px] font-black uppercase text-primary">Net Amount</span>
                             <span className="text-2xl font-black text-primary">{formatCurrency(summary.netAmount)}</span>
                         </div>
                         <Button
@@ -229,7 +266,7 @@ export function SalesOrderEncoding({
                         </Button>
                     </div>
                 </Card>
-            </div>
-        </div>
+            </div >
+        </div >
     );
 }

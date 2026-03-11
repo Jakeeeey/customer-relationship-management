@@ -56,31 +56,44 @@ export function useSalesOrder() {
     const [allocatedQuantities, setAllocatedQuantities] = useState<Record<string, number>>({});
     const [orderRemarks, setOrderRemarks] = useState("");
 
-    const selectedSalesman = useMemo(() => salesmen.find(s => (s.user_id || s.id)?.toString() === selectedSalesmanId), [salesmen, selectedSalesmanId]);
-    const selectedAccount = useMemo(() => accounts.find(a => a.id.toString() === selectedAccountId), [accounts, selectedAccountId]);
-    const selectedCustomer = useMemo(() => customers.find(c => c.id.toString() === selectedCustomerId), [customers, selectedCustomerId]);
-    const selectedSupplier = useMemo(() => suppliers.find(s => s.id.toString() === selectedSupplierId), [suppliers, selectedSupplierId]);
-    const selectedReceiptType = useMemo(() => receiptTypes.find(rt => rt.id.toString() === selectedReceiptTypeId), [receiptTypes, selectedReceiptTypeId]);
-    const selectedSalesType = useMemo(() => salesTypes.find(st => st.id.toString() === selectedSalesTypeId), [salesTypes, selectedSalesTypeId]);
-    const selectedBranch = useMemo(() => branches.find(b => b.id.toString() === selectedBranchId), [branches, selectedBranchId]);
+    const selectedSalesman = useMemo(() => Array.isArray(salesmen) ? salesmen.find(s => (s.user_id || s.id)?.toString() === selectedSalesmanId) : undefined, [salesmen, selectedSalesmanId]);
+    const selectedAccount = useMemo(() => Array.isArray(accounts) ? accounts.find(a => a.id.toString() === selectedAccountId) : undefined, [accounts, selectedAccountId]);
+    const selectedCustomer = useMemo(() => Array.isArray(customers) ? customers.find(c => c.id.toString() === selectedCustomerId) : undefined, [customers, selectedCustomerId]);
+    const selectedSupplier = useMemo(() => Array.isArray(suppliers) ? suppliers.find(s => s.id.toString() === selectedSupplierId) : undefined, [suppliers, selectedSupplierId]);
+    const selectedReceiptType = useMemo(() => Array.isArray(receiptTypes) ? receiptTypes.find(rt => rt.id.toString() === selectedReceiptTypeId) : undefined, [receiptTypes, selectedReceiptTypeId]);
+    const selectedSalesType = useMemo(() => Array.isArray(salesTypes) ? salesTypes.find(st => st.id.toString() === selectedSalesTypeId) : undefined, [salesTypes, selectedSalesTypeId]);
+    const selectedBranch = useMemo(() => Array.isArray(branches) ? branches.find(b => b.id.toString() === selectedBranchId) : undefined, [branches, selectedBranchId]);
+
+    // Auto-generate preview SO# (Not the final one yet - that's set on enterCheckout)
+    const previewOrderNo = useMemo(() => {
+        if (!selectedSupplierId) return "DRAFT-SO";
+        const prefix = selectedSupplier?.supplier_shortcut || "SO";
+        // We use a fixed string "PENDING" or similar for the timestamp part to avoid constant churn in encoding view
+        // OR just show SO-YYYYMMDD part
+        const now = new Date();
+        const datePart = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`;
+        return `${prefix}-${datePart}XXXXX`;
+    }, [selectedSupplier, selectedSupplierId]);
 
     // Initial Data Fetch
     useEffect(() => {
-        salesOrderProvider.getSalesmen().then(setSalesmen);
-        salesOrderProvider.getSuppliers().then(setSuppliers);
-        salesOrderProvider.getBranches().then(setBranches);
-        salesOrderProvider.getPriceTypes().then(setPriceTypeModels);
+        salesOrderProvider.getSalesmen().then(data => setSalesmen(Array.isArray(data) ? data : []));
+        salesOrderProvider.getSuppliers().then(data => setSuppliers(Array.isArray(data) ? data : []));
+        salesOrderProvider.getBranches().then(data => setBranches(Array.isArray(data) ? data : []));
+        salesOrderProvider.getPriceTypes().then(data => setPriceTypeModels(Array.isArray(data) ? data : []));
         fetch("/api/crm/customer-hub/create-sales-order?action=invoice_types")
             .then(r => r.json())
             .then(data => {
-                setReceiptTypes(data);
-                if (data.length > 0 && !selectedReceiptTypeId) setSelectedReceiptTypeId(data[0].id.toString());
+                const types = Array.isArray(data) ? data : [];
+                setReceiptTypes(types);
+                if (types.length > 0 && !selectedReceiptTypeId) setSelectedReceiptTypeId(types[0].id.toString());
             });
         fetch("/api/crm/customer-hub/create-sales-order?action=operations")
             .then(r => r.json())
             .then(data => {
-                setSalesTypes(data);
-                if (data.length > 0 && !selectedSalesTypeId) setSelectedSalesTypeId(data[0].id.toString());
+                const ops = Array.isArray(data) ? data : [];
+                setSalesTypes(ops);
+                if (ops.length > 0 && !selectedSalesTypeId) setSelectedSalesTypeId(ops[0].id.toString());
             });
         // We only want this to run once on mount
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -156,13 +169,14 @@ export function useSalesOrder() {
             const customerCode = customer?.customer_code;
             const customerId = selectedCustomerId;
             const supplierId = selectedSupplierId;
-            const sSalesmanId = selectedSalesmanId;
+            const sSalesmanId = selectedAccountId; // Use the selected account (salesman record PK)
+            const sBranchId = selectedBranchId;
 
             if (customerCode) {
                 setLoadingProducts(true);
 
                 // Concurrent fetch for products
-                salesOrderProvider.searchProducts("", customerCode, Number(supplierId), priceType, Number(customerId), priceTypeId || undefined, sSalesmanId)
+                salesOrderProvider.searchProducts("", customerCode, Number(supplierId), priceType, Number(customerId), priceTypeId || undefined, sSalesmanId, sBranchId)
                     .then((productsData) => {
                         setSupplierProducts(Array.isArray(productsData) ? productsData : []);
                     }).finally(() => setLoadingProducts(false));
@@ -170,7 +184,7 @@ export function useSalesOrder() {
         } else {
             setSupplierProducts([]);
         }
-    }, [selectedCustomerId, selectedSupplierId, priceType, priceTypeId, selectedSalesmanId, customers]);
+    }, [selectedCustomerId, selectedSupplierId, priceType, priceTypeId, selectedAccountId, selectedBranchId, customers]);
 
     // Line Item Logic
     const addProduct = (product: Product, quantity: number, uom: string) => {
@@ -250,6 +264,9 @@ export function useSalesOrder() {
 
         const allocatedDiscount = allocatedGross - allocatedNet;
 
+        const vattableSales = allocatedNet / 1.12;
+        const vatAmount = allocatedNet - vattableSales;
+
         return {
             totalAmount: orderedNet, // Ito ang ipapasa sa total_amount sa API (Ordered Net)
             netAmount: orderedNet,
@@ -259,7 +276,9 @@ export function useSalesOrder() {
             allocatedNet,
             allocatedDiscount,
             allocatedAmount: allocatedNet,
-            discountAmount: allocatedDiscount // Ito ang ipapasa sa discount_amount sa API (Allocated Discount)
+            discountAmount: allocatedDiscount, // Ito ang ipapasa sa discount_amount sa API (Allocated Discount)
+            vattableSales,
+            vatAmount
         };
     }, [lineItems, allocatedQuantities]);
 
@@ -290,7 +309,8 @@ export function useSalesOrder() {
         }
 
         const now = new Date();
-        const generatedNo = `SO-${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}${String(now.getSeconds()).padStart(2, '0')}`;
+        const prefix = selectedSupplier?.supplier_shortcut || "SO";
+        const generatedNo = `${prefix}-${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}${String(now.getSeconds()).padStart(2, '0')}`;
         setOrderNo(generatedNo);
 
         // UOM Decomposition Logic:
@@ -403,7 +423,7 @@ export function useSalesOrder() {
         lineItems,
         addProduct, removeLineItem, updateLineItemQty,
         summary, isValidAllocation,
-        isCheckout, setIsCheckout, orderNo, enterCheckout, allocatedQuantities, updateAllocatedQty,
+        isCheckout, setIsCheckout, orderNo, previewOrderNo, enterCheckout, allocatedQuantities, updateAllocatedQty,
         orderRemarks, setOrderRemarks,
         handleSubmitOrder, submitting
     };
