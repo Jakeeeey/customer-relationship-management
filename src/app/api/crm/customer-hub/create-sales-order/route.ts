@@ -34,7 +34,7 @@ export const dynamic = "force-dynamic";
 
 const DIRECTUS_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
 const DIRECTUS_TOKEN = process.env.DIRECTUS_STATIC_TOKEN;
-const SPRING_API_BASE_URL = process.env.SPRING_API_BASE_URL || "http://100.81.225.79:8083";
+const SPRING_API_BASE_URL = process.env.SPRING_API_BASE_URL || "";
 
 const fetchHeaders = {
     Authorization: `Bearer ${DIRECTUS_TOKEN}`,
@@ -207,7 +207,7 @@ export async function GET(req: NextRequest) {
 
                         console.log(`[InventoryDebug] Final Branch ID: ${branchId}`);
 
-                        if (branchId) {
+                        if (branchId && SPRING_API_BASE_URL) {
                             const cookieStore = await cookies();
                             const token = cookieStore.get(COOKIE_NAME)?.value;
 
