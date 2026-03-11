@@ -133,7 +133,15 @@ export function SalesOrderDetailsModal({
                                 <Clock className="h-6 w-6 text-primary" />
                             </div>
                             <div>
-                                <DialogTitle className="text-2xl font-black">SO No: {order.order_no}</DialogTitle>
+                                <DialogTitle className="text-2xl font-black flex items-center gap-3">
+                                    SO No: {order.order_no}
+                                    {isInvoiceStatus && invoiceData?.invoice?.invoice_no && (
+                                        <>
+                                            <Separator orientation="vertical" className="h-6 bg-slate-300 mx-1" />
+                                            <span className="text-primary/70">Inv: {invoiceData.invoice.invoice_no}</span>
+                                        </>
+                                    )}
+                                </DialogTitle>
                                 <DialogDescription className="text-sm font-semibold flex items-center gap-2">
                                     <Store className="h-3 w-3" />
                                     {customer?.store_name || "Unknown Customer"}
@@ -152,9 +160,13 @@ export function SalesOrderDetailsModal({
                     {/* Summary Cards */}
                     <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 mt-8 pb-2">
                         <div className="bg-white border rounded-xl p-4 shadow-sm flex flex-col gap-1">
-                            <p className="text-[10px] text-muted-foreground uppercase font-black tracking-widest">Order Date</p>
+                            <p className="text-[10px] text-muted-foreground uppercase font-black tracking-widest">
+                                {isInvoiceStatus ? "Invoice Date" : "Order Date"}
+                            </p>
                             <p className="font-bold text-sm">
-                                {order.order_date ? new Date(order.order_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : "N/A"}
+                                {isInvoiceStatus && invoiceData?.invoice?.invoice_date
+                                    ? new Date(invoiceData.invoice.invoice_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                                    : order.order_date ? new Date(order.order_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : "N/A"}
                             </p>
                         </div>
                         <div className="bg-white border rounded-xl p-4 shadow-sm flex flex-col gap-1">
@@ -166,8 +178,12 @@ export function SalesOrderDetailsModal({
                             <p className="font-bold text-sm truncate">{salesman?.salesman_name || "N/A"}</p>
                         </div>
                         <div className="bg-primary/5 border border-primary/20 rounded-xl p-4 shadow-sm flex flex-col gap-1">
-                            <p className="text-[10px] text-primary uppercase font-black tracking-widest leading-none">Total Value</p>
-                            <p className="font-black text-lg text-primary">{formatCurrency(order.allocated_amount || 0)}</p>
+                            <p className="text-[10px] text-primary uppercase font-black tracking-widest leading-none">
+                                {isInvoiceStatus ? "Invoice Total" : "Order Value"}
+                            </p>
+                            <p className="font-black text-lg text-primary">
+                                {formatCurrency(isInvoiceStatus ? (invoiceData?.invoice?.net_amount || 0) : (order.allocated_amount || 0))}
+                            </p>
                         </div>
                     </div>
                 </div>
@@ -195,83 +211,59 @@ export function SalesOrderDetailsModal({
                                 </div>
                             </div>
                         ) : (
-                            <div className="p-8 max-w-4xl mx-auto space-y-8 animate-in fade-in duration-700">
-                                {/* Invoice Header */}
-                                <div className="flex justify-between items-start">
-                                    <div className="space-y-1">
-                                        <h2 className="text-4xl font-black text-slate-900 tracking-tighter">SALES INVOICE</h2>
-                                        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                                            <div className="w-2 h-2 rounded-full bg-primary" />
-                                            {invoiceData.invoice.invoice_no}
-                                        </p>
-                                    </div>
-                                    <div className="text-right space-y-2">
-                                        <div className="flex flex-col items-end">
-                                            <span className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Issue Date</span>
-                                            <span className="text-sm font-bold">{new Date(invoiceData.invoice.invoice_date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</span>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <Separator className="bg-slate-200" />
-
-                                {/* Invoice Table */}
-                                <div className="border rounded-2xl overflow-hidden shadow-sm bg-white">
-                                    <Table>
-                                        <TableHeader className="bg-slate-900 border-none">
-                                            <TableRow className="hover:bg-slate-900 border-none">
-                                                <TableHead className="text-slate-100 font-bold pl-6 h-12 uppercase text-[10px] tracking-widest">Item Description</TableHead>
-                                                <TableHead className="text-slate-100 text-right font-bold h-12 uppercase text-[10px] tracking-widest">Price</TableHead>
-                                                <TableHead className="text-slate-100 text-center font-bold h-12 uppercase text-[10px] tracking-widest w-[100px]">Qty</TableHead>
-                                                <TableHead className="text-slate-100 text-right font-bold h-12 uppercase text-[10px] tracking-widest pr-6 w-[150px]">Subtotal</TableHead>
+                            <div className="p-0 border-none animate-in fade-in duration-700">
+                                <Table>
+                                    <TableHeader className="bg-slate-50/80 sticky top-0 z-10 border-b backdrop-blur-sm">
+                                        <TableRow className="hover:bg-transparent border-none">
+                                            <TableHead className="pl-8 h-12 uppercase text-[9px] font-black text-slate-400 tracking-[0.2em]">Item Description</TableHead>
+                                            <TableHead className="text-right h-12 uppercase text-[9px] font-black text-slate-400 tracking-[0.2em]">Unit Price</TableHead>
+                                            <TableHead className="text-center h-12 uppercase text-[9px] font-black text-slate-400 tracking-[0.2em] w-[100px]">Qty</TableHead>
+                                            <TableHead className="text-right pr-8 h-12 uppercase text-[9px] font-black text-slate-400 tracking-[0.2em] w-[150px]">Subtotal</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {invoiceData.details.map((item, idx) => (
+                                            <TableRow key={idx} className="border-slate-50 hover:bg-slate-50/50 transition-colors">
+                                                <TableCell className="pl-8 py-5">
+                                                    <div className="flex flex-col gap-0.5">
+                                                        <span className="font-black text-slate-900 text-[13px]">{item.product_id?.product_name || "N/A Item"}</span>
+                                                        <span className="text-[10px] text-muted-foreground font-mono font-bold tracking-tighter">{item.product_id?.product_code}</span>
+                                                    </div>
+                                                </TableCell>
+                                                <TableCell className="text-right font-medium text-slate-500 font-mono tracking-tight tabular-nums text-xs">
+                                                    {formatCurrency(item.unit_price)}
+                                                </TableCell>
+                                                <TableCell className="text-center font-bold text-slate-400 text-xs tabular-nums">
+                                                    {item.quantity}
+                                                </TableCell>
+                                                <TableCell className="text-right font-black text-slate-950 pr-8 font-mono text-sm tabular-nums tracking-tighter">
+                                                    {formatCurrency(item.total_amount)}
+                                                </TableCell>
                                             </TableRow>
-                                        </TableHeader>
-                                        <TableBody>
-                                            {invoiceData.details.map((item, idx) => (
-                                                <TableRow key={idx} className="border-slate-100 hover:bg-slate-50/50 transition-colors">
-                                                    <TableCell className="pl-6 py-5">
-                                                        <div className="flex flex-col gap-0.5">
-                                                            <span className="font-bold text-slate-900 text-[13px]">{item.product_id?.product_name || "N/A Item"}</span>
-                                                            <span className="text-[10px] text-muted-foreground font-mono font-bold tracking-tighter">{item.product_id?.product_code}</span>
-                                                        </div>
-                                                    </TableCell>
-                                                    <TableCell className="text-right font-medium text-slate-500 font-mono tracking-tight tabular-nums text-xs">
-                                                        {formatCurrency(item.unit_price)}
-                                                    </TableCell>
-                                                    <TableCell className="text-center">
-                                                        <Badge variant="secondary" className="font-black bg-slate-100 text-slate-700 min-w-[32px] justify-center">
-                                                            {item.quantity}
-                                                        </Badge>
-                                                    </TableCell>
-                                                    <TableCell className="text-right font-black text-slate-900 pr-6 font-mono text-sm tabular-nums tracking-tighter">
-                                                        {formatCurrency(item.total_amount)}
-                                                    </TableCell>
-                                                </TableRow>
-                                            ))}
-                                        </TableBody>
-                                    </Table>
-                                </div>
+                                        ))}
+                                    </TableBody>
+                                </Table>
 
-                                {/* Financials */}
-                                <div className="flex flex-col items-end space-y-3 pt-6 px-4">
-                                    <div className="flex items-center gap-12 text-sm">
-                                        <span className="uppercase font-black tracking-widest text-[10px] text-slate-400">Gross Total</span>
-                                        <span className="font-bold text-slate-600 w-32 text-right font-mono tabular-nums">{formatCurrency(invoiceData.invoice.gross_amount)}</span>
-                                    </div>
-                                    <div className="flex items-center gap-12 text-sm text-rose-500">
-                                        <span className="uppercase font-black tracking-widest text-[10px]"> Discount</span>
-                                        <span className="font-bold w-32 text-right font-mono tabular-nums">-{formatCurrency(invoiceData.invoice.discount_amount)}</span>
-                                    </div>
-                                    <div className="flex items-center gap-12 text-sm">
-                                        <span className="uppercase font-black tracking-widest text-[10px] text-slate-400">VAT (12%)</span>
-                                        <span className="font-bold text-slate-600 w-32 text-right font-mono tabular-nums">{formatCurrency(invoiceData.invoice.vat_amount || 0)}</span>
-                                    </div>
-                                    <Separator className="w-64 bg-slate-200 mt-4" />
-                                    <div className="flex items-center gap-12 pt-2">
-                                        <span className="text-[10px] uppercase font-black tracking-[0.2em] text-primary">Total Amount</span>
-                                        <span className="text-4xl font-black text-slate-950 w-64 text-right tabular-nums tracking-tighter">
-                                            {formatCurrency(invoiceData.invoice.net_amount)}
-                                        </span>
+                                {/* Simple Financial Summary */}
+                                <div className="p-8 bg-slate-50/30 border-t flex justify-end">
+                                    <div className="w-full max-w-xs space-y-3">
+                                        <div className="flex justify-between items-center text-sm">
+                                            <span className="text-muted-foreground font-medium">Gross Total</span>
+                                            <span className="font-bold text-slate-600">{formatCurrency(invoiceData.invoice.gross_amount)}</span>
+                                        </div>
+                                        <div className="flex justify-between items-center text-sm">
+                                            <span className="text-muted-foreground font-medium">Discount</span>
+                                            <span className="font-bold text-rose-500">-{formatCurrency(invoiceData.invoice.discount_amount)}</span>
+                                        </div>
+                                        <div className="flex justify-between items-center text-sm">
+                                            <span className="text-muted-foreground font-medium">VAT (12%)</span>
+                                            <span className="font-bold text-slate-600">{formatCurrency(invoiceData.invoice.vat_amount || 0)}</span>
+                                        </div>
+                                        <Separator className="bg-slate-200" />
+                                        <div className="flex justify-between items-center pt-1">
+                                            <span className="text-sm font-black uppercase tracking-widest text-primary">Total Amount</span>
+                                            <span className="text-2xl font-black text-slate-950">{formatCurrency(invoiceData.invoice.net_amount)}</span>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -357,7 +349,7 @@ export function SalesOrderDetailsModal({
                         <div className="w-px h-10 bg-slate-100" />
                         <div className="flex flex-col gap-1">
                             <p className="text-[9px] text-slate-400 uppercase font-black tracking-widest">
-                                {isInvoiceStatus ? "CONSOLIDATED SETTLEMENT" : "NET PROJECTED VALUE"}
+                                {isInvoiceStatus ? "CONSOLIDATED AMOUNT" : "NET PROJECTED VALUE"}
                             </p>
                             <div className="flex items-baseline gap-2">
                                 <span className="text-[11px] font-bold text-slate-300 uppercase italic">PHP</span>
