@@ -239,8 +239,20 @@ export async function GET(req: NextRequest) {
 
             if (!invoice) return NextResponse.json({ data: null, message: "No invoice found" });
 
+<<<<<<< Updated upstream
             // 2. Fetch Invoice Details using the numeric invoice_id as the FK (invoice_no field in schema)
             const detUrl = `${DIRECTUS_URL}/items/sales_invoice_details?filter[invoice_no][_eq]=${invoice.invoice_id}&fields=*&limit=-1`;
+=======
+            // 2. Fetch Invoice Details
+            // Search by either invoice_id (numeric) or invoice_no (string)
+            const detFilter = {
+                "_or": [
+                    { "invoice_no": { "_eq": invoice.invoice_id } },
+                    { "invoice_no": { "_eq": invoice.invoice_no } }
+                ]
+            };
+            const detUrl = `${DIRECTUS_URL}/items/sales_invoice_details?filter=${encodeURIComponent(JSON.stringify(detFilter))}&fields=*&limit=-1`;
+>>>>>>> Stashed changes
             const detRes = await fetch(detUrl, { headers: fetchHeaders });
             if (!detRes.ok) return NextResponse.json({ error: "Failed to fetch invoice details" }, { status: 500 });
 
