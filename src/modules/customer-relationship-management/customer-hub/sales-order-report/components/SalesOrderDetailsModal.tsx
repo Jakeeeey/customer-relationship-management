@@ -20,7 +20,6 @@ import {
 import { formatCurrency } from "@/lib/utils";
 import {
     Package,
-    Calendar,
     Store,
     AlertCircle,
     Clock
@@ -28,7 +27,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { salesOrderProvider } from "../providers/fetchProvider";
 import { SalesOrder, Customer, Salesman, Branch, SalesOrderDetail } from "../types";
-import { ScrollArea } from "@/components/ui/scroll-area";
 
 interface SalesOrderDetailsModalProps {
     isOpen: boolean;
@@ -111,10 +109,9 @@ export function SalesOrderDetailsModal({
     const salesman = salesmen.find((s) => s.id === order.salesman_id);
     const branch = branches.find((b) => b.id === order.branch_id);
 
-
     const getStatusStyle = (status: string) => {
         switch (status) {
-            case "For Approval": return "bg-amber-100 text-amber-900 border-amber-200 ring-amber-500/20";
+            case "For Approval": return "bg-[#FEF9C3] text-[#854D0E] border-[#FEF08A]";
             case "Delivered": return "bg-emerald-100 text-emerald-900 border-emerald-200 ring-emerald-500/20";
             case "Cancelled": return "bg-rose-100 text-rose-900 border-rose-200 ring-rose-500/20";
             case "On Hold": return "bg-slate-100 text-slate-900 border-slate-200 ring-slate-500/20";
@@ -129,11 +126,11 @@ export function SalesOrderDetailsModal({
                 <div className="p-6 pb-4 shrink-0 bg-slate-50/50">
                     <div className="flex justify-between items-start">
                         <div className="flex items-center gap-3">
-                            <div className="bg-primary/10 p-2 rounded-lg">
-                                <Clock className="h-6 w-6 text-primary" />
+                            <div className="bg-[#E0F2FE] p-2 rounded-lg">
+                                <Clock className="h-6 w-6 text-[#0EA5E9]" />
                             </div>
                             <div>
-                                <DialogTitle className="text-2xl font-black flex items-center gap-3">
+                                <DialogTitle className="text-2xl font-black flex items-center gap-3 text-slate-900">
                                     SO No: {order.order_no}
                                     {isInvoiceStatus && invoiceData?.invoice?.invoice_no && (
                                         <>
@@ -142,16 +139,18 @@ export function SalesOrderDetailsModal({
                                         </>
                                     )}
                                 </DialogTitle>
-                                <DialogDescription className="text-sm font-semibold flex items-center gap-2">
+                                <DialogDescription className="text-[11px] font-bold flex items-center gap-2 text-slate-500 uppercase tracking-tight mt-0.5">
                                     <Store className="h-3 w-3" />
                                     {customer?.store_name || "Unknown Customer"}
-                                    <span className="text-muted-foreground ml-1">({order.customer_code})</span>
+                                    {customer?.city && ` - ${customer.city}`}
+                                    {customer?.province && `, ${customer.province}`}
+                                    <span className="text-slate-400 ml-1">({order.customer_code})</span>
                                 </DialogDescription>
                             </div>
                         </div>
                         <Badge variant="outline" className={`
                             px-4 py-1 text-[10px] font-black shadow-sm tracking-widest
-                            ${getStatusStyle(order.order_status || "").replace("ring-", "")}
+                            ${getStatusStyle(order.order_status || "")}
                         `}>
                             {order.order_status?.toUpperCase()}
                         </Badge>
@@ -163,7 +162,7 @@ export function SalesOrderDetailsModal({
                             <p className="text-[10px] text-muted-foreground uppercase font-black tracking-widest">
                                 {isInvoiceStatus ? "Invoice Date" : "Order Date"}
                             </p>
-                            <p className="font-bold text-sm">
+                            <p className="font-bold text-sm text-slate-900">
                                 {isInvoiceStatus && invoiceData?.invoice?.invoice_date
                                     ? new Date(invoiceData.invoice.invoice_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
                                     : order.order_date ? new Date(order.order_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : "N/A"}
@@ -171,17 +170,17 @@ export function SalesOrderDetailsModal({
                         </div>
                         <div className="bg-white border rounded-xl p-4 shadow-sm flex flex-col gap-1">
                             <p className="text-[10px] text-muted-foreground uppercase font-black tracking-widest">Fulfillment Hub</p>
-                            <p className="font-bold text-sm truncate">{branch?.branch_name || "Primary Hub"}</p>
+                            <p className="font-bold text-sm text-slate-900 truncate">{branch?.branch_name || "WAREHOUSE - DRY22"}</p>
                         </div>
                         <div className="bg-white border rounded-xl p-4 shadow-sm flex flex-col gap-1">
                             <p className="text-[10px] text-muted-foreground uppercase font-black tracking-widest">Handler</p>
-                            <p className="font-bold text-sm truncate">{salesman?.salesman_name || "N/A"}</p>
+                            <p className="font-bold text-sm text-slate-900 truncate">{salesman?.salesman_name || "N/A"}</p>
                         </div>
-                        <div className="bg-primary/5 border border-primary/20 rounded-xl p-4 shadow-sm flex flex-col gap-1">
-                            <p className="text-[10px] text-primary uppercase font-black tracking-widest leading-none">
+                        <div className="bg-[#F0F9FF] border border-[#BAE6FD] rounded-xl p-4 shadow-sm flex flex-col gap-1">
+                            <p className="text-[10px] text-[#0284C7] uppercase font-black tracking-widest leading-none">
                                 {isInvoiceStatus ? "Invoice Total" : "Order Value"}
                             </p>
-                            <p className="font-black text-lg text-primary">
+                            <p className="font-black text-lg text-[#0284C7]">
                                 {formatCurrency(isInvoiceStatus ? (invoiceData?.invoice?.net_amount || 0) : (order.allocated_amount || 0))}
                             </p>
                         </div>
@@ -213,30 +212,30 @@ export function SalesOrderDetailsModal({
                         ) : (
                             <div className="p-0 border-none animate-in fade-in duration-700">
                                 <Table>
-                                    <TableHeader className="bg-slate-50/80 sticky top-0 z-10 border-b backdrop-blur-sm">
+                                    <TableHeader className="bg-slate-50 sticky top-0 z-10 border-b">
                                         <TableRow className="hover:bg-transparent border-none">
-                                            <TableHead className="pl-8 h-12 uppercase text-[9px] font-black text-slate-400 tracking-[0.2em]">Item Description</TableHead>
-                                            <TableHead className="text-right h-12 uppercase text-[9px] font-black text-slate-400 tracking-[0.2em]">Unit Price</TableHead>
-                                            <TableHead className="text-center h-12 uppercase text-[9px] font-black text-slate-400 tracking-[0.2em] w-[100px]">Qty</TableHead>
-                                            <TableHead className="text-right pr-8 h-12 uppercase text-[9px] font-black text-slate-400 tracking-[0.2em] w-[150px]">Subtotal</TableHead>
+                                            <TableHead className="pl-8 h-12 uppercase text-[10px] font-black text-[#94A3B8] tracking-widest">Product / SKU</TableHead>
+                                            <TableHead className="text-right h-12 uppercase text-[10px] font-black text-[#94A3B8] tracking-widest">Unit Price</TableHead>
+                                            <TableHead className="text-center h-12 uppercase text-[10px] font-black text-[#94A3B8] tracking-widest w-[100px]">Qty</TableHead>
+                                            <TableHead className="text-right pr-8 h-12 uppercase text-[10px] font-black text-[#94A3B8] tracking-widest w-[150px]">Amount</TableHead>
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
                                         {invoiceData.details.map((item, idx) => (
                                             <TableRow key={idx} className="border-slate-50 hover:bg-slate-50/50 transition-colors">
-                                                <TableCell className="pl-8 py-5">
+                                                <TableCell className="pl-8 py-6">
                                                     <div className="flex flex-col gap-0.5">
-                                                        <span className="font-black text-slate-900 text-[13px]">{item.product_id?.product_name || "N/A Item"}</span>
-                                                        <span className="text-[10px] text-muted-foreground font-mono font-bold tracking-tighter">{item.product_id?.product_code}</span>
+                                                        <span className="font-bold text-slate-900 text-sm">{item.product_id?.product_name || "N/A Item"}</span>
+                                                        <span className="text-[10px] text-slate-400 font-bold tracking-tighter">{item.product_id?.product_code}</span>
                                                     </div>
                                                 </TableCell>
-                                                <TableCell className="text-right font-medium text-slate-500 font-mono tracking-tight tabular-nums text-xs">
+                                                <TableCell className="text-right font-bold text-slate-500 font-mono tracking-tight tabular-nums text-sm">
                                                     {formatCurrency(item.unit_price)}
                                                 </TableCell>
-                                                <TableCell className="text-center font-bold text-slate-400 text-xs tabular-nums">
+                                                <TableCell className="text-center font-bold text-slate-500 text-sm tabular-nums">
                                                     {item.quantity}
                                                 </TableCell>
-                                                <TableCell className="text-right font-black text-slate-950 pr-8 font-mono text-sm tabular-nums tracking-tighter">
+                                                <TableCell className="text-right font-black text-slate-950 pr-8 font-mono text-base tabular-nums tracking-tighter">
                                                     {formatCurrency(item.total_amount)}
                                                 </TableCell>
                                             </TableRow>
@@ -244,7 +243,6 @@ export function SalesOrderDetailsModal({
                                     </TableBody>
                                 </Table>
 
-                                {/* Simple Financial Summary */}
                                 <div className="p-8 bg-slate-50/30 border-t flex justify-end">
                                     <div className="w-full max-w-xs space-y-3">
                                         <div className="flex justify-between items-center text-sm">
@@ -269,16 +267,15 @@ export function SalesOrderDetailsModal({
                             </div>
                         )
                     ) : (
-                        /* Manifest Table */
                         <div className="p-0 border-none animate-in fade-in duration-700">
                             <Table>
-                                <TableHeader className="bg-slate-50/80 sticky top-0 z-10 border-b backdrop-blur-sm">
+                                <TableHeader className="bg-slate-50 sticky top-0 z-10 border-b">
                                     <TableRow className="hover:bg-transparent border-none">
-                                        <TableHead className="pl-8 h-12 uppercase text-[9px] font-black text-slate-400 tracking-[0.2em]">Product / SKU</TableHead>
-                                        <TableHead className="text-right h-12 uppercase text-[9px] font-black text-slate-400 tracking-[0.2em]">Unit Price</TableHead>
-                                        <TableHead className="text-center h-12 uppercase text-[9px] font-black text-slate-400 tracking-[0.2em]">Ordered</TableHead>
-                                        <TableHead className="text-center h-12 uppercase text-[9px] font-black text-slate-400 tracking-[0.2em]">Allocated</TableHead>
-                                        <TableHead className="text-right pr-8 h-12 uppercase text-[9px] font-black text-slate-400 tracking-[0.2em]">Amount</TableHead>
+                                        <TableHead className="pl-8 h-12 uppercase text-[10px] font-black text-[#94A3B8] tracking-widest">Product / SKU</TableHead>
+                                        <TableHead className="text-right h-12 uppercase text-[10px] font-black text-[#94A3B8] tracking-widest">Unit Price</TableHead>
+                                        <TableHead className="text-center h-12 uppercase text-[10px] font-black text-[#94A3B8] tracking-widest">Ordered</TableHead>
+                                        <TableHead className="text-center h-12 uppercase text-[10px] font-black text-[#94A3B8] tracking-widest">Allocated</TableHead>
+                                        <TableHead className="text-right pr-8 h-12 uppercase text-[10px] font-black text-[#94A3B8] tracking-widest">Allocated Amount</TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
@@ -309,24 +306,24 @@ export function SalesOrderDetailsModal({
 
                                             return (
                                                 <TableRow key={li.detail_id || idx} className="hover:bg-slate-50/50 transition-colors border-slate-50 group">
-                                                    <TableCell className="pl-8 py-5">
-                                                        <div className="flex flex-col gap-0.5">
-                                                            <span className="font-black text-slate-900 text-[13px] group-hover:text-primary transition-colors">{productName}</span>
-                                                            <span className="text-[10px] font-mono text-slate-400 font-bold tracking-tighter">{productCode}</span>
+                                                    <TableCell className="pl-8 py-6">
+                                                        <div className="flex flex-col gap-1">
+                                                            <span className="font-bold text-slate-900 text-sm group-hover:text-primary transition-colors">{productName}</span>
+                                                            <span className="text-[10px] font-bold text-slate-400 tracking-tighter">{productCode}</span>
                                                         </div>
                                                     </TableCell>
-                                                    <TableCell className="text-right font-medium text-slate-500 font-mono tracking-tight tabular-nums text-xs">
+                                                    <TableCell className="text-right font-bold text-slate-500 font-mono tracking-tight tabular-nums text-sm">
                                                         {formatCurrency(li.unit_price)}
                                                     </TableCell>
-                                                    <TableCell className="text-center font-bold text-slate-400 text-xs tabular-nums">
+                                                    <TableCell className="text-center font-bold text-blue-400/80 text-sm tabular-nums">
                                                         {li.ordered_quantity}
                                                     </TableCell>
                                                     <TableCell className="text-center">
-                                                        <span className="inline-flex items-center justify-center min-w-[28px] h-7 px-2 rounded-lg bg-emerald-50 text-emerald-700 font-black text-[11px] border border-emerald-100 tabular-nums">
+                                                        <span className="inline-flex items-center justify-center min-w-[32px] h-7 px-2 rounded-lg bg-[#F0FDF4] text-[#16A34A] font-black text-[11px] border border-[#DCFCE7] tabular-nums">
                                                             {li.allocated_quantity}
                                                         </span>
                                                     </TableCell>
-                                                    <TableCell className="text-right font-black text-slate-950 pr-8 font-mono text-sm tabular-nums tracking-tighter">
+                                                    <TableCell className="text-right font-black text-slate-950 pr-8 font-mono text-base tabular-nums tracking-tighter">
                                                         {formatCurrency(li.net_amount || 0)}
                                                     </TableCell>
                                                 </TableRow>
@@ -339,7 +336,7 @@ export function SalesOrderDetailsModal({
                     )}
                 </div>
 
-                {/* Footer Actions */}
+                {/* Footer Section */}
                 <div className="p-8 border-t bg-white flex flex-col sm:flex-row justify-between items-center gap-8 shrink-0 relative z-10">
                     <div className="flex items-center gap-12">
                         <div className="flex flex-col gap-1">
@@ -349,11 +346,11 @@ export function SalesOrderDetailsModal({
                         <div className="w-px h-10 bg-slate-100" />
                         <div className="flex flex-col gap-1">
                             <p className="text-[9px] text-slate-400 uppercase font-black tracking-widest">
-                                {isInvoiceStatus ? "CONSOLIDATED AMOUNT" : "NET PROJECTED VALUE"}
+                                {isInvoiceStatus ? "CONSOLIDATED AMOUNT" : "NET AMOUNT"}
                             </p>
-                            <div className="flex items-baseline gap-2">
-                                <span className="text-[11px] font-bold text-slate-300 uppercase italic">PHP</span>
-                                <p className="text-4xl font-black text-slate-950 tabular-nums tracking-tighter">
+                            <div className="flex items-baseline gap-1">
+                                <span className="text-[11px] font-black text-slate-300 uppercase italic">PHP</span>
+                                <p className="text-[48px] font-black text-slate-950 tabular-nums tracking-tighter leading-none">
                                     {formatCurrency(isInvoiceStatus ? (invoiceData?.invoice?.net_amount || 0) : (order.allocated_amount || 0)).replace("PHP", "").trim()}
                                 </p>
                             </div>
@@ -364,7 +361,7 @@ export function SalesOrderDetailsModal({
                         <Button
                             variant="outline"
                             onClick={onClose}
-                            className="font-black text-[11px] uppercase tracking-widest px-8 border-2 border-slate-200 hover:bg-slate-50 active:scale-95 transition-all h-12"
+                            className="font-black text-[12px] uppercase tracking-widest px-10 border-[3px] border-[#38BDF8] text-[#0284C7] hover:bg-[#F0F9FF] active:scale-95 transition-all h-14 rounded-xl shadow-sm"
                         >
                             Close Record
                         </Button>
