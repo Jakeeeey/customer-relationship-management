@@ -25,19 +25,7 @@ import { Separator } from "@/components/ui/separator";
 import { Input } from "@/components/ui/input";
 
 import type { SalesOrder, OrderDetail } from "../hooks/useSalesOrderApproval";
-import { getPaymentSummary, getOrderDetails, getInvoiceDetails } from "../providers/fetchProvider";
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-=======
-=======
->>>>>>> Stashed changes
-=======
->>>>>>> Stashed changes
-
-import { Input } from "@/components/ui/input";
-import { AlertCircle, Clock, Trash2 } from "lucide-react";
->>>>>>> Stashed changes
+import { getOrderDetails, getInvoiceDetails } from "../providers/fetchProvider";
 
 interface ApprovalModalProps {
     order: SalesOrder | null;
@@ -46,7 +34,7 @@ interface ApprovalModalProps {
     onApprove: (orderIds: (string | number)[]) => Promise<boolean>;
     onHold: (orderIds: (string | number)[]) => Promise<boolean>;
     onCancel: (orderIds: (string | number)[]) => Promise<boolean>;
-    onSaveDetails: (orderId: number, header: any, items: any[]) => Promise<boolean>;
+    onSaveDetails: (orderId: number, header: Record<string, number | string | null | undefined>, items: { order_detail_id: number, allocated_quantity: number, net_amount: number }[]) => Promise<boolean>;
 }
 
 export function ApprovalModal({
@@ -59,7 +47,24 @@ export function ApprovalModal({
     onSaveDetails
 }: ApprovalModalProps) {
     const [details, setDetails] = useState<OrderDetail[]>([]);
-    const [invoiceData, setInvoiceData] = useState<{ invoice: any, details: any[] } | null>(null);
+    const [invoiceData, setInvoiceData] = useState<{
+        invoice: {
+            invoice_no: string;
+            invoice_date: string;
+            salesman_id: string;
+            gross_amount: number;
+            vat_amount: number;
+            discount_amount: number;
+            net_amount: number;
+        },
+        details: {
+            product_id: { product_name: string; product_code: string; description?: string } | null;
+            unit_price: number;
+            quantity: number;
+            total_amount: number;
+            discount_amount: number;
+        }[]
+    } | null>(null);
     const [loadingDetails, setLoadingDetails] = useState(false);
     const [loadingInvoice, setLoadingInvoice] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -86,7 +91,7 @@ export function ApprovalModal({
                     setLoadingDetails(true);
                     try {
                         const data = await getOrderDetails(order.order_id);
-                        const enriched = (data || []).map((item: any) => ({
+                        const enriched = (data || []).map((item: OrderDetail) => ({
                             ...item,
                             allocated_quantity: item.allocated_quantity || item.ordered_quantity
                         }));
@@ -258,7 +263,7 @@ export function ApprovalModal({
                                         </TableHeader>
                                         <TableBody className="bg-white">
                                             {invoiceData.details.map((item, idx) => {
-                                                const prod = item.product_id as any;
+                                                const prod = item.product_id;
                                                 return (
                                                     <TableRow key={idx} className="border-slate-100">
                                                         <TableCell className="pl-6 py-4">
@@ -337,9 +342,9 @@ export function ApprovalModal({
                                     </TableRow>
                                 ) : (
                                     details.map((li, idx) => {
-                                        const productName = (li.product_id as any)?.product_name || (li.product_id as any)?.description || "Unknown Product";
-                                        const productCode = (li.product_id as any)?.product_code || "N/A";
-                                        const description = (li.product_id as any)?.description;
+                                        const productName = li.product_id?.product_name || li.product_id?.description || "Unknown Product";
+                                        const productCode = li.product_id?.product_code || "N/A";
+                                        const description = li.product_id?.description;
                                         const lineTotal = (li.allocated_quantity * li.unit_price) - (li.discount_amount || 0);
 
                                         return (
@@ -408,43 +413,6 @@ export function ApprovalModal({
                             <>
                                 <div className="h-8 w-[1px] bg-slate-300 hidden sm:block mx-1" />
 
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-                                {isActionable && (
-                                    <>
-                                        <Button
-                                            variant="destructive"
-                                            className="font-black px-6 gap-2 h-11"
-                                            disabled={isSubmitting}
-                                            onClick={() => handleSaveAndAction("cancel")}
-                                        >
-                                            <Trash2 className="h-4 w-4" />
-                                            Cancel Order
-                                        </Button>
-
-                                        {canHold && (
-                                            <Button
-                                                variant="secondary"
-                                                className="font-black px-6 gap-2 h-11 bg-slate-200 hover:bg-slate-300 text-slate-800 border border-slate-300"
-                                                disabled={isSubmitting}
-                                                onClick={() => handleSaveAndAction("hold")}
-                                            >
-                                                <AlertCircle className="h-4 w-4" />
-                                                On Hold
-                                            </Button>
-                                        )}
-
-                                        <Button
-                                            className="font-black px-8 gap-2 bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg h-11"
-                                            disabled={isSubmitting}
-                                            onClick={() => handleSaveAndAction("approve")}
-                                        >
-                                            {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-5 w-5" />}
-                                            Approve Order
-                                        </Button>
-                                    </>
-=======
                                 {(isActionable || order.order_status === "For Approval") && (
                                     <Button
                                         variant="destructive"
@@ -469,58 +437,6 @@ export function ApprovalModal({
                                     </Button>
                                 )}
 
-=======
-                                {(isActionable || order.order_status === "For Approval") && (
-                                    <Button
-                                        variant="destructive"
-                                        className="font-black px-6 gap-2 h-11"
-                                        disabled={isSubmitting}
-                                        onClick={() => handleSaveAndAction("cancel")}
-                                    >
-                                        <Trash2 className="h-4 w-4" />
-                                        Cancel Order
-                                    </Button>
-                                )}
-
-                                {canHold && (
-                                    <Button
-                                        variant="secondary"
-                                        className="font-black px-6 gap-2 h-11 bg-slate-200 hover:bg-slate-300 text-slate-800 border border-slate-300"
-                                        disabled={isSubmitting}
-                                        onClick={() => handleSaveAndAction("hold")}
-                                    >
-                                        <AlertCircle className="h-4 w-4" />
-                                        On Hold
-                                    </Button>
-                                )}
-
->>>>>>> Stashed changes
-=======
-                                {(isActionable || order.order_status === "For Approval") && (
-                                    <Button
-                                        variant="destructive"
-                                        className="font-black px-6 gap-2 h-11"
-                                        disabled={isSubmitting}
-                                        onClick={() => handleSaveAndAction("cancel")}
-                                    >
-                                        <Trash2 className="h-4 w-4" />
-                                        Cancel Order
-                                    </Button>
-                                )}
-
-                                {canHold && (
-                                    <Button
-                                        variant="secondary"
-                                        className="font-black px-6 gap-2 h-11 bg-slate-200 hover:bg-slate-300 text-slate-800 border border-slate-300"
-                                        disabled={isSubmitting}
-                                        onClick={() => handleSaveAndAction("hold")}
-                                    >
-                                        <AlertCircle className="h-4 w-4" />
-                                        On Hold
-                                    </Button>
-                                )}
-
->>>>>>> Stashed changes
                                 {isActionable && (
                                     <Button
                                         className="font-black px-8 gap-2 bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg h-11"
@@ -530,13 +446,6 @@ export function ApprovalModal({
                                         {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-5 w-5" />}
                                         Approve Order
                                     </Button>
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
->>>>>>> Stashed changes
-=======
->>>>>>> Stashed changes
-=======
->>>>>>> Stashed changes
                                 )}
                             </>
                         )}

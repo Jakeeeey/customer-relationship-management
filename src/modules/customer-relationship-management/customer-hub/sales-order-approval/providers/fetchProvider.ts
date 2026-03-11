@@ -64,8 +64,8 @@ export async function approveOrders(orderIds: (string | number)[]) {
 
 export async function updateOrderDetails(
     orderId: number,
-    headerUpdates: Record<string, any>,
-    lineItems: any[]
+    headerUpdates: Record<string, string | number | boolean | null | undefined>,
+    lineItems: { order_detail_id: number; allocated_quantity: number; net_amount: number }[]
 ) {
     const res = await fetch(`/api/crm/customer-hub/sales-order-approval`, {
         method: "POST",

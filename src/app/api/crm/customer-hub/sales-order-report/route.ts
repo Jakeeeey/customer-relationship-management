@@ -159,18 +159,18 @@ export async function GET(req: NextRequest) {
 
             // 3. Manual Product Join
             if (details.length > 0) {
-                const productIds = Array.from(new Set(details.map((d: any) => d.product_id))).filter(Boolean);
+                const productIds = Array.from(new Set(details.map((d: { product_id: number | string }) => d.product_id))).filter(Boolean);
                 if (productIds.length > 0) {
                     const pUrl = `${BASE_URL}/products?filter[product_id][_in]=${productIds.join(',')}&fields=product_id,product_name,product_code,description&limit=-1`;
                     const pRes = await fetch(pUrl, { headers });
                     if (pRes.ok) {
                         const pJson = await pRes.json();
-                        const pMap = new Map((pJson.data || []).map((p: any) => [Number(p.product_id), p]));
+                        const pMap = new Map((pJson.data || []).map((p: { product_id: number | string, product_name: string, description: string, product_code: string }) => [Number(p.product_id), p]));
 
-                        details.forEach((d: any) => {
+                        details.forEach((d: { product_id: number | string | Record<string, unknown> }) => {
                             const pid = Number(d.product_id);
                             if (pMap.has(pid)) {
-                                d.product_id = pMap.get(pid);
+                                d.product_id = pMap.get(pid) as Record<string, unknown>;
                             }
                         });
                     }
@@ -183,8 +183,9 @@ export async function GET(req: NextRequest) {
                     details
                 }
             });
-        } catch (error: any) {
-            return NextResponse.json({ error: error.message }, { status: 500 });
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : String(error);
+            return NextResponse.json({ error: message }, { status: 500 });
         }
     }
 

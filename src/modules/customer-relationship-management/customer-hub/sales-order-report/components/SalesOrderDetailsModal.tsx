@@ -43,7 +43,23 @@ export function SalesOrderDetailsModal({
     branches,
 }: SalesOrderDetailsModalProps) {
     const [details, setDetails] = useState<SalesOrderDetail[]>([]);
-    const [invoiceData, setInvoiceData] = useState<{ invoice: any, details: any[] } | null>(null);
+    const [invoiceData, setInvoiceData] = useState<{
+        invoice: {
+            invoice_no: string;
+            invoice_date: string;
+            salesman_id: string;
+            gross_amount: number;
+            vat_amount: number;
+            discount_amount: number;
+            net_amount: number;
+        },
+        details: {
+            product_id: { product_name: string; product_code: string; description?: string } | null;
+            unit_price: number;
+            quantity: number;
+            total_amount: number;
+        }[]
+    } | null>(null);
     const [loading, setLoading] = useState(false);
     const [loadingInvoice, setLoadingInvoice] = useState(false);
 
@@ -210,8 +226,8 @@ export function SalesOrderDetailsModal({
                                                 <TableRow key={idx} className="border-slate-100 hover:bg-slate-50">
                                                     <TableCell className="py-3 px-4">
                                                         <div className="flex flex-col">
-                                                            <span className="font-bold text-slate-800">{(item.product_id as any)?.product_name || "Product"}</span>
-                                                            <span className="text-[10px] text-muted-foreground font-mono">{(item.product_id as any)?.description || (item.product_id as any)?.product_code}</span>
+                                                            <span className="font-bold text-slate-800">{item.product_id?.product_name || "Product"}</span>
+                                                            <span className="text-[10px] text-muted-foreground font-mono">{item.product_id?.description || item.product_id?.product_code}</span>
                                                         </div>
                                                     </TableCell>
                                                     <TableCell className="text-right font-medium text-slate-600 tabular-nums">{formatCurrency(item.unit_price)}</TableCell>

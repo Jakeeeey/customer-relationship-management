@@ -4,7 +4,7 @@ import { toast } from "sonner";
 
 export interface OrderDetail {
     order_detail_id: number;
-    product_id: any;
+    product_id: { product_name: string; product_code: string; description?: string } | null;
     unit_price: number;
     ordered_quantity: number;
     allocated_quantity: number;
@@ -113,7 +113,11 @@ export function useSalesOrderApproval() {
         }
     };
 
-    const handleSaveDetails = async (orderId: number, header: any, items: any[]) => {
+    const handleSaveDetails = async (
+        orderId: number,
+        header: Record<string, string | number | boolean | null | undefined>,
+        items: { order_detail_id: number; allocated_quantity: number; net_amount: number }[]
+    ) => {
         try {
             await updateOrderDetails(orderId, header, items);
             return true;
