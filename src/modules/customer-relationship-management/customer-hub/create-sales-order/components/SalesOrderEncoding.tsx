@@ -105,7 +105,7 @@ export function SalesOrderEncoding({
                                                                 {formatCurrency(netPrice)}
                                                             </span>
                                                         </div>
-                                                        <span className="text-[9px] text-muted-foreground font-bold uppercase">
+                                                        <span className="text-[9px] text-muted-foreground font-black uppercase tracking-tighter">
                                                             {p.discount_level} {p.uom ? `• ${p.uom}` : ''}
                                                         </span>
                                                     </div>
@@ -117,8 +117,6 @@ export function SalesOrderEncoding({
                                                                 </span>
                                                             )}
                                                             {!p.discount_level && <span className="text-[10px] text-slate-300 italic">No Discount</span>}
-                                                        </div>
-                                                        <div className="flex items-center gap-1.5 ml-auto">
                                                         </div>
                                                     </div>
                                                 </div>
@@ -137,11 +135,11 @@ export function SalesOrderEncoding({
                             </div>
                         )}
                     </CardContent>
-                </Card>
-            </div>
+                </Card >
+            </div >
 
             {/* Cart Panel */}
-            <div className="xl:col-span-3 lg:col-span-2 flex flex-col gap-4">
+            < div className="xl:col-span-3 lg:col-span-2 flex flex-col gap-4" >
                 <Card className="flex-1 flex flex-col shadow-sm border-primary/20">
                     <CardHeader className="p-4 flex flex-row items-center justify-between border-b bg-primary/5">
                         <div className="flex items-center gap-2">
@@ -158,9 +156,11 @@ export function SalesOrderEncoding({
                                         <TableHead className="text-[10px] font-black uppercase bg-muted/50">Product Desc</TableHead>
 
                                         <TableHead className="text-center text-[10px] font-black uppercase bg-muted/50">UOM</TableHead>
+                                        <TableHead className="text-center text-[10px] font-black uppercase bg-muted/50">UC</TableHead>
                                         <TableHead className="text-center text-[10px] font-black uppercase w-[100px] bg-muted/50">Qty</TableHead>
                                         <TableHead className="text-right text-[10px] font-black uppercase bg-muted/50">Unit Price</TableHead>
                                         <TableHead className="text-center text-[10px] font-black uppercase bg-muted/50">Discounts</TableHead>
+                                        <TableHead className="text-center text-[10px] font-black uppercase bg-muted/50">Available</TableHead>
                                         <TableHead className="text-right text-[10px] font-black uppercase bg-muted/50">Total</TableHead>
                                         <TableHead className="w-[50px] bg-muted/50"></TableHead>
                                     </TableRow>
@@ -183,14 +183,19 @@ export function SalesOrderEncoding({
                                                             </Badge>
                                                         )}
                                                     </div>
-                                                    <span className="text-[9px] text-primary/70 uppercase font-black tracking-tighter mt-1">{item.discountType}</span>
+                                                    <div className="flex items-center gap-2 mt-1">
+                                                        <span className="text-[9px] text-primary/70 uppercase font-black tracking-tighter">{item.discountType}</span>
+                                                    </div>
                                                 </div>
                                             </TableCell>
 
-                                            <TableCell className="text-center">
+                                            <TableCell className="text-center border-x border-muted/20">
                                                 <Badge variant="outline" className="text-[9px] font-bold px-1.5 py-0 border-slate-200 text-slate-500 whitespace-nowrap">
                                                     {item.uom}
                                                 </Badge>
+                                            </TableCell>
+                                            <TableCell className="text-center text-[10px] font-black text-indigo-500 border-r border-muted/20">
+                                                {Number(item.product.unit_count) || 1}
                                             </TableCell>
                                             <TableCell className="text-center">
                                                 <Input
@@ -211,7 +216,12 @@ export function SalesOrderEncoding({
                                                     {!item.discountType && <span className="text-[10px] text-slate-300 italic">None</span>}
                                                 </div>
                                             </TableCell>
-                                            <TableCell className="text-right font-black text-sm text-primary tabular-nums whitespace-nowrap">{formatCurrency(item.netAmount)}</TableCell>
+                                            <TableCell className="text-center border-l border-muted/20">
+                                                <span className={`text-[10px] font-black tabular-nums ${(Number(item.product.available_qty) || 0) > 0 ? "text-slate-600" : "text-red-500"}`}>
+                                                    {Number(item.product.available_qty) || 0}
+                                                </span>
+                                            </TableCell>
+                                            <TableCell className="text-right text-[11px] font-black text-slate-900 tabular-nums">{formatCurrency(item.netAmount)}</TableCell>
                                             <TableCell>
                                                 <Button variant="ghost" size="icon" className="text-red-400 h-8 w-8 hover:bg-red-50 hover:text-red-600 transition-colors" onClick={() => removeLineItem(item.id)}>
                                                     <Trash2 className="w-3.5 h-3.5" />
@@ -221,7 +231,7 @@ export function SalesOrderEncoding({
                                     ))}
                                     {lineItems.length === 0 && (
                                         <TableRow>
-                                            <td colSpan={7} className="py-20 text-center text-muted-foreground text-xs italic">
+                                            <td colSpan={9} className="py-20 text-center text-muted-foreground text-xs italic">
                                                 Cart is empty. Select products from the catalog to begin.
                                             </td>
                                         </TableRow>
@@ -256,7 +266,7 @@ export function SalesOrderEncoding({
                         </Button>
                     </div>
                 </Card>
-            </div>
-        </div>
+            </div >
+        </div >
     );
 }

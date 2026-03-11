@@ -169,6 +169,11 @@ export function SalesOrderCheckout({
                                                                 <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-tighter">
                                                                     {item.discountType}
                                                                 </span>
+                                                                <div className="flex items-center gap-1 text-[9px] font-black uppercase tracking-tighter ml-auto">
+                                                                    <span className="text-indigo-400">UC: {Number(item.product.unit_count) || 1}</span>
+                                                                    <span className="text-slate-300">•</span>
+                                                                    <span className="text-slate-400">Av: {Number(item.product.available_qty) || 0}</span>
+                                                                </div>
                                                             </div>
                                                         </div>
                                                     </TableCell>

@@ -54,6 +54,8 @@ export interface Product {
     uom_name?: string;
     uom_shortcut?: string;
     parent_product_name?: string;
+    available_qty?: number | null;
+    unit_count?: number | null;
     [key: string]: unknown;
 }
 

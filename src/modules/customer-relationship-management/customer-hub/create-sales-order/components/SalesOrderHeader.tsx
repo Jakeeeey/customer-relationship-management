@@ -85,11 +85,11 @@ export function SalesOrderHeader({
         <Card className="shadow-sm border-muted-foreground/10 overflow-hidden">
             <CardHeader className="py-4 px-6 flex flex-row items-center justify-between border-b bg-slate-50/50">
                 <div className="flex items-center gap-2">
-                    <span className="text-[10px] uppercase font-black text-slate-400 tracking-widest">Pricing Strategy</span>
+                    <span className="text-[10px] uppercase font-black text-slate-400 tracking-widest">Price Type </span>
                     <Badge variant="secondary" className="font-black text-primary bg-primary/10 border-primary/20">
                         {priceTypeId && priceTypeModels?.find(p => p.price_type_id === priceTypeId)?.price_type_name
                             ? priceTypeModels.find(p => p.price_type_id === priceTypeId)!.price_type_name
-                            : `TIER ${priceType}`}
+                            : ` ${priceType}`}
                     </Badge>
                 </div>
                 <div className="flex flex-col items-end gap-1">
