@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { format } from "date-fns";
-import { Loader2, Check, AlertCircle, Clock, Trash2 } from "lucide-react";
+import { Loader2, Check, AlertCircle, Clock, Ban, Store, X } from "lucide-react";
 
 import {
     Dialog,
@@ -165,289 +165,310 @@ export function ApprovalModal({
         }).format(amount);
     };
 
+    const lineCount = isInvoiceStatus ? (invoiceData?.details.length || 0) : details.length;
+
     return (
         <Dialog open={open} onOpenChange={(val) => !val && onClose()}>
-            <DialogContent className="w-full sm:max-w-6xl max-h-[95vh] flex flex-col p-0 overflow-hidden">
-                <div className="p-6 pb-4 shrink-0 bg-slate-50/50">
-                    <DialogHeader>
-                        <div className="flex justify-between items-start">
-                            <div className="flex items-center gap-3">
-                                <div className="bg-primary/10 p-2 rounded-lg">
-                                    <Clock className="h-6 w-6 text-primary" />
-                                </div>
-                                <div>
-                                    <DialogTitle className="text-2xl font-black">SO No: {order.order_no}</DialogTitle>
-                                    <DialogDescription className="text-base font-medium">
-                                        {order.customer_name} <span className="text-muted-foreground ml-1">({order.customer_code})</span>
-                                    </DialogDescription>
-                                </div>
+            <DialogContent
+                showCloseButton={false}
+                className="
+                flex flex-col p-0 gap-0 overflow-hidden
+                bg-white
+                border-0 sm:border sm:border-slate-200/80
+                shadow-none sm:shadow-[0_32px_80px_-12px_rgba(0,0,0,0.18)]
+                rounded-none sm:rounded-2xl
+                fixed inset-0
+                sm:inset-auto sm:top-1/2 sm:left-1/2
+                sm:-translate-x-1/2 sm:-translate-y-1/2
+                w-full
+                h-[100dvh] sm:h-[85dvh]
+                sm:w-[calc(100vw-2rem)] sm:max-w-2xl lg:max-w-6xl
+                translate-x-0 translate-y-0
+            ">
+                {/* ── HEADER ─────────────────────────────────────────── */}
+                <div className="px-4 sm:px-6 pt-4 sm:pt-6 pb-4 shrink-0 bg-slate-50/50 border-b border-slate-100">
+                    <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-start gap-2.5 min-w-0">
+                            <div className="hidden sm:flex shrink-0 mt-0.5 w-10 h-10 rounded-xl bg-[#E0F2FE] items-center justify-center">
+                                <Clock className="h-5 w-5 text-[#0EA5E9]" />
                             </div>
-                            <Badge variant="outline" className={`
-                                px-4 py-1 text-sm font-bold shadow-sm
-                                ${order.order_status === "For Approval" ? "bg-amber-100 text-amber-800 border-amber-200" : ""}
-                                ${order.order_status === "For Consolidation" ? "bg-purple-100 text-purple-800 border-purple-200" : ""}
-                                ${order.order_status === "Delivered" ? "bg-emerald-100 text-emerald-800 border-emerald-200" : ""}
-                                ${order.order_status === "Cancelled" ? "bg-destructive/10 text-destructive border-destructive/20" : ""}
-                                ${order.order_status === "On Hold" ? "bg-slate-200 text-slate-900 border-slate-300" : ""}
-                            `}>
-                                {order.order_status.toUpperCase()}
-                            </Badge>
+
+                            <div className="min-w-0">
+                                <DialogTitle className="text-base sm:text-xl font-black flex flex-wrap items-center gap-1.5 text-slate-900 leading-tight">
+                                    <span className="shrink-0">SO: {order.order_no}</span>
+                                    {isInvoiceStatus && invoiceData?.invoice?.invoice_no && (
+                                        <>
+                                            <span className="text-slate-300 font-light shrink-0">/</span>
+                                            <span className="text-primary/70 font-black shrink-0">
+                                                INV: {invoiceData.invoice.invoice_no}
+                                            </span>
+                                        </>
+                                    )}
+                                </DialogTitle>
+
+                                <DialogDescription asChild>
+                                    <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 mt-1">
+                                        <Store className="h-3 w-3 text-slate-400 shrink-0" />
+                                        <span className="text-[11px] font-bold text-slate-500 truncate max-w-[170px] sm:max-w-xs">
+                                            {order.customer_name || "Unknown Customer"}
+                                        </span>
+                                        <span className="text-[10px] text-slate-400 font-mono bg-slate-100 px-1.5 py-0.5 rounded">
+                                            {order.customer_code}
+                                        </span>
+                                    </div>
+                                </DialogDescription>
+                            </div>
                         </div>
-                    </DialogHeader>
+
+                        <div className="flex items-center gap-1.5 shrink-0 ml-1">
+                            <Badge
+                                variant="outline"
+                                className={`
+                                    hidden sm:flex
+                                    px-2.5 py-0.5 text-[9px] sm:text-[10px]
+                                    font-black tracking-widest shadow-sm rounded-lg
+                                    ${order.order_status === "For Approval" ? "bg-[#FEF9C3] text-[#854D0E] border-[#FEF08A]" : ""}
+                                    ${order.order_status === "For Consolidation" ? "bg-purple-100 text-purple-800 border-purple-200" : ""}
+                                    ${order.order_status === "Delivered" ? "bg-emerald-100 text-emerald-900 border-emerald-200" : ""}
+                                    ${order.order_status === "Cancelled" ? "bg-rose-100 text-rose-900 border-rose-200" : ""}
+                                    ${order.order_status === "On Hold" ? "bg-slate-100 text-slate-900 border-slate-200" : ""}
+                                `}
+                            >
+                                {order.order_status?.toUpperCase()}
+                            </Badge>
+                            <button
+                                onClick={onClose}
+                                className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors shrink-0"
+                                aria-label="Close"
+                            >
+                                <X className="h-4 w-4" />
+                            </button>
+                        </div>
+                    </div>
+
+                    <div className="flex sm:hidden mt-2">
+                        <Badge
+                            variant="outline"
+                            className={`px-2.5 py-0.5 text-[9px] font-black tracking-widest rounded-lg 
+                                ${order.order_status === "For Approval" ? "bg-[#FEF9C3] text-[#854D0E] border-[#FEF08A]" : ""}
+                                ${order.order_status === "For Consolidation" ? "bg-purple-100 text-purple-800 border-purple-200" : ""}
+                                ${order.order_status === "Delivered" ? "bg-emerald-100 text-emerald-900 border-emerald-200" : ""}
+                                ${order.order_status === "Cancelled" ? "bg-rose-100 text-rose-900 border-rose-200" : ""}
+                                ${order.order_status === "On Hold" ? "bg-slate-100 text-slate-900 border-slate-200" : ""}
+                            `}
+                        >
+                            {order.order_status?.toUpperCase()}
+                        </Badge>
+                    </div>
 
                     {/* Summary Cards */}
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-8 pb-2">
-                        <div className="bg-white border rounded-xl p-4 shadow-sm">
-                            <p className="text-[10px] text-muted-foreground uppercase font-black tracking-widest">Order Date</p>
-                            <p className="font-bold text-lg">{order.order_date ? format(new Date(order.order_date), "MMM d, yyyy") : "N/A"}</p>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 mt-4">
+                        <div className="bg-white border border-slate-100 rounded-xl p-3 sm:p-4 flex flex-col gap-1 shadow-sm">
+                            <p className="text-[8px] sm:text-[10px] text-muted-foreground uppercase font-black tracking-widest leading-none">Order Date</p>
+                            <p className="font-bold text-[12px] sm:text-sm text-slate-900 mt-0.5">
+                                {order.order_date ? format(new Date(order.order_date), "MMM d, yyyy") : "N/A"}
+                            </p>
                         </div>
-                        <div className="bg-white border rounded-xl p-4 shadow-sm">
-                            <p className="text-[10px] text-muted-foreground uppercase font-black tracking-widest">PO Number</p>
-                            <p className="font-bold text-lg">{order.po_no || "N/A"}</p>
+                        <div className="bg-white border border-slate-100 rounded-xl p-3 sm:p-4 flex flex-col gap-1 shadow-sm">
+                            <p className="text-[8px] sm:text-[10px] text-muted-foreground uppercase font-black tracking-widest leading-none">PO Number</p>
+                            <p className="font-bold text-[12px] sm:text-sm text-slate-900 truncate mt-0.5">
+                                {order.po_no || "N/A"}
+                            </p>
                         </div>
-                        <div className="bg-primary/5 border border-primary/20 rounded-xl p-4 shadow-sm">
-                            <p className="text-[10px] text-primary uppercase font-black tracking-widest">Ordered Total</p>
-                            <p className="font-black text-xl text-primary">{formatCurrency(order.net_amount)}</p>
+                        <div className="bg-white border border-slate-100 rounded-xl p-3 sm:p-4 flex flex-col gap-1 shadow-sm">
+                            <p className="text-[8px] sm:text-[10px] text-muted-foreground uppercase font-black tracking-widest leading-none">Ordered Total</p>
+                            <p className="font-bold text-[12px] sm:text-sm text-slate-900 truncate mt-0.5">
+                                {formatCurrency(order.net_amount)}
+                            </p>
+                        </div>
+                        <div className="bg-[#F0F9FF] border border-[#BAE6FD] rounded-xl p-3 sm:p-4 flex flex-col gap-1 shadow-sm">
+                            <p className="text-[8px] sm:text-[10px] text-[#0284C7] uppercase font-black tracking-widest leading-none">
+                                {isInvoiceStatus ? "Invoice Total" : "Allocated Total"}
+                            </p>
+                            <p className="font-black text-[13px] sm:text-lg text-[#0284C7] tabular-nums mt-0.5">
+                                {formatCurrency(isInvoiceStatus ? (invoiceData?.invoice?.net_amount || 0) : calculatedAllocatedTotal)}
+                            </p>
                         </div>
                     </div>
                 </div>
 
-                <Separator />
-
-                {/* Main Content Area: Order vs Invoice */}
-                <div className="flex-1 overflow-y-auto min-h-[400px]">
+                {/* ── TABLE AREA ────────────────────────────────────────── */}
+                <div className="flex-1 overflow-y-auto overflow-x-auto min-h-0">
                     {isInvoiceStatus ? (
                         loadingInvoice ? (
-                            <div className="flex flex-col items-center justify-center h-64 gap-3">
-                                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                                <p className="text-sm font-bold text-muted-foreground uppercase tracking-widest">Generating Invoice Preview...</p>
+                            <div className="flex flex-col items-center justify-center h-64 gap-4">
+                                <div className="w-10 h-10 rounded-full border-4 border-primary/20 border-t-primary animate-spin" />
+                                <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.3em] animate-pulse">Reconstructing Invoice...</p>
                             </div>
                         ) : !invoiceData?.invoice ? (
-                            <div className="flex flex-col items-center justify-center h-64 text-muted-foreground gap-4">
-                                <AlertCircle className="h-12 w-12 opacity-20" />
-                                <p className="italic text-lg">Invoice record not yet generated for this order.</p>
+                            <div className="flex flex-col items-center justify-center min-h-[280px] text-center px-8 gap-5">
+                                <div className="p-5 bg-slate-50 rounded-full border-2 border-dashed border-slate-200">
+                                    <AlertCircle className="h-10 w-10 sm:h-12 sm:w-12 text-slate-300" />
+                                </div>
+                                <div className="space-y-2">
+                                    <h3 className="text-base sm:text-xl font-black text-slate-900 uppercase">Billing Record Pending</h3>
+                                    <p className="text-[11px] sm:text-sm text-slate-500 max-w-xs sm:max-w-sm font-medium leading-relaxed">
+                                        This order has been promoted to a billing state, but the physical invoice has not yet been committed to the data vault.
+                                    </p>
+                                </div>
                             </div>
                         ) : (
-                            <div className="p-8 max-w-4xl mx-auto space-y-8">
-                                {/* Invoice Branding & Header */}
-                                <div className="flex justify-between items-start">
-                                    <div className="space-y-1">
-                                        <h2 className="text-4xl font-black text-slate-900 tracking-tighter">SALES INVOICE</h2>
-                                        <p className="text-sm font-bold text-slate-500 uppercase tracking-widest">{invoiceData.invoice.invoice_no}</p>
-                                    </div>
-                                    <div className="text-right space-y-1">
-                                        <div className="flex items-center gap-2 justify-end">
-                                            <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Invoice Date:</span>
-                                            <span className="text-sm font-bold">{invoiceData.invoice.invoice_date ? format(new Date(invoiceData.invoice.invoice_date), "MMM d, yyyy") : "N/A"}</span>
-                                        </div>
-                                        <div className="flex items-center gap-2 justify-end">
-                                            <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Sales ID:</span>
-                                            <span className="text-sm font-bold italic">{invoiceData.invoice.salesman_id}</span>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <Separator className="bg-slate-200" />
-
-                                {/* Invoice Items Table */}
-                                <div className="border rounded-2xl overflow-hidden shadow-sm">
+                            <div className="animate-in fade-in duration-700">
+                                <div className="min-w-[480px]">
                                     <Table>
-                                        <TableHeader className="bg-slate-900">
-                                            <TableRow className="hover:bg-slate-900 border-none">
-                                                <TableHead className="text-slate-100 font-bold pl-6">Item / Description</TableHead>
-                                                <TableHead className="text-slate-100 text-right font-bold">Price</TableHead>
-                                                <TableHead className="text-slate-100 text-center font-bold w-[100px]">Qty</TableHead>
-                                                <TableHead className="text-slate-100 text-right font-bold w-[120px]">Discount</TableHead>
-                                                <TableHead className="text-slate-100 text-right font-bold pr-6 w-[150px]">Amount</TableHead>
+                                        <TableHeader className="bg-slate-50 sticky top-0 z-10 border-b">
+                                            <TableRow className="hover:bg-transparent border-none">
+                                                <TableHead className="pl-4 sm:pl-8 h-11 uppercase text-[9px] font-black text-[#94A3B8] tracking-widest">Product / SKU</TableHead>
+                                                <TableHead className="text-right h-11 uppercase text-[9px] font-black text-[#94A3B8] tracking-widest">Unit Price</TableHead>
+                                                <TableHead className="text-center h-11 uppercase text-[9px] font-black text-[#94A3B8] tracking-widest w-[80px]">Qty</TableHead>
+                                                <TableHead className="text-right pr-4 sm:pr-8 h-11 uppercase text-[9px] font-black text-[#94A3B8] tracking-widest w-[130px]">Amount</TableHead>
                                             </TableRow>
                                         </TableHeader>
-                                        <TableBody className="bg-white">
-                                            {invoiceData.details.map((item, idx) => {
-                                                const prod = item.product_id;
-                                                return (
-                                                    <TableRow key={idx} className="border-slate-100">
-                                                        <TableCell className="pl-6 py-4">
-                                                            <div className="flex flex-col">
-                                                                <span className="font-bold text-slate-900">{prod?.product_name || "Unknown"}</span>
-                                                                <span className="text-[10px] text-muted-foreground font-mono truncate max-w-[200px]">{prod?.description || prod?.product_code}</span>
-                                                            </div>
-                                                        </TableCell>
-                                                        <TableCell className="text-right font-medium text-slate-600">{formatCurrency(item.unit_price)}</TableCell>
-                                                        <TableCell className="text-center">
-                                                            <Badge variant="secondary" className="font-black bg-slate-100 text-slate-700">{item.quantity}</Badge>
-                                                        </TableCell>
-                                                        <TableCell className="text-right text-destructive font-bold">-{formatCurrency(item.discount_amount)}</TableCell>
-                                                        <TableCell className="text-right font-black text-slate-900 pr-6">{formatCurrency(item.total_amount)}</TableCell>
-                                                    </TableRow>
-                                                );
-                                            })}
+                                        <TableBody>
+                                            {invoiceData.details.map((item, idx) => (
+                                                <TableRow key={idx} className="border-slate-50 hover:bg-slate-50/50 transition-colors">
+                                                    <TableCell className="pl-4 sm:pl-8 py-4 sm:py-5">
+                                                        <div className="flex flex-col gap-0.5">
+                                                            <span className="font-bold text-slate-900 text-[12px] sm:text-sm">{item.product_id?.product_name || "N/A Item"}</span>
+                                                            <span className="text-[9px] text-slate-400 font-bold tracking-tighter font-mono">{item.product_id?.product_code}</span>
+                                                        </div>
+                                                    </TableCell>
+                                                    <TableCell className="text-right font-bold text-slate-500 font-mono tracking-tight tabular-nums text-[12px] sm:text-sm">{formatCurrency(item.unit_price)}</TableCell>
+                                                    <TableCell className="text-center font-bold text-slate-500 text-[12px] sm:text-sm tabular-nums">{item.quantity}</TableCell>
+                                                    <TableCell className="text-right font-black text-slate-950 pr-4 sm:pr-8 font-mono text-[13px] sm:text-base tabular-nums tracking-tighter">{formatCurrency(item.total_amount)}</TableCell>
+                                                </TableRow>
+                                            ))}
                                         </TableBody>
                                     </Table>
-                                </div>
-
-                                {/* Invoice Calculations */}
-                                <div className="flex flex-col items-end space-y-2 pt-4">
-                                    <div className="flex items-center gap-12 text-sm text-slate-500">
-                                        <span className="uppercase font-bold tracking-widest">Gross Total</span>
-                                        <span className="font-bold text-slate-700 w-32 text-right">{formatCurrency(invoiceData.invoice.gross_amount)}</span>
-                                    </div>
-                                    <div className="flex items-center gap-12 text-sm text-destructive">
-                                        <span className="uppercase font-bold tracking-widest">Total Discount</span>
-                                        <span className="font-bold w-32 text-right">-{formatCurrency(invoiceData.invoice.discount_amount)}</span>
-                                    </div>
-                                    <div className="flex items-center gap-12 text-sm text-slate-500">
-                                        <span className="uppercase font-bold tracking-widest">VAT Amount</span>
-                                        <span className="font-bold text-slate-700 w-32 text-right">{formatCurrency(invoiceData.invoice.vat_amount)}</span>
-                                    </div>
-                                    <div className="h-[1px] w-64 bg-slate-200 my-2" />
-                                    <div className="flex items-center gap-12">
-                                        <span className="text-sm uppercase font-black tracking-widest text-primary">Invoice Net Total</span>
-                                        <span className="text-3xl font-black text-slate-900 w-48 text-right underline decoration-primary decoration-4 underline-offset-8">
-                                            {formatCurrency(invoiceData.invoice.net_amount)}
-                                        </span>
-                                    </div>
                                 </div>
                             </div>
                         )
                     ) : (
-                        /* Order Mode View */
-                        <Table>
-                            <TableHeader className="bg-muted/50 sticky top-0 z-10">
-                                <TableRow>
-                                    <TableHead className="pl-6 w-[350px]">Product / Description</TableHead>
-                                    <TableHead className="text-right">Price</TableHead>
-                                    <TableHead className="text-right w-[100px]">Ordered Qty</TableHead>
-                                    <TableHead className="text-right w-[140px]">Allocated Qty</TableHead>
-                                    <TableHead className="text-right">Discount</TableHead>
-                                    <TableHead className="text-right pr-6"> Allocated Total</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {loadingDetails ? (
-                                    Array.from({ length: 4 }).map((_, i) => (
-                                        <TableRow key={i}>
-                                            <TableCell className="pl-6"><div className="h-4 w-64 bg-muted animate-pulse rounded" /></TableCell>
-                                            <TableCell><div className="h-4 w-16 bg-muted animate-pulse rounded ml-auto" /></TableCell>
-                                            <TableCell><div className="h-4 w-12 bg-muted animate-pulse rounded ml-auto" /></TableCell>
-                                            <TableCell><div className="h-8 w-20 bg-muted animate-pulse rounded ml-auto" /></TableCell>
-                                            <TableCell><div className="h-4 w-16 bg-muted animate-pulse rounded ml-auto" /></TableCell>
-                                            <TableCell className="pr-6"><div className="h-4 w-20 bg-muted animate-pulse rounded ml-auto" /></TableCell>
+                        <div className="animate-in fade-in duration-700">
+                            <div className="min-w-[520px]">
+                                <Table>
+                                    <TableHeader className="bg-slate-50 sticky top-0 z-10 border-b">
+                                        <TableRow className="hover:bg-transparent border-none">
+                                            <TableHead className="pl-4 sm:pl-8 h-11 uppercase text-[9px] font-black text-[#94A3B8] tracking-widest">Product / SKU</TableHead>
+                                            <TableHead className="text-right h-11 uppercase text-[9px] font-black text-[#94A3B8] tracking-widest">Price</TableHead>
+                                            <TableHead className="text-center h-11 uppercase text-[9px] font-black text-[#94A3B8] tracking-widest">Ordered</TableHead>
+                                            <TableHead className="text-center h-11 uppercase text-[9px] font-black text-[#94A3B8] tracking-widest w-[120px]">Allocated</TableHead>
+                                            <TableHead className="text-right pr-4 sm:pr-8 h-11 uppercase text-[9px] font-black text-[#94A3B8] tracking-widest">Allocated Total</TableHead>
                                         </TableRow>
-                                    ))
-                                ) : details.length === 0 ? (
-                                    <TableRow>
-                                        <TableCell colSpan={6} className="h-32 text-center text-muted-foreground italic">
-                                            No line items found for this order.
-                                        </TableCell>
-                                    </TableRow>
-                                ) : (
-                                    details.map((li, idx) => {
-                                        const productName = li.product_id?.product_name || li.product_id?.description || "Unknown Product";
-                                        const productCode = li.product_id?.product_code || "N/A";
-                                        const description = li.product_id?.description;
-                                        const lineTotal = (li.allocated_quantity * li.unit_price) - (li.discount_amount || 0);
+                                    </TableHeader>
+                                    <TableBody>
+                                        {loadingDetails ? (
+                                            Array.from({ length: 6 }).map((_, i) => (
+                                                <TableRow key={i} className="border-slate-50">
+                                                    <TableCell className="pl-4 sm:pl-8 py-4"><div className="h-3.5 w-36 sm:w-56 bg-slate-100 animate-pulse rounded" /></TableCell>
+                                                    <TableCell><div className="h-3.5 w-14 bg-slate-100 animate-pulse rounded ml-auto" /></TableCell>
+                                                    <TableCell><div className="h-3.5 w-8 bg-slate-100 animate-pulse rounded mx-auto" /></TableCell>
+                                                    <TableCell><div className="h-3.5 w-16 bg-slate-100 animate-pulse rounded mx-auto" /></TableCell>
+                                                    <TableCell className="pr-4 sm:pr-8"><div className="h-3.5 w-16 bg-slate-100 animate-pulse rounded ml-auto" /></TableCell>
+                                                </TableRow>
+                                            ))
+                                        ) : details.length === 0 ? (
+                                            <TableRow><TableCell colSpan={5} className="h-64 text-center text-slate-400 font-bold uppercase text-[10px] tracking-widest">No line items materialized.</TableCell></TableRow>
+                                        ) : (
+                                            details.map((li, idx) => {
+                                                const productName = li.product_id?.product_name || li.product_id?.description || "Unknown";
+                                                const productCode = li.product_id?.product_code || "N/A";
+                                                const lineTotal = (li.allocated_quantity * li.unit_price) - (li.discount_amount || 0);
 
-                                        return (
-                                            <TableRow key={li.order_detail_id || idx} className="hover:bg-muted/20">
-                                                <TableCell className="pl-6">
-                                                    <div className="flex flex-col">
-                                                        <span className="font-bold text-sm text-slate-800">{productName}</span>
-                                                        {description && description !== productName && (
-                                                            <span className="text-[10px] text-muted-foreground italic leading-tight">{description}</span>
-                                                        )}
-                                                        <span className="text-[10px] font-mono text-primary/70 mt-0.5">{productCode}</span>
-                                                    </div>
-                                                </TableCell>
-                                                <TableCell className="text-right font-medium text-slate-600">{formatCurrency(li.unit_price)}</TableCell>
-                                                <TableCell className="text-right font-bold text-slate-500">{li.ordered_quantity}</TableCell>
-                                                <TableCell className="text-right">
-                                                    {isActionable ? (
-                                                        <Input
-                                                            type="number"
-                                                            value={li.allocated_quantity}
-                                                            onChange={(e) => updateAllocatedQty(idx, e.target.value)}
-                                                            className="w-24 text-right h-8 font-black text-emerald-700 bg-emerald-50 border-emerald-200 focus-visible:ring-emerald-500 ml-auto"
-                                                            disabled={isSubmitting}
-                                                        />
-                                                    ) : (
-                                                        <span className="font-black text-slate-700">{li.allocated_quantity}</span>
-                                                    )}
-                                                </TableCell>
-                                                <TableCell className="text-right text-destructive font-medium">
-                                                    -{formatCurrency(li.discount_amount)}
-                                                </TableCell>
-                                                <TableCell className="text-right font-black text-slate-900 pr-6">
-                                                    {formatCurrency(lineTotal > 0 ? lineTotal : 0)}
-                                                </TableCell>
-                                            </TableRow>
-                                        );
-                                    })
-                                )}
-                            </TableBody>
-                        </Table>
+                                                return (
+                                                    <TableRow key={li.order_detail_id || idx} className="hover:bg-slate-50/50 transition-colors border-slate-50 group">
+                                                        <TableCell className="pl-4 sm:pl-8 py-4 sm:py-5">
+                                                            <div className="flex flex-col gap-0.5">
+                                                                <span className="font-bold text-slate-900 text-[12px] sm:text-sm group-hover:text-primary transition-colors">{productName}</span>
+                                                                <span className="text-[9px] font-bold text-slate-400 tracking-tighter font-mono">{productCode}</span>
+                                                            </div>
+                                                        </TableCell>
+                                                        <TableCell className="text-right font-bold text-slate-500 font-mono tracking-tight tabular-nums text-[12px] sm:text-sm">{formatCurrency(li.unit_price)}</TableCell>
+                                                        <TableCell className="text-center font-bold text-slate-400 text-[12px] sm:text-sm tabular-nums">{li.ordered_quantity}</TableCell>
+                                                        <TableCell className="text-center">
+                                                            {isActionable ? (
+                                                                <Input
+                                                                    type="number"
+                                                                    value={li.allocated_quantity}
+                                                                    onChange={(e) => updateAllocatedQty(idx, e.target.value)}
+                                                                    className="w-20 text-center h-7 text-[11px] font-black text-emerald-700 bg-emerald-50 border-emerald-200 focus-visible:ring-emerald-500 mx-auto"
+                                                                    disabled={isSubmitting}
+                                                                />
+                                                            ) : (
+                                                                <span className="inline-flex items-center justify-center min-w-[28px] h-6 px-1.5 rounded-lg bg-[#F0FDF4] text-[#16A34A] font-black text-[10px] border border-[#DCFCE7] tabular-nums">{li.allocated_quantity}</span>
+                                                            )}
+                                                        </TableCell>
+                                                        <TableCell className="text-right font-black text-slate-950 pr-4 sm:pr-8 font-mono text-[13px] sm:text-base tabular-nums tracking-tighter">{formatCurrency(lineTotal > 0 ? lineTotal : 0)}</TableCell>
+                                                    </TableRow>
+                                                );
+                                            })
+                                        )}
+                                    </TableBody>
+                                </Table>
+                            </div>
+                        </div>
                     )}
                 </div>
 
-                {/* Footer Actions */}
-                <div className="p-6 border-t bg-slate-50 flex flex-col sm:flex-row justify-between items-center gap-6 shrink-0">
-                    <div className="flex flex-col items-center sm:items-start">
-                        <p className="text-[10px] text-muted-foreground uppercase font-black tracking-widest pl-1">
-                            {isInvoiceStatus ? "Billed Amount" : "Allocated Total"}
-                        </p>
-                        <p className={`text-3xl font-black ${isInvoiceStatus ? "text-slate-900" : "text-emerald-600"}`}>
-                            {formatCurrency(isInvoiceStatus ? (invoiceData?.invoice?.net_amount || 0) : calculatedAllocatedTotal)}
-                        </p>
+                {/* ── FOOTER ──────────────────────────────────────────── */}
+                <div className="px-4 sm:px-8 py-3 sm:py-5 border-t bg-white flex flex-row items-center justify-between gap-4 shrink-0">
+                    <div className="flex items-center gap-4 sm:gap-10 min-w-0">
+                        <div className="flex flex-col gap-0.5 shrink-0">
+                            <p className="text-[8px] sm:text-[9px] text-slate-400 uppercase font-black tracking-widest leading-none">Items</p>
+                            <p className="font-black text-base sm:text-xl text-slate-900 leading-none mt-1 tabular-nums">{lineCount}</p>
+                        </div>
+                        <div className="w-px h-8 bg-slate-100 shrink-0" />
+                        <div className="flex flex-col gap-0.5 min-w-0">
+                            <p className="text-[8px] sm:text-[9px] text-slate-400 uppercase font-black tracking-widest leading-none truncate">{isInvoiceStatus ? "Invoice Total" : "Net Allocation"}</p>
+                            <div className="flex items-baseline gap-1 leading-none mt-1">
+                                <span className="text-[9px] sm:text-[11px] font-black text-slate-300 uppercase italic shrink-0">PHP</span>
+                                <p className="text-[20px] sm:text-[36px] lg:text-[48px] font-black text-slate-950 tabular-nums tracking-tighter leading-none">
+                                    {formatCurrency(isInvoiceStatus ? (invoiceData?.invoice?.net_amount || 0) : calculatedAllocatedTotal).replace("PHP", "").replace("₱", "").trim()}
+                                </p>
+                            </div>
+                        </div>
                     </div>
 
-                    <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
+                    <div className="flex items-center gap-2 sm:gap-3">
                         <Button
-                            variant="ghost"
+                            variant="outline"
                             onClick={onClose}
                             disabled={isSubmitting}
-                            className="font-bold border-transparent hover:bg-slate-200"
+                            className="h-9 sm:h-12 px-4 sm:px-8 font-black uppercase tracking-widest text-[10px] sm:text-xs rounded-xl"
                         >
-                            Close
+                            <span className="hidden sm:inline">Close Record</span>
+                            <span className="sm:hidden">Close</span>
                         </Button>
 
-                        {!isInvoiceStatus && (
-                            <>
-                                <div className="h-8 w-[1px] bg-slate-300 hidden sm:block mx-1" />
-
-                                {(isActionable || order.order_status === "For Approval") && (
-                                    <Button
-                                        variant="destructive"
-                                        className="font-black px-6 gap-2 h-11"
-                                        disabled={isSubmitting}
-                                        onClick={() => handleSaveAndAction("cancel")}
-                                    >
-                                        <Trash2 className="h-4 w-4" />
-                                        Cancel Order
-                                    </Button>
-                                )}
-
+                        {!isInvoiceStatus && isActionable && (
+                            <div className="flex items-center gap-2">
+                                <Button
+                                    variant="destructive"
+                                    className="h-9 sm:h-12 px-4 sm:px-6 font-black uppercase tracking-widest text-[10px] sm:text-xs rounded-xl"
+                                    disabled={isSubmitting}
+                                    onClick={() => handleSaveAndAction("cancel")}
+                                >
+                                    Cancel
+                                </Button>
                                 {canHold && (
                                     <Button
                                         variant="secondary"
-                                        className="font-black px-6 gap-2 h-11 bg-slate-200 hover:bg-slate-300 text-slate-800 border border-slate-300"
+                                        className="h-9 sm:h-12 px-4 font-black uppercase tracking-widest text-[10px] sm:text-xs rounded-xl bg-slate-100 border-slate-200"
                                         disabled={isSubmitting}
                                         onClick={() => handleSaveAndAction("hold")}
                                     >
-                                        <AlertCircle className="h-4 w-4" />
                                         On Hold
                                     </Button>
                                 )}
-
-                                {isActionable && (
-                                    <Button
-                                        className="font-black px-8 gap-2 bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg h-11"
-                                        disabled={isSubmitting}
-                                        onClick={() => handleSaveAndAction("approve")}
-                                    >
-                                        {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-5 w-5" />}
-                                        Approve Order
-                                    </Button>
-                                )}
-                            </>
+                                <Button
+                                    className="h-9 sm:h-12 px-6 sm:px-10 font-black uppercase tracking-widest text-[10px] sm:text-xs rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg"
+                                    disabled={isSubmitting}
+                                    onClick={() => handleSaveAndAction("approve")}
+                                >
+                                    {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                                    Approve
+                                </Button>
+                            </div>
                         )}
                     </div>
                 </div>
