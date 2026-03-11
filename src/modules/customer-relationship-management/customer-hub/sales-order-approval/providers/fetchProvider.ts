@@ -13,7 +13,14 @@ export async function getPendingOrders(status: string = "For Approval", search: 
     const res = await fetch(`/api/crm/customer-hub/sales-order-approval?${params.toString()}`);
     if (!res.ok) throw new Error("Failed to fetch pending orders");
     const json = await res.json();
-    return json; // Returns { data, metadata: { page, limit, total_customers, hasMore } }
+    return json; // Returns { data, metadata: { page, limit, totalCount, hasMore } }
+}
+
+export async function getOrderDetails(orderId: number) {
+    const res = await fetch(`/api/crm/customer-hub/sales-order-approval?type=order-details&orderId=${orderId}`);
+    if (!res.ok) throw new Error("Failed to fetch order details");
+    const json = await res.json();
+    return json.data || [];
 }
 
 export async function getPaymentSummary(orderIds: (string | number)[], orderNos: string[] = []) {
@@ -31,14 +38,34 @@ export async function getPaymentSummary(orderIds: (string | number)[], orderNos:
     return json.data || { invoiceTotal: 0, paidTotal: 0, unpaidTotal: 0 };
 }
 
-export async function approveOrders(orderIds: (string | number)[]) {
+export async function updateOrders(
+    orderIds: (string | number)[],
+    action: "approve" | "hold" | "cancel"
+) {
     const res = await fetch(`/api/crm/customer-hub/sales-order-approval`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        // User spec mentioned "Approve Selected" sets it to "For Consolidation"
-        body: JSON.stringify({ orderIds, action: "approve" })
+        body: JSON.stringify({ orderIds, action }),
     });
+    if (!res.ok) throw new Error(`Failed to ${action} orders`);
+    return await res.json();
+}
 
-    if (!res.ok) throw new Error("Failed to approve orders");
+export async function updateOrderDetails(
+    orderId: number,
+    headerUpdates: Record<string, any>,
+    lineItems: any[]
+) {
+    const res = await fetch(`/api/crm/customer-hub/sales-order-approval`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+            orderId,
+            header: headerUpdates,
+            lineItems,
+            type: "order-update"
+        }),
+    });
+    if (!res.ok) throw new Error("Failed to update order details");
     return await res.json();
 }

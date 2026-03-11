@@ -38,7 +38,7 @@ export async function GET(req: NextRequest) {
             }
 
             if (search) {
-                // Since customer_name isn't natively on sales_order, we need to find matching customers first
+                // Find matching customers first to search by customer name
                 let matchingCustomerCodes: string[] = [];
                 try {
                     const cMatchRes = await fetch(`${DIRECTUS_URL}/items/customer?filter[customer_name][_icontains]=${encodeURIComponent(search)}&fields=customer_code&limit=-1`, {
@@ -65,99 +65,107 @@ export async function GET(req: NextRequest) {
                 filter._and.push({ _or: orConditions });
             }
 
-            // Remove empty _and array if no filters applied so we don't send `_and: []`
             const filterParam = filter._and.length > 0 ? `&filter=${encodeURIComponent(JSON.stringify(filter))}` : "";
 
-            // 2. Fetch lightweight list of matches to extract unique customer_codes
-            // We use sorting so the most recent orders pull their customers to the top of the list
-            const codesUrl = `${DIRECTUS_URL}/items/sales_order?fields=customer_code${filterParam}&sort=-for_approval_at,-modified_date,-order_id&limit=-1`;
-
-            const codesRes = await fetch(codesUrl, { headers: fetchHeaders });
-            if (!codesRes.ok) {
-                const errText = await codesRes.text();
-                return NextResponse.json({ error: "Failed to fetch customer codes", details: errText }, { status: 500 });
+            // 2. Fetch total count for pagination
+            const countUrl = `${DIRECTUS_URL}/items/sales_order?aggregate[count]=*${filterParam}`;
+            console.log("[Approval] Count URL:", countUrl);
+            const countRes = await fetch(countUrl, { headers: fetchHeaders });
+            const countJson = countRes.ok ? await countRes.json() : null;
+            let totalCount = 0;
+            if (countJson?.data?.[0]?.count) {
+                const c = countJson.data[0].count;
+                // Directus might return count as a number or as an object { "*": 123 }
+                totalCount = typeof c === "object" ? (Number(c['*']) || Number(c.order_id) || 0) : (Number(c) || 0);
             }
 
-            const codesJson = await codesRes.json();
-            const rawItems = codesJson.data || [];
+            // 3. Fetch flat orders list
+            const fields = [
+                "order_id", "order_no", "po_no", "customer_code", "salesman_id",
+                "supplier_id", "branch_id", "receipt_type",
+                "sales_type", "order_date", "order_status", "due_date",
+                "delivery_date", "total_amount", "discount_amount", "net_amount",
+                "allocated_amount", "remarks", "created_by", "created_date", "for_approval_at"
+            ].join(",");
 
-            // Maintain sorting order by using a Set (which keeps insertion order for unique items natively in JS)
-            const uniqueCodesSet = new Set<string>();
-            for (const item of rawItems) {
-                if (item.customer_code) {
-                    uniqueCodesSet.add(item.customer_code);
-                }
-            }
-
-            const allUniqueCodes = Array.from(uniqueCodesSet);
-            const totalCustomers = allUniqueCodes.length;
-            const hasMore = page * limit < totalCustomers;
-
-            // 3. Paginate the Customer Codes
-            const paginatedCodes = allUniqueCodes.slice((page - 1) * limit, page * limit);
-
-            if (paginatedCodes.length === 0) {
-                return NextResponse.json({
-                    data: [],
-                    metadata: { page, limit, total_customers: totalCustomers, hasMore: false }
-                });
-            }
-
-            // 4. Fetch the full orders for THESE specific paginated customers AND that match the original search/status
-            filter._and.push({ customer_code: { _in: paginatedCodes } });
-            const finalFilterParam = `&filter=${encodeURIComponent(JSON.stringify(filter))}`;
-
-            const ordersUrl = `${DIRECTUS_URL}/items/sales_order?${finalFilterParam}&sort=-for_approval_at,-modified_date,-order_id&limit=-1`;
+            const ordersUrl = `${DIRECTUS_URL}/items/sales_order?fields=${fields}${filterParam}&sort=-for_approval_at,-order_id&page=${page}&limit=${limit}`;
+            console.log("[Approval] Orders URL:", ordersUrl);
             const ordersRes = await fetch(ordersUrl, { headers: fetchHeaders });
+
             if (!ordersRes.ok) {
                 const errText = await ordersRes.text();
-                return NextResponse.json({ error: "Failed to fetch paginated orders", details: errText }, { status: 500 });
+                console.error("[Approval] Fetch Error:", errText);
+                return NextResponse.json({ error: "Failed to fetch orders", details: errText }, { status: 500 });
             }
 
             const ordersJson = await ordersRes.json();
-            const orders = ordersJson.data || [];
+            const rawOrders = ordersJson.data || [];
 
-            // 5. Fetch Customer Names for these paginated codes
+            // 4. Fetch Customer Names to enrich the data
+            const codesToFetch = Array.from(new Set(rawOrders.map((o: any) => o.customer_code))).filter(Boolean);
             const customersDict: Record<string, string> = {};
-            const cRes = await fetch(`${DIRECTUS_URL}/items/customer?filter[customer_code][_in]=${encodeURIComponent(paginatedCodes.join(','))}&limit=-1`, {
-                headers: fetchHeaders,
-            });
-            if (cRes.ok) {
-                const cJson = await cRes.json();
-                const customers = cJson.data || [];
-                customers.forEach((c: { customer_code: string, customer_name: string }) => {
-                    customersDict[c.customer_code] = c.customer_name;
+
+            if (codesToFetch.length > 0) {
+                const cRes = await fetch(`${DIRECTUS_URL}/items/customer?filter[customer_code][_in]=${encodeURIComponent(codesToFetch.join(','))}&fields=customer_code,customer_name&limit=-1`, {
+                    headers: fetchHeaders,
                 });
-            }
-
-            // 6. Group the orders by customer perfectly
-            const groupsMap = new Map<string, { customer_code: string, customer_name: string, orders: Record<string, unknown>[], total_net_amount: number }>();
-
-            orders.forEach((order: Record<string, unknown>) => {
-                const code = (order.customer_code as string) || "UNKNOWN";
-                if (!groupsMap.has(code)) {
-                    groupsMap.set(code, {
-                        customer_code: code,
-                        customer_name: (customersDict[code] as string) || (order.customer_name as string) || "Unknown Customer",
-                        orders: [],
-                        total_net_amount: 0
+                if (cRes.ok) {
+                    const cJson = await cRes.json();
+                    (cJson.data || []).forEach((c: { customer_code: string, customer_name: string }) => {
+                        customersDict[c.customer_code] = c.customer_name;
                     });
                 }
-                const group = groupsMap.get(code)!;
-                // Enforce name on order object too just in case UI uses it
-                order.customer_name = group.customer_name;
+            }
 
-                group.orders.push(order);
-                group.total_net_amount += (Number(order.net_amount) || 0);
-            });
-
-            // Re-sort the groups based on the paginatedCodes array to retain original time-based sorting
-            const groupedData = paginatedCodes.map(code => groupsMap.get(code)).filter(Boolean);
+            const data = rawOrders.map((o: any) => ({
+                ...o,
+                customer_name: customersDict[o.customer_code] || o.customer_name || "Unknown Customer"
+            }));
 
             return NextResponse.json({
-                data: groupedData,
-                metadata: { page, limit, total_customers: totalCustomers, hasMore }
+                data,
+                metadata: {
+                    page,
+                    limit,
+                    totalCount: totalCount,
+                    hasMore: (page * limit) < totalCount
+                }
             });
+        }
+
+        if (type === "order-details") {
+            const orderId = req.nextUrl.searchParams.get("orderId");
+            if (!orderId) return NextResponse.json({ error: "orderId required" }, { status: 400 });
+
+            // 1. Fetch Basic Details
+            const detailsUrl = `${DIRECTUS_URL}/items/sales_order_details?filter[order_id][_eq]=${orderId}&fields=*&limit=-1`;
+            const dRes = await fetch(detailsUrl, { headers: fetchHeaders });
+            if (!dRes.ok) return NextResponse.json({ error: "Failed to fetch order details" }, { status: 500 });
+
+            const dJson = await dRes.json();
+            const details = dJson.data || [];
+
+            // 2. Perform Manual Join if there are details
+            if (details.length > 0) {
+                const productIds = Array.from(new Set(details.map((d: any) => d.product_id))).filter(Boolean);
+                if (productIds.length > 0) {
+                    const pUrl = `${DIRECTUS_URL}/items/products?filter[product_id][_in]=${productIds.join(',')}&fields=product_id,product_name,product_code,description&limit=-1`;
+                    const pRes = await fetch(pUrl, { headers: fetchHeaders });
+                    if (pRes.ok) {
+                        const pJson = await pRes.json();
+                        const pMap = new Map((pJson.data || []).map((p: any) => [Number(p.product_id), p]));
+
+                        details.forEach((d: any) => {
+                            const pid = Number(d.product_id);
+                            if (pMap.has(pid)) {
+                                d.product_id = pMap.get(pid); // Replace ID with object
+                            }
+                        });
+                    }
+                }
+            }
+
+            return NextResponse.json({ data: details });
         }
 
         if (type === "payment-summary") {
@@ -229,25 +237,67 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
     try {
         const body = await req.json();
-        const { orderIds } = body; // action = "approve" | "reject"
+        const { orderIds, action, type, orderId, header, lineItems } = body;
 
-        // We only implement Approve -> For Consolidation right now, based on instructions:
+        const now = new Date().toISOString();
+
+        // 1. Handle Complex Order Detail Update
+        if (type === "order-update" && orderId) {
+            // Update Header
+            if (header) {
+                await fetch(`${DIRECTUS_URL}/items/sales_order/${orderId}`, {
+                    method: "PATCH",
+                    headers: fetchHeaders,
+                    body: JSON.stringify({
+                        ...header,
+                        modified_date: now
+                    })
+                });
+            }
+
+            // Update Line Items
+            if (lineItems && Array.isArray(lineItems)) {
+                // Directus bulk update for details
+                const detailPayload = lineItems.map(li => ({
+                    order_detail_id: li.order_detail_id,
+                    allocated_quantity: li.allocated_quantity,
+                    net_amount: li.net_amount
+                }));
+
+                await fetch(`${DIRECTUS_URL}/items/sales_order_details`, {
+                    method: "PATCH",
+                    headers: fetchHeaders,
+                    body: JSON.stringify(detailPayload)
+                });
+            }
+
+            return NextResponse.json({ success: true });
+        }
+
+        // 2. Handle Status Actions (Approve, Hold, Cancel)
         if (!orderIds || !Array.isArray(orderIds) || orderIds.length === 0) {
             return NextResponse.json({ error: "orderIds array required" }, { status: 400 });
         }
 
-        const now = new Date().toISOString();
+        let status = "For Consolidation";
+        let dateField = "for_consolidation_at";
+        let extraFields = {};
 
-        // Execute bulk PATCH 
-        // Directus allows bulk updates if we send an array of objects to the collection endpoint, 
-        // BUT each object must contain the primary key. If order_id is the primary key:
+        if (action === "hold") {
+            status = "On Hold";
+            dateField = "on_hold_at";
+        } else if (action === "cancel") {
+            status = "Cancelled";
+            dateField = "cancelled_at";
+            extraFields = { isCancelled: 1 };
+        }
 
         const payload = orderIds.map(id => ({
             order_id: id,
-            order_status: "For Consolidation",
-            for_consolidation_at: now,
-            modified_date: now
-            // modified_by: "..." // optional, skip if not available in token securely
+            order_status: status,
+            [dateField]: now,
+            modified_date: now,
+            ...extraFields
         }));
 
         const patchRes = await fetch(`${DIRECTUS_URL}/items/sales_order`, {

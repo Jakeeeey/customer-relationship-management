@@ -2,12 +2,12 @@
 
 import React, { useState, useEffect } from "react";
 import {
-    Sheet,
-    SheetContent,
-    SheetHeader,
-    SheetTitle,
-    SheetDescription,
-} from "@/components/ui/sheet";
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+    DialogDescription,
+} from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { formatCurrency } from "@/lib/utils";
 import { Package, Truck, Calendar, User, Store, MessageSquare } from "lucide-react";
@@ -111,24 +111,24 @@ export function SalesOrderDetailsModal({
     ];
 
     return (
-        <Sheet open={isOpen} onOpenChange={(open) => !open && onClose()}>
-            <SheetContent side="right" className="sm:max-w-xl w-full p-0 flex flex-col gap-0 border-l shadow-2xl overflow-hidden">
-                <SheetHeader className="p-6 pb-4 bg-slate-50/50 border-b shrink-0">
-                    <div className="flex flex-col gap-1">
+        <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+            <DialogContent className="sm:max-w-4xl max-h-[90vh] p-0 flex flex-col gap-0 overflow-hidden">
+                <DialogHeader className="p-6 pb-4 bg-slate-50/50 border-b shrink-0">
+                    <div className="flex flex-col gap-1 text-left">
                         <div className="flex items-center gap-2">
                             <span className="text-[10px] font-black text-primary/60 uppercase tracking-widest bg-primary/5 px-2 py-0.5 rounded border border-primary/10">Sales Order Detail</span>
                         </div>
-                        <SheetTitle className="text-2xl font-black tracking-tight flex items-center gap-3">
+                        <DialogTitle className="text-2xl font-black tracking-tight flex items-center gap-3">
                             {order.order_no}
                             <Badge variant="outline" className={`text-[10px] font-bold uppercase ${order.order_status === "For Approval" ? "bg-yellow-100 text-yellow-800 border-yellow-200" : "bg-emerald-100 text-emerald-800 border-emerald-200"}`}>
                                 {order.order_status}
                             </Badge>
-                        </SheetTitle>
-                        <SheetDescription className="text-xs font-medium text-slate-500 uppercase tracking-wide">
+                        </DialogTitle>
+                        <DialogDescription className="text-xs font-medium text-slate-500 uppercase tracking-wide">
                             Created on {order.created_date ? new Date(order.created_date).toLocaleString() : "-"}
-                        </SheetDescription>
+                        </DialogDescription>
                     </div>
-                </SheetHeader>
+                </DialogHeader>
 
                 <div className="flex-1 overflow-y-auto p-6 space-y-6">
                     {/* Customer Info Card */}
@@ -219,7 +219,7 @@ export function SalesOrderDetailsModal({
                         </div>
                     </div>
                 </div>
-            </SheetContent>
-        </Sheet>
+            </DialogContent>
+        </Dialog>
     );
 }

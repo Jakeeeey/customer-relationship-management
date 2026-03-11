@@ -1,8 +1,9 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
-import { useSalesOrderApproval, CustomerGroup } from "./hooks/useSalesOrderApproval";
+import { useSalesOrderApproval, SalesOrder } from "./hooks/useSalesOrderApproval";
 import { ApprovalModal } from "./components/ApprovalModal";
+import { format } from "date-fns";
 import {
     Table,
     TableBody,
@@ -12,7 +13,7 @@ import {
     TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { RefreshCw, Search, Loader2 } from "lucide-react";
+import { RefreshCw, Search, Loader2, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -37,7 +38,7 @@ export default function SalesOrderApprovalModule() {
         loadingMore,
         hasMore,
         loadNextPage,
-        groupedCustomers,
+        orders,
         statusFilter,
         setStatusFilter,
         searchTerm,
@@ -47,10 +48,13 @@ export default function SalesOrderApprovalModule() {
         endDate,
         setEndDate,
         handleApproveBulk,
+        handleHoldBatch,
+        handleCancelBatch,
+        handleDetailUpdate,
         refreshOrders
     } = useSalesOrderApproval();
 
-    const [selectedGroup, setSelectedGroup] = useState<CustomerGroup | null>(null);
+    const [selectedOrder, setSelectedOrder] = useState<SalesOrder | null>(null);
     const observerTarget = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
@@ -60,7 +64,7 @@ export default function SalesOrderApprovalModule() {
                     loadNextPage();
                 }
             },
-            { rootMargin: "100px" } // trigger slightly before reaching bottom
+            { rootMargin: "100px" }
         );
 
         if (observerTarget.current) {
@@ -76,7 +80,7 @@ export default function SalesOrderApprovalModule() {
                 <div>
                     <h1 className="text-2xl font-bold tracking-tight">Sales Order Approval</h1>
                     <p className="text-sm text-muted-foreground mt-0.5">
-                        Review, monitor payments, and approve sales orders in bulk.
+                        Review individual orders and approve them to proceed to consolidation.
                     </p>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
@@ -148,72 +152,92 @@ export default function SalesOrderApprovalModule() {
                 </div>
             </div>
 
-            {/* Main List */}
+            {/* Orders Table */}
             <div className="rounded-md border bg-card overflow-hidden">
                 <Table>
                     <TableHeader className="bg-muted/50">
                         <TableRow>
-                            <TableHead className="w-[120px]">Customer Code</TableHead>
-                            <TableHead>Customer Name</TableHead>
-                            <TableHead className="text-right">Orders</TableHead>
-                            <TableHead className="text-right">Total Net Amount</TableHead>
-                            <TableHead className="w-[150px] text-center">Status</TableHead>
-                            <TableHead className="w-[100px] text-right">Action</TableHead>
+                            <TableHead className="w-[150px]">Order No</TableHead>
+                            <TableHead className="w-[150px]">PO No</TableHead>
+                            <TableHead>Customer</TableHead>
+                            <TableHead className="text-right">Gross Amount</TableHead>
+                            <TableHead className="text-right">Discount</TableHead>
+                            <TableHead className="text-right">Allocated Amount</TableHead>
+                            <TableHead className="text-right">Net Total</TableHead>
+                            <TableHead className="w-[120px] text-center">Status</TableHead>
+                            <TableHead className="w-[120px] text-center">Date</TableHead>
+                            <TableHead className="w-[80px] text-right"></TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
                         {loadingOrders ? (
                             Array.from({ length: 5 }).map((_, i) => (
                                 <TableRow key={i}>
+                                    <TableCell><Skeleton className="h-5 w-24" /></TableCell>
                                     <TableCell><Skeleton className="h-5 w-20" /></TableCell>
                                     <TableCell><Skeleton className="h-5 w-48" /></TableCell>
-                                    <TableCell className="text-right"><Skeleton className="h-5 w-12 ml-auto" /></TableCell>
-                                    <TableCell className="text-right"><Skeleton className="h-5 w-24 ml-auto" /></TableCell>
+                                    <TableCell className="text-right"><Skeleton className="h-5 w-20 ml-auto" /></TableCell>
+                                    <TableCell className="text-right"><Skeleton className="h-5 w-20 ml-auto" /></TableCell>
+                                    <TableCell className="text-right"><Skeleton className="h-5 w-20 ml-auto" /></TableCell>
+                                    <TableCell className="text-right"><Skeleton className="h-5 w-20 ml-auto" /></TableCell>
                                     <TableCell className="text-center"><Skeleton className="h-6 w-24 mx-auto" /></TableCell>
-                                    <TableCell className="text-right"><Skeleton className="h-8 w-20 ml-auto" /></TableCell>
+                                    <TableCell className="text-center"><Skeleton className="h-5 w-20 mx-auto" /></TableCell>
+                                    <TableCell className="text-right"><Skeleton className="h-8 w-8 ml-auto" /></TableCell>
                                 </TableRow>
                             ))
-                        ) : groupedCustomers.length === 0 ? (
+                        ) : (orders || []).length === 0 ? (
                             <TableRow>
-                                <TableCell colSpan={6} className="h-32 text-center text-muted-foreground">
-                                    No orders found matching your criteria.
+                                <TableCell colSpan={10} className="h-32 text-center text-muted-foreground">
+                                    No sales orders found matching your criteria.
                                 </TableCell>
                             </TableRow>
                         ) : (
-                            groupedCustomers.map((group) => {
-                                const statuses = Array.from(new Set(group.orders.map(o => o.order_status)));
-                                const status = statuses.length > 1 ? "MIXED" : (statuses[0] || "UNKNOWN");
-
+                            (orders || []).map((order) => {
                                 let badgeColor = "bg-secondary text-secondary-foreground";
+                                const status = order.order_status;
                                 if (status === "For Approval") badgeColor = "bg-amber-100 text-amber-800 border-amber-200";
                                 else if (status === "For Consolidation") badgeColor = "bg-purple-100 text-purple-800 border-purple-200";
                                 else if (status === "Delivered") badgeColor = "bg-emerald-100 text-emerald-800 border-emerald-200";
                                 else if (status === "Cancelled") badgeColor = "bg-destructive/10 text-destructive border-destructive/20";
-                                else if (status === "MIXED") badgeColor = "bg-secondary text-secondary-foreground border-border";
+                                else if (status === "On Hold") badgeColor = "bg-slate-100 text-slate-800 border-slate-200";
 
                                 return (
                                     <TableRow
-                                        key={group.customer_code}
+                                        key={order.order_id}
                                         className="cursor-pointer hover:bg-muted/50 transition-colors"
-                                        onClick={() => setSelectedGroup(group)}
+                                        onClick={() => setSelectedOrder(order)}
                                     >
-                                        <TableCell className="font-medium">{group.customer_code}</TableCell>
-                                        <TableCell>{group.customer_name}</TableCell>
-                                        <TableCell className="text-right font-medium">{group.orders.length}</TableCell>
-                                        <TableCell className="text-right text-emerald-600 font-medium">
-                                            {formatCurrency(group.total_net_amount)}
+                                        <TableCell className="font-bold text-primary">{order.order_no}</TableCell>
+                                        <TableCell className="text-muted-foreground italic text-xs break-all">{order.po_no || "N/A"}</TableCell>
+                                        <TableCell>
+                                            <div className="flex flex-col">
+                                                <span className="font-medium">{order.customer_name}</span>
+                                                <span className="text-[10px] text-muted-foreground">{order.customer_code}</span>
+                                            </div>
+                                        </TableCell>
+                                        <TableCell className="text-right font-medium">
+                                            {formatCurrency(Number(order.total_amount) || 0)}
+                                        </TableCell>
+                                        <TableCell className="text-right text-destructive font-medium">
+                                            -{formatCurrency(Number(order.discount_amount) || 0)}
+                                        </TableCell>
+                                        <TableCell className="text-right text-purple-600 font-medium">
+                                            {formatCurrency(Number(order.allocated_amount) || 0)}
+                                        </TableCell>
+                                        <TableCell className="text-right text-emerald-600 font-bold">
+                                            {formatCurrency(Number(order.net_amount) || 0)}
                                         </TableCell>
                                         <TableCell className="text-center">
-                                            <Badge variant="outline" className={`${badgeColor} whitespace-nowrap`}>
+                                            <Badge variant="outline" className={`${badgeColor} whitespace-nowrap text-[10px]`}>
                                                 {status.toUpperCase()}
                                             </Badge>
                                         </TableCell>
+                                        <TableCell className="text-center text-xs text-muted-foreground">
+                                            {format(new Date(order.order_date), "MMM d, yyyy")}
+                                        </TableCell>
                                         <TableCell className="text-right">
-                                            <Button variant="outline" size="sm" onClick={(e) => {
-                                                e.stopPropagation();
-                                                setSelectedGroup(group);
-                                            }}>
-                                                Review
+                                            <Button variant="ghost" size="icon" className="h-8 w-8">
+                                                <Eye className="h-4 w-4" />
                                             </Button>
                                         </TableCell>
                                     </TableRow>
@@ -235,7 +259,7 @@ export default function SalesOrderApprovalModule() {
                     )}
                 </div>
             ) : (
-                groupedCustomers.length > 0 && (
+                (orders || []).length > 0 && (
                     <div className="flex justify-center p-6 text-sm text-muted-foreground">
                         No more orders to load.
                     </div>
@@ -243,10 +267,13 @@ export default function SalesOrderApprovalModule() {
             )}
 
             <ApprovalModal
-                group={selectedGroup}
-                open={!!selectedGroup}
-                onClose={() => setSelectedGroup(null)}
+                order={selectedOrder}
+                open={!!selectedOrder}
+                onClose={() => setSelectedOrder(null)}
                 onApprove={handleApproveBulk}
+                onHold={handleHoldBatch}
+                onCancel={handleCancelBatch}
+                onSaveDetails={handleDetailUpdate}
             />
         </div>
     );
