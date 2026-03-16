@@ -4,7 +4,7 @@ import React from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ChevronRight } from "lucide-react";
-import type { CustomerGroup } from "../hooks/useSalesOrderApproval";
+import type { CustomerGroup, SalesOrder } from "../hooks/useSalesOrderApproval";
 
 interface CustomerGroupCardProps {
     group: CustomerGroup;
@@ -40,11 +40,11 @@ export function CustomerGroupCard({ group, onClick }: CustomerGroupCardProps) {
 
                 <div className="flex items-center sm:flex-col sm:items-end justify-between gap-3 shrink-0">
                     {(() => {
-                        const statuses = Array.from(new Set(group.orders.map(o => o.order_status)));
+                        const statuses = Array.from(new Set(group.orders.map((o: SalesOrder) => o.order_status)));
                         if (statuses.length > 1) {
                             return <Badge variant="outline" className="bg-secondary text-secondary-foreground border-border whitespace-nowrap">MIXED</Badge>;
                         }
-                        const status = statuses[0] || "UNKNOWN";
+                        const status = (statuses[0] || "UNKNOWN") as string;
                         let badgeColor = "bg-secondary text-secondary-foreground";
                         if (status === "For Approval") badgeColor = "bg-amber-100 text-amber-800 border-amber-200";
                         else if (status === "For Consolidation") badgeColor = "bg-purple-100 text-purple-800 border-purple-200";

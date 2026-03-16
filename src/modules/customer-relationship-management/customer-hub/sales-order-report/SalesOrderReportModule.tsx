@@ -1,12 +1,13 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import { SalesOrder, Customer, Salesman, Branch, Supplier } from "./types";
-import { fetchSalesOrderData } from "./providers/fetchProvider";
+import { fetchSalesOrderData, deleteSalesOrder } from "./providers/fetchProvider";
 import { SalesOrderFormFields } from "./components/SalesOrderFormFields";
 import { SalesOrderTable } from "./components/SalesOrderTable";
 import { SalesOrderDetailsModal } from "./components/SalesOrderDetailsModal";
 import { Package2 } from "lucide-react";
+import { toast } from "sonner";
 
 import { SalesOrderSkeleton } from "./components/SalesOrderSkeleton";
 
@@ -30,7 +31,6 @@ export default function SalesOrderReportModule() {
     const [salesmen, setSalesmen] = useState<Salesman[]>([]);
     const [branches, setBranches] = useState<Branch[]>([]);
     const [suppliers, setSuppliers] = useState<Supplier[]>([]);
-    const [currentPage, setCurrentPage] = useState(1);
     const pageSize = 50;
     const [totalOrders, setTotalOrders] = useState(0);
     const [aggregates, setAggregates] = useState({ total_amount: 0, allocated_amount: 0 });
@@ -50,18 +50,33 @@ export default function SalesOrderReportModule() {
         status: "",
     });
 
-    const loadData = async (page: number, filtersToUse: AppliedFilters) => {
-        // Removed mandatory filter restriction to allow initial data load
+    // Use refs to track page and loading state for the infinite scroll observer
+    const loadingRef = useRef(false);
+    const currentPageRef = useRef(1);
+    const hasMoreRef = useRef(true);
+
+    const loadData = useCallback(async (page: number, filtersToUse: AppliedFilters) => {
+        if (loadingRef.current) return; // Prevent double-fetch
+        loadingRef.current = true;
         setLoading(true);
         try {
-            // Clean up empty filters and "none" values
             const activeFilters = Object.fromEntries(
                 Object.entries(filtersToUse).filter(([key, v]) => key && v !== "" && v !== "none")
             ) as Record<string, string>;
 
             const data = await fetchSalesOrderData(page, pageSize, activeFilters);
-            setSalesOrders(data.salesOrders);
+            if (page === 1) {
+                setSalesOrders(data.salesOrders);
+            } else {
+                setSalesOrders(prev => {
+                    const existingIds = new Set(prev.map(item => item.order_id));
+                    const newUniqueOrders = data.salesOrders.filter(so => !existingIds.has(so.order_id));
+                    return [...prev, ...newUniqueOrders];
+                });
+            }
             setTotalOrders(data.meta.total_count);
+            // Update hasMore based on whether we got a full page of results
+            hasMoreRef.current = data.salesOrders.length >= pageSize;
             if (data.meta.aggregates) {
                 setAggregates(data.meta.aggregates);
             }
@@ -76,23 +91,59 @@ export default function SalesOrderReportModule() {
             const e = err as Error;
             setError(e.message);
         } finally {
+            loadingRef.current = false;
             setLoading(false);
         }
-    };
+    }, [pageSize]);
 
     const handleRowClick = (so: SalesOrder) => {
         setSelectedOrder(so);
         setIsModalOpen(true);
     };
 
-    const handleSearch = (newFilters: AppliedFilters) => {
-        setAppliedFilters(newFilters);
-        setCurrentPage(1); // Reset to first page on new search
+    const handleDeleteOrder = async (order: SalesOrder) => {
+        if (!window.confirm(`Are you sure you want to delete Sales Order #${order.order_no}? This will also delete all associated order details.`)) {
+            return;
+        }
+
+        try {
+            loadingRef.current = true;
+            setLoading(true);
+            await deleteSalesOrder(Number(order.order_id));
+            toast.success("Sales order deleted successfully");
+            if (selectedOrder?.order_id === order.order_id) {
+                setSelectedOrder(null);
+                setIsModalOpen(false);
+            }
+            loadingRef.current = false;
+            loadData(currentPageRef.current, appliedFilters);
+        } catch (err: unknown) {
+            const e = err as Error;
+            toast.error(`Failed to delete order: ${e.message}`);
+            loadingRef.current = false;
+            setLoading(false);
+        }
     };
 
+    const handleSearch = useCallback((newFilters: AppliedFilters) => {
+        setAppliedFilters(newFilters);
+        currentPageRef.current = 1;
+        hasMoreRef.current = true;
+    }, []);
+
+    // Load more function called by the infinite scroll observer
+    const handleLoadMore = useCallback(() => {
+        if (loadingRef.current || !hasMoreRef.current) return;
+        currentPageRef.current += 1;
+        loadData(currentPageRef.current, appliedFilters);
+    }, [appliedFilters, loadData]);
+
+    // Initial load + reload when filters change
     useEffect(() => {
-        loadData(currentPage, appliedFilters);
-    }, [currentPage, appliedFilters]);
+        currentPageRef.current = 1;
+        hasMoreRef.current = true;
+        loadData(1, appliedFilters);
+    }, [appliedFilters, loadData]);
 
     if (loading && salesOrders.length === 0) {
         return <SalesOrderSkeleton />;
@@ -179,10 +230,10 @@ export default function SalesOrderReportModule() {
                         salesmen={salesmen}
                         branches={branches}
                         suppliers={suppliers}
-                        currentPage={currentPage}
                         totalOrders={totalOrders}
                         pageSize={pageSize}
-                        onPageChange={setCurrentPage}
+                        onLoadMore={handleLoadMore}
+                        onDelete={handleDeleteOrder}
                         isLoading={loading}
                         hasActiveDate={true}
                         selectedOrderId={selectedOrder?.order_id || undefined}

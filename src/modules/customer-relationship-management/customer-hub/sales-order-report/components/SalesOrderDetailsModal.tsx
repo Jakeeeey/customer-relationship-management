@@ -2,19 +2,31 @@
 
 import React, { useState, useEffect } from "react";
 import {
-    Sheet,
-    SheetContent,
-    SheetHeader,
-    SheetTitle,
-    SheetDescription,
-} from "@/components/ui/sheet";
+    Dialog,
+    DialogContent,
+    DialogTitle,
+    DialogDescription,
+} from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from "@/components/ui/table";
 import { formatCurrency } from "@/lib/utils";
-import { Package, Truck, Calendar, User, Store, MessageSquare } from "lucide-react";
+import {
+    Package,
+    Store,
+    AlertCircle,
+    Clock
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { salesOrderProvider } from "../providers/fetchProvider";
 import { SalesOrder, Customer, Salesman, Branch, SalesOrderDetail } from "../types";
-import { DataTable } from "@/components/ui/data-table";
-import { ColumnDef } from "@tanstack/react-table";
 
 interface SalesOrderDetailsModalProps {
     isOpen: boolean;
@@ -34,26 +46,62 @@ export function SalesOrderDetailsModal({
     branches,
 }: SalesOrderDetailsModalProps) {
     const [details, setDetails] = useState<SalesOrderDetail[]>([]);
+    const [invoiceData, setInvoiceData] = useState<{
+        invoice: {
+            invoice_no: string;
+            invoice_date: string;
+            salesman_id: string;
+            gross_amount: number;
+            vat_amount: number;
+            discount_amount: number;
+            net_amount: number;
+        },
+        details: {
+            product_id: { product_name: string; product_code: string; description?: string } | null;
+            unit_price: number;
+            quantity: number;
+            total_amount: number;
+        }[]
+    } | null>(null);
     const [loading, setLoading] = useState(false);
+    const [loadingInvoice, setLoadingInvoice] = useState(false);
+
+    const isInvoiceStatus = ["For Loading", "For Shipping", "En Route", "Delivered"].includes(order?.order_status || "");
 
     useEffect(() => {
         if (isOpen && order) {
-            const loadDetails = async () => {
-                setLoading(true);
-                try {
-                    const data = await salesOrderProvider.getSalesOrderDetails(order.order_id);
-                    setDetails(data);
-                } catch (error) {
-                    console.error("Failed to fetch order details", error);
-                } finally {
-                    setLoading(false);
-                }
-            };
-            loadDetails();
+            if (isInvoiceStatus) {
+                const loadInvoice = async () => {
+                    setLoadingInvoice(true);
+                    try {
+                        const data = await salesOrderProvider.getInvoiceDetails(order.order_id, order.order_no);
+                        setInvoiceData(data);
+                    } catch (error) {
+                        console.error("Failed to fetch invoice details", error);
+                    } finally {
+                        setLoadingInvoice(false);
+                    }
+                };
+                loadInvoice();
+            } else {
+                const loadDetails = async () => {
+                    setLoading(true);
+                    try {
+                        const data = await salesOrderProvider.getSalesOrderDetails(order.order_id);
+                        setDetails(data);
+                    } catch (error) {
+                        console.error("Failed to fetch order details", error);
+                    } finally {
+                        setLoading(false);
+                    }
+                };
+                loadDetails();
+            }
         } else {
             setDetails([]);
+            setInvoiceData(null);
         }
-    }, [isOpen, order]);
+    }, [isOpen, order, isInvoiceStatus]);
 
     if (!order) return null;
 
@@ -61,165 +109,265 @@ export function SalesOrderDetailsModal({
     const salesman = salesmen.find((s) => s.id === order.salesman_id);
     const branch = branches.find((b) => b.id === order.branch_id);
 
-    const columns: ColumnDef<SalesOrderDetail>[] = [
-        {
-            accessorKey: "product_id",
-            header: "Product",
-            cell: ({ row }: { row: { original: SalesOrderDetail } }) => {
-                const product = row.original.product_id;
-                return (
-                    <div className="flex flex-col">
-                        <span className="font-bold text-xs italic">
-                            {typeof product === "object" ? product.product_name : product}
-                        </span>
-                        <span className="text-[10px] text-muted-foreground">
-                            {typeof product === "object" ? product.product_code : ""}
-                        </span>
-                    </div>
-                );
-            },
-        },
-        {
-            accessorKey: "ordered_quantity",
-            header: "Qty",
-            cell: ({ row }: { row: { original: SalesOrderDetail } }) => <div className="text-center font-mono">{row.original.ordered_quantity}</div>,
-        },
-        {
-            accessorKey: "allocated_quantity",
-            header: "Alloc",
-            cell: ({ row }: { row: { original: SalesOrderDetail } }) => (
-                <div className="text-center font-bold text-primary tabular-nums">
-                    {row.original.allocated_quantity}
-                </div>
-            ),
-        },
-        {
-            accessorKey: "unit_price",
-            header: "Price",
-            cell: ({ row }: { row: { original: SalesOrderDetail } }) => <div className="text-right font-mono text-[11px]">{formatCurrency(row.original.unit_price)}</div>,
-        },
-        {
-            accessorKey: "discount_amount",
-            header: "Disc",
-            cell: ({ row }: { row: { original: SalesOrderDetail } }) => <div className="text-right font-mono text-[11px] text-muted-foreground">{formatCurrency(row.original.discount_amount)}</div>,
-        },
-        {
-            accessorKey: "net_amount",
-            header: "Net",
-            cell: ({ row }: { row: { original: SalesOrderDetail } }) => <div className="text-right font-bold font-mono text-[11px]">{formatCurrency(row.original.net_amount)}</div>,
-        },
-    ];
+    const getStatusStyle = (status: string) => {
+        switch (status) {
+            case "For Approval": return "bg-[#FEF9C3] text-[#854D0E] border-[#FEF08A]";
+            case "Delivered": return "bg-emerald-100 text-emerald-900 border-emerald-200 ring-emerald-500/20";
+            case "Cancelled": return "bg-rose-100 text-rose-900 border-rose-200 ring-rose-500/20";
+            case "On Hold": return "bg-slate-100 text-slate-900 border-slate-200 ring-slate-500/20";
+            default: return "bg-blue-100 text-blue-900 border-blue-200 ring-blue-500/20";
+        }
+    };
 
     return (
-        <Sheet open={isOpen} onOpenChange={(open) => !open && onClose()}>
-            <SheetContent side="right" className="sm:max-w-xl w-full p-0 flex flex-col gap-0 border-l shadow-2xl overflow-hidden">
-                <SheetHeader className="p-6 pb-4 bg-slate-50/50 border-b shrink-0">
-                    <div className="flex flex-col gap-1">
-                        <div className="flex items-center gap-2">
-                            <span className="text-[10px] font-black text-primary/60 uppercase tracking-widest bg-primary/5 px-2 py-0.5 rounded border border-primary/10">Sales Order Detail</span>
-                        </div>
-                        <SheetTitle className="text-2xl font-black tracking-tight flex items-center gap-3">
-                            {order.order_no}
-                            <Badge variant="outline" className={`text-[10px] font-bold uppercase ${order.order_status === "For Approval" ? "bg-yellow-100 text-yellow-800 border-yellow-200" : "bg-emerald-100 text-emerald-800 border-emerald-200"}`}>
-                                {order.order_status}
-                            </Badge>
-                        </SheetTitle>
-                        <SheetDescription className="text-xs font-medium text-slate-500 uppercase tracking-wide">
-                            Created on {order.created_date ? new Date(order.created_date).toLocaleString() : "-"}
-                        </SheetDescription>
-                    </div>
-                </SheetHeader>
-
-                <div className="flex-1 overflow-y-auto p-6 space-y-6">
-                    {/* Customer Info Card */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="p-4 rounded-xl border bg-card/50 shadow-sm space-y-3">
-                            <div className="flex flex-col">
-                                <span className="text-[10px] font-black text-muted-foreground uppercase tracking-wider mb-1">
-                                    <Store className="w-3 h-3 inline mr-1" /> Customer
-                                </span>
-                                <span className="text-sm font-bold text-slate-900 leading-tight">{customer?.store_name || order.customer_code}</span>
-                                <span className="text-[11px] font-medium text-slate-500 font-mono mt-0.5">{order.customer_code}</span>
+        <Dialog open={isOpen} onOpenChange={(val) => !val && onClose()}>
+            <DialogContent className="w-full sm:max-w-6xl max-h-[95vh] flex flex-col p-0 overflow-hidden border-none shadow-2xl">
+                {/* Header Section */}
+                <div className="p-6 pb-4 shrink-0 bg-slate-50/50">
+                    <div className="flex justify-between items-start">
+                        <div className="flex items-center gap-3">
+                            <div className="bg-[#E0F2FE] p-2 rounded-lg">
+                                <Clock className="h-6 w-6 text-[#0EA5E9]" />
+                            </div>
+                            <div>
+                                <DialogTitle className="text-2xl font-black flex items-center gap-3 text-slate-900">
+                                    SO No: {order.order_no}
+                                    {isInvoiceStatus && invoiceData?.invoice?.invoice_no && (
+                                        <>
+                                            <Separator orientation="vertical" className="h-6 bg-slate-300 mx-1" />
+                                            <span className="text-primary/70">Inv: {invoiceData.invoice.invoice_no}</span>
+                                        </>
+                                    )}
+                                </DialogTitle>
+                                <DialogDescription className="text-[11px] font-bold flex items-center gap-2 text-slate-500 uppercase tracking-tight mt-0.5">
+                                    <Store className="h-3 w-3" />
+                                    {customer?.store_name || "Unknown Customer"}
+                                    {customer?.city && ` - ${customer.city}`}
+                                    {customer?.province && `, ${customer.province}`}
+                                    <span className="text-slate-400 ml-1">({order.customer_code})</span>
+                                </DialogDescription>
                             </div>
                         </div>
-                        <div className="p-4 rounded-xl border bg-card/50 shadow-sm space-y-3">
-                            <div className="flex flex-col">
-                                <span className="text-[10px] font-black text-muted-foreground uppercase tracking-wider mb-1">
-                                    <User className="w-3 h-3 inline mr-1" /> Sales Personnel
-                                </span>
-                                <span className="text-sm font-bold text-indigo-600">{salesman?.salesman_name || order.salesman_id}</span>
-                                <span className="text-[11px] font-medium text-slate-400 font-mono mt-0.5">{branch?.branch_name || "N/A Branch"}</span>
+                        <Badge variant="outline" className={`
+                            px-4 py-1 text-[10px] font-black shadow-sm tracking-widest
+                            ${getStatusStyle(order.order_status || "")}
+                        `}>
+                            {order.order_status?.toUpperCase()}
+                        </Badge>
+                    </div>
+
+                    {/* Summary Cards */}
+                    <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 mt-8 pb-2">
+                        <div className="bg-white border rounded-xl p-4 shadow-sm flex flex-col gap-1">
+                            <p className="text-[10px] text-muted-foreground uppercase font-black tracking-widest">
+                                {isInvoiceStatus ? "Invoice Date" : "Order Date"}
+                            </p>
+                            <p className="font-bold text-sm text-slate-900">
+                                {isInvoiceStatus && invoiceData?.invoice?.invoice_date
+                                    ? new Date(invoiceData.invoice.invoice_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                                    : order.order_date ? new Date(order.order_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : "N/A"}
+                            </p>
+                        </div>
+                        <div className="bg-white border rounded-xl p-4 shadow-sm flex flex-col gap-1">
+                            <p className="text-[10px] text-muted-foreground uppercase font-black tracking-widest">Fulfillment Hub</p>
+                            <p className="font-bold text-sm text-slate-900 truncate">{branch?.branch_name || "WAREHOUSE - DRY22"}</p>
+                        </div>
+                        <div className="bg-white border rounded-xl p-4 shadow-sm flex flex-col gap-1">
+                            <p className="text-[10px] text-muted-foreground uppercase font-black tracking-widest">Handler</p>
+                            <p className="font-bold text-sm text-slate-900 truncate">{salesman?.salesman_name || "N/A"}</p>
+                        </div>
+                        <div className="bg-[#F0F9FF] border border-[#BAE6FD] rounded-xl p-4 shadow-sm flex flex-col gap-1">
+                            <p className="text-[10px] text-[#0284C7] uppercase font-black tracking-widest leading-none">
+                                {isInvoiceStatus ? "Invoice Total" : "Order Value"}
+                            </p>
+                            <p className="font-black text-lg text-[#0284C7]">
+                                {formatCurrency(isInvoiceStatus ? (invoiceData?.invoice?.net_amount || 0) : (order.allocated_amount || 0))}
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <Separator />
+
+                {/* Main Content Area */}
+                <div className="flex-1 overflow-y-auto min-h-[400px]">
+                    {isInvoiceStatus ? (
+                        loadingInvoice ? (
+                            <div className="flex flex-col items-center justify-center h-64 gap-4">
+                                <div className="w-10 h-10 rounded-full border-4 border-primary/20 border-t-primary animate-spin" />
+                                <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.3em] animate-pulse">Reconstructing Invoice...</p>
                             </div>
-                        </div>
-                    </div>
-
-                    {/* Order Dates Summary */}
-                    <div className="p-4 rounded-xl border bg-slate-950 text-white shadow-lg grid grid-cols-2 gap-4">
-                        <div>
-                            <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest block mb-1">
-                                <Calendar className="w-3 h-3 inline mr-1" /> Order Date
-                            </span>
-                            <span className="text-sm font-bold">{order.order_date || "-"}</span>
-                        </div>
-                        <div>
-                            <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest block mb-1">
-                                <Truck className="w-3 h-3 inline mr-1" /> Delivery Date
-                            </span>
-                            <span className="text-sm font-bold text-orange-400">{order.delivery_date || "-"}</span>
-                        </div>
-                    </div>
-
-                    {/* Products Table */}
-                    <div className="space-y-3">
-                        <div className="flex items-center justify-between">
-                            <h3 className="text-xs font-black text-slate-900 uppercase tracking-widest flex items-center gap-2">
-                                <Package className="w-3 h-3 text-primary" />
-                                Order Line Items
-                            </h3>
-                            <span className="text-[10px] font-bold text-muted-foreground bg-muted px-2 py-0.5 rounded-md border">{details.length} Items</span>
-                        </div>
-
-                        <div className="border rounded-xl overflow-hidden bg-white shadow-sm">
-                            {loading ? (
-                                <div className="p-8 flex flex-col items-center justify-center gap-3">
-                                    <div className="w-8 h-8 rounded-full border-2 border-primary/30 border-t-primary animate-spin" />
-                                    <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest animate-pulse">Retrieving Details...</span>
+                        ) : !invoiceData?.invoice ? (
+                            <div className="flex flex-col items-center justify-center h-96 text-center px-12 gap-6 group">
+                                <div className="p-6 bg-slate-50 rounded-full border-2 border-dashed border-slate-200 group-hover:bg-slate-100 transition-colors">
+                                    <AlertCircle className="h-12 w-12 text-slate-300" />
                                 </div>
-                            ) : (
-                                <DataTable columns={columns} data={details} />
-                            )}
-                        </div>
-                    </div>
-
-                    {/* Remarks Area */}
-                    {order.remarks && (
-                        <div className="p-4 rounded-xl border bg-amber-50/50 border-amber-200/50">
-                            <div className="flex items-center gap-2 text-[10px] font-black text-amber-700 uppercase tracking-widest mb-2">
-                                <MessageSquare className="w-3 h-3" />
-                                Internal Remarks
+                                <div className="space-y-2">
+                                    <h3 className="text-xl font-black text-slate-900 uppercase">Billing Record Pending</h3>
+                                    <p className="text-sm text-slate-500 max-w-sm font-medium leading-relaxed">
+                                        This order has been promoted to a billing state, but the physical invoice has not yet been committed to the data vault.
+                                    </p>
+                                </div>
                             </div>
-                            <p className="text-xs font-medium text-amber-900 italic leading-relaxed whitespace-pre-wrap">{order.remarks}</p>
+                        ) : (
+                            <div className="p-0 border-none animate-in fade-in duration-700">
+                                <Table>
+                                    <TableHeader className="bg-slate-50 sticky top-0 z-10 border-b">
+                                        <TableRow className="hover:bg-transparent border-none">
+                                            <TableHead className="pl-8 h-12 uppercase text-[10px] font-black text-[#94A3B8] tracking-widest">Product / SKU</TableHead>
+                                            <TableHead className="text-right h-12 uppercase text-[10px] font-black text-[#94A3B8] tracking-widest">Unit Price</TableHead>
+                                            <TableHead className="text-center h-12 uppercase text-[10px] font-black text-[#94A3B8] tracking-widest w-[100px]">Qty</TableHead>
+                                            <TableHead className="text-right pr-8 h-12 uppercase text-[10px] font-black text-[#94A3B8] tracking-widest w-[150px]">Amount</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {invoiceData.details.map((item, idx) => (
+                                            <TableRow key={idx} className="border-slate-50 hover:bg-slate-50/50 transition-colors">
+                                                <TableCell className="pl-8 py-6">
+                                                    <div className="flex flex-col gap-0.5">
+                                                        <span className="font-bold text-slate-900 text-sm">{item.product_id?.product_name || "N/A Item"}</span>
+                                                        <span className="text-[10px] text-slate-400 font-bold tracking-tighter">{item.product_id?.product_code}</span>
+                                                    </div>
+                                                </TableCell>
+                                                <TableCell className="text-right font-bold text-slate-500 font-mono tracking-tight tabular-nums text-sm">
+                                                    {formatCurrency(item.unit_price)}
+                                                </TableCell>
+                                                <TableCell className="text-center font-bold text-slate-500 text-sm tabular-nums">
+                                                    {item.quantity}
+                                                </TableCell>
+                                                <TableCell className="text-right font-black text-slate-950 pr-8 font-mono text-base tabular-nums tracking-tighter">
+                                                    {formatCurrency(item.total_amount)}
+                                                </TableCell>
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                </Table>
+
+                                <div className="p-8 bg-slate-50/30 border-t flex justify-end">
+                                    <div className="w-full max-w-xs space-y-3">
+                                        <div className="flex justify-between items-center text-sm">
+                                            <span className="text-muted-foreground font-medium">Gross Total</span>
+                                            <span className="font-bold text-slate-600">{formatCurrency(invoiceData.invoice.gross_amount)}</span>
+                                        </div>
+                                        <div className="flex justify-between items-center text-sm">
+                                            <span className="text-muted-foreground font-medium">Discount</span>
+                                            <span className="font-bold text-rose-500">-{formatCurrency(invoiceData.invoice.discount_amount)}</span>
+                                        </div>
+                                        <div className="flex justify-between items-center text-sm">
+                                            <span className="text-muted-foreground font-medium">VAT (12%)</span>
+                                            <span className="font-bold text-slate-600">{formatCurrency(invoiceData.invoice.vat_amount || 0)}</span>
+                                        </div>
+                                        <Separator className="bg-slate-200" />
+                                        <div className="flex justify-between items-center pt-1">
+                                            <span className="text-sm font-black uppercase tracking-widest text-primary">Total Amount</span>
+                                            <span className="text-2xl font-black text-slate-950">{formatCurrency(invoiceData.invoice.net_amount)}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )
+                    ) : (
+                        <div className="p-0 border-none animate-in fade-in duration-700">
+                            <Table>
+                                <TableHeader className="bg-slate-50 sticky top-0 z-10 border-b">
+                                    <TableRow className="hover:bg-transparent border-none">
+                                        <TableHead className="pl-8 h-12 uppercase text-[10px] font-black text-[#94A3B8] tracking-widest">Product / SKU</TableHead>
+                                        <TableHead className="text-right h-12 uppercase text-[10px] font-black text-[#94A3B8] tracking-widest">Unit Price</TableHead>
+                                        <TableHead className="text-center h-12 uppercase text-[10px] font-black text-[#94A3B8] tracking-widest">Ordered</TableHead>
+                                        <TableHead className="text-center h-12 uppercase text-[10px] font-black text-[#94A3B8] tracking-widest">Allocated</TableHead>
+                                        <TableHead className="text-right pr-8 h-12 uppercase text-[10px] font-black text-[#94A3B8] tracking-widest">Allocated Amount</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {loading ? (
+                                        Array.from({ length: 6 }).map((_, i) => (
+                                            <TableRow key={i} className="border-slate-50">
+                                                <TableCell className="pl-8 py-5"><div className="h-4 w-64 bg-slate-100 animate-pulse rounded" /></TableCell>
+                                                <TableCell><div className="h-4 w-16 bg-slate-100 animate-pulse rounded ml-auto" /></TableCell>
+                                                <TableCell><div className="h-4 w-12 bg-slate-100 animate-pulse rounded mx-auto" /></TableCell>
+                                                <TableCell><div className="h-4 w-12 bg-slate-100 animate-pulse rounded mx-auto" /></TableCell>
+                                                <TableCell className="pr-8"><div className="h-4 w-20 bg-slate-100 animate-pulse rounded ml-auto" /></TableCell>
+                                            </TableRow>
+                                        ))
+                                    ) : details.length === 0 ? (
+                                        <TableRow>
+                                            <TableCell colSpan={5} className="h-64 text-center text-slate-400">
+                                                <div className="flex flex-col items-center gap-2">
+                                                    <Package className="h-8 w-8 opacity-20" />
+                                                    <p className="text-[10px] font-black uppercase tracking-widest">No line items materialized for this record.</p>
+                                                </div>
+                                            </TableCell>
+                                        </TableRow>
+                                    ) : (
+                                        details.map((li, idx) => {
+                                            const product = li.product_id;
+                                            const productName = typeof product === "object" ? product?.product_name : (product || "N/A");
+                                            const productCode = typeof product === "object" ? product?.product_code : "";
+
+                                            return (
+                                                <TableRow key={li.detail_id || idx} className="hover:bg-slate-50/50 transition-colors border-slate-50 group">
+                                                    <TableCell className="pl-8 py-6">
+                                                        <div className="flex flex-col gap-1">
+                                                            <span className="font-bold text-slate-900 text-sm group-hover:text-primary transition-colors">{productName}</span>
+                                                            <span className="text-[10px] font-bold text-slate-400 tracking-tighter">{productCode}</span>
+                                                        </div>
+                                                    </TableCell>
+                                                    <TableCell className="text-right font-bold text-slate-500 font-mono tracking-tight tabular-nums text-sm">
+                                                        {formatCurrency(li.unit_price)}
+                                                    </TableCell>
+                                                    <TableCell className="text-center font-bold text-blue-400/80 text-sm tabular-nums">
+                                                        {li.ordered_quantity}
+                                                    </TableCell>
+                                                    <TableCell className="text-center">
+                                                        <span className="inline-flex items-center justify-center min-w-[32px] h-7 px-2 rounded-lg bg-[#F0FDF4] text-[#16A34A] font-black text-[11px] border border-[#DCFCE7] tabular-nums">
+                                                            {li.allocated_quantity}
+                                                        </span>
+                                                    </TableCell>
+                                                    <TableCell className="text-right font-black text-slate-950 pr-8 font-mono text-base tabular-nums tracking-tighter">
+                                                        {formatCurrency(li.net_amount || 0)}
+                                                    </TableCell>
+                                                </TableRow>
+                                            );
+                                        })
+                                    )}
+                                </TableBody>
+                            </Table>
                         </div>
                     )}
                 </div>
 
-                {/* Footer Totals */}
-                <div className="p-6 border-t bg-slate-50/80 backdrop-blur-sm shrink-0">
-                    <div className="space-y-4">
-                        <div className="flex justify-between items-center text-xs">
-                            <span className="font-bold text-slate-500 uppercase tracking-wider">Net Amount</span>
-                            <span className="font-mono font-bold text-slate-900">{formatCurrency(order.net_amount || 0)}</span>
+                {/* Footer Section */}
+                <div className="p-8 border-t bg-white flex flex-col sm:flex-row justify-between items-center gap-8 shrink-0 relative z-10">
+                    <div className="flex items-center gap-12">
+                        <div className="flex flex-col gap-1">
+                            <p className="text-[9px] text-slate-400 uppercase font-black tracking-widest">Line Item Count</p>
+                            <p className="font-black text-xl text-slate-900">{details.length || invoiceData?.details.length || 0}</p>
                         </div>
-                        <div className="flex justify-between items-center pt-4 border-t border-slate-200">
-                            <div className="flex flex-col">
-                                <span className="text-[10px] font-black text-primary uppercase tracking-widest">Grand Total</span>
-                                <span className="text-[9px] font-medium text-slate-400 uppercase tracking-tighter">(Allocated Fulfillment)</span>
+                        <div className="w-px h-10 bg-slate-100" />
+                        <div className="flex flex-col gap-1">
+                            <p className="text-[9px] text-slate-400 uppercase font-black tracking-widest">
+                                {isInvoiceStatus ? "CONSOLIDATED AMOUNT" : "NET AMOUNT"}
+                            </p>
+                            <div className="flex items-baseline gap-1">
+                                <span className="text-[11px] font-black text-slate-300 uppercase italic">PHP</span>
+                                <p className="text-[48px] font-black text-slate-950 tabular-nums tracking-tighter leading-none">
+                                    {formatCurrency(isInvoiceStatus ? (invoiceData?.invoice?.net_amount || 0) : (order.allocated_amount || 0)).replace("PHP", "").trim()}
+                                </p>
                             </div>
-                            <span className="text-2xl font-black text-slate-900 tabular-nums tracking-tighter">{formatCurrency(order.allocated_amount)}</span>
                         </div>
                     </div>
+
+                    <div className="flex items-center gap-4">
+                        <Button
+                            variant="outline"
+                            onClick={onClose}
+                            className="font-black text-[12px] uppercase tracking-widest px-10 border-[3px] border-[#38BDF8] text-[#0284C7] hover:bg-[#F0F9FF] active:scale-95 transition-all h-14 rounded-xl shadow-sm"
+                        >
+                            Close Record
+                        </Button>
+                    </div>
                 </div>
-            </SheetContent>
-        </Sheet>
+            </DialogContent>
+        </Dialog>
     );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { Salesman, Customer, Supplier, Product, RunningInventoryItem } from "../types";
+import { Salesman, Customer, Supplier, Product, Branch, PriceTypeModel } from "../types";
 
 const API_BASE = "/api/crm/customer-hub/create-sales-order";
 
@@ -20,10 +20,25 @@ export const salesOrderProvider = {
         return res.json();
     },
 
+    getBranches: async (): Promise<Branch[]> => {
+        const res = await fetch(`${API_BASE}?action=branches`);
+        return res.json();
+    },
+
+    getPriceTypes: async (): Promise<PriceTypeModel[]> => {
+        const res = await fetch(`${API_BASE}?action=price_types`);
+        return res.json();
+    },
+
     // Pag-search ng mga products na pwedeng bilhin
-    searchProducts: async (search: string, customerCode: string, supplierId: number, priceType: string, customerId: number, priceTypeId?: number, salesmanId?: string): Promise<Product[]> => {
+    searchProducts: async (search: string, customerCode: string, supplierId: number, priceType: string, customerId: number, priceTypeId?: number, salesmanId?: string, branchId?: string): Promise<Product[]> => {
         // Dito natin ipinapasa ang price_type_id para makuha ang tamang presyo mula sa Directus
-        const res = await fetch(`${API_BASE}?action=products&search=${encodeURIComponent(search)}&customer_code=${customerCode}&supplier_id=${supplierId}&price_type=${priceType}&customer_id=${customerId}${priceTypeId ? `&price_type_id=${priceTypeId}` : ""}${salesmanId ? `&salesman_id=${salesmanId}` : ""}`);
+        let url = `${API_BASE}?action=products&search=${encodeURIComponent(search)}&customer_code=${customerCode}&supplier_id=${supplierId}&price_type=${priceType}&customer_id=${customerId}`;
+        if (priceTypeId) url += `&price_type_id=${priceTypeId}`;
+        if (salesmanId) url += `&salesman_id=${salesmanId}`;
+        if (branchId) url += `&branch_id=${branchId}`;
+
+        const res = await fetch(url);
         return res.json();
     },
 
@@ -37,10 +52,5 @@ export const salesOrderProvider = {
         return res.json();
     },
 
-    getInventory: async (params?: Record<string, string>): Promise<RunningInventoryItem[]> => {
-        const query = params ? `&${new URLSearchParams(params).toString()}` : "";
-        const res = await fetch(`${API_BASE}?action=inventory${query}`);
-        if (!res.ok) throw new Error("Failed to fetch inventory");
-        return res.json();
-    }
+
 };
