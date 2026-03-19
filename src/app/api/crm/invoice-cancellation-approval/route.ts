@@ -1,4 +1,4 @@
-import { InvoiceService } from "@/modules/invoice-management/invoice-cancellation/services/invoice-service";
+import { InvoiceService } from "@/modules/customer-relationship-management/invoice-cancellation/services/invoice-service";
 import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
@@ -16,10 +16,11 @@ export async function GET() {
       },
       { status: 200 },
     );
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("GET Invoice Cancellation Error:", error);
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
     return NextResponse.json(
-      { message: "Failed to fetch invoices", error: error.message },
+      { message: "Failed to fetch invoices", error: errorMessage },
       { status: 500 },
     );
   }
@@ -37,7 +38,7 @@ export async function PATCH(request: Request) {
       );
     }
     const results = await Promise.all(
-      updates.map(async (item: any) => {
+      updates.map(async (item: { requestId: number, invoiceId: number, orderNo: string, auditorId: number }) => {
         const { requestId, invoiceId, orderNo, auditorId } = item;
 
         if (action === "APPROVE") {
@@ -63,10 +64,11 @@ export async function PATCH(request: Request) {
       },
       { status: 200 },
     );
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("PATCH Approval Action Error:", error);
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
     return NextResponse.json(
-      { message: "Action failed", error: error.message },
+      { message: "Action failed", error: errorMessage },
       { status: 500 },
     );
   }

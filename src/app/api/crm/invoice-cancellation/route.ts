@@ -1,4 +1,4 @@
-import { InvoiceService } from "@/modules/invoice-management/invoice-cancellation/services/invoice-service";
+import { InvoiceService } from "@/modules/customer-relationship-management/invoice-cancellation/services/invoice-service";
 import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
@@ -9,12 +9,13 @@ export async function GET() {
     const data = await InvoiceService.getInvoicesForCancellation();
     console.log("📦 API Route sending data to frontend:", data.length);
     return NextResponse.json(data, { status: 200 });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("GET Invoice Cancellation Error:", error);
-    console.error("🔥 API Route Crash:", error.message);
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    console.error("🔥 API Route Crash:", errorMessage);
     return NextResponse.json(
-      { message: "Failed to fetch invoices", error: error.message },
-      { status: 500 }
+      { message: "Failed to fetch invoices", error: errorMessage },
+      { status: 500 },
     );
   }
 }
@@ -27,7 +28,7 @@ export async function POST(request: Request) {
     if (!body.invoice_id || !body.reason_code) {
       return NextResponse.json(
         { message: "Missing required fields: invoice_id or reason_code" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -36,13 +37,14 @@ export async function POST(request: Request) {
 
     return NextResponse.json(
       { message: "Cancellation request submitted successfully", data: result },
-      { status: 201 }
+      { status: 201 },
     );
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("POST Invoice Cancellation Error:", error);
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
     return NextResponse.json(
-      { message: "Failed to submit request", error: error.message },
-      { status: 500 }
+      { message: "Failed to submit request", error: errorMessage },
+      { status: 500 },
     );
   }
 }
