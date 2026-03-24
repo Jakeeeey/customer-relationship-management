@@ -1,6 +1,3 @@
-"use client";
-
-import React from "react";
 import {
     Breadcrumb,
     BreadcrumbItem,
@@ -11,34 +8,114 @@ import {
 } from "@/components/ui/breadcrumb";
 import { Separator } from "@/components/ui/separator";
 import { SidebarTrigger } from "@/components/ui/sidebar";
+import { NavUser } from "../../_components/nav-user";
+
+import { cookies } from "next/headers";
+
 import { ProductPrintablesModule } from "@/modules/customer-relationship-management/printables-management/product-printables";
 
-export default function ProductPrintablesPage() {
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+const COOKIE_NAME = "vos_access_token";
+
+function decodeJwtPayload(token: string): Record<string, unknown> | null {
+    try {
+        const parts = token.split(".");
+        if (parts.length < 2) return null;
+
+        const p = parts[1];
+        const b64 = p.replace(/-/g, "+").replace(/_/g, "/");
+        const padded = b64 + "=".repeat((4 - (b64.length % 4)) % 4);
+
+        const json = Buffer.from(padded, "base64").toString("utf8");
+        return JSON.parse(json);
+    } catch {
+        return null;
+    }
+}
+
+function pickString(obj: Record<string, unknown> | null | undefined, keys: string[]): string {
+    for (const k of keys) {
+        const v = obj?.[k];
+        if (typeof v === "string" && v.trim()) return v.trim();
+    }
+    return "";
+}
+
+function buildHeaderUserFromToken(token: string | null | undefined) {
+    const payload = token ? decodeJwtPayload(token) : null;
+
+    const first = pickString(payload, [
+        "Firstname",
+        "FirstName",
+        "firstName",
+        "firstname",
+        "first_name",
+    ]);
+    const last = pickString(payload, [
+        "LastName",
+        "Lastname",
+        "lastName",
+        "lastname",
+        "last_name",
+    ]);
+    const email = pickString(payload, ["email", "Email"]);
+
+    const name = [first, last].filter(Boolean).join(" ") || email || "User";
+
+    return {
+        name,
+        email: email || "",
+        avatar: "/avatars/shadcn.jpg",
+    };
+}
+
+export default async function Page() {
+    // ✅ Next.js 16: cookies() is async
+    const cookieStore = await cookies();
+    const token = cookieStore.get(COOKIE_NAME)?.value ?? null;
+
+    const headerUser = buildHeaderUserFromToken(token);
+
     return (
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background/30">
-            <header className="relative z-10 flex h-14 shrink-0 items-center justify-between border-b shadow-sm bg-background/50 backdrop-blur-md sm:h-16 overflow-hidden px-4">
-                <div className="flex items-center gap-2">
-                    <SidebarTrigger className="-ml-1" />
-                    <Separator orientation="vertical" className="h-4" />
-                    <Breadcrumb>
-                        <BreadcrumbList>
-                            <BreadcrumbItem className="hidden md:block">
-                                <BreadcrumbLink href="#">Printables</BreadcrumbLink>
-                            </BreadcrumbItem>
-                            <BreadcrumbSeparator className="hidden md:block" />
-                            <BreadcrumbItem>
-                                <BreadcrumbPage>Product Printables</BreadcrumbPage>
-                            </BreadcrumbItem>
-                        </BreadcrumbList>
-                    </Breadcrumb>
+        // ✅ This fills the RIGHT column provided by SidebarInset (which is now fixed-height).
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+            {/* ✅ Topbar is fixed in place because ONLY <main> scrolls */}
+            <header className="relative z-10 flex h-14 shrink-0 items-center justify-between border-b shadow-sm bg-background sm:h-16 overflow-hidden">
+                <div className="flex h-full min-w-0 items-center gap-2 px-3 sm:px-4 overflow-hidden">
+                    <SidebarTrigger className="-ml-1 shrink-0" />
+
+                    <Separator
+                        orientation="vertical"
+                        className="hidden sm:block mr-2 data-[orientation=vertical]:h-4 shrink-0"
+                    />
+
+                    <div className="min-w-0 overflow-hidden">
+                        <Breadcrumb>
+                            <BreadcrumbList>
+                                <BreadcrumbItem className="hidden md:block">
+                                    <BreadcrumbLink href="#">Printables</BreadcrumbLink>
+                                </BreadcrumbItem>
+                                <BreadcrumbSeparator className="hidden md:block" />
+                                <BreadcrumbItem>
+                                    <BreadcrumbPage>Product Printables</BreadcrumbPage>
+                                </BreadcrumbItem>
+                            </BreadcrumbList>
+                        </Breadcrumb>
+                    </div>
+                </div>
+
+                <div className="flex h-full items-center px-2 sm:px-4 shrink-0 max-w-[48vw] sm:max-w-none overflow-hidden">
+                    <NavUser user={headerUser} />
                 </div>
             </header>
 
-            <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8 custom-scrollbar">
-                <div className="max-w-[1400px] mx-auto">
-                    <ProductPrintablesModule />
-                </div>
+            {/* ✅ Only content scrolls inside RIGHT column */}
+            <main className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden p-2 sm:p-4">
+                <ProductPrintablesModule />
             </main>
         </div>
     );
 }
+

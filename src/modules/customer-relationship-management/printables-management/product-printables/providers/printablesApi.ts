@@ -34,7 +34,7 @@ export async function getLookups(params?: {
     // Reusing the existing lookups API if possible, or we could create a new one.
     // For now, I'll use the product-pricing lookups as they cover the same entities.
     return http<{ data: { categories: Category[]; brands: Brand[]; units: Unit[]; suppliers?: Supplier[] } }>(
-        `/api/fm/printables/lookups${qs ? `?${qs}` : ""}`,
+        `/api/crm/printables/lookups${qs ? `?${qs}` : ""}`,
     );
 }
 
@@ -51,5 +51,5 @@ export async function getProducts(params: {
     for (const [k, v] of Object.entries(params)) {
         if (v) sp.set(k, v);
     }
-    return http<{ data: ProductRow[] }>(`/api/fm/printables?${sp.toString()}`);
+    return http<{ data: ProductRow[] }>(`/api/crm/printables?${sp.toString()}`);
 }

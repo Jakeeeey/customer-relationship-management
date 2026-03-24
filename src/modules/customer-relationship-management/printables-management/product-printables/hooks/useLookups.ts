@@ -31,9 +31,9 @@ export function useLookups(filters?: Partial<FilterState>) {
                         category_id: categoryId,
                         brand_id: brandId,
                     }),
-                    fetch("/api/fm/product-pricing/price-types").then((r) => r.json())
+                    fetch("/api/crm/printables/price-types").then((r) => r.json())
                 ]);
-                
+
                 if (!mounted) return;
                 setCategories(res.data.categories ?? []);
                 setBrands(res.data.brands ?? []);
