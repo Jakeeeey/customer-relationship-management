@@ -11,6 +11,7 @@ export default function CreateSalesOrderModule() {
         salesmen, selectedSalesmanId, handleSalesmanChange, selectedSalesman,
         accounts, handleAccountChange, selectedAccount, loadingAccounts,
         customers, selectedCustomerId, handleCustomerChange, selectedCustomer, loadingCustomers,
+        customerSearch, setCustomerSearch, hasMoreCustomers, loadingMoreCustomers, loadMoreCustomers,
         suppliers, selectedSupplierId, handleSupplierChange, selectedSupplier, loadingSuppliers,
         branches, selectedBranchId, setSelectedBranchId, selectedBranch,
         receiptTypes, selectedReceiptTypeId, setSelectedReceiptTypeId, selectedReceiptType,
@@ -95,6 +96,11 @@ export default function CreateSalesOrderModule() {
                         selectedCustomer={selectedCustomer}
                         loadingCustomers={loadingCustomers}
                         onCustomerChange={handleCustomerChange}
+                        customerSearch={customerSearch}
+                        onCustomerSearchChange={setCustomerSearch}
+                        loadingMoreCustomers={loadingMoreCustomers}
+                        onLoadMoreCustomers={loadMoreCustomers}
+                        hasMoreCustomers={hasMoreCustomers}
 
                         suppliers={suppliers}
                         selectedSupplier={selectedSupplier}

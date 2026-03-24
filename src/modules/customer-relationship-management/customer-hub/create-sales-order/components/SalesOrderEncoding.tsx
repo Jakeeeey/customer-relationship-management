@@ -107,6 +107,7 @@ export function SalesOrderEncoding({
                                                         </div>
                                                         <span className="text-[9px] text-muted-foreground font-black uppercase tracking-tighter">
                                                             {p.discount_level} {p.uom ? `• ${p.uom}` : ''}
+                                                            <span className="ml-2 text-indigo-500">• Avail: {Number(p.available_qty) || 0}</span>
                                                         </span>
                                                     </div>
                                                     <div className="flex gap-1 items-center">

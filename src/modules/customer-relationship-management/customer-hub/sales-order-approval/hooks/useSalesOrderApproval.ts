@@ -9,6 +9,7 @@ export interface OrderDetail {
     ordered_quantity: number;
     allocated_quantity: number;
     discount_amount: number;
+    discount_type: number | string | null;
     net_amount: number;
 }
 

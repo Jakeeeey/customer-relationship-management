@@ -24,6 +24,8 @@ export interface Customer {
     price_type?: PriceType;
     price_type_id?: number | null;
     discount_type_id?: number;
+    province?: string;
+    city?: string;
 }
 
 export interface Supplier {

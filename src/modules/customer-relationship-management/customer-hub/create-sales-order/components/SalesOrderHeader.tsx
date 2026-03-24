@@ -28,6 +28,11 @@ interface SalesOrderHeaderProps {
     selectedCustomer: Customer | undefined;
     loadingCustomers: boolean;
     onCustomerChange: (id: string) => void;
+    customerSearch: string;
+    onCustomerSearchChange: (val: string) => void;
+    loadingMoreCustomers: boolean;
+    onLoadMoreCustomers: () => void;
+    hasMoreCustomers: boolean;
 
     suppliers: Supplier[];
     selectedSupplier: Supplier | undefined;
@@ -64,7 +69,8 @@ interface SalesOrderHeaderProps {
 export function SalesOrderHeader({
     salesmen, selectedSalesman, onSalesmanChange,
     accounts, selectedAccount, loadingAccounts, onAccountChange,
-    customers, selectedCustomer, loadingCustomers, onCustomerChange,
+    customers, selectedCustomer, loadingCustomers, onCustomerChange, customerSearch, onCustomerSearchChange,
+    loadingMoreCustomers, onLoadMoreCustomers, hasMoreCustomers,
     suppliers, selectedSupplier, loadingSuppliers, onSupplierChange,
     receiptTypes, selectedReceiptTypeId, onReceiptTypeChange,
     salesTypes, selectedSalesTypeId, onSalesTypeChange,
@@ -105,7 +111,79 @@ export function SalesOrderHeader({
                 </div>
             </CardHeader>
             <CardContent className="p-6 grid gap-6 xl:grid-cols-4 lg:grid-cols-4 md:grid-cols-2">
-                {/* 1. SALESMAN (USER) */}
+                {/* 1. CUSTOMER */}
+                <div className="flex flex-col gap-1.5">
+                    <label className="text-xs font-bold uppercase text-muted-foreground">Customer {loadingCustomers && "..."}</label>
+                    <Popover open={openCustomer} onOpenChange={(open) => { setOpenCustomer(open); if (!open) onCustomerSearchChange(""); }}>
+                        <PopoverTrigger asChild>
+                            <Button variant="outline" className="w-full justify-between font-normal h-9 text-xs" disabled={loadingCustomers}>
+                                <span className="truncate">
+                                    {selectedCustomer 
+                                        ? `${selectedCustomer.customer_name}${selectedCustomer.city || selectedCustomer.province ? ` (${[selectedCustomer.city, selectedCustomer.province].filter(Boolean).join(", ")})` : ""}` 
+                                        : "Select Customer..."}
+                                </span>
+                                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                            </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-[350px] p-0" align="start">
+                            <Command shouldFilter={false}>
+                                <CommandInput 
+                                    placeholder="Search customer..." 
+                                    value={customerSearch}
+                                    onValueChange={onCustomerSearchChange}
+                                />
+                                <CommandList>
+                                    {loadingCustomers ? (
+                                        <div className="py-6 text-center text-sm text-muted-foreground">Searching...</div>
+                                    ) : (
+                                        <>
+                                            <CommandEmpty>No customer found.</CommandEmpty>
+                                            <CommandGroup>
+                                                <div 
+                                                    className="max-h-[300px] overflow-y-auto custom-scrollbar p-1"
+                                                    onScroll={(e) => {
+                                                        const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
+                                                        if (scrollHeight - scrollTop <= clientHeight + 50) {
+                                                            onLoadMoreCustomers();
+                                                        }
+                                                    }}
+                                                >
+                                                    {customers.map(c => (
+                                                        <CommandItem key={c.id} value={`${c.customer_name} ${c.city} ${c.province}`} onSelect={() => { onCustomerChange(c.id.toString()); setOpenCustomer(false); }}>
+                                                            <Check className={cn("mr-2 h-4 w-4", selectedCustomer?.id === c.id ? "opacity-100" : "opacity-0")} />
+                                                            <div className="flex flex-col">
+                                                                <span className="font-medium">{c.customer_name}</span>
+                                                                {(c.city || c.province) && (
+                                                                    <span className="text-[10px] text-muted-foreground">
+                                                                        {[c.city, c.province].filter(Boolean).join(", ")}
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        </CommandItem>
+                                                    ))}
+                                                    
+                                                    {loadingMoreCustomers && (
+                                                        <div className="py-2 text-center text-[10px] text-muted-foreground animate-pulse font-bold uppercase tracking-widest">
+                                                            Loading more...
+                                                        </div>
+                                                    )}
+                                                    
+                                                    {!hasMoreCustomers && customers.length > 0 && (
+                                                        <div className="py-2 text-center text-[9px] text-muted-foreground/50 italic">
+                                                            End of results
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </CommandGroup>
+                                        </>
+                                    )}
+                                </CommandList>
+                            </Command>
+                        </PopoverContent>
+                    </Popover>
+                </div>
+
+                {/* 2. SALESMAN (USER) */}
                 <div className="flex flex-col gap-1.5">
                     <label className="text-xs font-bold uppercase text-muted-foreground">Salesman (User)</label>
                     <Popover open={openSalesman} onOpenChange={setOpenSalesman}>
@@ -134,7 +212,7 @@ export function SalesOrderHeader({
                     </Popover>
                 </div>
 
-                {/* 2. SALESMAN (ACCOUNT) */}
+                {/* 3. SALESMAN (ACCOUNT) */}
                 <div className="flex flex-col gap-1.5">
                     <label className="text-xs font-bold uppercase text-muted-foreground">Account {loadingAccounts && "..."}</label>
                     <Popover open={openAccount} onOpenChange={setOpenAccount}>
@@ -154,35 +232,6 @@ export function SalesOrderHeader({
                                             <CommandItem key={a.id} value={`${a.salesman_name} ${a.salesman_code}`} onSelect={() => { onAccountChange(a.id.toString()); setOpenAccount(false); }}>
                                                 <Check className={cn("mr-2 h-4 w-4", selectedAccount?.id === a.id ? "opacity-100" : "opacity-0")} />
                                                 {a.salesman_name} ({a.salesman_code})
-                                            </CommandItem>
-                                        ))}
-                                    </CommandGroup>
-                                </CommandList>
-                            </Command>
-                        </PopoverContent>
-                    </Popover>
-                </div>
-
-                {/* 3. CUSTOMER */}
-                <div className="flex flex-col gap-1.5">
-                    <label className="text-xs font-bold uppercase text-muted-foreground">Customer {loadingCustomers && "..."}</label>
-                    <Popover open={openCustomer} onOpenChange={setOpenCustomer}>
-                        <PopoverTrigger asChild>
-                            <Button variant="outline" className="w-full justify-between font-normal h-9 text-xs" disabled={!selectedAccount || loadingCustomers}>
-                                <span className="truncate">{selectedCustomer ? selectedCustomer.customer_name : "Select Customer..."}</span>
-                                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                            </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-[350px] p-0" align="start">
-                            <Command>
-                                <CommandInput placeholder="Search customer..." />
-                                <CommandList>
-                                    <CommandEmpty>No customer found.</CommandEmpty>
-                                    <CommandGroup>
-                                        {customers.map(c => (
-                                            <CommandItem key={c.id} value={c.customer_name} onSelect={() => { onCustomerChange(c.id.toString()); setOpenCustomer(false); }}>
-                                                <Check className={cn("mr-2 h-4 w-4", selectedCustomer?.id === c.id ? "opacity-100" : "opacity-0")} />
-                                                {c.customer_name}
                                             </CommandItem>
                                         ))}
                                     </CommandGroup>

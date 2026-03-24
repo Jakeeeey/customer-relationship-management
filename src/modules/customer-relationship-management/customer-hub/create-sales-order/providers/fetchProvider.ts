@@ -15,6 +15,19 @@ export const salesOrderProvider = {
         return res.json();
     },
 
+    getAllCustomers: async (search?: string, offset?: number): Promise<Customer[]> => {
+        let url = `${API_BASE}?action=all_customers`;
+        if (search) url += `&search=${encodeURIComponent(search)}`;
+        if (offset) url += `&offset=${offset}`;
+        const res = await fetch(url);
+        return res.json();
+    },
+
+    getSalesmanByCustomer: async (customerId: number): Promise<Salesman | null> => {
+        const res = await fetch(`${API_BASE}?action=salesman_by_customer&customer_id=${customerId}`);
+        return res.json();
+    },
+
     getSuppliers: async (): Promise<Supplier[]> => {
         const res = await fetch(`${API_BASE}?action=suppliers`);
         return res.json();

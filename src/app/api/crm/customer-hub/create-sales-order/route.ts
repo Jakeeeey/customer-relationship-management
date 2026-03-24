@@ -110,8 +110,31 @@ export async function GET(req: NextRequest) {
             const csData = (await csRes.json()).data || [];
             const ids = csData.map((cs: { customer_id: number | string }) => cs.customer_id);
             if (ids.length === 0) return NextResponse.json([]);
-            const cRes = await fetch(`${DIRECTUS_URL}/items/customer?filter[id][_in]=${ids.join(',')}&limit=-1`, { headers: fetchHeaders });
+            const cRes = await fetch(`${DIRECTUS_URL}/items/customer?filter[id][_in]=${ids.join(',')}&fields=*,province,city&limit=-1`, { headers: fetchHeaders });
             return NextResponse.json((await cRes.json()).data || []);
+        }
+
+        if (action === "all_customers") {
+            const search = req.nextUrl.searchParams.get("search");
+            const offset = req.nextUrl.searchParams.get("offset") || "0";
+            let url = `${DIRECTUS_URL}/items/customer?fields=*,province,city&limit=30&offset=${offset}`; 
+            if (search) {
+                url += `&filter[_or][0][customer_name][_icontains]=${encodeURIComponent(search)}&filter[_or][1][store_name][_icontains]=${encodeURIComponent(search)}&filter[_or][2][customer_code][_icontains]=${encodeURIComponent(search)}`;
+            }
+            const cRes = await fetch(url, { headers: fetchHeaders });
+            return NextResponse.json((await cRes.json()).data || []);
+        }
+
+        if (action === "salesman_by_customer") {
+            const customerId = req.nextUrl.searchParams.get("customer_id");
+            if (!customerId) return NextResponse.json({ error: "customer_id required" }, { status: 400 });
+            const csRes = await fetch(`${DIRECTUS_URL}/items/customer_salesmen?filter[customer_id][_eq]=${customerId}&limit=1`, { headers: fetchHeaders });
+            const csData = (await csRes.json()).data || [];
+            if (csData.length === 0) return NextResponse.json(null);
+            
+            const salesmanId = csData[0].salesman_id;
+            const sRes = await fetch(`${DIRECTUS_URL}/items/salesman/${salesmanId}`, { headers: fetchHeaders });
+            return NextResponse.json((await sRes.json()).data || null);
         }
 
         if (action === "suppliers") {
@@ -227,7 +250,7 @@ export async function GET(req: NextRequest) {
                                 console.log(`[InventoryDebug] Inventory Records Received: ${invData.length}`);
                                 if (Array.isArray(invData)) {
                                     console.log(`[InventoryDebug] Attempting match for Branch ID: ${branchId}`);
-                                    invData.forEach((item: any) => {
+                                    invData.forEach((item: Record<string, unknown>) => {
                                         const itemBranchId = item.branchId ?? item.branch_id ?? item.BranchId;
                                         if (itemBranchId !== undefined && itemBranchId !== null && Number(itemBranchId) === Number(branchId)) {
                                             const pid = item.productId ?? item.product_id ?? item.ProductId;

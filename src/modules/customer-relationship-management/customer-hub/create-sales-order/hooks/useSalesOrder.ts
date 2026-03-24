@@ -19,6 +19,9 @@ export function useSalesOrder() {
     const [customers, setCustomers] = useState<Customer[]>([]);
     const [selectedCustomerId, setSelectedCustomerId] = useState<string>("");
     const [loadingCustomers, setLoadingCustomers] = useState(false);
+    const [customerSearch, setCustomerSearch] = useState("");
+    const [hasMoreCustomers, setHasMoreCustomers] = useState(true);
+    const [loadingMoreCustomers, setLoadingMoreCustomers] = useState(false);
 
     const [suppliers, setSuppliers] = useState<Supplier[]>([]);
     const [selectedSupplierId, setSelectedSupplierId] = useState<string>("");
@@ -99,6 +102,47 @@ export function useSalesOrder() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
+    // Debounced Customer Search
+    useEffect(() => {
+        const fetchCustomers = async () => {
+            setLoadingCustomers(true);
+            setHasMoreCustomers(true);
+            try {
+                const data = await salesOrderProvider.getAllCustomers(customerSearch, 0);
+                const results = Array.isArray(data) ? data : [];
+                setCustomers(results);
+                if (results.length < 30) setHasMoreCustomers(false);
+            } catch (err) {
+                console.error("Search error", err);
+            } finally {
+                setLoadingCustomers(false);
+            }
+        };
+
+        const timer = setTimeout(fetchCustomers, 400); 
+        return () => clearTimeout(timer);
+    }, [customerSearch]);
+
+    const loadMoreCustomers = useCallback(async () => {
+        if (loadingMoreCustomers || !hasMoreCustomers) return;
+        setLoadingMoreCustomers(true);
+        try {
+            const currentCount = customers.length;
+            const data = await salesOrderProvider.getAllCustomers(customerSearch, currentCount);
+            const moreResults = Array.isArray(data) ? data : [];
+            if (moreResults.length > 0) {
+                setCustomers(prev => [...prev, ...moreResults]);
+                if (moreResults.length < 30) setHasMoreCustomers(false);
+            } else {
+                setHasMoreCustomers(false);
+            }
+        } catch (err) {
+            console.error("Pagination error", err);
+        } finally {
+            setLoadingMoreCustomers(false);
+        }
+    }, [customers.length, customerSearch, loadingMoreCustomers, hasMoreCustomers]);
+
     // Change Handlers
     const handleSalesmanChange = async (id: string) => {
         setSelectedSalesmanId(id);
@@ -151,12 +195,40 @@ export function useSalesOrder() {
         }
     };
 
-    const handleCustomerChange = (id: string) => {
+    const handleCustomerChange = async (id: string) => {
         setSelectedCustomerId(id);
         const customer = customers.find(c => c.id.toString() === id);
         if (customer) {
             if (customer.price_type) setPriceType(customer.price_type);
             if (customer.price_type_id) setPriceTypeId(Number(customer.price_type_id));
+        }
+
+        if (id) {
+            try {
+                const s = await salesOrderProvider.getSalesmanByCustomer(Number(id));
+                if (s) {
+                    const sid = s.id.toString();
+                    const sUser_id = (s.employee_id || s.encoder_id || s.user_id)?.toString();
+                    if (sUser_id) {
+                        setSelectedSalesmanId(sUser_id);
+                        setLoadingAccounts(true);
+                        const accts = await fetch(`/api/crm/customer-hub/create-sales-order?action=accounts&user_id=${sUser_id}`).then(r => r.json());
+                        setAccounts(accts);
+                        setLoadingAccounts(false);
+                    }
+                    setSelectedAccountId(sid);
+                    setPriceType(s.price_type || "A");
+                    setPriceTypeId(s.price_type_id || null);
+                    if (s.branch_code) {
+                        const bId = typeof s.branch_code === "object" 
+                            ? (s.branch_code as { id?: number | string }).id 
+                            : s.branch_code;
+                        if (bId) setSelectedBranchId(bId.toString());
+                    }
+                }
+            } catch (e) {
+                console.error(e);
+            }
         }
     };
 
@@ -288,8 +360,9 @@ export function useSalesOrder() {
     const isValidAllocation = useMemo(() => {
         return lineItems.every(item => {
             const allocated = allocatedQuantities[item.id] ?? item.quantity;
-            // Valid if non-negative and <= ordered
-            return allocated >= 0 && allocated <= item.quantity;
+            const available = Number(item.product.available_qty) || 0;
+            // Valid if non-negative and <= ordered AND <= available
+            return allocated >= 0 && allocated <= item.quantity && allocated <= available;
         });
     }, [lineItems, allocatedQuantities]);
 
@@ -414,6 +487,7 @@ export function useSalesOrder() {
         salesmen, selectedSalesmanId, handleSalesmanChange, selectedSalesman,
         accounts, selectedAccountId, handleAccountChange, selectedAccount, loadingAccounts,
         customers, selectedCustomerId, handleCustomerChange, selectedCustomer, loadingCustomers,
+        customerSearch, setCustomerSearch, hasMoreCustomers, loadingMoreCustomers, loadMoreCustomers,
         suppliers, selectedSupplierId, handleSupplierChange, selectedSupplier, loadingSuppliers,
         branches, selectedBranchId, setSelectedBranchId, selectedBranch,
         receiptTypes, selectedReceiptTypeId, setSelectedReceiptTypeId, selectedReceiptType,

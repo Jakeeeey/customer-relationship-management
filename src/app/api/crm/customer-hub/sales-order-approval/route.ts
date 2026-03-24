@@ -259,6 +259,12 @@ export async function GET(req: NextRequest) {
             return NextResponse.json({ data: { invoice, details } });
         }
 
+        if (type === "discount-types") {
+            const res = await fetch(`${DIRECTUS_URL}/items/discount_type?fields=id,discount_type&limit=-1`, { headers: fetchHeaders });
+            if (!res.ok) return NextResponse.json({ error: "Failed to fetch discount types" }, { status: 500 });
+            return NextResponse.json((await res.json()).data || []);
+        }
+
         return NextResponse.json({ error: "Invalid type parameter" }, { status: 400 });
     } catch (error: unknown) {
         console.error("API error", error);
