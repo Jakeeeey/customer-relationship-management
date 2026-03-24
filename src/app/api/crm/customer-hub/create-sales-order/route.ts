@@ -212,43 +212,42 @@ export async function GET(req: NextRequest) {
                             const cookieStore = await cookies();
                             const token = cookieStore.get(COOKIE_NAME)?.value;
 
-                            // Fetch running inventory by unit
                             const invUrl = `${SPRING_API_BASE_URL.replace(/\/$/, "")}/api/view-running-inventory-by-unit/all`;
-                            console.log(`[InventoryDebug] Fetching Inventory from: ${invUrl}`);
+                            console.log(`[InventoryDebug] Fetching Inventory from: ${invUrl}, Token found: ${!!token}`);
                             const inventoryRes = await fetch(invUrl, {
-                                headers: token ? { "Authorization": `Bearer ${token}` } : {},
-                                cache: 'no-store'
+                                headers: {
+                                    "Accept": "application/json",
+                                    ...(token ? { "Authorization": `Bearer ${token}` } : {})
+                                },
+                                cache: 'no-store',
                             });
                             if (inventoryRes.ok) {
                                 const invJson = await inventoryRes.json();
                                 const invData = Array.isArray(invJson) ? invJson : (invJson.data || []);
                                 console.log(`[InventoryDebug] Inventory Records Received: ${invData.length}`);
                                 if (Array.isArray(invData)) {
-                                    console.log(`[InventoryDebug] Matching for Branch ID: ${branchId} (Type: ${typeof branchId})`);
-                                    if (invData.length > 0) {
-                                        console.log(`[InventoryDebug] Sample Inv Item:`, JSON.stringify(invData[0]));
-                                    }
-
-                                    // filter STRICTLY by the salesman's branch
-                                    invData.forEach((item: { branchId?: number | string; branch_id?: number | string; productId?: number | string; product_id?: number | string; runningInventoryUnit?: number | string; running_inventory_unit?: number | string; unitCount?: number | string; unit_count?: number | string }) => {
-                                        // The Spring Boot API uses camelCase (productId, branchId, runningInventoryUnit, unitCount)
-                                        const itemBranchId = item.branchId || item.branch_id;
-                                        if (itemBranchId && Number(itemBranchId) === Number(branchId)) {
-                                            const pid = Number(item.productId || item.product_id);
+                                    console.log(`[InventoryDebug] Attempting match for Branch ID: ${branchId}`);
+                                    invData.forEach((item: any) => {
+                                        const itemBranchId = item.branchId ?? item.branch_id ?? item.BranchId;
+                                        if (itemBranchId !== undefined && itemBranchId !== null && Number(itemBranchId) === Number(branchId)) {
+                                            const pid = item.productId ?? item.product_id ?? item.ProductId;
                                             if (pid) {
-                                                inventoryMap[pid] = {
-                                                    available: Number(item.runningInventoryUnit || item.running_inventory_unit) || 0,
-                                                    unitCount: Number(item.unitCount || item.unit_count) || 1
-                                                };
+                                                const available = Number(item.runningInventoryUnit ?? item.running_inventory_unit ?? item.runningInventory ?? item.running_inventory ?? 0);
+                                                const unitCount = Number(item.unitCount ?? item.unit_count ?? 1);
+                                                inventoryMap[Number(pid)] = { available, unitCount };
                                             }
                                         }
                                     });
+                                    console.log(`[InventoryDebug] Map populated with ${Object.keys(inventoryMap).length} items for branch ${branchId}`);
+                                    if (Object.keys(inventoryMap).length > 0) {
+                                        console.log(`[InventoryDebug] Map Keys: ${Object.keys(inventoryMap).slice(0, 10).join(", ")}${Object.keys(inventoryMap).length > 10 ? "..." : ""}`);
+                                    }
                                 }
                             } else {
                                 console.log(`[InventoryDebug] Spring Boot Fetch Error: ${inventoryRes.status}`);
                             }
                         } else {
-                            console.log(`[InventoryDebug] No Branch ID found for salesman ${salesmanId}`);
+                            console.log(`[InventoryDebug] Branch ID or Spring URL missing: branchId=${branchId}, hasURL=${!!SPRING_API_BASE_URL}`);
                         }
                     } catch (e) {
                         console.error("[InventoryDebug] Failed to fetch inventory from Spring Boot:", e);
@@ -256,21 +255,18 @@ export async function GET(req: NextRequest) {
                 }
                 // --- End Inventory Fetch ---
 
-                const initialProducts = await fetchInChunks<ProductItem>(`${DIRECTUS_URL}/items/products?filter[isActive][_eq]=1&fields=*,unit_of_measurement.unit_name,product_category.category_name,product_brand.brand_name`, linkedProductIds, "product_id");
+                const initialProducts = await fetchInChunks<ProductItem>(`${DIRECTUS_URL}/items/products?filter[isActive][_eq]=1&fields=*,product_category.category_name,product_brand.brand_name`, linkedProductIds, "product_id");
 
-                // Collect all involved parents
                 const directParentIds = initialProducts.map(p => p.parent_id).filter((id): id is number => !!id);
-                // Also treat initial products with parent_id as null as their own family anchors
                 const selfParentIds = initialProducts.filter(p => !p.parent_id).map(p => Number(p.product_id));
                 const allFamilyAnchorIds = Array.from(new Set([...directParentIds, ...selfParentIds]));
 
-                // Fetch all members of these product families to get sibling UOMs
                 const familyMembers = allFamilyAnchorIds.length > 0
-                    ? await fetchInChunks<ProductItem>(`${DIRECTUS_URL}/items/products?filter[isActive][_eq]=1&fields=*,unit_of_measurement.unit_name,product_category.category_name,product_brand.brand_name`, allFamilyAnchorIds, "parent_id")
+                    ? await fetchInChunks<ProductItem>(`${DIRECTUS_URL}/items/products?filter[isActive][_eq]=1&fields=*,product_category.category_name,product_brand.brand_name`, allFamilyAnchorIds, "parent_id")
                     : [];
 
                 const anchors = allFamilyAnchorIds.length > 0
-                    ? await fetchInChunks<ProductItem>(`${DIRECTUS_URL}/items/products?filter[isActive][_eq]=1&fields=*,unit_of_measurement.unit_name,product_category.category_name,product_brand.brand_name`, allFamilyAnchorIds, "product_id")
+                    ? await fetchInChunks<ProductItem>(`${DIRECTUS_URL}/items/products?filter[isActive][_eq]=1&fields=*,product_category.category_name,product_brand.brand_name`, allFamilyAnchorIds, "product_id")
                     : [];
 
                 const unitsRes = await fetch(`${DIRECTUS_URL}/items/units?limit=-1`, { headers: fetchHeaders });
@@ -379,7 +375,6 @@ export async function GET(req: NextRequest) {
                         else uomName = uomName.charAt(0).toUpperCase() + uomName.slice(1).toLowerCase();
                     }
 
-                    // Append UOM to display name if not already present
                     if (uomShortcut && !displayName.toLowerCase().includes(uomShortcut.toLowerCase())) {
                         displayName = `${displayName} (${uomShortcut})`;
                     } else if (uomName && !displayName.toLowerCase().includes(uomName.toLowerCase())) {
@@ -401,10 +396,25 @@ export async function GET(req: NextRequest) {
                         discounts: winId ? (discountMap[winId] || []) : [],
                         category_name: (p.product_category as { category_name?: string })?.category_name || null,
                         brand_name: (p.product_brand as { brand_name?: string })?.brand_name || null,
-                        available_qty: inventoryMap[Number(p.product_id)]?.available ?? 0,
-                        unit_count: inventoryMap[Number(p.product_id)]?.unitCount ?? (Number(p.unit_of_measurement_count) || 1)
+                        available_qty: inventoryMap[Number(p.product_id)]?.available ?? inventoryMap[Number(p.id)]?.available ?? 0,
+                        unit_count: inventoryMap[Number(p.product_id)]?.unitCount ?? inventoryMap[Number(p.id)]?.unitCount ?? (Number(p.unit_of_measurement_count) || 1)
                     };
                 });
+
+                const itemsWithStock = finalProducts.filter(p => p.available_qty > 0);
+                console.log(`[InventoryDebug] Returning ${finalProducts.length} products total.`);
+                if (itemsWithStock.length > 0) {
+                    console.log(`[InventoryDebug] SUCCESS: Found ${itemsWithStock.length} items with available stock!`);
+                    itemsWithStock.slice(0, 3).forEach(it => {
+                        console.log(`[InventoryDebug] Item ${it.product_id} (Internal ID: ${it.id}) -> Available: ${it.available_qty}`);
+                    });
+                } else {
+                    console.log(`[InventoryDebug] WARNING: No items matched in final mapping! Checking sample lookups:`);
+                    if (finalProducts.length > 0) {
+                        const p = finalProducts[0];
+                        console.log(`[InventoryDebug] Sample Map Lookup: product_id=${p.product_id} (Map has: ${inventoryMap[Number(p.product_id)]?.available ?? 'MISSING'}), id=${p.id} (Map has: ${inventoryMap[Number(p.id)]?.available ?? 'MISSING'})`);
+                    }
+                }
 
                 return NextResponse.json(finalProducts);
             } catch (err: unknown) {
@@ -412,8 +422,6 @@ export async function GET(req: NextRequest) {
                 return NextResponse.json({ error: e.message }, { status: 500 });
             }
         }
-
-
 
         return NextResponse.json({ error: "Invalid action" }, { status: 400 });
     } catch (e: unknown) {
@@ -428,7 +436,6 @@ export async function POST(req: NextRequest) {
         const { header, items } = body;
         const now = new Date();
 
-        // Enhance fallback generation if order_no is missing
         let orderNo = header.order_no;
         if (!orderNo) {
             let prefix = "SO";
@@ -491,7 +498,7 @@ export async function POST(req: NextRequest) {
             }
         }
 
-        const lineItemsPayload = items.map((item: { unitPrice: number; quantity: number; allocated_quantity?: number; netAmount: number; product: { product_id: number; discount_type?: number }; remarks?: string }) => {
+        const lineItemsPayload = items.map((item: { unitPrice: number; quantity: number; allocated_quantity?: number; netAmount: number; uom?: string; product: { product_id: number; discount_type?: number }; remarks?: string }) => {
             const unitPrice = Number(item.unitPrice) || 0;
             const orderedQty = Number(item.quantity) || 0;
             const allocatedQty = Number(item.allocated_quantity) || orderedQty;
@@ -499,7 +506,6 @@ export async function POST(req: NextRequest) {
             const orderedGross = unitPrice * orderedQty;
             const orderedNetAmount = Number(item.netAmount) || orderedGross;
             const totalDiscountOrdered = orderedGross - orderedNetAmount;
-
             const unitDiscount = orderedQty > 0 ? totalDiscountOrdered / orderedQty : 0;
 
             const allocatedDiscount = unitDiscount * allocatedQty;
@@ -519,6 +525,7 @@ export async function POST(req: NextRequest) {
                 gross_amount: allocatedGross,
                 net_amount: netAmountLine,
                 allocated_amount: allocatedAmountLine,
+                uom: item.uom || null,
                 remarks: item.remarks || "",
                 _ordered_gross: orderedGross,
                 _ordered_discount: totalDiscountOrdered
@@ -570,7 +577,7 @@ export async function POST(req: NextRequest) {
         const hJson = await hRes.json();
         const soId = hJson.data.order_id || hJson.data.id;
 
-        const finalLineItems = lineItemsPayload.map((item: { _ordered_gross?: number; _ordered_discount?: number;[key: string]: unknown }) => {
+        const finalLineItems = lineItemsPayload.map((item: { _ordered_gross?: number; _ordered_discount?: number; [key: string]: unknown }) => {
             const li = { ...item };
             delete li._ordered_gross;
             delete li._ordered_discount;

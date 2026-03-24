@@ -58,7 +58,7 @@ export function ApprovalModal({
             net_amount: number;
         },
         details: {
-            product_id: { product_name: string; product_code: string; description?: string } | null;
+            product_id: { product_name: string; product_code: string; description?: string; uom?: { uom_name: string; uom_shortcut: string } } | null;
             unit_price: number;
             quantity: number;
             total_amount: number;
@@ -173,8 +173,8 @@ export function ApprovalModal({
                 showCloseButton={false}
                 className="
                 flex flex-col p-0 gap-0 overflow-hidden
-                bg-white
-                border-0 sm:border sm:border-slate-200/80
+                bg-background
+                border-0 sm:border sm:border-border
                 shadow-none sm:shadow-[0_32px_80px_-12px_rgba(0,0,0,0.18)]
                 rounded-none sm:rounded-2xl
                 fixed inset-0
@@ -186,7 +186,7 @@ export function ApprovalModal({
                 translate-x-0 translate-y-0
             ">
                 {/* ── HEADER ─────────────────────────────────────────── */}
-                <div className="px-4 sm:px-6 pt-4 sm:pt-6 pb-4 shrink-0 bg-slate-50/50 border-b border-slate-100">
+                <div className="px-4 sm:px-6 pt-4 sm:pt-6 pb-4 shrink-0 bg-muted/30 border-b border-border">
                     <div className="flex items-start justify-between gap-2">
                         <div className="flex items-start gap-2.5 min-w-0">
                             <div className="hidden sm:flex shrink-0 mt-0.5 w-10 h-10 rounded-xl bg-[#E0F2FE] items-center justify-center">
@@ -194,7 +194,7 @@ export function ApprovalModal({
                             </div>
 
                             <div className="min-w-0">
-                                <DialogTitle className="text-base sm:text-xl font-black flex flex-wrap items-center gap-1.5 text-slate-900 leading-tight">
+                                <DialogTitle className="text-base sm:text-xl font-black flex flex-wrap items-center gap-1.5 text-foreground leading-tight">
                                     <span className="shrink-0">SO: {order.order_no}</span>
                                     {isInvoiceStatus && invoiceData?.invoice?.invoice_no && (
                                         <>
@@ -209,10 +209,10 @@ export function ApprovalModal({
                                 <DialogDescription asChild>
                                     <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 mt-1">
                                         <Store className="h-3 w-3 text-slate-400 shrink-0" />
-                                        <span className="text-[11px] font-bold text-slate-500 truncate max-w-[170px] sm:max-w-xs">
+                                        <span className="text-[11px] font-bold text-muted-foreground truncate max-w-[170px] sm:max-w-xs">
                                             {order.customer_name || "Unknown Customer"}
                                         </span>
-                                        <span className="text-[10px] text-slate-400 font-mono bg-slate-100 px-1.5 py-0.5 rounded">
+                                        <span className="text-[10px] text-muted-foreground font-bold bg-muted px-1.5 py-0.5 rounded">
                                             {order.customer_code}
                                         </span>
                                     </div>
@@ -238,7 +238,7 @@ export function ApprovalModal({
                             </Badge>
                             <button
                                 onClick={onClose}
-                                className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors shrink-0"
+                                className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors shrink-0"
                                 aria-label="Close"
                             >
                                 <X className="h-4 w-4" />
@@ -263,29 +263,29 @@ export function ApprovalModal({
 
                     {/* Summary Cards */}
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 mt-4">
-                        <div className="bg-white border border-slate-100 rounded-xl p-3 sm:p-4 flex flex-col gap-1 shadow-sm">
+                        <div className="bg-background border border-border rounded-xl p-3 sm:p-4 flex flex-col gap-1 shadow-sm">
                             <p className="text-[8px] sm:text-[10px] text-muted-foreground uppercase font-black tracking-widest leading-none">Order Date</p>
-                            <p className="font-bold text-[12px] sm:text-sm text-slate-900 mt-0.5">
+                            <p className="font-bold text-[12px] sm:text-sm text-foreground mt-0.5">
                                 {order.order_date ? format(new Date(order.order_date), "MMM d, yyyy") : "N/A"}
                             </p>
                         </div>
-                        <div className="bg-white border border-slate-100 rounded-xl p-3 sm:p-4 flex flex-col gap-1 shadow-sm">
+                        <div className="bg-background border border-border rounded-xl p-3 sm:p-4 flex flex-col gap-1 shadow-sm">
                             <p className="text-[8px] sm:text-[10px] text-muted-foreground uppercase font-black tracking-widest leading-none">PO Number</p>
-                            <p className="font-bold text-[12px] sm:text-sm text-slate-900 truncate mt-0.5">
+                            <p className="font-bold text-[12px] sm:text-sm text-foreground truncate mt-0.5">
                                 {order.po_no || "N/A"}
                             </p>
                         </div>
-                        <div className="bg-white border border-slate-100 rounded-xl p-3 sm:p-4 flex flex-col gap-1 shadow-sm">
+                        <div className="bg-background border border-border rounded-xl p-3 sm:p-4 flex flex-col gap-1 shadow-sm">
                             <p className="text-[8px] sm:text-[10px] text-muted-foreground uppercase font-black tracking-widest leading-none">Ordered Total</p>
-                            <p className="font-bold text-[12px] sm:text-sm text-slate-900 truncate mt-0.5">
+                            <p className="font-bold text-[12px] sm:text-sm text-foreground truncate mt-0.5">
                                 {formatCurrency(order.net_amount)}
                             </p>
                         </div>
-                        <div className="bg-[#F0F9FF] border border-[#BAE6FD] rounded-xl p-3 sm:p-4 flex flex-col gap-1 shadow-sm">
-                            <p className="text-[8px] sm:text-[10px] text-[#0284C7] uppercase font-black tracking-widest leading-none">
+                        <div className="bg-sky-50 dark:bg-sky-950/30 border border-sky-100 dark:border-sky-900/50 rounded-xl p-3 sm:p-4 flex flex-col gap-1 shadow-sm">
+                            <p className="text-[8px] sm:text-[10px] text-sky-600 dark:text-sky-400 uppercase font-black tracking-widest leading-none">
                                 {isInvoiceStatus ? "Invoice Total" : "Allocated Total"}
                             </p>
-                            <p className="font-black text-[13px] sm:text-lg text-[#0284C7] tabular-nums mt-0.5">
+                            <p className="font-black text-[13px] sm:text-lg text-sky-600 dark:text-sky-400 tabular-nums mt-0.5">
                                 {formatCurrency(isInvoiceStatus ? (invoiceData?.invoice?.net_amount || 0) : calculatedAllocatedTotal)}
                             </p>
                         </div>
@@ -316,12 +316,13 @@ export function ApprovalModal({
                             <div className="animate-in fade-in duration-700">
                                 <div className="min-w-[480px]">
                                     <Table>
-                                        <TableHeader className="bg-slate-50 sticky top-0 z-10 border-b">
+                                        <TableHeader className="bg-muted sticky top-0 z-10 border-b">
                                             <TableRow className="hover:bg-transparent border-none">
-                                                <TableHead className="pl-4 sm:pl-8 h-11 uppercase text-[9px] font-black text-[#94A3B8] tracking-widest">Product / SKU</TableHead>
-                                                <TableHead className="text-right h-11 uppercase text-[9px] font-black text-[#94A3B8] tracking-widest">Unit Price</TableHead>
-                                                <TableHead className="text-center h-11 uppercase text-[9px] font-black text-[#94A3B8] tracking-widest w-[80px]">Qty</TableHead>
-                                                <TableHead className="text-right pr-4 sm:pr-8 h-11 uppercase text-[9px] font-black text-[#94A3B8] tracking-widest w-[130px]">Amount</TableHead>
+                                                <TableHead className="pl-4 sm:pl-8 h-11 uppercase text-[9px] font-black text-muted-foreground tracking-widest">Product / SKU</TableHead>
+                                                <TableHead className="text-right h-11 uppercase text-[9px] font-black text-muted-foreground tracking-widest">Unit Price</TableHead>
+                                                <TableHead className="text-center h-11 uppercase text-[9px] font-black text-muted-foreground tracking-widest w-[80px]">Qty</TableHead>
+                                                <TableHead className="text-center h-11 uppercase text-[9px] font-black text-muted-foreground tracking-widest">UOM</TableHead>
+                                                <TableHead className="text-right pr-4 sm:pr-8 h-11 uppercase text-[9px] font-black text-muted-foreground tracking-widest w-[130px]">Amount</TableHead>
                                             </TableRow>
                                         </TableHeader>
                                         <TableBody>
@@ -329,13 +330,18 @@ export function ApprovalModal({
                                                 <TableRow key={idx} className="border-slate-50 hover:bg-slate-50/50 transition-colors">
                                                     <TableCell className="pl-4 sm:pl-8 py-4 sm:py-5">
                                                         <div className="flex flex-col gap-0.5">
-                                                            <span className="font-bold text-slate-900 text-[12px] sm:text-sm">{item.product_id?.product_name || "N/A Item"}</span>
-                                                            <span className="text-[9px] text-slate-400 font-bold tracking-tighter font-mono">{item.product_id?.product_code}</span>
+                                                            <span className="font-bold text-foreground text-[12px] sm:text-sm">{item.product_id?.product_name || "N/A Item"}</span>
+                                                            <span className="text-[9px] text-muted-foreground font-bold tracking-tighter font-mono">{item.product_id?.product_code}</span>
                                                         </div>
                                                     </TableCell>
-                                                    <TableCell className="text-right font-bold text-slate-500 font-mono tracking-tight tabular-nums text-[12px] sm:text-sm">{formatCurrency(item.unit_price)}</TableCell>
-                                                    <TableCell className="text-center font-bold text-slate-500 text-[12px] sm:text-sm tabular-nums">{item.quantity}</TableCell>
-                                                    <TableCell className="text-right font-black text-slate-950 pr-4 sm:pr-8 font-mono text-[13px] sm:text-base tabular-nums tracking-tighter">{formatCurrency(item.total_amount)}</TableCell>
+                                                    <TableCell className="text-center font-bold text-muted-foreground font-mono tracking-tight tabular-nums text-[12px] sm:text-sm">{formatCurrency(item.unit_price)}</TableCell>
+                                                    <TableCell className="text-center font-bold text-muted-foreground text-[12px] sm:text-sm tabular-nums">{item.quantity}</TableCell>
+                                                    <TableCell className="text-center">
+                                                        <Badge variant="outline" className="text-[10px] font-bold px-1.5 py-0 border-border bg-muted/50 text-muted-foreground">
+                                                            {item.product_id?.uom?.uom_shortcut || "PCS"}
+                                                        </Badge>
+                                                    </TableCell>
+                                                    <TableCell className="text-right font-black text-foreground pr-4 sm:pr-8 font-mono text-[13px] sm:text-base tabular-nums tracking-tighter">{formatCurrency(item.total_amount)}</TableCell>
                                                 </TableRow>
                                             ))}
                                         </TableBody>
@@ -347,13 +353,14 @@ export function ApprovalModal({
                         <div className="animate-in fade-in duration-700">
                             <div className="min-w-[520px]">
                                 <Table>
-                                    <TableHeader className="bg-slate-50 sticky top-0 z-10 border-b">
+                                    <TableHeader className="bg-muted sticky top-0 z-10 border-b">
                                         <TableRow className="hover:bg-transparent border-none">
-                                            <TableHead className="pl-4 sm:pl-8 h-11 uppercase text-[9px] font-black text-[#94A3B8] tracking-widest">Product / SKU</TableHead>
-                                            <TableHead className="text-right h-11 uppercase text-[9px] font-black text-[#94A3B8] tracking-widest">Price</TableHead>
-                                            <TableHead className="text-center h-11 uppercase text-[9px] font-black text-[#94A3B8] tracking-widest">Ordered</TableHead>
-                                            <TableHead className="text-center h-11 uppercase text-[9px] font-black text-[#94A3B8] tracking-widest w-[120px]">Allocated</TableHead>
-                                            <TableHead className="text-right pr-4 sm:pr-8 h-11 uppercase text-[9px] font-black text-[#94A3B8] tracking-widest">Allocated Total</TableHead>
+                                            <TableHead className="pl-4 sm:pl-8 h-11 uppercase text-[9px] font-black text-muted-foreground tracking-widest">Product / SKU</TableHead>
+                                            <TableHead className="text-right h-11 uppercase text-[9px] font-black text-muted-foreground tracking-widest">Price</TableHead>
+                                            <TableHead className="text-center h-11 uppercase text-[9px] font-black text-muted-foreground tracking-widest">Ordered</TableHead>
+                                            <TableHead className="text-center h-11 uppercase text-[9px] font-black text-muted-foreground tracking-widest">UOM</TableHead>
+                                            <TableHead className="text-center h-11 uppercase text-[9px] font-black text-muted-foreground tracking-widest w-[120px]">Allocated</TableHead>
+                                            <TableHead className="text-right pr-4 sm:pr-8 h-11 uppercase text-[9px] font-black text-muted-foreground tracking-widest">Allocated Total</TableHead>
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
@@ -384,21 +391,26 @@ export function ApprovalModal({
                                                             </div>
                                                         </TableCell>
                                                         <TableCell className="text-right font-bold text-slate-500 font-mono tracking-tight tabular-nums text-[12px] sm:text-sm">{formatCurrency(li.unit_price)}</TableCell>
-                                                        <TableCell className="text-center font-bold text-slate-400 text-[12px] sm:text-sm tabular-nums">{li.ordered_quantity}</TableCell>
+                                                        <TableCell className="text-center font-bold text-muted-foreground text-[12px] sm:text-sm tabular-nums">{li.ordered_quantity}</TableCell>
+                                                        <TableCell className="text-center">
+                                                            <Badge variant="outline" className="text-[10px] font-bold px-1.5 py-0 border-border bg-muted/50 text-muted-foreground">
+                                                                {li.product_id?.uom?.uom_shortcut || "PCS"}
+                                                            </Badge>
+                                                        </TableCell>
                                                         <TableCell className="text-center">
                                                             {isActionable ? (
                                                                 <Input
                                                                     type="number"
                                                                     value={li.allocated_quantity}
                                                                     onChange={(e) => updateAllocatedQty(idx, e.target.value)}
-                                                                    className="w-20 text-center h-7 text-[11px] font-black text-emerald-700 bg-emerald-50 border-emerald-200 focus-visible:ring-emerald-500 mx-auto"
+                                                                    className="w-20 text-center h-7 text-[11px] font-black text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-900/50 focus-visible:ring-emerald-500 mx-auto"
                                                                     disabled={isSubmitting}
                                                                 />
                                                             ) : (
-                                                                <span className="inline-flex items-center justify-center min-w-[28px] h-6 px-1.5 rounded-lg bg-[#F0FDF4] text-[#16A34A] font-black text-[10px] border border-[#DCFCE7] tabular-nums">{li.allocated_quantity}</span>
+                                                                <span className="inline-flex items-center justify-center min-w-[28px] h-6 px-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 font-black text-[10px] border border-emerald-100 dark:border-emerald-900/50 tabular-nums">{li.allocated_quantity}</span>
                                                             )}
                                                         </TableCell>
-                                                        <TableCell className="text-right font-black text-slate-950 pr-4 sm:pr-8 font-mono text-[13px] sm:text-base tabular-nums tracking-tighter">{formatCurrency(lineTotal > 0 ? lineTotal : 0)}</TableCell>
+                                                        <TableCell className="text-right font-black text-foreground pr-4 sm:pr-8 font-mono text-[13px] sm:text-base tabular-nums tracking-tighter">{formatCurrency(lineTotal > 0 ? lineTotal : 0)}</TableCell>
                                                     </TableRow>
                                                 );
                                             })
@@ -411,18 +423,18 @@ export function ApprovalModal({
                 </div>
 
                 {/* ── FOOTER ──────────────────────────────────────────── */}
-                <div className="px-4 sm:px-8 py-3 sm:py-5 border-t bg-white flex flex-row items-center justify-between gap-4 shrink-0">
+                <div className="px-4 sm:px-8 py-4 sm:py-6 border-t bg-muted/30 backdrop-blur-md flex flex-row items-center justify-between gap-4 shrink-0 mt-auto">
                     <div className="flex items-center gap-4 sm:gap-10 min-w-0">
                         <div className="flex flex-col gap-0.5 shrink-0">
-                            <p className="text-[8px] sm:text-[9px] text-slate-400 uppercase font-black tracking-widest leading-none">Items</p>
-                            <p className="font-black text-base sm:text-xl text-slate-900 leading-none mt-1 tabular-nums">{lineCount}</p>
+                            <p className="text-[8px] sm:text-[9px] text-muted-foreground uppercase font-black tracking-widest leading-none">Items</p>
+                            <p className="font-black text-base sm:text-xl text-foreground leading-none mt-1 tabular-nums">{lineCount}</p>
                         </div>
-                        <div className="w-px h-8 bg-slate-100 shrink-0" />
+                        <div className="w-px h-8 bg-border shrink-0" />
                         <div className="flex flex-col gap-0.5 min-w-0">
-                            <p className="text-[8px] sm:text-[9px] text-slate-400 uppercase font-black tracking-widest leading-none truncate">{isInvoiceStatus ? "Invoice Total" : "Net Allocation"}</p>
+                            <p className="text-[8px] sm:text-[9px] text-muted-foreground uppercase font-black tracking-widest leading-none truncate">{isInvoiceStatus ? "Invoice Total" : "Net Allocation"}</p>
                             <div className="flex items-baseline gap-1 leading-none mt-1">
-                                <span className="text-[9px] sm:text-[11px] font-black text-slate-300 uppercase italic shrink-0">PHP</span>
-                                <p className="text-[20px] sm:text-[36px] lg:text-[48px] font-black text-slate-950 tabular-nums tracking-tighter leading-none">
+                                <span className="text-[9px] sm:text-[11px] font-black text-muted-foreground/30 uppercase italic shrink-0">PHP</span>
+                                <p className="text-[20px] sm:text-[36px] lg:text-[48px] font-black text-foreground tabular-nums tracking-tighter leading-none">
                                     {formatCurrency(isInvoiceStatus ? (invoiceData?.invoice?.net_amount || 0) : calculatedAllocatedTotal).replace("PHP", "").replace("₱", "").trim()}
                                 </p>
                             </div>
@@ -434,7 +446,7 @@ export function ApprovalModal({
                             variant="outline"
                             onClick={onClose}
                             disabled={isSubmitting}
-                            className="h-9 sm:h-12 px-4 sm:px-8 font-black uppercase tracking-widest text-[10px] sm:text-xs rounded-xl"
+                            className="h-9 sm:h-12 px-4 sm:px-8 font-bold uppercase tracking-widest text-[10px] sm:text-xs rounded-xl border-border bg-background hover:bg-muted text-foreground transition-all shadow-sm"
                         >
                             <span className="hidden sm:inline">Close Record</span>
                             <span className="sm:hidden">Close</span>
@@ -444,7 +456,7 @@ export function ApprovalModal({
                             <div className="flex items-center gap-2">
                                 <Button
                                     variant="destructive"
-                                    className="h-9 sm:h-12 px-4 sm:px-6 font-black uppercase tracking-widest text-[10px] sm:text-xs rounded-xl"
+                                    className="h-9 sm:h-12 px-4 sm:px-6 font-bold uppercase tracking-widest text-[10px] sm:text-xs rounded-xl shadow-md transition-all hover:scale-[1.02]"
                                     disabled={isSubmitting}
                                     onClick={() => handleSaveAndAction("cancel")}
                                 >
@@ -453,7 +465,7 @@ export function ApprovalModal({
                                 {canHold && (
                                     <Button
                                         variant="secondary"
-                                        className="h-9 sm:h-12 px-4 font-black uppercase tracking-widest text-[10px] sm:text-xs rounded-xl bg-slate-100 border-slate-200"
+                                        className="h-9 sm:h-12 px-4 font-bold uppercase tracking-widest text-[10px] sm:text-xs rounded-xl bg-secondary hover:bg-secondary/80 text-secondary-foreground border border-border shadow-sm transition-all"
                                         disabled={isSubmitting}
                                         onClick={() => handleSaveAndAction("hold")}
                                     >
@@ -461,7 +473,7 @@ export function ApprovalModal({
                                     </Button>
                                 )}
                                 <Button
-                                    className="h-9 sm:h-12 px-6 sm:px-10 font-black uppercase tracking-widest text-[10px] sm:text-xs rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg"
+                                    className="h-9 sm:h-12 px-6 sm:px-10 font-bold uppercase tracking-widest text-[10px] sm:text-xs rounded-xl bg-success hover:bg-success/90 text-success-foreground shadow-lg border-none transition-all hover:scale-[1.02] active:scale-[0.98]"
                                     disabled={isSubmitting}
                                     onClick={() => handleSaveAndAction("approve")}
                                 >

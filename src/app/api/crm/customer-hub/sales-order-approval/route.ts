@@ -127,15 +127,31 @@ export async function GET(req: NextRequest) {
             const detJson = await detRes.json();
             const details = detJson.data || [];
 
+            // Fetch all units for mapping uom
+            const unitsRes = await fetch(`${DIRECTUS_URL}/items/units?limit=-1`, { headers: fetchHeaders });
+            const unitsData = (await unitsRes.json()).data || [];
+            const unitMap: Record<number, { uom_name: string; uom_shortcut: string }> = {};
+            unitsData.forEach((u: { unit_id: number | string; unit_name?: string; unit_shortcut?: string }) => {
+                unitMap[Number(u.unit_id)] = {
+                    uom_name: u.unit_name || "",
+                    uom_shortcut: u.unit_shortcut || ""
+                };
+            });
+
             // Fetch products for descriptions
             if (details.length > 0) {
                 const productIds = Array.from(new Set(details.map((d: { product_id: number | string }) => d.product_id))).filter(Boolean);
-                const pRes = await fetch(`${DIRECTUS_URL}/items/products?filter[product_id][_in]=${productIds.join(',')}&fields=product_id,product_name,product_code,description&limit=-1`, {
+                const pRes = await fetch(`${DIRECTUS_URL}/items/products?filter[product_id][_in]=${productIds.join(',')}&fields=product_id,product_name,product_code,description,unit_of_measurement&limit=-1`, {
                     headers: fetchHeaders
                 });
                 if (pRes.ok) {
                     const pJson = await pRes.json();
-                    const pMap = new Map((pJson.data || []).map((p: { product_id: number | string }) => [Number(p.product_id), p]));
+                    const pMap = new Map((pJson.data || []).map((p: any) => {
+                        const pid = Number(p.product_id);
+                        const uomId = Number(p.unit_of_measurement);
+                        const uomInfo = uomId && unitMap[uomId] ? unitMap[uomId] : { uom_name: "", uom_shortcut: "" };
+                        return [pid, { ...p, uom: uomInfo }];
+                    }));
                     details.forEach((d: { product_id: number | string | Record<string, unknown> }) => {
                         const pid = Number(d.product_id);
                         if (pMap.has(pid)) {
@@ -207,14 +223,30 @@ export async function GET(req: NextRequest) {
             const detJson = await detRes.json();
             const details = detJson.data || [];
 
+            // Fetch all units for mapping uom
+            const unitsRes = await fetch(`${DIRECTUS_URL}/items/units?limit=-1`, { headers: fetchHeaders });
+            const unitsData = (await unitsRes.json()).data || [];
+            const unitMap: Record<number, { uom_name: string; uom_shortcut: string }> = {};
+            unitsData.forEach((u: { unit_id: number | string; unit_name?: string; unit_shortcut?: string }) => {
+                unitMap[Number(u.unit_id)] = {
+                    uom_name: u.unit_name || "",
+                    uom_shortcut: u.unit_shortcut || ""
+                };
+            });
+
             if (details.length > 0) {
                 const pIds = Array.from(new Set(details.map((d: { product_id: number | string }) => d.product_id))).filter(Boolean);
-                const pRes = await fetch(`${DIRECTUS_URL}/items/products?filter[product_id][_in]=${pIds.join(',')}&fields=product_id,product_name,product_code,description&limit=-1`, {
+                const pRes = await fetch(`${DIRECTUS_URL}/items/products?filter[product_id][_in]=${pIds.join(',')}&fields=product_id,product_name,product_code,description,unit_of_measurement&limit=-1`, {
                     headers: fetchHeaders
                 });
                 if (pRes.ok) {
                     const pJson = await pRes.json();
-                    const pMap = new Map((pJson.data || []).map((p: { product_id: number | string, product_name: string, product_code: string, description?: string }) => [Number(p.product_id), p]));
+                    const pMap = new Map((pJson.data || []).map((p: any) => {
+                        const pid = Number(p.product_id);
+                        const uomId = Number(p.unit_of_measurement);
+                        const uomInfo = uomId && unitMap[uomId] ? unitMap[uomId] : { uom_name: "", uom_shortcut: "" };
+                        return [pid, { ...p, uom: uomInfo }];
+                    }));
                     details.forEach((d: { product_id: number | string | Record<string, unknown> }) => {
                         const pid = Number(d.product_id);
                         if (pMap.has(pid)) {

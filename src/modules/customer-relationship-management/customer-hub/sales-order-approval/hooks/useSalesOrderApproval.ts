@@ -4,7 +4,7 @@ import { toast } from "sonner";
 
 export interface OrderDetail {
     order_detail_id: number;
-    product_id: { product_name: string; product_code: string; description?: string } | null;
+    product_id: { product_name: string; product_code: string; description?: string; uom?: { uom_name: string; uom_shortcut: string } } | null;
     unit_price: number;
     ordered_quantity: number;
     allocated_quantity: number;

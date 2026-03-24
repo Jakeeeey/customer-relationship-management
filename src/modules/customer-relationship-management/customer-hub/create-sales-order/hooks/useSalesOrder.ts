@@ -131,7 +131,10 @@ export function useSalesOrder() {
             setPriceType(account.price_type || "A");
             setPriceTypeId(account.price_type_id || null);
             if (account.branch_code) {
-                setSelectedBranchId(account.branch_code.toString());
+                const bId = typeof account.branch_code === "object" 
+                    ? (account.branch_code as { id?: number | string }).id 
+                    : account.branch_code;
+                if (bId) setSelectedBranchId(bId.toString());
             }
         }
 

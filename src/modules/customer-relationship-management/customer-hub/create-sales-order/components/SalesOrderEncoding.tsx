@@ -82,12 +82,12 @@ export function SalesOrderEncoding({
 
                                                 <div className="flex flex-wrap gap-1 mt-1">
                                                     {p.brand_name && (
-                                                        <Badge variant="secondary" className="text-[8px] font-black uppercase px-1 py-0 h-3.5 bg-blue-50 text-blue-600 border-blue-100">
+                                                        <Badge variant="secondary" className="text-[8px] font-black uppercase px-1 py-0 h-3.5 bg-blue-500/10 text-blue-600 border-blue-500/20 dark:bg-blue-500/20 dark:text-blue-400 dark:border-blue-500/30">
                                                             {p.brand_name}
                                                         </Badge>
                                                     )}
                                                     {p.category_name && (
-                                                        <Badge variant="secondary" className="text-[8px] font-black uppercase px-1 py-0 h-3.5 bg-slate-100 text-slate-500 border-slate-200">
+                                                        <Badge variant="secondary" className="text-[8px] font-black uppercase px-1 py-0 h-3.5 bg-slate-500/10 text-slate-500 border-slate-500/20 dark:bg-slate-500/20 dark:text-slate-400 dark:border-slate-500/30">
                                                             {p.category_name}
                                                         </Badge>
                                                     )}
@@ -112,7 +112,7 @@ export function SalesOrderEncoding({
                                                     <div className="flex gap-1 items-center">
                                                         <div className="flex gap-1">
                                                             {p.discount_level && (
-                                                                <span className="text-[10px] font-black px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded border border-amber-200 uppercase tracking-tighter shadow-sm">
+                                                                <span className="text-[10px] font-black px-1.5 py-0.5 bg-amber-500/10 text-amber-600 rounded border border-amber-500/20 dark:bg-amber-500/20 dark:text-amber-400 dark:border-amber-500/30 uppercase tracking-tighter shadow-sm">
                                                                     {p.discount_level}
                                                                 </span>
                                                             )}
@@ -125,7 +125,7 @@ export function SalesOrderEncoding({
                                                 size="icon"
                                                 variant="secondary"
                                                 className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8 hover:bg-primary hover:text-white transition-all shadow-sm"
-                                                onClick={() => addProduct(p, 1, "PCS")}
+                                                onClick={() => addProduct(p, 1, p.uom || "PCS")}
                                             >
                                                 <Plus className="w-4 h-4" />
                                             </Button>
@@ -173,12 +173,12 @@ export function SalesOrderEncoding({
                                                     <span className="font-bold text-[11px] leading-tight text-slate-900">{item.product.display_name}</span>
                                                     <div className="flex flex-wrap gap-1 mt-0.5">
                                                         {item.product.brand_name && (
-                                                            <Badge variant="secondary" className="text-[7px] font-black uppercase px-1 py-0 h-3 bg-blue-50 text-blue-600 border-blue-100">
+                                                            <Badge variant="secondary" className="text-[7px] font-black uppercase px-1 py-0 h-3 bg-blue-500/10 text-blue-600 border-blue-500/20 dark:bg-blue-500/20 dark:text-blue-400 dark:border-blue-500/30">
                                                                 {item.product.brand_name}
                                                             </Badge>
                                                         )}
                                                         {item.product.category_name && (
-                                                            <Badge variant="secondary" className="text-[7px] font-black uppercase px-1 py-0 h-3 bg-slate-100 text-slate-500 border-slate-200">
+                                                            <Badge variant="secondary" className="text-[7px] font-black uppercase px-1 py-0 h-3 bg-slate-500/10 text-slate-500 border-slate-500/20 dark:bg-slate-500/20 dark:text-slate-400 dark:border-slate-500/30">
                                                                 {item.product.category_name}
                                                             </Badge>
                                                         )}
@@ -209,21 +209,21 @@ export function SalesOrderEncoding({
                                             <TableCell className="text-center">
                                                 <div className="flex flex-wrap justify-center gap-1">
                                                     {item.discountType && (
-                                                        <Badge className="text-[9px] px-1.5 py-0.5 bg-emerald-50 text-emerald-700 border-emerald-100 font-black uppercase tracking-tighter">
+                                                        <Badge className="text-[9px] px-1.5 py-0.5 bg-success/10 text-success border-success/20 dark:bg-success/20 dark:text-success dark:border-success/30 font-black uppercase tracking-tighter">
                                                             {item.discountType}
                                                         </Badge>
                                                     )}
-                                                    {!item.discountType && <span className="text-[10px] text-slate-300 italic">None</span>}
+                                                    {!item.discountType && <span className="text-[10px] text-muted-foreground italic">None</span>}
                                                 </div>
                                             </TableCell>
                                             <TableCell className="text-center border-l border-muted/20">
-                                                <span className={`text-[10px] font-black tabular-nums ${(Number(item.product.available_qty) || 0) > 0 ? "text-slate-600" : "text-red-500"}`}>
+                                                <span className={`text-[10px] font-black tabular-nums ${(Number(item.product.available_qty) || 0) > 0 ? "text-foreground" : "text-destructive"}`}>
                                                     {Number(item.product.available_qty) || 0}
                                                 </span>
                                             </TableCell>
-                                            <TableCell className="text-right text-[11px] font-black text-slate-900 tabular-nums">{formatCurrency(item.netAmount)}</TableCell>
+                                            <TableCell className="text-right text-[11px] font-black text-foreground tabular-nums">{formatCurrency(item.netAmount)}</TableCell>
                                             <TableCell>
-                                                <Button variant="ghost" size="icon" className="text-red-400 h-8 w-8 hover:bg-red-50 hover:text-red-600 transition-colors" onClick={() => removeLineItem(item.id)}>
+                                                <Button variant="ghost" size="icon" className="text-destructive h-8 w-8 hover:bg-destructive/10 hover:text-destructive transition-colors" onClick={() => removeLineItem(item.id)}>
                                                     <Trash2 className="w-3.5 h-3.5" />
                                                 </Button>
                                             </TableCell>
