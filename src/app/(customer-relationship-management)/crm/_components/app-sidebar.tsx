@@ -9,6 +9,7 @@ import {
   LayoutDashboard,
   ShoppingCart,
   Users,
+  Printer,
 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
@@ -85,6 +86,19 @@ const data = {
       title: "Invoice Cancellation Approval",
       icon: CircleCheckBig,
       url: "/crm/invoice-management/invoice-cancellation-approval",
+    },
+    {
+      title: "Printables",
+      url: "#",
+      icon: Printer,
+      isActive: true,
+      items: [
+        {
+          title: "Product Printables",
+          url: "/crm/printables/product-printables",
+          icon: Printer,
+        },
+      ],
     },
   ],
 };
