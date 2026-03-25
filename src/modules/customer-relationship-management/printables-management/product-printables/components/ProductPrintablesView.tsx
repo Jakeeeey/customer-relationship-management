@@ -41,7 +41,7 @@ export default function ProductPrintablesView() {
             sp.set("active_only", filters.active_only ? "1" : "0");
             sp.set("page_size", "-1"); // Custom param to fetch all
 
-            const res = await fetch(`/api/fm/printables?${sp.toString()}`);
+            const res = await fetch(`/api/crm/printables?${sp.toString()}`);
             if (!res.ok) throw new Error("Failed to fetch all products for printing");
             const json = await res.json();
             const products = json.data ?? [];
@@ -56,7 +56,7 @@ export default function ProductPrintablesView() {
                 const pid = pickId(p.product_id);
                 const parentId = pickId(p.parent_id);
                 const gid = parentId || pid;
-                
+
                 if (gid) {
                     if (!groups.has(gid)) groups.set(gid, []);
                     groups.get(gid)!.push(p);
@@ -99,7 +99,7 @@ export default function ProductPrintablesView() {
             setAllMatrixRows(assembled);
             setAllUsedUnitIds(unitIds);
             setPrintOpen(true);
-            
+
             if (assembled.length > 0) {
                 toast.success(`Prepared ${assembled.length} groups for printing.`);
             }
@@ -128,8 +128,8 @@ export default function ProductPrintablesView() {
                     </p>
                 </div>
                 <div className="flex gap-2">
-                    <Button 
-                        onClick={handlePrintAll} 
+                    <Button
+                        onClick={handlePrintAll}
                         disabled={productsLoading || lookupsLoading || isPrinting}
                         className="rounded-xl px-6 gap-2"
                     >
@@ -150,11 +150,11 @@ export default function ProductPrintablesView() {
                 priceTypes={priceTypes}
             />
 
-            <PrintablesMatrixTable 
-                rows={matrixRows} 
-                loading={productsLoading} 
-                priceTypes={priceTypes} 
-                units={units} 
+            <PrintablesMatrixTable
+                rows={matrixRows}
+                loading={productsLoading}
+                priceTypes={priceTypes}
+                units={units}
                 usedUnitIds={usedUnitIds}
                 selectedPriceTypeIds={filters.price_type_ids}
             />
@@ -190,10 +190,10 @@ export default function ProductPrintablesView() {
                 </div>
             )}
 
-            <PrintLabelsDialog 
-                open={printOpen} 
-                onOpenChange={setPrintOpen} 
-                rows={allMatrixRows} 
+            <PrintLabelsDialog
+                open={printOpen}
+                onOpenChange={setPrintOpen}
+                rows={allMatrixRows}
                 priceTypes={priceTypes}
                 units={units}
                 usedUnitIds={allUsedUnitIds}
