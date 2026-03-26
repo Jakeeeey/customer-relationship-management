@@ -198,6 +198,7 @@ export default function ProductPrintablesView() {
                 units={units}
                 usedUnitIds={allUsedUnitIds}
                 supplier={filters.supplier_ids.length === 1 ? suppliers.find(s => String(s.id) === filters.supplier_ids[0]) : null}
+                selectedPriceTypeIds={filters.price_type_ids}
             />
         </div>
     );
