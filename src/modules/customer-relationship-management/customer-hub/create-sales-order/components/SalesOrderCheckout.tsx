@@ -197,7 +197,8 @@ export function SalesOrderCheckout({
                                                     <TableCell className="text-center bg-slate-50/30 relative py-8">
                                                         {(() => {
                                                             const isExceedingOrder = allocatedQty > item.quantity;
-                                                            const hasError = isExceedingOrder;
+                                                            const isExceedingStock = allocatedQty > (Number(item.product.available_qty) || 0);
+                                                            const hasError = isExceedingOrder || isExceedingStock;
 
                                                             return (
                                                                 <>
@@ -216,7 +217,7 @@ export function SalesOrderCheckout({
                                                                     {hasError && (
                                                                         <div className="absolute left-1/2 -translate-x-1/2 bottom-1.5 flex items-center gap-1 bg-red-500 text-[9px] text-white px-3 py-1 rounded-full font-black uppercase tracking-widest shadow-lg animate-in fade-in slide-in-from-top-1 duration-300 z-50 whitespace-nowrap">
                                                                             <AlertCircle className="w-3 h-3" />
-                                                                            Exceeds Ordered Qty
+                                                                            {isExceedingStock ? "Exceeds Stock" : "Exceeds Order Qty"}
                                                                         </div>
                                                                     )}
                                                                 </>

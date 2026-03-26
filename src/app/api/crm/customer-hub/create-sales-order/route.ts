@@ -223,20 +223,40 @@ export async function GET(req: NextRequest) {
                                     branchId = smData.branch_code || smData.branch_id;
                                     if (branchId && typeof branchId === 'object') {
                                         const obj = branchId as { id?: number | string; branch_code?: number | string; branch_id?: number | string };
-                                        branchId = obj.id || obj.branch_code || obj.branch_id || null;
+                                        branchId = obj.branch_code || obj.id || obj.branch_id || null;
                                     }
                                 }
                             }
                         }
 
-                        console.log(`[InventoryDebug] Final Branch ID: ${branchId}`);
+                        // Resolve numeric ID vs string code
+                        let branchCodeStr: string | null = null;
+                        if (branchId) {
+                            if (isNaN(Number(branchId))) {
+                                branchCodeStr = String(branchId);
+                            } else {
+                                try {
+                                    const bRes = await fetch(`${DIRECTUS_URL}/items/branches/${branchId}?fields=branch_code`, { headers: fetchHeaders });
+                                    if (bRes.ok) {
+                                        const bData = (await bRes.json()).data;
+                                        branchCodeStr = bData?.branch_code || null;
+                                    }
+                                } catch (e) {
+                                     console.error("[InventoryDebug] Branch resolution error:", e);
+                                }
+                            }
+                        }
+
+                        console.log(`[InventoryDebug] Final Branch Target: ID=${branchId}, Code=${branchCodeStr}`);
 
                         if (branchId && SPRING_API_BASE_URL) {
                             const cookieStore = await cookies();
                             const token = cookieStore.get(COOKIE_NAME)?.value;
 
-                            const invUrl = `${SPRING_API_BASE_URL.replace(/\/$/, "")}/api/view-running-inventory-by-unit/all`;
-                            console.log(`[InventoryDebug] Fetching Inventory from: ${invUrl}, Token found: ${!!token}`);
+                            // Added date filter as suggested
+                            const invUrl = `${SPRING_API_BASE_URL.replace(/\/$/, "")}/api/view-running-inventory-by-unit/all?startDate=2025-01-01&endDate=2026-12-30`;
+                            console.log(`[InventoryDebug] Fetching: ${invUrl}`);
+                            
                             const inventoryRes = await fetch(invUrl, {
                                 headers: {
                                     "Accept": "application/json",
@@ -244,15 +264,22 @@ export async function GET(req: NextRequest) {
                                 },
                                 cache: 'no-store',
                             });
+                            
                             if (inventoryRes.ok) {
                                 const invJson = await inventoryRes.json();
                                 const invData = Array.isArray(invJson) ? invJson : (invJson.data || []);
-                                console.log(`[InventoryDebug] Inventory Records Received: ${invData.length}`);
+                                console.log(`[InventoryDebug] Records Received: ${invData.length}`);
+                                
                                 if (Array.isArray(invData)) {
-                                    console.log(`[InventoryDebug] Attempting match for Branch ID: ${branchId}`);
+                                    const branchesInStock = new Set<string>();
                                     invData.forEach((item: Record<string, unknown>) => {
-                                        const itemBranchId = item.branchId ?? item.branch_id ?? item.BranchId;
-                                        if (itemBranchId !== undefined && itemBranchId !== null && Number(itemBranchId) === Number(branchId)) {
+                                        const itemBId = item.branchId ?? item.branch_id ?? item.BranchId;
+                                        if (itemBId) branchesInStock.add(itemBId.toString());
+
+                                        const matchId = (itemBId && Number(itemBId) === Number(branchId));
+                                        const matchCode = (branchCodeStr && itemBId && String(itemBId).toUpperCase() === String(branchCodeStr).toUpperCase());
+
+                                        if (matchId || matchCode) {
                                             const pid = item.productId ?? item.product_id ?? item.ProductId;
                                             if (pid) {
                                                 const available = Number(item.runningInventoryUnit ?? item.running_inventory_unit ?? item.runningInventory ?? item.running_inventory ?? 0);
@@ -261,19 +288,13 @@ export async function GET(req: NextRequest) {
                                             }
                                         }
                                     });
+                                    console.log(`[InventoryDebug] Branches found in API: ${Array.from(branchesInStock).slice(0,10).join(", ")}`);
                                     console.log(`[InventoryDebug] Map populated with ${Object.keys(inventoryMap).length} items for branch ${branchId}`);
-                                    if (Object.keys(inventoryMap).length > 0) {
-                                        console.log(`[InventoryDebug] Map Keys: ${Object.keys(inventoryMap).slice(0, 10).join(", ")}${Object.keys(inventoryMap).length > 10 ? "..." : ""}`);
-                                    }
                                 }
-                            } else {
-                                console.log(`[InventoryDebug] Spring Boot Fetch Error: ${inventoryRes.status}`);
                             }
-                        } else {
-                            console.log(`[InventoryDebug] Branch ID or Spring URL missing: branchId=${branchId}, hasURL=${!!SPRING_API_BASE_URL}`);
                         }
                     } catch (e) {
-                        console.error("[InventoryDebug] Failed to fetch inventory from Spring Boot:", e);
+                        console.error("[InventoryDebug] Inventory Fetch Exception:", e);
                     }
                 }
                 // --- End Inventory Fetch ---
@@ -424,19 +445,12 @@ export async function GET(req: NextRequest) {
                     };
                 });
 
-                const itemsWithStock = finalProducts.filter(p => p.available_qty > 0);
-                console.log(`[InventoryDebug] Returning ${finalProducts.length} products total.`);
-                if (itemsWithStock.length > 0) {
-                    console.log(`[InventoryDebug] SUCCESS: Found ${itemsWithStock.length} items with available stock!`);
-                    itemsWithStock.slice(0, 3).forEach(it => {
-                        console.log(`[InventoryDebug] Item ${it.product_id} (Internal ID: ${it.id}) -> Available: ${it.available_qty}`);
-                    });
-                } else {
-                    console.log(`[InventoryDebug] WARNING: No items matched in final mapping! Checking sample lookups:`);
-                    if (finalProducts.length > 0) {
-                        const p = finalProducts[0];
-                        console.log(`[InventoryDebug] Sample Map Lookup: product_id=${p.product_id} (Map has: ${inventoryMap[Number(p.product_id)]?.available ?? 'MISSING'}), id=${p.id} (Map has: ${inventoryMap[Number(p.id)]?.available ?? 'MISSING'})`);
-                    }
+                const itemsWithStock = finalProducts.filter(p => (Number(p.available_qty) || 0) > 0);
+                console.log(`[InventoryDebug] Total Products: ${finalProducts.length}, with Stock: ${itemsWithStock.length}`);
+                
+                if (itemsWithStock.length === 0 && finalProducts.length > 0) {
+                    const p = finalProducts[0];
+                    console.log(`[InventoryDebug] Sample Check (PID: ${p.product_id}): MapAvailable=${inventoryMap[Number(p.product_id)]?.available ?? 'MISSING'}`);
                 }
 
                 return NextResponse.json(finalProducts);

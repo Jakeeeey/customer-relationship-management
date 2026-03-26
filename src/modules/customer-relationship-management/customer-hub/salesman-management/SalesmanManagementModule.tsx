@@ -255,10 +255,10 @@ export default function SalesmanManagementModule() {
             salesman_name: salesman.salesman_name,
             salesman_code: salesman.salesman_code,
             employee_id: salesman.employee_id.toString(),
-            truck_plate: salesman.truck_plate || "",
-            division_id: (typeof salesman.division_id === 'object' ? (salesman.division_id as any).division_id : salesman.division_id)?.toString() || "",
-            branch_code: (typeof salesman.branch_code === 'object' ? (salesman.branch_code as any).id : salesman.branch_code)?.toString() || "",
-            operation: (typeof salesman.operation === 'object' ? (salesman.operation as any).id : salesman.operation)?.toString() || "",
+            truck_plate: (typeof salesman.truck_plate === 'object' ? (salesman.truck_plate as { truck_plate: string }).truck_plate : salesman.truck_plate)?.toString() || "",
+            division_id: (typeof salesman.division_id === 'object' ? (salesman.division_id as Division).division_id : salesman.division_id)?.toString() || "",
+            branch_code: (typeof salesman.branch_code === 'object' ? (salesman.branch_code as Branch).id : salesman.branch_code)?.toString() || "",
+            operation: (typeof salesman.operation === 'object' ? (salesman.operation as Operation).id : salesman.operation)?.toString() || "",
             company_code: salesman.company_code?.toString() || "",
             supplier_code: salesman.supplier_code?.toString() || "",
             price_type: salesman.price_type || "",
@@ -297,15 +297,15 @@ export default function SalesmanManagementModule() {
                 isActive: newAgent.isActive ? 1 : 0,
                 isInventory: newAgent.isInventory ? 1 : 0,
                 canCollect: newAgent.canCollect ? 1 : 0,
-                truck_plate: newAgent.truck_plate.trim().toUpperCase() || null as any,
-                division_id: newAgent.division_id ? Number(newAgent.division_id) : null as any,
-                branch_code: newAgent.branch_code ? Number(newAgent.branch_code) : null as any,
-                operation: newAgent.operation ? Number(newAgent.operation) : null as any,
-                company_code: newAgent.company_code ? Number(newAgent.company_code) : null as any,
-                supplier_code: newAgent.supplier_code ? Number(newAgent.supplier_code) : null as any,
-                price_type: newAgent.price_type || null as any,
-                encoder_id: newAgent.encoder_id ? Number(newAgent.encoder_id) : null as any,
-                inventory_day: newAgent.inventory_day ? Number(newAgent.inventory_day) : null as any,
+                truck_plate: newAgent.truck_plate.trim().toUpperCase() || undefined,
+                division_id: newAgent.division_id ? Number(newAgent.division_id) : undefined,
+                branch_code: newAgent.branch_code ? Number(newAgent.branch_code) : undefined,
+                operation: newAgent.operation ? Number(newAgent.operation) : undefined,
+                company_code: newAgent.company_code ? Number(newAgent.company_code) : undefined,
+                supplier_code: newAgent.supplier_code ? Number(newAgent.supplier_code) : undefined,
+                price_type: newAgent.price_type || undefined,
+                encoder_id: newAgent.encoder_id ? Number(newAgent.encoder_id) : undefined,
+                inventory_day: newAgent.inventory_day ? Number(newAgent.inventory_day) : undefined,
             };
 
             const res = await salesmanProvider.updateSalesman(editingSalesmanId, payload);
@@ -532,7 +532,7 @@ export default function SalesmanManagementModule() {
                                                 </div>
                                             </div>
                                         </TableCell>
-                                         <TableCell className="text-right px-6">
+                                        <TableCell className="text-right px-6">
                                             <div className="flex items-center justify-end gap-2">
                                                 <Button
                                                     variant="ghost"

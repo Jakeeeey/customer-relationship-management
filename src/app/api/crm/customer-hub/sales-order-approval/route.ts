@@ -146,7 +146,7 @@ export async function GET(req: NextRequest) {
                 });
                 if (pRes.ok) {
                     const pJson = await pRes.json();
-                    const pMap = new Map((pJson.data || []).map((p: any) => {
+                    const pMap = new Map((pJson.data || []).map((p: { product_id: number | string; product_name: string; product_code: string; description: string; unit_of_measurement: number | string }) => {
                         const pid = Number(p.product_id);
                         const uomId = Number(p.unit_of_measurement);
                         const uomInfo = uomId && unitMap[uomId] ? unitMap[uomId] : { uom_name: "", uom_shortcut: "" };
@@ -241,7 +241,7 @@ export async function GET(req: NextRequest) {
                 });
                 if (pRes.ok) {
                     const pJson = await pRes.json();
-                    const pMap = new Map((pJson.data || []).map((p: any) => {
+                    const pMap = new Map((pJson.data || []).map((p: { product_id: number | string; product_name: string; product_code: string; description: string; unit_of_measurement: number | string }) => {
                         const pid = Number(p.product_id);
                         const uomId = Number(p.unit_of_measurement);
                         const uomInfo = uomId && unitMap[uomId] ? unitMap[uomId] : { uom_name: "", uom_shortcut: "" };

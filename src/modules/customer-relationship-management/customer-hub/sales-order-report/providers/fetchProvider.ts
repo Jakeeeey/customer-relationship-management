@@ -50,22 +50,6 @@ export const fetchMonthlyAverage = async (customerCode: string) => {
     return json.data || {};
 };
 
-export const deleteSalesOrder = async (orderId: number) => {
-    const response = await fetch(`/api/crm/customer-hub/sales-order-report?orderId=${orderId}`, {
-        method: "DELETE",
-    });
-    if (!response.ok) {
-        let errText = "Failed to delete sales order";
-        try {
-            const errJson = await response.json();
-            errText = errJson.error || errJson.message || JSON.stringify(errJson);
-        } catch {
-            errText = await response.text() || response.statusText;
-        }
-        throw new Error(errText);
-    }
-    return response.json();
-};
 
 export const fetchInvoiceDetails = async (orderId: number, orderNo?: string) => {
     const params = new URLSearchParams({ type: "invoice-details", orderId: orderId.toString() });
@@ -82,5 +66,4 @@ export const salesOrderProvider = {
     getSalesOrderDetails: fetchSalesOrderDetails,
     getInvoiceDetails: fetchInvoiceDetails,
     getMonthlyAverage: fetchMonthlyAverage,
-    deleteSalesOrder
 };

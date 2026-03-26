@@ -273,6 +273,8 @@ export function useSalesOrder() {
             return;
         }
 
+
+
         const id = Math.random().toString(36).substr(2, 9);
         const basePrice = Number(product.base_price) || 0;
         const discounts = product.discounts || [];
@@ -303,6 +305,9 @@ export function useSalesOrder() {
     const updateLineItemQty = (id: string, qty: number) => {
         setLineItems(prev => prev.map(item => {
             if (item.id !== id) return item;
+
+
+
             const totalAmount = item.unitPrice * qty;
             const netPrice = calculateChainNetPrice(item.unitPrice, item.discounts);
             const netAmount = netPrice * qty;
@@ -360,8 +365,9 @@ export function useSalesOrder() {
     const isValidAllocation = useMemo(() => {
         return lineItems.every(item => {
             const allocated = allocatedQuantities[item.id] ?? item.quantity;
-            // Valid if non-negative and <= ordered
-            return allocated >= 0 && allocated <= item.quantity;
+            const available = Number(item.product.available_qty) || 0;
+            // Valid if non-negative, <= ordered AND <= available
+            return allocated >= 0 && allocated <= item.quantity && allocated <= available;
         });
     }, [lineItems, allocatedQuantities]);
 
@@ -394,7 +400,9 @@ export function useSalesOrder() {
         // Initialize allocated quantities with total fulfillment
         const initialAllocated: Record<string, number> = {};
         lineItems.forEach(item => {
-            initialAllocated[item.id] = item.quantity;
+            const available = Number(item.product.available_qty) || 0;
+            // Default to 0 if no stock, otherwise cap at available stock or ordered quantity
+            initialAllocated[item.id] = available > 0 ? Math.min(item.quantity, available) : 0;
         });
         setAllocatedQuantities(initialAllocated);
         setIsCheckout(true);

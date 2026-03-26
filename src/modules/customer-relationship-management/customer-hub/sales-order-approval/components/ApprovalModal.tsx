@@ -2,14 +2,13 @@
 
 import React, { useState, useEffect } from "react";
 import { format } from "date-fns";
-import { Loader2, Check, AlertCircle, Clock, Ban, Store, X } from "lucide-react";
+import { Loader2, AlertCircle, Clock, Store, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 import {
     Dialog,
     DialogContent,
     DialogDescription,
-    DialogHeader,
     DialogTitle,
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
@@ -433,8 +432,8 @@ export function ApprovalModal({
                                                                         onChange={(e) => updateAllocatedQty(idx, e.target.value)}
                                                                         className={cn(
                                                                             "w-20 text-center h-7 text-[11px] font-black border focus-visible:ring-emerald-500 mx-auto transition-all",
-                                                                            isExceeding 
-                                                                                ? "bg-destructive/10 text-destructive border-destructive focus-visible:ring-destructive" 
+                                                                            isExceeding
+                                                                                ? "bg-destructive/10 text-destructive border-destructive focus-visible:ring-destructive"
                                                                                 : "text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-900/50"
                                                                         )}
                                                                         disabled={isSubmitting}

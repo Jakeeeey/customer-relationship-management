@@ -9,6 +9,7 @@ interface Product {
     product_name: string;
     description: string;
     product_code: string;
+    uom?: string;
 }
 
 interface SaleOrderDetail {
@@ -33,6 +34,7 @@ export async function GET(req: NextRequest) {
     const endDate = searchParams.get("endDate");
     const salesmanId = searchParams.get("salesmanId");
     const branchId = searchParams.get("branchId");
+    const supplierId = searchParams.get("supplierId");
     const status = searchParams.get("status");
     const orderId = searchParams.get("orderId");
     const customerCode = searchParams.get("customerCode");
@@ -135,54 +137,76 @@ export async function GET(req: NextRequest) {
             const orderNo = searchParams.get("orderNo");
             if (!orderId) return NextResponse.json({ error: "orderId required" }, { status: 400 });
 
-            // 1. Fetch Invoice
-            let invUrl = `${BASE_URL}/sales_invoice?fields=*&limit=1`;
+            // 1. Fetch All Invoices for the specific Order (multi-invoice support)
+            // Fields: *, and we'll manually fetch details to avoid deep join limits if any, 
+            // but Directus can handle nested fields like details.*, details.product_id.* if configured.
+            let invUrl = `${BASE_URL}/sales_invoice?fields=*&limit=-1`;
             const orFilters = [{ order_id: { _eq: orderId } }];
             if (orderNo) orFilters.push({ order_id: { _eq: orderNo } });
             invUrl += `&filter=${encodeURIComponent(JSON.stringify({ _or: orFilters }))}`;
 
             const invRes = await fetch(invUrl, { headers });
-            if (!invRes.ok) return NextResponse.json({ error: "Failed to fetch invoice" }, { status: 500 });
+            if (!invRes.ok) return NextResponse.json({ error: "Failed to fetch invoices" }, { status: 500 });
 
             const invJson = await invRes.json();
-            const invoice = invJson.data?.[0];
+            const invoices = invJson.data || [];
 
-            if (!invoice) return NextResponse.json({ data: null, message: "No invoice found" });
+            if (invoices.length === 0) return NextResponse.json({ data: [], message: "No invoices found" });
+            const invoiceIds = invoices.map((inv: any) => inv.invoice_id);
 
-            // 2. Fetch Invoice Details using the numeric invoice_id as the FK (invoice_no field in schema)
-            const detUrl = `${BASE_URL}/sales_invoice_details?filter[invoice_no][_eq]=${invoice.invoice_id}&fields=*&limit=-1`;
-            const detRes = await fetch(detUrl, { headers });
+            // 2. Fetch All Details (Standard fetch, manual join later to avoid 500 deep-join errors)
+            const detRes = await fetch(
+                `${BASE_URL}/sales_invoice_details?filter[invoice_no][_in]=${invoiceIds.join(',')}&fields=*&limit=-1`,
+                { headers }
+            );
             if (!detRes.ok) return NextResponse.json({ error: "Failed to fetch invoice details" }, { status: 500 });
-
+            
             const detJson = await detRes.json();
-            const details = detJson.data || [];
+            const allDetails = detJson.data || [];
 
-            // 3. Manual Product Join
-            if (details.length > 0) {
-                const productIds = Array.from(new Set(details.map((d: { product_id: number | string }) => d.product_id))).filter(Boolean);
+            // 3. Manual Join for Products and Units
+            let detailsWithProducts = allDetails;
+            if (allDetails.length > 0) {
+                const productIds = Array.from(new Set(allDetails.map((d: any) => d.product_id).filter(Boolean)));
                 if (productIds.length > 0) {
-                    const pUrl = `${BASE_URL}/products?filter[product_id][_in]=${productIds.join(',')}&fields=product_id,product_name,product_code,description&limit=-1`;
-                    const pRes = await fetch(pUrl, { headers });
+                    const productsUrl = `${BASE_URL}/products?filter[product_id][_in]=${productIds.join(',')}&fields=product_id,product_name,description,product_code,unit_of_measurement&limit=-1`;
+                    const pRes = await fetch(productsUrl, { headers });
+                    
                     if (pRes.ok) {
                         const pJson = await pRes.json();
-                        const pMap = new Map((pJson.data || []).map((p: { product_id: number | string, product_name: string, description: string, product_code: string }) => [Number(p.product_id), p]));
+                        const pData = pJson.data || [];
+                        
+                        // Fetch Units for UOM
+                        const unitRes = await fetch(`${BASE_URL}/units?limit=-1`, { headers });
+                        const unitMap = new Map();
+                        if (unitRes.ok) {
+                            const uJson = await unitRes.json();
+                            (uJson.data || []).forEach((u: any) => unitMap.set(Number(u.unit_id), u.unit_shortcut || u.unit_name));
+                        }
 
-                        details.forEach((d: { product_id: number | string | Record<string, unknown> }) => {
-                            const pid = Number(d.product_id);
-                            if (pMap.has(pid)) {
-                                d.product_id = pMap.get(pid) as Record<string, unknown>;
+                        const pMap = new Map(pData.map((p: any) => [
+                            Number(p.product_id), 
+                            { 
+                                ...p, 
+                                uom: unitMap.get(Number(p.unit_of_measurement)) || "PCS" 
                             }
-                        });
+                        ]));
+
+                        detailsWithProducts = allDetails.map((d: any) => ({
+                            ...d,
+                            product_id: pMap.get(Number(d.product_id)) || d.product_id
+                        }));
                     }
                 }
             }
 
-            return NextResponse.json({
-                data: {
-                    invoice,
-                    details
-                }
-            });
+            // 4. Final Grouping by Invoice
+            const invoicesWithDetails = invoices.map((inv: any) => ({
+                invoice: inv,
+                details: detailsWithProducts.filter((d: any) => Number(d.invoice_no) === Number(inv.invoice_id))
+            }));
+
+            return NextResponse.json({ data: invoicesWithDetails });
         } catch (error: unknown) {
             const message = error instanceof Error ? error.message : String(error);
             return NextResponse.json({ error: message }, { status: 500 });
@@ -211,21 +235,35 @@ export async function GET(req: NextRequest) {
                 }).filter(Boolean)));
 
                 if (productIds.length > 0) {
-                    const productsUrl = `${BASE_URL}/products?filter[product_id][_in]=${productIds.join(',')}&fields=product_id,product_name,description,product_code&limit=-1`;
+                    const productsUrl = `${BASE_URL}/products?filter[product_id][_in]=${productIds.join(',')}&fields=product_id,product_name,description,product_code,unit_of_measurement&limit=-1`;
                     console.log(`[DEBUG] Fetching products for join. URL: ${productsUrl}`);
                     const pRes = await fetch(productsUrl, { headers });
+                    
                     if (pRes.ok) {
                         const pJson = await pRes.json();
-                        const productMap = new Map<number, Product>();
-                        (pJson.data || []).forEach((p: Product) => {
+                        const pData = pJson.data || [];
+
+                        // Fetch Units for UOM
+                        const unitRes = await fetch(`${BASE_URL}/units?limit=-1`, { headers });
+                        const unitMap = new Map();
+                        if (unitRes.ok) {
+                            const uJson = await unitRes.json();
+                            (uJson.data || []).forEach((u: any) => unitMap.set(Number(u.unit_id), u.unit_shortcut || u.unit_name));
+                        }
+
+                        const productMap = new Map<number, any>();
+                        pData.forEach((p: any) => {
                             const pid = Number(p.product_id);
-                            if (pid) productMap.set(pid, p);
+                            if (pid) productMap.set(pid, {
+                                ...p,
+                                uom: unitMap.get(Number(p.unit_of_measurement)) || "PCS"
+                            });
                         });
 
                         details.forEach((d: SaleOrderDetail) => {
                             const pid = Number(d.product_id);
                             if (productMap.has(pid)) {
-                                d.product_id = productMap.get(pid) as Product; // Transform ID to Object
+                                d.product_id = productMap.get(pid); // Transform ID to Object
                             }
                         });
                     } else {
@@ -295,6 +333,9 @@ export async function GET(req: NextRequest) {
         }
         if (branchId && branchId !== "none") {
             filters.push({ "branch_id": { "_eq": branchId } });
+        }
+        if (supplierId && supplierId !== "none") {
+            filters.push({ "supplier_id": { "_eq": supplierId } });
         }
         if (status && status !== "none") {
             filters.push({ "order_status": { "_eq": status } });

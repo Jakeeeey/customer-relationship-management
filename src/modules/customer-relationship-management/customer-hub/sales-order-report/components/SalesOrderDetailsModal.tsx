@@ -17,6 +17,12 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table";
+import {
+    Tabs,
+    TabsContent,
+    TabsList,
+    TabsTrigger,
+} from "@/components/ui/tabs";
 import { formatCurrency } from "@/lib/utils";
 import {
     Package,
@@ -46,24 +52,9 @@ export function SalesOrderDetailsModal({
     salesmen,
     branches,
 }: SalesOrderDetailsModalProps) {
-    const [details, setDetails] = useState<SalesOrderDetail[]>([]);
-    const [invoiceData, setInvoiceData] = useState<{
-        invoice: {
-            invoice_no: string;
-            invoice_date: string;
-            salesman_id: string;
-            gross_amount: number;
-            vat_amount: number;
-            discount_amount: number;
-            net_amount: number;
-        },
-        details: {
-            product_id: { product_name: string; product_code: string; description?: string } | null;
-            unit_price: number;
-            quantity: number;
-            total_amount: number;
-        }[]
-    } | null>(null);
+    const [details, setDetails] = useState<any[]>([]);
+    const [invoices, setInvoices] = useState<any[]>([]);
+    const [activeTab, setActiveTab] = useState<string>("");
     const [loading, setLoading] = useState(false);
     const [loadingInvoice, setLoadingInvoice] = useState(false);
 
@@ -76,7 +67,10 @@ export function SalesOrderDetailsModal({
                     setLoadingInvoice(true);
                     try {
                         const data = await salesOrderProvider.getInvoiceDetails(order.order_id, order.order_no);
-                        setInvoiceData(data);
+                        setInvoices(data);
+                        if (data.length > 0) {
+                            setActiveTab(data[0].invoice.invoice_no);
+                        }
                     } catch (error) {
                         console.error("Failed to fetch invoice details", error);
                     } finally {
@@ -100,7 +94,8 @@ export function SalesOrderDetailsModal({
             }
         } else {
             setDetails([]);
-            setInvoiceData(null);
+            setInvoices([]);
+            setActiveTab("");
         }
     }, [isOpen, order, isInvoiceStatus]);
 
@@ -120,11 +115,15 @@ export function SalesOrderDetailsModal({
         }
     };
 
+    const activeInvoiceData = isInvoiceStatus ? invoices.find(inv => inv.invoice.invoice_no === activeTab) : null;
+    const totalInvoicesAmount = isInvoiceStatus ? invoices.reduce((sum, inv) => sum + (Number(inv.invoice.net_amount) || 0), 0) : 0;
+    const totalInvoicesItems = isInvoiceStatus ? invoices.reduce((sum, inv) => sum + (inv.details?.length || 0), 0) : 0;
+
     const displayAmount = isInvoiceStatus
-        ? (invoiceData?.invoice?.net_amount || 0)
+        ? totalInvoicesAmount
         : (order.allocated_amount || 0);
 
-    const lineCount = details.length || invoiceData?.details.length || 0;
+    const lineCount = isInvoiceStatus ? totalInvoicesItems : (details.length || 0);
 
     return (
         <Dialog open={isOpen} onOpenChange={(val) => !val && onClose()}>
@@ -166,14 +165,7 @@ export function SalesOrderDetailsModal({
                             <div className="min-w-0">
                                 <DialogTitle className="text-base sm:text-xl font-black flex flex-wrap items-center gap-1.5 text-slate-900 leading-tight">
                                     <span className="shrink-0">SO: {order.order_no}</span>
-                                    {isInvoiceStatus && invoiceData?.invoice?.invoice_no && (
-                                        <>
-                                            <span className="text-slate-300 font-light shrink-0">/</span>
-                                            <span className="text-primary/70 font-black shrink-0">
-                                                INV: {invoiceData.invoice.invoice_no}
-                                            </span>
-                                        </>
-                                    )}
+
                                 </DialogTitle>
 
                                 <DialogDescription asChild>
@@ -239,8 +231,8 @@ export function SalesOrderDetailsModal({
                                 {isInvoiceStatus ? "Invoice Date" : "Order Date"}
                             </p>
                             <p className="font-bold text-[12px] sm:text-sm text-slate-900 mt-0.5">
-                                {isInvoiceStatus && invoiceData?.invoice?.invoice_date
-                                    ? new Date(invoiceData.invoice.invoice_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+                                {isInvoiceStatus && activeInvoiceData?.invoice?.invoice_date
+                                    ? new Date(activeInvoiceData.invoice.invoice_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
                                     : order.order_date
                                         ? new Date(order.order_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
                                         : "N/A"}
@@ -266,7 +258,7 @@ export function SalesOrderDetailsModal({
                         {/* Amount — accent card */}
                         <div className="bg-[#F0F9FF] border border-[#BAE6FD] rounded-xl p-3 sm:p-4 flex flex-col gap-1 shadow-sm">
                             <p className="text-[8px] sm:text-[10px] text-[#0284C7] uppercase font-black tracking-widest leading-none">
-                                {isInvoiceStatus ? "Invoice Total" : "Order Value"}
+                                {isInvoiceStatus ? "Grand Total Invoice" : "Order Value"}
                             </p>
                             <p className="font-black text-[13px] sm:text-lg text-[#0284C7] tabular-nums mt-0.5">
                                 {formatCurrency(displayAmount)}
@@ -287,10 +279,10 @@ export function SalesOrderDetailsModal({
                             <div className="flex flex-col items-center justify-center h-64 gap-4">
                                 <div className="w-10 h-10 rounded-full border-4 border-primary/20 border-t-primary animate-spin" />
                                 <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.3em] animate-pulse">
-                                    Reconstructing Invoice...
+                                    Reconstructing Invoices...
                                 </p>
                             </div>
-                        ) : !invoiceData?.invoice ? (
+                        ) : invoices.length === 0 ? (
                             <div className="flex flex-col items-center justify-center min-h-[280px] text-center px-8 gap-5">
                                 <div className="p-5 bg-slate-50 rounded-full border-2 border-dashed border-slate-200">
                                     <AlertCircle className="h-10 w-10 sm:h-12 sm:w-12 text-slate-300" />
@@ -303,90 +295,120 @@ export function SalesOrderDetailsModal({
                                 </div>
                             </div>
                         ) : (
-                            <div className="animate-in fade-in duration-700">
-                                {/* min-w enforces readable columns; wrapper scrolls horizontally */}
-                                <div className="min-w-[480px]">
-                                    <Table>
-                                        <TableHeader className="bg-slate-50 sticky top-0 z-10 border-b">
-                                            <TableRow className="hover:bg-transparent border-none">
-                                                <TableHead className="pl-4 sm:pl-8 h-11 uppercase text-[9px] font-black text-[#94A3B8] tracking-widest">Product / SKU</TableHead>
-                                                <TableHead className="text-right h-11 uppercase text-[9px] font-black text-[#94A3B8] tracking-widest">Unit Price</TableHead>
-                                                <TableHead className="text-center h-11 uppercase text-[9px] font-black text-[#94A3B8] tracking-widest w-[80px]">Qty</TableHead>
-                                                <TableHead className="text-right pr-4 sm:pr-8 h-11 uppercase text-[9px] font-black text-[#94A3B8] tracking-widest w-[130px]">Amount</TableHead>
-                                            </TableRow>
-                                        </TableHeader>
-                                        <TableBody>
-                                            {invoiceData.details.map((item, idx) => (
-                                                <TableRow key={idx} className="border-slate-50 hover:bg-slate-50/50 transition-colors">
-                                                    <TableCell className="pl-4 sm:pl-8 py-4 sm:py-5">
-                                                        <div className="flex flex-col gap-0.5">
-                                                            <span className="font-bold text-slate-900 text-[12px] sm:text-sm">
-                                                                {item.product_id?.product_name || "N/A Item"}
-                                                            </span>
-                                                            <span className="text-[9px] text-slate-400 font-bold tracking-tighter font-mono">
-                                                                {item.product_id?.product_code}
-                                                            </span>
-                                                        </div>
-                                                    </TableCell>
-                                                    <TableCell className="text-right font-bold text-slate-500 font-mono tracking-tight tabular-nums text-[12px] sm:text-sm">
-                                                        {formatCurrency(item.unit_price)}
-                                                    </TableCell>
-                                                    <TableCell className="text-center font-bold text-slate-500 text-[12px] sm:text-sm tabular-nums">
-                                                        {item.quantity}
-                                                    </TableCell>
-                                                    <TableCell className="text-right font-black text-slate-950 pr-4 sm:pr-8 font-mono text-[13px] sm:text-base tabular-nums tracking-tighter">
-                                                        {formatCurrency(item.total_amount)}
-                                                    </TableCell>
-                                                </TableRow>
-                                            ))}
-                                        </TableBody>
-                                    </Table>
-                                </div>
-
-                                {/* Totals block */}
-                                <div className="p-4 sm:p-8 bg-slate-50/30 border-t flex justify-end">
-                                    <div className="w-full max-w-[260px] space-y-2.5 sm:space-y-3">
-                                        <div className="flex justify-between items-center">
-                                            <span className="text-muted-foreground font-medium text-[11px] sm:text-sm">Gross Total</span>
-                                            <span className="font-bold text-slate-600 text-[11px] sm:text-sm tabular-nums font-mono">
-                                                {formatCurrency(invoiceData.invoice.gross_amount)}
-                                            </span>
-                                        </div>
-                                        <div className="flex justify-between items-center">
-                                            <span className="text-muted-foreground font-medium text-[11px] sm:text-sm">Discount</span>
-                                            <span className="font-bold text-rose-500 text-[11px] sm:text-sm tabular-nums font-mono">
-                                                -{formatCurrency(invoiceData.invoice.discount_amount)}
-                                            </span>
-                                        </div>
-                                        <div className="flex justify-between items-center">
-                                            <span className="text-muted-foreground font-medium text-[11px] sm:text-sm">VAT (12%)</span>
-                                            <span className="font-bold text-slate-600 text-[11px] sm:text-sm tabular-nums font-mono">
-                                                {formatCurrency(invoiceData.invoice.vat_amount || 0)}
-                                            </span>
-                                        </div>
-                                        <Separator className="bg-slate-200" />
-                                        <div className="flex justify-between items-center pt-0.5">
-                                            <span className="text-[10px] font-black uppercase tracking-widest text-primary">Total Amount</span>
-                                            <span className="text-xl sm:text-2xl font-black text-slate-950 tabular-nums font-mono">
-                                                {formatCurrency(invoiceData.invoice.net_amount)}
-                                            </span>
-                                        </div>
+                            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full flex flex-col h-full animate-in fade-in duration-700">
+                                <div className="px-4 sm:px-8 py-2 bg-slate-50/80 border-b flex items-center justify-between">
+                                    <TabsList variant="line" className="h-8">
+                                        {invoices.map((inv) => (
+                                            <TabsTrigger key={inv.invoice.invoice_no} value={inv.invoice.invoice_no} className="text-[10px] uppercase font-black px-4">
+                                                INV: {inv.invoice.invoice_no}
+                                            </TabsTrigger>
+                                        ))}
+                                    </TabsList>
+                                    <div className="text-[9px] font-black text-slate-400 uppercase tracking-wider">
+                                        Total Invoices: {invoices.length}
                                     </div>
                                 </div>
-                            </div>
+
+                                {invoices.map((inv) => (
+                                    <TabsContent key={inv.invoice.invoice_no} value={inv.invoice.invoice_no} className="m-0 flex-1 overflow-auto">
+                                        <div className="min-w-[650px]">
+                                            <Table>
+                                                <TableHeader className="bg-slate-50/50 sticky top-0 z-10 border-b">
+                                                    <TableRow className="hover:bg-transparent border-none">
+                                                        <TableHead className="pl-4 sm:pl-8 h-10 uppercase text-[9px] font-black text-slate-400 tracking-widest">Product / SKU</TableHead>
+                                                        <TableHead className="text-center h-10 uppercase text-[9px] font-black text-slate-400 tracking-widest w-[80px]">UOM</TableHead>
+                                                        <TableHead className="text-right h-10 uppercase text-[9px] font-black text-slate-400 tracking-widest">Unit Price</TableHead>
+                                                        <TableHead className="text-center h-10 uppercase text-[9px] font-black text-slate-400 tracking-widest w-[80px]">Qty</TableHead>
+                                                        <TableHead className="text-center h-10 uppercase text-[9px] font-black text-slate-400 tracking-widest">Discount</TableHead>
+                                                        <TableHead className="text-right pr-4 sm:pr-8 h-10 uppercase text-[9px] font-black text-slate-400 tracking-widest w-[130px]">Amount</TableHead>
+                                                    </TableRow>
+                                                </TableHeader>
+                                                <TableBody>
+                                                    {inv.details.map((item: any, idx: number) => (
+                                                        <TableRow key={idx} className="border-slate-50 hover:bg-slate-50/50 transition-colors">
+                                                            <TableCell className="pl-4 sm:pl-8 py-3">
+                                                                <div className="flex flex-col gap-0.5">
+                                                                    <span className="font-bold text-slate-900 text-[11px] sm:text-[13px]">
+                                                                        {item.product_id?.description || item.product_id?.product_name || "N/A Item"}
+                                                                    </span>
+                                                                    <span className="text-[9px] text-slate-400 font-bold tracking-tighter font-mono">
+                                                                        {item.product_id?.product_code}
+                                                                    </span>
+                                                                </div>
+                                                            </TableCell>
+                                                            <TableCell className="text-center">
+                                                                <span className="text-[10px] font-black text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded uppercase">
+                                                                    {item.product_id?.uom || "PCS"}
+                                                                </span>
+                                                            </TableCell>
+                                                            <TableCell className="text-right font-bold text-slate-500 font-mono tracking-tight tabular-nums text-[11px] sm:text-[13px]">
+                                                                {formatCurrency(item.unit_price)}
+                                                            </TableCell>
+                                                            <TableCell className="text-center font-bold text-slate-500 text-[11px] sm:text-[13px] tabular-nums">
+                                                                {item.quantity}
+                                                            </TableCell>
+                                                            <TableCell className="text-center">
+                                                                <span className="text-[10px] font-bold text-rose-500">
+                                                                    {item.discount_amount > 0 ? `-${formatCurrency(item.discount_amount)}` : "—"}
+                                                                </span>
+                                                            </TableCell>
+                                                            <TableCell className="text-right font-black text-slate-950 pr-4 sm:pr-8 font-mono text-[12px] sm:text-[14px] tabular-nums tracking-tighter">
+                                                                {formatCurrency(item.total_amount)}
+                                                            </TableCell>
+                                                        </TableRow>
+                                                    ))}
+                                                </TableBody>
+                                            </Table>
+                                        </div>
+
+                                        {/* Totals block for this specific invoice */}
+                                        <div className="p-4 sm:p-8 bg-slate-50/20 border-t flex justify-end">
+                                            <div className="w-full max-w-[260px] space-y-2.5 sm:space-y-3">
+                                                <div className="flex justify-between items-center text-slate-500">
+                                                    <span className="font-medium text-[11px] sm:text-xs uppercase tracking-wider">Gross Total</span>
+                                                    <span className="font-bold text-[11px] sm:text-xs tabular-nums font-mono">
+                                                        {formatCurrency(inv.invoice.gross_amount)}
+                                                    </span>
+                                                </div>
+                                                <div className="flex justify-between items-center">
+                                                    <span className="font-medium text-[11px] sm:text-xs uppercase tracking-wider text-slate-500">Discount</span>
+                                                    <span className="font-bold text-rose-500 text-[11px] sm:text-xs tabular-nums font-mono">
+                                                        -{formatCurrency(inv.invoice.discount_amount)}
+                                                    </span>
+                                                </div>
+                                                <div className="flex justify-between items-center">
+                                                    <span className="font-medium text-[11px] sm:text-xs uppercase tracking-wider text-slate-500">VAT (12%)</span>
+                                                    <span className="font-bold text-[11px] sm:text-xs tabular-nums font-mono text-slate-500">
+                                                        {formatCurrency(inv.invoice.vat_amount || 0)}
+                                                    </span>
+                                                </div>
+                                                <Separator className="bg-slate-200" />
+                                                <div className="flex justify-between items-center pt-0.5">
+                                                    <span className="text-[10px] font-black uppercase tracking-widest text-[#0EA5E9]">Invoice Total</span>
+                                                    <span className="text-lg sm:text-2xl font-black text-slate-950 tabular-nums font-mono">
+                                                        {formatCurrency(inv.invoice.net_amount)}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </TabsContent>
+                                ))}
+                            </Tabs>
                         )
                     ) : (
                         /* ══ ORDER MODE ══ */
                         <div className="animate-in fade-in duration-700">
-                            <div className="min-w-[520px]">
+                            <div className="min-w-[650px]">
                                 <Table>
                                     <TableHeader className="bg-slate-50 sticky top-0 z-10 border-b">
                                         <TableRow className="hover:bg-transparent border-none">
                                             <TableHead className="pl-4 sm:pl-8 h-11 uppercase text-[9px] font-black text-[#94A3B8] tracking-widest">Product / SKU</TableHead>
+                                            <TableHead className="text-center h-11 uppercase text-[9px] font-black text-[#94A3B8] tracking-widest w-[80px]">UOM</TableHead>
                                             <TableHead className="text-right h-11 uppercase text-[9px] font-black text-[#94A3B8] tracking-widest">Unit Price</TableHead>
                                             <TableHead className="text-center h-11 uppercase text-[9px] font-black text-[#94A3B8] tracking-widest">Ordered</TableHead>
                                             <TableHead className="text-center h-11 uppercase text-[9px] font-black text-[#94A3B8] tracking-widest">Allocated</TableHead>
-                                            <TableHead className="text-right pr-4 sm:pr-8 h-11 uppercase text-[9px] font-black text-[#94A3B8] tracking-widest">Alloc. Amount</TableHead>
+                                            <TableHead className="text-center h-11 uppercase text-[9px] font-black text-[#94A3B8] tracking-widest">Disc. Type</TableHead>
+                                            <TableHead className="text-right pr-4 sm:pr-8 h-11 uppercase text-[9px] font-black text-[#94A3B8] tracking-widest w-[130px]">Alloc. Amount</TableHead>
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
@@ -416,7 +438,7 @@ export function SalesOrderDetailsModal({
                                         ) : (
                                             details.map((li, idx) => {
                                                 const product = li.product_id;
-                                                const productName = typeof product === "object" ? product?.product_name : (product || "N/A");
+                                                const productName = typeof product === "object" ? (product?.description || product?.product_name) : (product || "N/A");
                                                 const productCode = typeof product === "object" ? product?.product_code : "";
 
                                                 return (
@@ -431,6 +453,11 @@ export function SalesOrderDetailsModal({
                                                                 </span>
                                                             </div>
                                                         </TableCell>
+                                                        <TableCell className="text-center">
+                                                            <span className="text-[10px] font-black text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded uppercase">
+                                                                {(typeof product === "object" ? product?.uom : null) || "PCS"}
+                                                            </span>
+                                                        </TableCell>
                                                         <TableCell className="text-right font-bold text-slate-500 font-mono tracking-tight tabular-nums text-[12px] sm:text-sm">
                                                             {formatCurrency(li.unit_price)}
                                                         </TableCell>
@@ -440,6 +467,11 @@ export function SalesOrderDetailsModal({
                                                         <TableCell className="text-center">
                                                             <span className="inline-flex items-center justify-center min-w-[28px] h-6 px-1.5 rounded-lg bg-[#F0FDF4] text-[#16A34A] font-black text-[10px] border border-[#DCFCE7] tabular-nums">
                                                                 {li.allocated_quantity}
+                                                            </span>
+                                                        </TableCell>
+                                                        <TableCell className="text-center">
+                                                            <span className="text-[10px] font-bold text-slate-500">
+                                                                {li.discount_type || "None"}
                                                             </span>
                                                         </TableCell>
                                                         <TableCell className="text-right font-black text-slate-950 pr-4 sm:pr-8 font-mono text-[13px] sm:text-base tabular-nums tracking-tighter">
@@ -474,7 +506,7 @@ export function SalesOrderDetailsModal({
 
                         <div className="flex flex-col gap-0.5 min-w-0">
                             <p className="text-[8px] sm:text-[9px] text-slate-400 uppercase font-black tracking-widest leading-none truncate">
-                                {isInvoiceStatus ? "Invoice Total" : "Net Amount"}
+                                {isInvoiceStatus ? "Grand Total Invoice" : "Net Amount"}
                             </p>
                             <div className="flex items-baseline gap-1 leading-none mt-1">
                                 <span className="text-[9px] sm:text-[11px] font-black text-slate-300 uppercase italic shrink-0">PHP</span>
