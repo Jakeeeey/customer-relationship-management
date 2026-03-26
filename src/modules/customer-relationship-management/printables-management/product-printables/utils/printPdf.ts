@@ -63,6 +63,7 @@ function money(v: unknown): string {
 export async function generateProductMatrixPdf(rows: MatrixRow[], options: MatrixOptions = {}) {
     const { default: jsPDF } = await import("jspdf");
     const { default: autoTable } = await import("jspdf-autotable");
+    const { drawPageNumbers } = await import("@/components/pdf-layout-design/PdfGenerator");
     const {
         fontSize = 7,
         title = "Product Matrix Report",
@@ -267,7 +268,6 @@ export async function generateProductMatrixPdf(rows: MatrixRow[], options: Matri
         didDrawPage: (data) => {
             // Draw page numbers from template if available
             if (selectedTemplate?.config?.pageNumber?.show) {
-                const { drawPageNumbers } = require("@/components/pdf-layout-design/PdfGenerator");
                 drawPageNumbers(doc, selectedTemplate.config);
             } else {
                 const str = "Page " + doc.getCurrentPageInfo().pageNumber;
