@@ -47,7 +47,7 @@ export async function getPaymentSummary(orderIds: (string | number)[], orderNos:
 
 export async function updateOrders(
     orderIds: (string | number)[],
-    action: "approve" | "hold" | "cancel"
+    action: "approve" | "hold" | "cancel" | "submit_for_approval"
 ) {
     const res = await fetch(`/api/crm/customer-hub/sales-order-approval`, {
         method: "POST",

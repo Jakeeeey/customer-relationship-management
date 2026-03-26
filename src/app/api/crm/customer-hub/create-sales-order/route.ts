@@ -608,6 +608,10 @@ export async function POST(req: NextRequest) {
         const computedNetAmount = lineItemsPayload.reduce((sum: number, li: { net_amount: number }) => sum + li.net_amount, 0);
         const computedAllocatedAmount = lineItemsPayload.reduce((sum: number, li: { allocated_amount: number }) => sum + li.allocated_amount, 0);
 
+        const hasZeroAllocation = lineItemsPayload.some((item: { allocated_quantity: number }) => item.allocated_quantity === 0);
+        // Prioritize manual choice from modal if available
+        const orderStatus = header.order_status || (hasZeroAllocation ? "Draft" : "For Approval");
+
         const headerPayload = {
             ...(header.order_id ? { order_id: header.order_id } : {}),
             order_no: orderNo,
@@ -620,7 +624,7 @@ export async function POST(req: NextRequest) {
             receipt_type: header.receipt_type,
             sales_type: header.sales_type || 1,
             order_date: now.toISOString().split('T')[0],
-            order_status: "For Approval",
+            order_status: orderStatus,
             due_date: header.due_date || null,
             delivery_date: header.delivery_date || null,
             total_amount: computedTotalAmount,
@@ -630,7 +634,8 @@ export async function POST(req: NextRequest) {
             remarks: header.remarks || "",
             created_by: createdBy,
             created_date: now.toISOString(),
-            for_approval_at: now.toISOString()
+            draft_at: orderStatus === "Draft" ? now.toISOString() : null,
+            for_approval_at: orderStatus === "For Approval" ? now.toISOString() : null
         };
 
         const hRes = await fetch(`${DIRECTUS_URL}/items/sales_order`, {

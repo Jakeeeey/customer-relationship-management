@@ -63,7 +63,6 @@ export default function CreateSalesOrderModule() {
                     onBack={() => setIsCheckout(false)}
                     onConfirm={handleSubmitOrder}
                     submitting={submitting}
-                    isValidAllocation={isValidAllocation}
                     orderRemarks={orderRemarks}
                     setOrderRemarks={setOrderRemarks}
                     header={{

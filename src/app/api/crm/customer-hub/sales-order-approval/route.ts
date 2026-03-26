@@ -77,7 +77,7 @@ export async function GET(req: NextRequest) {
             }
 
             // 3. Fetch Paginated Flat Orders
-            const ordersUrl = `${DIRECTUS_URL}/items/sales_order?${filterParam}&sort=-for_approval_at,-modified_date,-order_id&page=${page}&limit=${limit}&fields=*`;
+            const ordersUrl = `${DIRECTUS_URL}/items/sales_order?${filterParam}&sort=-modified_date,-created_date,-order_id&page=${page}&limit=${limit}&fields=*`;
             const ordersRes = await fetch(ordersUrl, { headers: fetchHeaders });
             if (!ordersRes.ok) {
                 const errText = await ordersRes.text();
@@ -320,6 +320,9 @@ export async function POST(req: NextRequest) {
         if (action === "approve") {
             status = "For Consolidation";
             updateObj.for_consolidation_at = now;
+        } else if (action === "submit_for_approval") {
+            status = "For Approval";
+            updateObj.for_approval_at = now;
         } else if (action === "hold") {
             status = "On Hold";
             updateObj.on_hold_at = now;

@@ -60,6 +60,11 @@ const data = {
                     icon: ShoppingCart,
                 },
                 {
+                    title: "Sales Order Draft",
+                    url: "/crm/customer-hub/sales-order-draft",
+                    icon: ShoppingCart,
+                },
+                {
                     title: "Sales Order Approval",
                     url: "/crm/customer-hub/sales-order-approval",
                     icon: ClipboardList,

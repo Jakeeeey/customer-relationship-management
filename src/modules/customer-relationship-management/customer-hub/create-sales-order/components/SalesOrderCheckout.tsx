@@ -10,6 +10,9 @@ import { ArrowLeft, CheckCircle2, Package, Calculator, AlertCircle, Loader2, Mes
 import { formatCurrency, calculateChainNetPrice } from "../utils/priceCalc";
 import { LineItem, Salesman, Customer, Supplier, ReceiptType, SalesType, Branch } from "../types";
 
+import { OrderConfirmationDialog } from "./OrderConfirmationDialog";
+import { useState } from "react";
+
 interface SalesOrderCheckoutProps {
     orderNo: string;
     lineItems: LineItem[];
@@ -29,9 +32,9 @@ interface SalesOrderCheckoutProps {
         vatAmount: number;
     };
     onBack: () => void;
-    onConfirm: () => void;
+    onConfirm: (status?: "Draft" | "For Approval") => void;
     submitting: boolean;
-    isValidAllocation: boolean;
+    // isValidAllocation is now handled differently (allowing 0)
     orderRemarks: string;
     setOrderRemarks: (val: string) => void;
     header: {
@@ -50,9 +53,25 @@ interface SalesOrderCheckoutProps {
 
 export function SalesOrderCheckout({
     orderNo, lineItems, allocatedQuantities, updateAllocatedQty,
-    summary, onBack, onConfirm, submitting, header, isValidAllocation,
+    summary, onBack, onConfirm, submitting, header,
     orderRemarks, setOrderRemarks
 }: SalesOrderCheckoutProps) {
+    const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+
+    const hasZeroAllocation = lineItems.some(item => (allocatedQuantities[item.id] ?? item.quantity) === 0);
+
+    const handleConfirmClick = () => {
+        if (hasZeroAllocation) {
+            setShowConfirmDialog(true);
+        } else {
+            onConfirm("For Approval");
+        }
+    };
+
+    const handleFinalConfirm = (status: "Draft" | "For Approval") => {
+        setShowConfirmDialog(false);
+        onConfirm(status);
+    };
     return (
         <div className="flex flex-col gap-6 animate-in fade-in zoom-in duration-500">
             {/* Minimal Header */}
@@ -197,7 +216,7 @@ export function SalesOrderCheckout({
                                                     <TableCell className="text-center bg-slate-50/30 relative py-8">
                                                         {(() => {
                                                             const isExceedingOrder = allocatedQty > item.quantity;
-                                                            const isExceedingStock = allocatedQty > (Number(item.product.available_qty) || 0);
+                                                            const isExceedingStock = allocatedQty > 0 && allocatedQty > (Number(item.product.available_qty) || 0);
                                                             const hasError = isExceedingOrder || isExceedingStock;
 
                                                             return (
@@ -303,22 +322,14 @@ export function SalesOrderCheckout({
 
                             <div className="space-y-4">
                                 <Button
-                                    className={`w-full h-16 text-base font-black uppercase tracking-[0.2em] shadow-2xl transition-all duration-500 rounded-xl ${!isValidAllocation
-                                        ? "bg-slate-800 text-slate-600 cursor-not-allowed border border-slate-700 shadow-none"
-                                        : "bg-emerald-500 hover:bg-emerald-400 text-slate-950 hover:scale-[1.02] hover:shadow-emerald-500/20 active:scale-95 shadow-emerald-500/10"
-                                        }`}
-                                    onClick={onConfirm}
-                                    disabled={submitting || !isValidAllocation}
+                                    className="w-full h-16 text-base font-black uppercase tracking-[0.2em] shadow-2xl transition-all duration-500 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 hover:scale-[1.02] hover:shadow-emerald-500/20 active:scale-95 shadow-emerald-500/10"
+                                    onClick={handleConfirmClick}
+                                    disabled={submitting}
                                 >
                                     {submitting ? (
                                         <span className="flex items-center gap-3 animate-pulse">
                                             <Loader2 className="w-5 h-5 animate-spin" />
                                             Authenticating Order...
-                                        </span>
-                                    ) : !isValidAllocation ? (
-                                        <span className="flex items-center gap-2 opacity-50">
-                                            <AlertCircle className="w-4 h-4" />
-                                            Check Allocation Limits
                                         </span>
                                     ) : (
                                         <span className="flex items-center gap-3">
@@ -328,13 +339,21 @@ export function SalesOrderCheckout({
                                     )}
                                 </Button>
                                 <p className="text-[10px] text-center text-slate-500 font-medium leading-relaxed italic">
-                                    By confirming, this order will be set to <strong className="text-slate-400 not-italic uppercase tracking-widest">For Approval</strong> and synced with the central ERP.
+                                    Finalize your allocation and select target workflow status.
                                 </p>
                             </div>
                         </CardContent>
                     </Card>
                 </div>
             </div>
+
+            <OrderConfirmationDialog
+                open={showConfirmDialog}
+                onClose={() => setShowConfirmDialog(false)}
+                onConfirm={handleFinalConfirm}
+                orderNo={orderNo}
+                hasZeroAllocation={hasZeroAllocation}
+            />
         </div>
     );
 }

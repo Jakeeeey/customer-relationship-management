@@ -99,6 +99,17 @@ export function useSalesOrderApproval() {
         }
     };
 
+    const handleSubmitForApproval = async (orderIds: (string | number)[]) => {
+        try {
+            await updateOrders(orderIds, "submit_for_approval");
+            toast.success("Orders Submitted for Approval");
+            refreshOrders();
+            return true;
+        } catch {
+            return false;
+        }
+    };
+
     const handleHold = async (orderIds: (string | number)[]) => {
         try {
             await updateOrders(orderIds, "hold");
@@ -157,6 +168,7 @@ export function useSalesOrderApproval() {
         endDate,
         setEndDate,
         handleApprove,
+        handleSubmitForApproval,
         handleHold,
         handleCancel,
         handleSaveDetails,

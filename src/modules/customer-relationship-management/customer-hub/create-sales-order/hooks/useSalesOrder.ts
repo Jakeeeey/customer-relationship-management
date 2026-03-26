@@ -517,7 +517,7 @@ export function useSalesOrder() {
         setAllocatedQuantities(prev => ({ ...prev, [id]: qty }));
     };
 
-    const handleSubmitOrder = useCallback(async () => {
+    const handleSubmitOrder = useCallback(async (forcedStatus?: string) => {
         if (!selectedAccountId || !selectedCustomerId || !selectedSupplierId || !selectedReceiptTypeId || !selectedBranchId) {
             toast.error("Please complete all header selections");
             return;
@@ -526,13 +526,13 @@ export function useSalesOrder() {
             toast.error("No items in order");
             return;
         }
-        if (!isValidAllocation) {
-            toast.error("Allocation exceeds order limits or inventory availability.");
-            return;
-        }
+
+        const hasZeroAllocation = Object.values(allocatedQuantities).some(v => v === 0);
+        const finalStatus = forcedStatus || (hasZeroAllocation ? "Draft" : "For Approval");
 
         setSubmitting(true);
         try {
+            const now = new Date().toISOString();
             // I-prepare ang final payload para sa pag-save ng order
             const payload = {
                 customer_id: Number(selectedCustomerId),
@@ -546,14 +546,14 @@ export function useSalesOrder() {
                 po_no: poNo,
                 due_date: dueDate,
                 delivery_date: deliveryDate,
-                // Ito yung bagong logic: total_amount = ordered, net_amount = allocated
                 total_amount: summary.orderedNet,
                 discount_amount: summary.allocatedDiscount,
                 net_amount: summary.allocatedNet,
                 allocated_amount: summary.allocatedNet,
                 order_no: orderNo,
-                order_status: "For Approval",
-                for_approval_at: new Date().toISOString(),
+                order_status: finalStatus,
+                draft_at: finalStatus === "Draft" ? now : null,
+                for_approval_at: finalStatus === "For Approval" ? now : null,
                 remarks: orderRemarks || ""
             };
 

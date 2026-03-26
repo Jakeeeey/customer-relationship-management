@@ -34,6 +34,7 @@ interface ApprovalModalProps {
     onHold: (orderIds: (string | number)[]) => Promise<boolean>;
     onCancel: (orderIds: (string | number)[]) => Promise<boolean>;
     onSaveDetails: (orderId: number, header: Record<string, number | string | null | undefined>, items: { order_detail_id: number, allocated_quantity: number, net_amount: number }[]) => Promise<boolean>;
+    isEditable?: boolean;
 }
 
 export function ApprovalModal({
@@ -43,7 +44,8 @@ export function ApprovalModal({
     onApprove,
     onHold,
     onCancel,
-    onSaveDetails
+    onSaveDetails,
+    isEditable = false
 }: ApprovalModalProps) {
     const [details, setDetails] = useState<OrderDetail[]>([]);
     const [invoiceData, setInvoiceData] = useState<{
@@ -424,7 +426,7 @@ export function ApprovalModal({
                                                         <TableCell className="text-right font-bold text-slate-500 font-mono tracking-tight tabular-nums text-[12px] sm:text-sm">{formatCurrency(li.unit_price)}</TableCell>
                                                         <TableCell className="text-center font-bold text-muted-foreground text-[12px] sm:text-sm tabular-nums">{li.ordered_quantity}</TableCell>
                                                         <TableCell className="text-center">
-                                                            {isActionable ? (
+                                                            {isEditable ? (
                                                                 <div className="flex flex-col items-center gap-1">
                                                                     <Input
                                                                         type="number"
@@ -443,7 +445,9 @@ export function ApprovalModal({
                                                                     )}
                                                                 </div>
                                                             ) : (
-                                                                <span className="inline-flex items-center justify-center min-w-[28px] h-6 px-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 font-black text-[10px] border border-emerald-100 dark:border-emerald-900/50 tabular-nums">{li.allocated_quantity}</span>
+                                                                <span className="inline-flex items-center justify-center min-w-[28px] h-6 px-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 font-black text-[10px] border border-emerald-100 dark:border-emerald-900/50 tabular-nums">
+                                                                    {li.allocated_quantity}
+                                                                </span>
                                                             )}
                                                         </TableCell>
                                                         <TableCell className="text-right text-muted-foreground font-mono tabular-nums text-[12px] whitespace-nowrap px-4 tracking-tighter">
@@ -530,7 +534,7 @@ export function ApprovalModal({
                                     onClick={() => handleSaveAndAction("approve")}
                                 >
                                     {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                                    Approve
+                                    {order.order_status === "Pending" ? "Submit for Approval" : "Approve"}
                                 </Button>
                             </div>
                         )}
