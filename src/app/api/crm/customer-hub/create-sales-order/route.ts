@@ -137,6 +137,13 @@ export async function GET(req: NextRequest) {
             return NextResponse.json((await sRes.json()).data || null);
         }
 
+        if (action === "salesman_by_id") {
+            const id = req.nextUrl.searchParams.get("id");
+            if (!id) return NextResponse.json({ error: "id required" }, { status: 400 });
+            const sRes = await fetch(`${DIRECTUS_URL}/items/salesman/${id}`, { headers: fetchHeaders });
+            return NextResponse.json((await sRes.json()).data || null);
+        }
+
         if (action === "suppliers") {
             const res = await fetch(`${DIRECTUS_URL}/items/suppliers?limit=-1`, { headers: fetchHeaders });
             return NextResponse.json((await res.json()).data || []);
@@ -150,6 +157,22 @@ export async function GET(req: NextRequest) {
         if (action === "operations") {
             const res = await fetch(`${DIRECTUS_URL}/items/operation?limit=-1`, { headers: fetchHeaders });
             return NextResponse.json((await res.json()).data || []);
+        }
+
+        if (action === "get_order") {
+            const orderId = req.nextUrl.searchParams.get("order_id");
+            if (!orderId) return NextResponse.json({ error: "order_id required" }, { status: 400 });
+
+            // Fetch Header
+            const hRes = await fetch(`${DIRECTUS_URL}/items/sales_order/${orderId}?fields=*`, { headers: fetchHeaders });
+            const hData = (await hRes.json()).data;
+            if (!hData) return NextResponse.json({ error: "Order not found" }, { status: 404 });
+
+            // Fetch Details
+            const dRes = await fetch(`${DIRECTUS_URL}/items/sales_order_details?filter[order_id][_eq]=${orderId}&fields=*,product_id.*&limit=-1`, { headers: fetchHeaders });
+            const dData = (await dRes.json()).data || [];
+
+            return NextResponse.json({ header: hData, items: dData });
         }
 
         if (action === "products") {
@@ -458,6 +481,17 @@ export async function GET(req: NextRequest) {
                 const e = err as Error;
                 return NextResponse.json({ error: e.message }, { status: 500 });
             }
+        }
+
+        if (action === "get_attachment") {
+            const id = req.nextUrl.searchParams.get("id");
+            if (!id) return NextResponse.json({ error: "id required" }, { status: 400 });
+
+            const res = await fetch(`${DIRECTUS_URL}/items/sales_order_attachment/${id}?fields=*`, { headers: fetchHeaders });
+            const data = (await res.json()).data;
+            if (!data) return NextResponse.json({ error: "Attachment not found" }, { status: 404 });
+
+            return NextResponse.json(data);
         }
 
         return NextResponse.json({ error: "Invalid action" }, { status: 400 });

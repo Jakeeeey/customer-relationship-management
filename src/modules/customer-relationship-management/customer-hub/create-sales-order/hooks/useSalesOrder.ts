@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { useSearchParams } from "next/navigation";
 import { LineItem, Salesman, Customer, Supplier, Product, ReceiptType, SalesType, Branch, PriceTypeModel } from "../types";
 import { salesOrderProvider } from "../providers/fetchProvider";
 import { calculateChainNetPrice } from "../utils/priceCalc";
@@ -8,6 +9,11 @@ import { toast } from "sonner";
 
 
 export function useSalesOrder() {
+    const searchParams = useSearchParams();
+    const attachmentId = searchParams.get("attachment_id");
+    const externalSalesOrderId = searchParams.get("sales_order_id");
+    const isAutoFilled = useRef(false);
+
     // Selection State (IDs for dropdowns)
     const [salesmen, setSalesmen] = useState<Salesman[]>([]);
     const [selectedSalesmanId, setSelectedSalesmanId] = useState<string>("");
@@ -56,6 +62,7 @@ export function useSalesOrder() {
     // Checkout State
     const [isCheckout, setIsCheckout] = useState(false);
     const [orderNo, setOrderNo] = useState("");
+    const [existingOrderNo, setExistingOrderNo] = useState("");
     const [allocatedQuantities, setAllocatedQuantities] = useState<Record<string, number>>({});
     const [orderRemarks, setOrderRemarks] = useState("");
 
@@ -69,36 +76,130 @@ export function useSalesOrder() {
 
     // Auto-generate preview SO# (Not the final one yet - that's set on enterCheckout)
     const previewOrderNo = useMemo(() => {
+        if (existingOrderNo) return existingOrderNo;
         if (!selectedSupplierId) return "DRAFT-SO";
         const prefix = selectedSupplier?.supplier_shortcut || "SO";
-        // We use a fixed string "PENDING" or similar for the timestamp part to avoid constant churn in encoding view
-        // OR just show SO-YYYYMMDD part
         const now = new Date();
         const datePart = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`;
         return `${prefix}-${datePart}XXXXX`;
-    }, [selectedSupplier, selectedSupplierId]);
+    }, [existingOrderNo, selectedSupplier, selectedSupplierId]);
 
     // Initial Data Fetch
     useEffect(() => {
-        salesOrderProvider.getSalesmen().then(data => setSalesmen(Array.isArray(data) ? data : []));
-        salesOrderProvider.getSuppliers().then(data => setSuppliers(Array.isArray(data) ? data : []));
-        salesOrderProvider.getBranches().then(data => setBranches(Array.isArray(data) ? data : []));
-        salesOrderProvider.getPriceTypes().then(data => setPriceTypeModels(Array.isArray(data) ? data : []));
-        fetch("/api/crm/customer-hub/create-sales-order?action=invoice_types")
-            .then(r => r.json())
-            .then(data => {
-                const types = Array.isArray(data) ? data : [];
-                setReceiptTypes(types);
-                if (types.length > 0 && !selectedReceiptTypeId) setSelectedReceiptTypeId(types[0].id.toString());
-            });
-        fetch("/api/crm/customer-hub/create-sales-order?action=operations")
-            .then(r => r.json())
-            .then(data => {
-                const ops = Array.isArray(data) ? data : [];
-                setSalesTypes(ops);
-                if (ops.length > 0 && !selectedSalesTypeId) setSelectedSalesTypeId(ops[0].id.toString());
-            });
-        // We only want this to run once on mount
+        const init = async () => {
+            const [sm, sup, br, pt, rec, ops] = await Promise.all([
+                salesOrderProvider.getSalesmen(),
+                salesOrderProvider.getSuppliers(),
+                salesOrderProvider.getBranches(),
+                salesOrderProvider.getPriceTypes(),
+                fetch("/api/crm/customer-hub/create-sales-order?action=invoice_types").then(r => r.json()),
+                fetch("/api/crm/customer-hub/create-sales-order?action=operations").then(r => r.json())
+            ]);
+
+            setSalesmen(Array.isArray(sm) ? sm : []);
+            setSuppliers(Array.isArray(sup) ? sup : []);
+            setBranches(Array.isArray(br) ? br : []);
+            setPriceTypeModels(Array.isArray(pt) ? pt : []);
+            setReceiptTypes(Array.isArray(rec) ? rec : []);
+            setSalesTypes(Array.isArray(ops) ? ops : []);
+
+            if (Array.isArray(rec) && rec.length > 0) setSelectedReceiptTypeId(rec[0].id.toString());
+            if (Array.isArray(ops) && ops.length > 0) setSelectedSalesTypeId(ops[0].id.toString());
+
+            // Check for Auto-fill from URL
+            if ((attachmentId || externalSalesOrderId) && !isAutoFilled.current) {
+                isAutoFilled.current = true;
+                try {
+                    let finalSalesOrderId = externalSalesOrderId;
+
+                    if (attachmentId) {
+                        const attachment = await fetch(`/api/crm/customer-hub/create-sales-order?action=get_attachment&id=${attachmentId}`).then(r => r.json());
+                        if (attachment && attachment.sales_order_id) {
+                            finalSalesOrderId = attachment.sales_order_id.toString();
+                        } else if (attachment) {
+                            // Pre-fill header metadata from attachment if no order linked yet
+                            if (attachment.customer_code) {
+                                setCustomerSearch(attachment.customer_code);
+                                const custs = await salesOrderProvider.getAllCustomers(attachment.customer_code, 0);
+                                if (custs.length > 0) {
+                                    setCustomers(custs);
+                                    setSelectedCustomerId(custs[0].id.toString());
+
+                                    // If we have a customer, we can resolve the salesman from the linkage
+                                    const sLink = await salesOrderProvider.getSalesmanByCustomer(Number(custs[0].id));
+                                    if (sLink) {
+                                        const uid = (sLink.employee_id || sLink.encoder_id || sLink.user_id)?.toString();
+                                        if (uid) {
+                                            setSelectedSalesmanId(uid);
+                                            const accts = await fetch(`${salesOrderProvider.API_BASE}?action=accounts&user_id=${uid}`).then(r => r.json());
+                                            setAccounts(accts);
+                                            setSelectedAccountId(sLink.id.toString());
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    if (finalSalesOrderId) {
+                        const { header, items } = await fetch(`/api/crm/customer-hub/create-sales-order?action=get_order&order_id=${finalSalesOrderId}`).then(r => r.json());
+                        if (header) {
+                            setExistingOrderNo(header.order_no || "");
+                            setPoNo(header.po_no || "");
+                            setDueDate(header.due_date ? header.due_date.split('T')[0] : "");
+                            setDeliveryDate(header.delivery_date ? header.delivery_date.split('T')[0] : "");
+                            setOrderRemarks(header.remarks || "");
+                            
+                            if (header.salesman_id) {
+                                // We need to resolve the user_id for this salesman record
+                                const smUser = await fetch(`${salesOrderProvider.API_BASE}?action=salesman_by_id&id=${header.salesman_id}`).then(r => r.json());
+                                if (smUser) {
+                                    const uid = (smUser.employee_id || smUser.encoder_id || smUser.user_id)?.toString();
+                                    if (uid) {
+                                        setSelectedSalesmanId(uid);
+                                        const accts = await fetch(`${salesOrderProvider.API_BASE}?action=accounts&user_id=${uid}`).then(r => r.json());
+                                        setAccounts(accts);
+                                        setSelectedAccountId(header.salesman_id.toString());
+                                    }
+                                }
+                            }
+
+                            if (header.customer_code) {
+                                const custs = await salesOrderProvider.getAllCustomers(header.customer_code, 0);
+                                if (custs.length > 0) {
+                                    setCustomers(custs);
+                                    setSelectedCustomerId(custs[0].id.toString());
+                                }
+                            }
+
+                            if (header.supplier_id) setSelectedSupplierId(header.supplier_id.toString());
+                            if (header.branch_id) setSelectedBranchId(header.branch_id.toString());
+                            if (header.receipt_type) setSelectedReceiptTypeId(header.receipt_type.toString());
+                            if (header.sales_type) setSelectedSalesTypeId(header.sales_type.toString());
+
+                            if (items && Array.isArray(items)) {
+                                const mappedItems = items.map(it => ({
+                                    id: Math.random().toString(36).substr(2, 9),
+                                    product: it.product_id, // This is expected to be the full product object from our new API
+                                    quantity: Number(it.ordered_quantity || it.quantity),
+                                    uom: it.uom || "PCS",
+                                    unitPrice: Number(it.unit_price),
+                                    discounts: it.product_id?.discounts || [],
+                                    netAmount: Number(it.net_amount),
+                                    totalAmount: Number(it.gross_amount || (it.unit_price * it.ordered_quantity)),
+                                    discountAmount: Number(it.discount_amount || 0)
+                                }));
+                                setLineItems(mappedItems);
+                            }
+                        }
+                    }
+                } catch (err) {
+                    console.error("Auto-fill error", err);
+                    toast.error("Failed to load auto-fill data");
+                }
+            }
+        };
+        init();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
@@ -389,10 +490,14 @@ export function useSalesOrder() {
             return;
         }
 
-        const now = new Date();
-        const prefix = selectedSupplier?.supplier_shortcut || "SO";
-        const generatedNo = `${prefix}-${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}${String(now.getSeconds()).padStart(2, '0')}`;
-        setOrderNo(generatedNo);
+        if (existingOrderNo) {
+            setOrderNo(existingOrderNo);
+        } else {
+            const now = new Date();
+            const prefix = selectedSupplier?.supplier_shortcut || "SO";
+            const generatedNo = `${prefix}-${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}${String(now.getSeconds()).padStart(2, '0')}`;
+            setOrderNo(generatedNo);
+        }
 
         // UOM Decomposition Logic:
         // Before entering checkout, we "explode" the existing line items into the 

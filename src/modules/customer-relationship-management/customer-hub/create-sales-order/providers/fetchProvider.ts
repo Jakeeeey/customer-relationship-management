@@ -65,5 +65,11 @@ export const salesOrderProvider = {
         return res.json();
     },
 
+    API_BASE,
+
+    getSalesmanById: async (id: number): Promise<Salesman | null> => {
+        const res = await fetch(`${API_BASE}?action=salesman_by_id&id=${id}`);
+        return res.json();
+    },
 
 };
