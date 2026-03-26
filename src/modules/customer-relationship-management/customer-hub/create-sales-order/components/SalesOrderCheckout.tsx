@@ -130,12 +130,13 @@ export function SalesOrderCheckout({
                                     <TableHeader className="bg-slate-50 sticky top-0 z-10 shadow-sm">
                                         <TableRow className="hover:bg-transparent">
                                             <TableHead className="py-5 px-8 text-[10px] font-black uppercase tracking-widest text-slate-500 bg-slate-50">Product Specification</TableHead>
+                                            <TableHead className="text-center text-[10px] font-black uppercase tracking-widest text-slate-500 bg-slate-50">Unit Count</TableHead>
                                             <TableHead className="text-center text-[10px] font-black uppercase tracking-widest text-slate-500 bg-slate-50">Ordered</TableHead>
                                             <TableHead className="text-center text-[10px] font-black uppercase tracking-widest text-slate-500 bg-slate-50">Available</TableHead>
                                             <TableHead className="text-center text-[10px] font-black uppercase tracking-widest text-slate-900 bg-slate-100/50">Allocated</TableHead>
                                             <TableHead className="text-right text-[10px] font-black uppercase tracking-widest text-slate-500 bg-slate-50">Unit Price</TableHead>
-                                            <TableHead className="text-center text-[10px] font-black uppercase tracking-widest text-slate-500 bg-slate-50">Applied Discounts</TableHead>
-                                            <TableHead className="text-right text-[10px] font-black uppercase tracking-widest text-slate-500 bg-slate-50 text-right">Allocated Net</TableHead>
+                                            <TableHead className="text-center text-[10px] font-black uppercase tracking-widest text-slate-500 bg-slate-50"> Discounts Type</TableHead>
+                                            <TableHead className="text-right text-[10px] font-black uppercase tracking-widest text-slate-500 bg-slate-50 text-right">Net Amount</TableHead>
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
@@ -170,12 +171,14 @@ export function SalesOrderCheckout({
                                                                 <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-tighter">
                                                                     {item.discountType}
                                                                 </span>
-                                                                <div className="flex items-center gap-1 text-[9px] font-black uppercase tracking-tighter ml-auto">
-                                                                    <span className="text-indigo-400">UC: {Number(item.product.unit_count) || 1}</span>
-                                                                    <span className="text-slate-300">•</span>
-                                                                    <span className="text-slate-400">Av: {Number(item.product.available_qty) || 0}</span>
-                                                                </div>
                                                             </div>
+                                                        </div>
+                                                    </TableCell>
+
+                                                    <TableCell className="text-center font-black text-slate-600 tabular-nums">
+                                                        <div className="flex flex-col items-center">
+                                                            <span className="text-lg leading-none">{Number(item.product.unit_count) || Number(item.product.unit_of_measurement_count) || 1}</span>
+                                                            <span className="text-[9px] text-muted-foreground uppercase font-black mt-1 tracking-widest">PCS</span>
                                                         </div>
                                                     </TableCell>
 
@@ -194,8 +197,7 @@ export function SalesOrderCheckout({
                                                     <TableCell className="text-center bg-slate-50/30 relative py-8">
                                                         {(() => {
                                                             const isExceedingOrder = allocatedQty > item.quantity;
-                                                            const isExceedingAvailable = allocatedQty > (Number(item.product.available_qty) || 0);
-                                                            const hasError = isExceedingOrder || isExceedingAvailable;
+                                                            const hasError = isExceedingOrder;
 
                                                             return (
                                                                 <>
@@ -214,7 +216,7 @@ export function SalesOrderCheckout({
                                                                     {hasError && (
                                                                         <div className="absolute left-1/2 -translate-x-1/2 bottom-1.5 flex items-center gap-1 bg-red-500 text-[9px] text-white px-3 py-1 rounded-full font-black uppercase tracking-widest shadow-lg animate-in fade-in slide-in-from-top-1 duration-300 z-50 whitespace-nowrap">
                                                                             <AlertCircle className="w-3 h-3" />
-                                                                            {isExceedingOrder ? "Exceeds Ordered Qty" : "Exceeds Available Stock"}
+                                                                            Exceeds Ordered Qty
                                                                         </div>
                                                                     )}
                                                                 </>
@@ -263,8 +265,8 @@ export function SalesOrderCheckout({
                                         </div>
                                         <div className="flex flex-col">
                                             <div className="flex flex-col">
-                                                <span className="text-xs text-amber-500 font-bold uppercase tracking-wider">Discounts</span>
-                                                <span className="text-[10px] text-slate-500 font-bold uppercase">Allocated</span>
+                                                <span className="text-xs text-amber-500 font-bold uppercase tracking-wider">Total</span>
+                                                <span className="text-[10px] text-slate-500 font-bold uppercase">Discount</span>
                                             </div>
                                             <span className="text-xl font-bold tabular-nums text-amber-500">-{formatCurrency(summary.allocatedDiscount)}</span>
                                         </div>
@@ -273,7 +275,7 @@ export function SalesOrderCheckout({
                                             <span className="text-lg font-bold tabular-nums opacity-60">{formatCurrency(summary.vatAmount)}</span>
                                         </div>
                                         <div className="flex flex-col ml-auto bg-primary/10 p-5 rounded-2xl border border-primary/20 backdrop-blur-xl">
-                                            <span className="text-[10px] text-primary font-black uppercase tracking-[0.2em] mb-1">Actual Fulfillment</span>
+                                            <span className="text-[10px] text-primary font-black uppercase tracking-[0.2em] mb-1">Net Amount</span>
                                             <span className="text-4xl font-black text-emerald-400 tabular-nums tracking-tighter tabular-nums underline underline-offset-[12px] decoration-emerald-500/30">
                                                 {formatCurrency(summary.allocatedNet)}
                                             </span>

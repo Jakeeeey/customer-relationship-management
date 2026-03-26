@@ -360,9 +360,8 @@ export function useSalesOrder() {
     const isValidAllocation = useMemo(() => {
         return lineItems.every(item => {
             const allocated = allocatedQuantities[item.id] ?? item.quantity;
-            const available = Number(item.product.available_qty) || 0;
-            // Valid if non-negative and <= ordered AND <= available
-            return allocated >= 0 && allocated <= item.quantity && allocated <= available;
+            // Valid if non-negative and <= ordered
+            return allocated >= 0 && allocated <= item.quantity;
         });
     }, [lineItems, allocatedQuantities]);
 
