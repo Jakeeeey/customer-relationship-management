@@ -185,4 +185,4 @@ export function AppSidebar({
             </SidebarFooter>
         </Sidebar>
     );
-}
+}
