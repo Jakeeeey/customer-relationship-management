@@ -231,8 +231,17 @@
   body {
     @apply bg-background text-foreground font-sans;
     /* Geist is used via font-sans; keep fallbacks safe */
-    font-family: var(--font-sans), ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Arial, "Noto Sans",
-    "Apple Color Emoji", "Segoe UI Emoji";
+    font-family:
+      var(--font-sans),
+      ui-sans-serif,
+      system-ui,
+      -apple-system,
+      "Segoe UI",
+      Roboto,
+      Arial,
+      "Noto Sans",
+      "Apple Color Emoji",
+      "Segoe UI Emoji";
   }
 }
 
@@ -313,7 +322,8 @@
 ============================================================ */
 html.theme-switching,
 html.theme-switching * {
-  transition-property: background-color, border-color, color, fill, stroke, opacity, box-shadow;
+  transition-property:
+    background-color, border-color, color, fill, stroke, opacity, box-shadow;
   transition-duration: 220ms;
   transition-timing-function: ease;
 }
