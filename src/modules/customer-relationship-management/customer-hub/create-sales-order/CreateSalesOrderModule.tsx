@@ -65,7 +65,7 @@ export default function CreateSalesOrderModule({ fileUrl }: { fileUrl?: string |
                             onClick={openSourceDoc}
                         >
                             <FileText className="h-4 w-4" />
-                            <span>View Source Document</span>
+                            <span>View Document</span>
                             <ExternalLink className="h-3.5 w-3.5 opacity-50" />
                         </Button>
                     )}

@@ -65,6 +65,8 @@ export function useSalesOrder() {
     const [existingOrderNo, setExistingOrderNo] = useState("");
     const [allocatedQuantities, setAllocatedQuantities] = useState<Record<string, number>>({});
     const [orderRemarks, setOrderRemarks] = useState("");
+    const [existingOrderId, setExistingOrderId] = useState<number | null>(null);
+    const [existingStatus, setExistingStatus] = useState<string>("");
 
     const selectedSalesman = useMemo(() => Array.isArray(salesmen) ? salesmen.find(s => (s.user_id || s.id)?.toString() === selectedSalesmanId) : undefined, [salesmen, selectedSalesmanId]);
     const selectedAccount = useMemo(() => Array.isArray(accounts) ? accounts.find(a => a.id.toString() === selectedAccountId) : undefined, [accounts, selectedAccountId]);
@@ -142,16 +144,33 @@ export function useSalesOrder() {
                     }
 
                     if (finalSalesOrderId) {
-                        const { header, items } = await fetch(`/api/crm/customer-hub/create-sales-order?action=get_order&order_id=${finalSalesOrderId}`).then(r => r.json());
+                        setExistingOrderId(Number(finalSalesOrderId));
+                        const orderData = await fetch(`/api/crm/customer-hub/create-sales-order?action=get_order&order_id=${finalSalesOrderId}`).then(r => r.json());
+                        const { header, items } = orderData;
+                        console.log("[useSalesOrder] Fetched Order Data:", { header, items });
+
                         if (header) {
                             setExistingOrderNo(header.order_no || "");
                             setPoNo(header.po_no || "");
-                            setDueDate(header.due_date ? header.due_date.split('T')[0] : "");
-                            setDeliveryDate(header.delivery_date ? header.delivery_date.split('T')[0] : "");
+                            
+                            // Safe date parsing
+                            const parseDate = (d: any) => {
+                                if (!d) return "";
+                                const str = String(d);
+                                return str.includes('T') ? str.split('T')[0] : str;
+                            };
+
+                            const dDate = parseDate(header.due_date);
+                            const delDate = parseDate(header.delivery_date);
+                            console.log("[useSalesOrder] Setting Dates:", { dDate, delDate });
+                            
+                            setDueDate(dDate);
+                            setDeliveryDate(delDate);
                             setOrderRemarks(header.remarks || "");
+                            setExistingStatus(header.order_status || "");
                             
                             if (header.salesman_id) {
-                                // We need to resolve the user_id for this salesman record
+                                console.log("[useSalesOrder] Resolving Salesman:", header.salesman_id);
                                 const smUser = await fetch(`${salesOrderProvider.API_BASE}?action=salesman_by_id&id=${header.salesman_id}`).then(r => r.json());
                                 if (smUser) {
                                     const uid = (smUser.employee_id || smUser.encoder_id || smUser.user_id)?.toString();
@@ -165,6 +184,7 @@ export function useSalesOrder() {
                             }
 
                             if (header.customer_code) {
+                                console.log("[useSalesOrder] Resolving Customer:", header.customer_code);
                                 const custs = await salesOrderProvider.getAllCustomers(header.customer_code, 0);
                                 if (custs.length > 0) {
                                     setCustomers(custs);
@@ -172,21 +192,28 @@ export function useSalesOrder() {
                                 }
                             }
 
+                            console.log("[useSalesOrder] Setting Other IDs:", {
+                                supplier: header.supplier_id,
+                                branch: header.branch_id,
+                                receipt: header.receipt_type,
+                                sales: header.sales_type
+                            });
                             if (header.supplier_id) setSelectedSupplierId(header.supplier_id.toString());
                             if (header.branch_id) setSelectedBranchId(header.branch_id.toString());
                             if (header.receipt_type) setSelectedReceiptTypeId(header.receipt_type.toString());
                             if (header.sales_type) setSelectedSalesTypeId(header.sales_type.toString());
 
                             if (items && Array.isArray(items)) {
+                                console.log("[useSalesOrder] Mapping Items:", items.length);
                                 const mappedItems = items.map(it => ({
                                     id: Math.random().toString(36).substr(2, 9),
-                                    product: it.product_id, // This is expected to be the full product object from our new API
+                                    product: it.product_id,
                                     quantity: Number(it.ordered_quantity || it.quantity),
                                     uom: it.uom || "PCS",
                                     unitPrice: Number(it.unit_price),
                                     discounts: it.product_id?.discounts || [],
                                     netAmount: Number(it.net_amount),
-                                    totalAmount: Number(it.gross_amount || (it.unit_price * it.ordered_quantity)),
+                                    totalAmount: Number(it.gross_amount || (it.unit_price * (it.ordered_quantity || it.quantity))),
                                     discountAmount: Number(it.discount_amount || 0)
                                 }));
                                 setLineItems(mappedItems);
@@ -194,7 +221,7 @@ export function useSalesOrder() {
                         }
                     }
                 } catch (err) {
-                    console.error("Auto-fill error", err);
+                    console.error("[useSalesOrder] Auto-fill error", err);
                     toast.error("Failed to load auto-fill data");
                 }
             }
@@ -535,6 +562,7 @@ export function useSalesOrder() {
             const now = new Date().toISOString();
             // I-prepare ang final payload para sa pag-save ng order
             const payload = {
+                ...(existingOrderId ? { order_id: existingOrderId } : {}),
                 customer_id: Number(selectedCustomerId),
                 customer_code: selectedCustomer?.customer_code,
                 salesman_id: Number(selectedAccountId),
@@ -552,9 +580,12 @@ export function useSalesOrder() {
                 allocated_amount: summary.allocatedNet,
                 order_no: orderNo,
                 order_status: finalStatus,
+                // Align with DB Schema timestamps
                 draft_at: finalStatus === "Draft" ? now : null,
+                pending_date: finalStatus === "Pending" ? now : null,
                 for_approval_at: finalStatus === "For Approval" ? now : null,
-                remarks: orderRemarks || ""
+                remarks: orderRemarks || "",
+                attachment_id: attachmentId ? Number(attachmentId) : null
             };
 
             const itemsWithAllocation = lineItems.map(item => ({
@@ -593,7 +624,7 @@ export function useSalesOrder() {
         } finally {
             setSubmitting(false);
         }
-    }, [selectedAccountId, selectedCustomerId, selectedSupplierId, selectedReceiptTypeId, selectedBranchId, priceTypeId, lineItems, selectedCustomer, selectedSalesTypeId, poNo, dueDate, deliveryDate, summary, orderNo, orderRemarks, allocatedQuantities, isValidAllocation]);
+    }, [selectedAccountId, selectedCustomerId, selectedSupplierId, selectedReceiptTypeId, selectedBranchId, priceTypeId, lineItems, selectedCustomer, selectedSalesTypeId, poNo, dueDate, deliveryDate, summary, orderNo, orderRemarks, allocatedQuantities, isValidAllocation, existingOrderId]);
 
     return {
         salesmen, selectedSalesmanId, handleSalesmanChange, selectedSalesman,

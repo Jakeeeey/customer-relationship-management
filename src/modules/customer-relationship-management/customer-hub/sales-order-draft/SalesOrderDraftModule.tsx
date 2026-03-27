@@ -44,7 +44,8 @@ export default function SalesOrderDraftModule() {
         handleHold,
         handleCancel,
         handleSaveDetails,
-        refreshOrders
+        refreshOrders,
+        totalCount
     } = useSalesOrderApproval();
 
     const [selectedOrder, setSelectedOrder] = useState<SalesOrder | null>(null);
@@ -81,7 +82,14 @@ export default function SalesOrderDraftModule() {
                         <PackagePlus className="h-7 w-7" />
                     </div>
                     <div>
-                        <h1 className="text-2xl font-black tracking-tighter text-slate-900 uppercase">Sales Order Draft</h1>
+                        <div className="flex items-center gap-3">
+                            <h1 className="text-2xl font-black tracking-tighter text-slate-900 uppercase">Sales Order Draft</h1>
+                            {totalCount > 0 && (
+                                <Badge className="bg-orange-500 hover:bg-orange-600 text-white font-black rounded-full px-2.5 h-6 animate-in zoom-in duration-300 border-none shadow-sm">
+                                    {totalCount}
+                                </Badge>
+                            )}
+                        </div>
                         <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest leading-none mt-1 opacity-70">
                             Allocate stock for transaction drafts before formal approval
                         </p>

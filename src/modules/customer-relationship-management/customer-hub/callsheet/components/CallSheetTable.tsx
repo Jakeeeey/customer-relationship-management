@@ -1,6 +1,6 @@
 "use client";
 
-import { FileText, PlusCircle, ExternalLink, Hash, Clock, CheckCircle2, XCircle } from "lucide-react";
+import { FileText, PlusCircle, ExternalLink, Hash, Clock, CheckCircle2, XCircle, Download } from "lucide-react";
 import {
     Table,
     TableBody,
@@ -87,6 +87,26 @@ export function CallSheetTable({
         );
     };
 
+    const handleViewDocument = (fileId: string, filename?: string) => {
+        if (!fileId) return;
+        const url = `/api/crm/customer-hub/callsheet/file?id=${fileId}${filename ? `&filename=${encodeURIComponent(filename)}` : ""}`;
+        window.open(url, "_blank");
+    };
+
+    const handleDownload = (fileId: string, filename?: string) => {
+        if (!fileId) return;
+        const url = `/api/crm/customer-hub/callsheet/file?id=${fileId}&download=true${filename ? `&filename=${encodeURIComponent(filename)}` : ""}`;
+        window.open(url, "_blank");
+    };
+
+    const handleRowAction = (row: SalesOrderAttachment) => {
+        if (row.status?.toLowerCase() === "approved") {
+            if (row.file_id) handleViewDocument(row.file_id, row.attachment_name || "");
+        } else {
+            onCreateSalesOrder(row);
+        }
+    };
+
     return (
         <TooltipProvider>
             <div className="space-y-6">
@@ -136,11 +156,13 @@ export function CallSheetTable({
                             ) : (
                                 data.map((row, idx) => {
                                     const rowNumber = (page - 1) * pageSize + idx + 1;
+                                    const isApproved = row.status?.toLowerCase() === "approved";
+
                                     return (
                                         <TableRow 
                                             key={row.id} 
                                             className="group hover:bg-primary/[0.02] transition-colors border-b border-border/30 relative cursor-pointer"
-                                            onClick={() => onCreateSalesOrder(row)}
+                                            onClick={() => handleRowAction(row)}
                                         >
                                             <TableCell className="text-center font-mono text-xs font-bold text-muted-foreground/60 transition-colors group-hover:text-primary">
                                                 {rowNumber}
@@ -192,7 +214,7 @@ export function CallSheetTable({
                                                             className="h-auto w-fit px-0 py-0 font-bold text-[11px] text-muted-foreground hover:text-primary hover:bg-transparent group/file"
                                                             onClick={(e) => {
                                                                 e.stopPropagation();
-                                                                onCreateSalesOrder(row);
+                                                                handleViewDocument(row.file_id || "", row.attachment_name || "");
                                                             }}
                                                         >
                                                             <FileText className="h-3 w-3 mr-1.5 transition-transform group-hover/file:scale-110" />
@@ -212,19 +234,58 @@ export function CallSheetTable({
                                                 <StatusBadge status={row.status} />
                                             </TableCell>
                                             <TableCell className="text-right pr-6">
-                                                <Button
-                                                    variant="outline"
-                                                    size="sm"
-                                                    className="gap-2 h-9 px-4 text-xs font-bold bg-background shadow-sm hover:shadow-md hover:bg-primary hover:text-primary-foreground border-primary/20 transition-all hover:-translate-y-0.5 z-10"
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        onCreateSalesOrder(row);
-                                                    }}
-                                                >
-                                                    <PlusCircle className="h-3.5 w-3.5 mr-0.5" />
-                                                    Process Order
-                                                    <ExternalLink className="h-3 w-3 ml-0.5 opacity-40" />
-                                                </Button>
+                                                <div className="flex items-center justify-end gap-2">
+                                                    {row.file_id && (
+                                                        <Tooltip>
+                                                            <TooltipTrigger asChild>
+                                                                <Button
+                                                                    variant="ghost"
+                                                                    size="icon"
+                                                                    className="h-9 w-9 text-muted-foreground hover:text-primary hover:bg-primary/5 transition-all rounded-xl"
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        handleDownload(row.file_id || "", row.attachment_name || "");
+                                                                    }}
+                                                                >
+                                                                    <Download className="h-4 w-4" />
+                                                                </Button>
+                                                            </TooltipTrigger>
+                                                            <TooltipContent side="top">
+                                                                Download Attachment
+                                                            </TooltipContent>
+                                                        </Tooltip>
+                                                    )}
+
+                                                    {!isApproved ? (
+                                                        <Button
+                                                            variant="outline"
+                                                            size="sm"
+                                                            className="gap-2 h-9 px-4 text-xs font-bold bg-background shadow-sm hover:shadow-md hover:bg-primary hover:text-primary-foreground border-primary/20 transition-all hover:-translate-y-0.5 z-10"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                onCreateSalesOrder(row);
+                                                            }}
+                                                        >
+                                                            <PlusCircle className="h-3.5 w-3.5 mr-0.5" />
+                                                            Process Order
+                                                            <ExternalLink className="h-3 w-3 ml-0.5 opacity-40" />
+                                                        </Button>
+                                                    ) : (
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="sm"
+                                                            className="gap-2 h-9 px-4 text-xs font-bold text-primary hover:bg-primary/5 transition-all z-10"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                handleViewDocument(row.file_id || "", row.attachment_name || "");
+                                                            }}
+                                                        >
+                                                            <FileText className="h-3.5 w-3.5 mr-0.5" />
+                                                            View Document
+                                                            <ExternalLink className="h-3 w-3 ml-0.5 opacity-40" />
+                                                        </Button>
+                                                    )}
+                                                </div>
                                             </TableCell>
                                         </TableRow>
                                     );

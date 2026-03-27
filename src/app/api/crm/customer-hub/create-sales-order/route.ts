@@ -576,13 +576,15 @@ export async function POST(req: NextRequest) {
 
             const orderedGross = unitPrice * orderedQty;
             const orderedNetAmount = Number(item.netAmount) || orderedGross;
-            const totalDiscountOrdered = orderedGross - orderedNetAmount;
+            const totalDiscountOrdered = Math.max(0, orderedGross - orderedNetAmount);
             const unitDiscount = orderedQty > 0 ? totalDiscountOrdered / orderedQty : 0;
 
-            const allocatedDiscount = unitDiscount * allocatedQty;
-            const allocatedGross = unitPrice * allocatedQty;
-            const netAmountLine = allocatedGross - allocatedDiscount;
+            const allocatedDiscount = Math.max(0, unitDiscount * allocatedQty);
+            const allocatedGross = Math.max(0, unitPrice * allocatedQty);
+            const netAmountLine = Math.max(0, allocatedGross - allocatedDiscount);
             const allocatedAmountLine = netAmountLine;
+
+            console.log(`[CreateSalesOrder] Item PK: ${item.product?.product_id}, UnitPrice: ${unitPrice}, Ordered: ${orderedQty}, Allocated: ${allocatedQty}, DiscountAmt: ${allocatedDiscount}, LineNet: ${netAmountLine}`);
 
             return {
                 order_id: 0,
@@ -604,45 +606,117 @@ export async function POST(req: NextRequest) {
         });
 
         const computedTotalAmount = lineItemsPayload.reduce((sum: number, li: { _ordered_gross: number; _ordered_discount: number }) => sum + (li._ordered_gross - li._ordered_discount), 0);
-        const computedDiscountAmount = lineItemsPayload.reduce((sum: number, li: { discount_amount: number }) => sum + li.discount_amount, 0);
-        const computedNetAmount = lineItemsPayload.reduce((sum: number, li: { net_amount: number }) => sum + li.net_amount, 0);
-        const computedAllocatedAmount = lineItemsPayload.reduce((sum: number, li: { allocated_amount: number }) => sum + li.allocated_amount, 0);
+        const computedDiscountAmount = Math.max(0, lineItemsPayload.reduce((sum: number, li: { discount_amount: number }) => sum + li.discount_amount, 0));
+        const computedNetAmount = Math.max(0, lineItemsPayload.reduce((sum: number, li: { net_amount: number }) => sum + li.net_amount, 0));
+        const computedAllocatedAmount = Math.max(0, lineItemsPayload.reduce((sum: number, li: { allocated_amount: number }) => sum + li.allocated_amount, 0));
 
         const hasZeroAllocation = lineItemsPayload.some((item: { allocated_quantity: number }) => item.allocated_quantity === 0);
         // Prioritize manual choice from modal if available
         const orderStatus = header.order_status || (hasZeroAllocation ? "Draft" : "For Approval");
 
-        const headerPayload = {
-            ...(header.order_id ? { order_id: header.order_id } : {}),
-            order_no: orderNo,
-            po_no: header.po_no || "",
-            customer_code: header.customer_code,
-            salesman_id: header.salesman_id,
-            supplier_id: header.supplier_id,
-            branch_id: branchId,
-            price_type_id: header.price_type_id || null,
-            receipt_type: header.receipt_type,
-            sales_type: header.sales_type || 1,
-            order_date: now.toISOString().split('T')[0],
-            order_status: orderStatus,
-            due_date: header.due_date || null,
-            delivery_date: header.delivery_date || null,
-            total_amount: computedTotalAmount,
-            discount_amount: computedDiscountAmount,
-            net_amount: computedNetAmount,
-            allocated_amount: computedAllocatedAmount,
-            remarks: header.remarks || "",
-            created_by: createdBy,
-            created_date: now.toISOString(),
-            draft_at: orderStatus === "Draft" ? now.toISOString() : null,
-            for_approval_at: orderStatus === "For Approval" ? now.toISOString() : null
-        };
+        let finalOrderId = header.order_id;
+        // If no ID but we have an order_no, check if it exists to avoid RECORD_NOT_UNIQUE
+        if (!finalOrderId && header.order_no) {
+            try {
+                const checkRes = await fetch(`${DIRECTUS_URL}/items/sales_order?filter[order_no][_eq]=${encodeURIComponent(header.order_no)}&fields=order_id&limit=1`, { headers: fetchHeaders });
+                const checkData = (await checkRes.json()).data;
+                if (checkData && checkData.length > 0) {
+                    finalOrderId = checkData[0].order_id;
+                    console.log(`[CreateSalesOrder] Found existing order by number: ${header.order_no} -> ID: ${finalOrderId}`);
+                }
+            } catch (e) {
+                console.error("Check existing by order_no failed", e);
+            }
+        }
 
-        const hRes = await fetch(`${DIRECTUS_URL}/items/sales_order`, {
-            method: "POST",
-            headers: fetchHeaders,
-            body: JSON.stringify(headerPayload)
-        });
+        const nowStr = now.toISOString();
+        const dateOnly = nowStr.split('T')[0];
+
+        let headerPayload: any;
+
+        if (finalOrderId) {
+            // FOR PATCH (Existing Order) - FULL WORKFLOW ENABLED
+            headerPayload = {
+                order_status: orderStatus, // Re-enabled now that trigger is fixed!
+                total_amount: Number(computedTotalAmount),
+                discount_amount: Number(computedDiscountAmount),
+                net_amount: Number(computedNetAmount),
+                allocated_amount: Number(computedAllocatedAmount),
+                remarks: header.remarks || "",
+                modified_by: createdBy,
+                // Update specific timestamps based on status
+                ...(orderStatus === "Draft" ? { draft_at: nowStr } : {}),
+                ...(orderStatus === "Pending" ? { pending_date: nowStr } : {}),
+                ...(orderStatus === "For Approval" ? { for_approval_at: nowStr } : {}),
+            };
+            
+            if (header.po_no) headerPayload.po_no = header.po_no;
+            if (header.due_date) headerPayload.due_date = header.due_date;
+            if (header.delivery_date) headerPayload.delivery_date = header.delivery_date;
+            if (header.receipt_type) headerPayload.receipt_type = Number(header.receipt_type);
+            if (header.sales_type) headerPayload.sales_type = Number(header.sales_type);
+        } else {
+            // FOR POST (New Order)
+            headerPayload = {
+                order_no: orderNo,
+                po_no: header.po_no || "",
+                customer_code: header.customer_code,
+                salesman_id: header.salesman_id,
+                supplier_id: header.supplier_id,
+                branch_id: branchId,
+                price_type_id: header.price_type_id || null,
+                receipt_type: header.receipt_type,
+                sales_type: header.sales_type || 1,
+                order_date: dateOnly,
+                order_status: orderStatus,
+                due_date: header.due_date || null,
+                delivery_date: header.delivery_date || null,
+                total_amount: computedTotalAmount,
+                discount_amount: computedDiscountAmount,
+                net_amount: computedNetAmount,
+                allocated_amount: computedAllocatedAmount,
+                remarks: header.remarks || "",
+                created_by: createdBy,
+                created_date: nowStr,
+                ...(orderStatus === "Draft" ? { draft_at: nowStr } : {}),
+                ...(orderStatus === "Pending" ? { pending_date: nowStr } : {}),
+                ...(orderStatus === "For Approval" ? { for_approval_at: nowStr } : {}),
+            };
+        }
+
+        console.log("[CreateSalesOrder] Header Payload:", JSON.stringify(headerPayload));
+
+        let hRes;
+        if (finalOrderId) {
+            // 1. Delete Existing Details first
+            try {
+                const existingDetailsRes = await fetch(`${DIRECTUS_URL}/items/sales_order_details?filter[order_id][_eq]=${finalOrderId}&fields=id&limit=-1`, { headers: fetchHeaders });
+                const existingDetails = (await existingDetailsRes.json()).data || [];
+                if (existingDetails.length > 0) {
+                    const idsToDel = existingDetails.map((d: { id: number | string }) => d.id);
+                    await fetch(`${DIRECTUS_URL}/items/sales_order_details`, {
+                        method: "DELETE",
+                        headers: fetchHeaders,
+                        body: JSON.stringify(idsToDel)
+                    });
+                }
+            } catch (e) {
+                console.error("Cleanup of existing details failed", e);
+            }
+
+            // 2. Patch Header
+            hRes = await fetch(`${DIRECTUS_URL}/items/sales_order/${finalOrderId}`, {
+                method: "PATCH",
+                headers: fetchHeaders,
+                body: JSON.stringify(headerPayload)
+            });
+        } else {
+            hRes = await fetch(`${DIRECTUS_URL}/items/sales_order`, {
+                method: "POST",
+                headers: fetchHeaders,
+                body: JSON.stringify(headerPayload)
+            });
+        }
 
         if (!hRes.ok) {
             const errText = await hRes.text();
@@ -651,7 +725,7 @@ export async function POST(req: NextRequest) {
         }
 
         const hJson = await hRes.json();
-        const soId = hJson.data.order_id || hJson.data.id;
+        const soId = hJson.data?.order_id || hJson.data?.id || finalOrderId;
 
         const finalLineItems = lineItemsPayload.map((item: { _ordered_gross?: number; _ordered_discount?: number; [key: string]: unknown }) => {
             const li = { ...item };
@@ -670,6 +744,21 @@ export async function POST(req: NextRequest) {
             const errText = await itemsRes.text();
             console.error("Lines Save Error:", errText);
             return NextResponse.json({ success: false, error: errText });
+        }
+
+        if (header.attachment_id) {
+            try {
+                await fetch(`${DIRECTUS_URL}/items/sales_order_attachment/${header.attachment_id}`, {
+                    method: "PATCH",
+                    headers: fetchHeaders,
+                    body: JSON.stringify({
+                        sales_order_id: soId,
+                        status: "approved"
+                    })
+                });
+            } catch (e) {
+                console.error("Back-linking attachment failed", e);
+            }
         }
 
         return NextResponse.json({ success: true, order_no: orderNo });

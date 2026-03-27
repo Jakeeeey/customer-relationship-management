@@ -45,6 +45,7 @@ type NavNode = {
     title: string;
     url: string;
     icon?: LucideIcon;
+    badge?: number | string;
     items?: NavNode[];
 };
 
@@ -279,10 +280,16 @@ export function NavMain({ items }: { items: NavNode[] }) {
                                                     {l1.icon ? <l1.icon className={ICON_L1_CLASS} /> : null}
                                                     <span className={LABEL}>{l1.title}</span>
 
+                                                    {l1.badge && (
+                                                        <span className="ml-auto mr-1 flex h-4.5 min-w-[18px] items-center justify-center rounded-full bg-orange-500 px-1 text-[10px] font-black text-white shadow-sm ring-2 ring-background group-hover:bg-orange-600 transition-colors">
+                                                            {l1.badge}
+                                                        </span>
+                                                    )}
+
                                                     {l1Open ? (
-                                                        <ChevronDown className={cn("ml-auto size-4 shrink-0", CHEVRON_ANIM)} />
+                                                        <ChevronDown className={cn("ml-1 size-4 shrink-0", CHEVRON_ANIM)} />
                                                     ) : (
-                                                        <ChevronRight className={cn("ml-auto size-4 shrink-0", CHEVRON_ANIM)} />
+                                                        <ChevronRight className={cn("ml-1 size-4 shrink-0", CHEVRON_ANIM)} />
                                                     )}
                                                 </div>
                                             </div>
@@ -300,6 +307,11 @@ export function NavMain({ items }: { items: NavNode[] }) {
                                                 <div className={cn(PILL_BASE, GAP_L1, PILL_HOVER, PILL_ACTIVE)}>
                                                     {l1.icon ? <l1.icon className={ICON_L1_CLASS} /> : null}
                                                     <span className={LABEL}>{l1.title}</span>
+                                                    {l1.badge && (
+                                                        <span className="ml-auto flex h-4.5 min-w-[18px] items-center justify-center rounded-full bg-orange-500 px-1 text-[10px] font-black text-white shadow-sm ring-2 ring-background group-hover:bg-orange-600 transition-colors">
+                                                            {l1.badge}
+                                                        </span>
+                                                    )}
                                                 </div>
                                             </Link>
                                         ) : (
@@ -307,6 +319,11 @@ export function NavMain({ items }: { items: NavNode[] }) {
                                                 <div className={cn(PILL_BASE, GAP_L1, PILL_HOVER, PILL_ACTIVE)}>
                                                     {l1.icon ? <l1.icon className={ICON_L1_CLASS} /> : null}
                                                     <span className={LABEL}>{l1.title}</span>
+                                                    {l1.badge && (
+                                                        <span className="ml-auto flex h-4.5 min-w-[18px] items-center justify-center rounded-full bg-orange-500 px-1 text-[10px] font-black text-white shadow-sm ring-2 ring-background group-hover:bg-orange-600 transition-colors">
+                                                            {l1.badge}
+                                                        </span>
+                                                    )}
                                                 </div>
                                             </div>
                                         )}
@@ -342,6 +359,11 @@ export function NavMain({ items }: { items: NavNode[] }) {
                                                                                     <div className={cn(PILL_BASE, GAP_L2, PILL_HOVER, PILL_ACTIVE)}>
                                                                                         <L2Icon node={l2} kind="leaf" />
                                                                                         <span className={LABEL}>{l2.title}</span>
+                                                                                        {l2.badge && (
+                                                                                            <span className="ml-auto flex h-4 min-w-[16px] items-center justify-center rounded-full bg-orange-500/90 px-1 text-[9px] font-black text-white shadow-xs group-hover:bg-orange-600 transition-colors">
+                                                                                                {l2.badge}
+                                                                                            </span>
+                                                                                        )}
                                                                                     </div>
                                                                                 </Link>
                                                                             ) : (
@@ -349,6 +371,11 @@ export function NavMain({ items }: { items: NavNode[] }) {
                                                                                     <div className={cn(PILL_BASE, GAP_L2, PILL_HOVER, PILL_ACTIVE)}>
                                                                                         <L2Icon node={l2} kind="leaf" />
                                                                                         <span className={LABEL}>{l2.title}</span>
+                                                                                        {l2.badge && (
+                                                                                            <span className="ml-auto flex h-4 min-w-[16px] items-center justify-center rounded-full bg-orange-500/90 px-1 text-[9px] font-black text-white shadow-xs group-hover:bg-orange-600 transition-colors">
+                                                                                                {l2.badge}
+                                                                                            </span>
+                                                                                        )}
                                                                                     </div>
                                                                                 </div>
                                                                             )}
@@ -376,10 +403,16 @@ export function NavMain({ items }: { items: NavNode[] }) {
                                                                                         <L2Icon node={l2} kind="parent" />
                                                                                         <span className={LABEL}>{l2.title}</span>
 
+                                                                                        {l2.badge && (
+                                                                                            <span className="ml-auto mr-1 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-orange-500/90 px-1 text-[9px] font-black text-white shadow-xs group-hover:bg-orange-600 transition-colors">
+                                                                                                {l2.badge}
+                                                                                            </span>
+                                                                                        )}
+
                                                                                         {l2Open ? (
-                                                                                            <ChevronDown className={cn("ml-auto size-4 shrink-0", CHEVRON_ANIM)} />
+                                                                                            <ChevronDown className={cn("ml-1 size-4 shrink-0", CHEVRON_ANIM)} />
                                                                                         ) : (
-                                                                                            <ChevronRight className={cn("ml-auto size-4 shrink-0", CHEVRON_ANIM)} />
+                                                                                            <ChevronRight className={cn("ml-1 size-4 shrink-0", CHEVRON_ANIM)} />
                                                                                         )}
                                                                                     </div>
                                                                                 </div>
@@ -409,6 +442,11 @@ export function NavMain({ items }: { items: NavNode[] }) {
                                                                                                                     <div className={cn(PILL_BASE, GAP_L3, PILL_HOVER, PILL_ACTIVE)}>
                                                                                                                         <L3Icon node={l3} />
                                                                                                                         <span className={LABEL}>{l3.title}</span>
+                                                                                                                        {l3.badge && (
+                                                                                                                            <span className="ml-auto flex h-3.5 min-w-[14px] items-center justify-center rounded-full bg-orange-500/80 px-1 text-[8px] font-black text-white shadow-xs group-hover:bg-orange-600 transition-colors">
+                                                                                                                                {l3.badge}
+                                                                                                                            </span>
+                                                                                                                        )}
                                                                                                                     </div>
                                                                                                                 </Link>
                                                                                                             ) : (
@@ -416,6 +454,11 @@ export function NavMain({ items }: { items: NavNode[] }) {
                                                                                                                     <div className={cn(PILL_BASE, GAP_L3, PILL_HOVER, PILL_ACTIVE)}>
                                                                                                                         <L3Icon node={l3} />
                                                                                                                         <span className={LABEL}>{l3.title}</span>
+                                                                                                                        {l3.badge && (
+                                                                                                                            <span className="ml-auto flex h-3.5 min-w-[14px] items-center justify-center rounded-full bg-orange-500/80 px-1 text-[8px] font-black text-white shadow-xs group-hover:bg-orange-600 transition-colors">
+                                                                                                                                {l3.badge}
+                                                                                                                            </span>
+                                                                                                                        )}
                                                                                                                     </div>
                                                                                                                 </div>
                                                                                                             )}

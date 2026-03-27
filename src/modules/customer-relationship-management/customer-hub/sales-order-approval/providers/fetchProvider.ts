@@ -25,6 +25,13 @@ export async function getOrderDetails(orderId: number, branchId?: number | strin
     return json.data || [];
 }
 
+export async function getOrderAttachments(orderId: number, orderNo: string) {
+    const res = await fetch(`/api/crm/customer-hub/sales-order-approval?type=attachments&orderId=${orderId}&orderNo=${encodeURIComponent(orderNo)}`);
+    if (!res.ok) throw new Error("Failed to fetch order attachments");
+    const json = await res.json();
+    return json.data || [];
+}
+
 export async function getInvoiceDetails(orderId: number, orderNo: string) {
     const res = await fetch(`/api/crm/customer-hub/sales-order-approval?type=invoice-details&orderId=${orderId}&orderNo=${encodeURIComponent(orderNo)}`);
     if (!res.ok) throw new Error("Failed to fetch invoice details");

@@ -52,6 +52,7 @@ export function useSalesOrderApproval() {
     const [loadingMore, setLoadingMore] = useState(false);
     const [page, setPage] = useState(1);
     const [hasMore, setHasMore] = useState(true);
+    const [totalCount, setTotalCount] = useState(0);
 
     // Filters
     const [statusFilter, setStatusFilter] = useState("For Approval");
@@ -79,6 +80,7 @@ export function useSalesOrderApproval() {
 
             setPage(result.metadata.page);
             setHasMore(result.metadata.hasMore);
+            setTotalCount(result.metadata.totalCount || 0);
         } catch (error) {
             console.error(error);
             toast.error("Error fetching orders", {
@@ -169,6 +171,7 @@ export function useSalesOrderApproval() {
         loadingOrders,
         loadingMore,
         hasMore,
+        totalCount,
         loadNextPage,
         statusFilter,
         setStatusFilter,

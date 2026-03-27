@@ -57,11 +57,13 @@ export async function GET(req: NextRequest) {
 
         const buffer = await directusRes.arrayBuffer();
         
+        const isDownload = searchParams.get("download") === "true";
+        
         return new NextResponse(buffer, {
             status: 200,
             headers: {
                 "Content-Type": contentType,
-                "Content-Disposition": `inline; filename="${filename}"`,
+                "Content-Disposition": `${isDownload ? "attachment" : "inline"}; filename="${filename}"`,
                 "X-Frame-Options": "SAMEORIGIN",
             },
         });

@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { format } from "date-fns";
-import { Loader2, AlertCircle, Clock, Store, X } from "lucide-react";
+import { Loader2, AlertCircle, Clock, Store, X, FileText } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 import {
@@ -24,7 +24,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
 import type { SalesOrder, OrderDetail } from "../hooks/useSalesOrderApproval";
-import { getOrderDetails, getInvoiceDetails } from "../providers/fetchProvider";
+import { getOrderDetails, getInvoiceDetails, getOrderAttachments } from "../providers/fetchProvider";
 
 interface ApprovalModalProps {
     order: SalesOrder | null;
@@ -68,8 +68,10 @@ export function ApprovalModal({
             discount_amount: number;
         }[]
     } | null>(null);
+    const [attachments, setAttachments] = useState<any[]>([]);
     const [loadingDetails, setLoadingDetails] = useState(false);
     const [loadingInvoice, setLoadingInvoice] = useState(false);
+    const [loadingAttachments, setLoadingAttachments] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [discountTypes, setDiscountTypes] = useState<Record<number, string>>({});
 
@@ -109,6 +111,19 @@ export function ApprovalModal({
                 };
                 fetchInvoice();
             } else {
+                const fetchAttachments = async () => {
+                    setLoadingAttachments(true);
+                    try {
+                        const atts = await getOrderAttachments(order.order_id, order.order_no);
+                        setAttachments(atts);
+                    } catch (e) {
+                        console.error("Failed to load attachments", e);
+                    } finally {
+                        setLoadingAttachments(false);
+                    }
+                };
+                fetchAttachments();
+
                 const fetchDetails = async () => {
                     setLoadingDetails(true);
                     try {
@@ -129,6 +144,7 @@ export function ApprovalModal({
         } else {
             setDetails([]);
             setInvoiceData(null);
+            setAttachments([]);
         }
     }, [open, order, isInvoiceStatus]);
 
@@ -346,6 +362,27 @@ export function ApprovalModal({
                         </div>
                     </div>
                 </div>
+
+                {/* Attachments Row */}
+                {attachments.length > 0 && (
+                    <div className="px-4 sm:px-6 py-2 bg-muted/10 border-b border-border flex items-center gap-3 overflow-x-auto">
+                        <span className="text-[10px] font-black uppercase text-muted-foreground shrink-0 self-center">Attachments:</span>
+                        <div className="flex items-center gap-2">
+                            {attachments.map((att, i) => (
+                                <a
+                                    key={i}
+                                    href={`/api/crm/customer-hub/callsheet/file?id=${att.file_id}&filename=${encodeURIComponent(att.attachment_name || "attachment.jpg")}`}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-background border border-border hover:border-primary hover:text-primary transition-all text-[11px] font-bold shadow-sm group"
+                                >
+                                    <FileText className="h-3 w-3 text-muted-foreground group-hover:text-primary" />
+                                    <span className="truncate max-w-[120px]">{att.attachment_name || "Attachment"}</span>
+                                </a>
+                            ))}
+                        </div>
+                    </div>
+                )}
 
                 {/* ── TABLE AREA ────────────────────────────────────────── */}
                 <div className="flex-1 overflow-y-auto overflow-x-auto min-h-0">

@@ -326,6 +326,21 @@ export async function GET(req: NextRequest) {
             return NextResponse.json((await res.json()).data || []);
         }
 
+        if (type === "attachments") {
+            const orderId = req.nextUrl.searchParams.get("orderId");
+            const orderNo = req.nextUrl.searchParams.get("orderNo");
+            if (!orderId && !orderNo) return NextResponse.json({ error: "orderId or orderNo required" }, { status: 400 });
+
+            const filter: { _or: Record<string, unknown>[] } = { _or: [] };
+            if (orderId) filter._or.push({ sales_order_id: { _eq: orderId } });
+            if (orderNo) filter._or.push({ sales_order_no: { _eq: orderNo } });
+
+            const url = `${DIRECTUS_URL}/items/sales_order_attachment?filter=${encodeURIComponent(JSON.stringify(filter))}&fields=*&limit=-1`;
+            const res = await fetch(url, { headers: fetchHeaders });
+            const data = (await res.json()).data || [];
+            return NextResponse.json({ data });
+        }
+
         return NextResponse.json({ error: "Invalid type parameter" }, { status: 400 });
     } catch (error: unknown) {
         console.error("API error", error);
