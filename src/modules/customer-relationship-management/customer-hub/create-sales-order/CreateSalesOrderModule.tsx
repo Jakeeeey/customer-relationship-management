@@ -23,7 +23,7 @@ export default function CreateSalesOrderModule({ fileUrl }: { fileUrl?: string |
         priceType, priceTypeId, priceTypeModels,
         supplierProducts, loadingProducts,
         lineItems, addProduct, removeLineItem, updateLineItemQty,
-        summary, isValidAllocation,
+        summary,
         isCheckout, setIsCheckout, orderNo, previewOrderNo, enterCheckout, allocatedQuantities, updateAllocatedQty,
         orderRemarks, setOrderRemarks,
         handleSubmitOrder, submitting

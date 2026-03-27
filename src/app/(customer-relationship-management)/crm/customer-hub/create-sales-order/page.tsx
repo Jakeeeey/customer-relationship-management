@@ -9,8 +9,6 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { NavUser } from "../../_components/nav-user";
-import { FileText, ExternalLink } from "lucide-react";
-import { Button } from "@/components/ui/button";
 
 import { cookies } from "next/headers";
 
@@ -90,9 +88,9 @@ export default async function Page(props: {
         try {
             const DIRECTUS_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
             const DIRECTUS_TOKEN = process.env.DIRECTUS_STATIC_TOKEN;
-            
+
             const res = await fetch(`${DIRECTUS_URL}/items/sales_order_attachment/${attachmentId}?fields=file_id,attachment_name`, {
-                headers: { 
+                headers: {
                     Authorization: `Bearer ${DIRECTUS_TOKEN}`,
                     "Content-Type": "application/json"
                 },
@@ -151,6 +149,6 @@ export default async function Page(props: {
             <main className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden p-6 sm:p-8">
                 <CreateSalesOrderModule fileUrl={fileUrl} />
             </main>
-</div>
+        </div>
     );
 }

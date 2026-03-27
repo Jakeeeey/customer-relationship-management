@@ -66,7 +66,6 @@ export function useSalesOrder() {
     const [allocatedQuantities, setAllocatedQuantities] = useState<Record<string, number>>({});
     const [orderRemarks, setOrderRemarks] = useState("");
     const [existingOrderId, setExistingOrderId] = useState<number | null>(null);
-    const [existingStatus, setExistingStatus] = useState<string>("");
 
     const selectedSalesman = useMemo(() => Array.isArray(salesmen) ? salesmen.find(s => (s.user_id || s.id)?.toString() === selectedSalesmanId) : undefined, [salesmen, selectedSalesmanId]);
     const selectedAccount = useMemo(() => Array.isArray(accounts) ? accounts.find(a => a.id.toString() === selectedAccountId) : undefined, [accounts, selectedAccountId]);
@@ -152,9 +151,8 @@ export function useSalesOrder() {
                         if (header) {
                             setExistingOrderNo(header.order_no || "");
                             setPoNo(header.po_no || "");
-                            
-                            // Safe date parsing
-                            const parseDate = (d: any) => {
+
+                            const parseDate = (d: unknown) => {
                                 if (!d) return "";
                                 const str = String(d);
                                 return str.includes('T') ? str.split('T')[0] : str;
@@ -163,12 +161,11 @@ export function useSalesOrder() {
                             const dDate = parseDate(header.due_date);
                             const delDate = parseDate(header.delivery_date);
                             console.log("[useSalesOrder] Setting Dates:", { dDate, delDate });
-                            
+
                             setDueDate(dDate);
                             setDeliveryDate(delDate);
                             setOrderRemarks(header.remarks || "");
-                            setExistingStatus(header.order_status || "");
-                            
+
                             if (header.salesman_id) {
                                 console.log("[useSalesOrder] Resolving Salesman:", header.salesman_id);
                                 const smUser = await fetch(`${salesOrderProvider.API_BASE}?action=salesman_by_id&id=${header.salesman_id}`).then(r => r.json());
@@ -247,7 +244,7 @@ export function useSalesOrder() {
             }
         };
 
-        const timer = setTimeout(fetchCustomers, 400); 
+        const timer = setTimeout(fetchCustomers, 400);
         return () => clearTimeout(timer);
     }, [customerSearch]);
 
@@ -303,8 +300,8 @@ export function useSalesOrder() {
             setPriceType(account.price_type || "A");
             setPriceTypeId(account.price_type_id || null);
             if (account.branch_code) {
-                const bId = typeof account.branch_code === "object" 
-                    ? (account.branch_code as { id?: number | string }).id 
+                const bId = typeof account.branch_code === "object"
+                    ? (account.branch_code as { id?: number | string }).id
                     : account.branch_code;
                 if (bId) setSelectedBranchId(bId.toString());
             }
@@ -348,8 +345,8 @@ export function useSalesOrder() {
                     setPriceType(s.price_type || "A");
                     setPriceTypeId(s.price_type_id || null);
                     if (s.branch_code) {
-                        const bId = typeof s.branch_code === "object" 
-                            ? (s.branch_code as { id?: number | string }).id 
+                        const bId = typeof s.branch_code === "object"
+                            ? (s.branch_code as { id?: number | string }).id
                             : s.branch_code;
                         if (bId) setSelectedBranchId(bId.toString());
                     }
@@ -624,7 +621,7 @@ export function useSalesOrder() {
         } finally {
             setSubmitting(false);
         }
-    }, [selectedAccountId, selectedCustomerId, selectedSupplierId, selectedReceiptTypeId, selectedBranchId, priceTypeId, lineItems, selectedCustomer, selectedSalesTypeId, poNo, dueDate, deliveryDate, summary, orderNo, orderRemarks, allocatedQuantities, isValidAllocation, existingOrderId]);
+    }, [selectedAccountId, selectedCustomerId, selectedSupplierId, selectedReceiptTypeId, selectedBranchId, priceTypeId, lineItems, selectedCustomer, selectedSalesTypeId, poNo, dueDate, deliveryDate, summary, orderNo, orderRemarks, allocatedQuantities, isValidAllocation, existingOrderId, attachmentId]);
 
     return {
         salesmen, selectedSalesmanId, handleSalesmanChange, selectedSalesman,

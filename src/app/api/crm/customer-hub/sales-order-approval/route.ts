@@ -13,6 +13,13 @@ const fetchHeaders = {
     "Content-Type": "application/json",
 };
 
+interface SalesOrderDetailItem {
+    detail_id?: number | string;
+    order_detail_id?: number | string;
+    id: number | string;
+    [key: string]: unknown;
+}
+
 export async function GET(req: NextRequest) {
     const type = req.nextUrl.searchParams.get("type");
 
@@ -129,7 +136,7 @@ export async function GET(req: NextRequest) {
             const detRes = await fetch(detUrl, { headers: fetchHeaders });
             if (!detRes.ok) return NextResponse.json({ error: "Failed to fetch order details" }, { status: 500 });
             const detJson = await detRes.json();
-            const details = (detJson.data || []).map((d: any) => {
+            const details = (detJson.data || []).map((d: SalesOrderDetailItem) => {
                 const pk = d.detail_id || d.order_detail_id || d.id;
                 return {
                     ...d,
@@ -180,7 +187,7 @@ export async function GET(req: NextRequest) {
                     const cookieStore = await cookies();
                     const token = (await cookieStore).get(COOKIE_NAME)?.value;
                     const invUrl = `${SPRING_API_BASE_URL.replace(/\/$/, "")}/api/view-running-inventory-by-unit/all?startDate=2025-01-01&endDate=2026-12-30`;
-                    
+
                     const invRes = await fetch(invUrl, {
                         headers: {
                             "Accept": "application/json",
@@ -192,7 +199,7 @@ export async function GET(req: NextRequest) {
                     if (invRes.ok) {
                         const invJson = await invRes.json();
                         const invData = Array.isArray(invJson) ? invJson : (invJson.data || []);
-                        
+
                         // Map inventory for this specific branch
                         const inventoryMap: Record<number, number> = {};
                         invData.forEach((item: { branchId?: string | number, branch_id?: string | number, productId?: string | number, product_id?: string | number, runningInventoryUnit?: number | string }) => {
@@ -386,7 +393,7 @@ export async function POST(req: NextRequest) {
                         };
                     }))
                 });
-                
+
                 if (!patchRes.ok) {
                     const errDetail = await patchRes.text();
                     console.error("Directus Details Patch Error:", errDetail);

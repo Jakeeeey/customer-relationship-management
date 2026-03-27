@@ -58,6 +58,33 @@ interface ProductItem extends DirectusItem {
     [key: string]: unknown;
 }
 
+interface HeaderPayload {
+    order_status: string;
+    total_amount: number;
+    discount_amount: number;
+    net_amount: number;
+    allocated_amount: number;
+    remarks: string;
+    modified_by?: number | null;
+    draft_at?: string;
+    pending_date?: string;
+    for_approval_at?: string;
+    po_no?: string;
+    due_date?: string | null;
+    delivery_date?: string | null;
+    receipt_type?: number;
+    sales_type?: number;
+    order_no?: string;
+    customer_code?: string;
+    salesman_id?: number;
+    supplier_id?: number;
+    branch_id?: number;
+    price_type_id?: number | null;
+    order_date?: string;
+    created_by?: number | null;
+    created_date?: string;
+}
+
 interface DiscountItem {
     product_id?: number;
     category_id?: number;
@@ -117,7 +144,7 @@ export async function GET(req: NextRequest) {
         if (action === "all_customers") {
             const search = req.nextUrl.searchParams.get("search");
             const offset = req.nextUrl.searchParams.get("offset") || "0";
-            let url = `${DIRECTUS_URL}/items/customer?fields=*,province,city&limit=30&offset=${offset}`; 
+            let url = `${DIRECTUS_URL}/items/customer?fields=*,province,city&limit=30&offset=${offset}`;
             if (search) {
                 url += `&filter[_or][0][customer_name][_icontains]=${encodeURIComponent(search)}&filter[_or][1][store_name][_icontains]=${encodeURIComponent(search)}&filter[_or][2][customer_code][_icontains]=${encodeURIComponent(search)}`;
             }
@@ -131,7 +158,7 @@ export async function GET(req: NextRequest) {
             const csRes = await fetch(`${DIRECTUS_URL}/items/customer_salesmen?filter[customer_id][_eq]=${customerId}&limit=1`, { headers: fetchHeaders });
             const csData = (await csRes.json()).data || [];
             if (csData.length === 0) return NextResponse.json(null);
-            
+
             const salesmanId = csData[0].salesman_id;
             const sRes = await fetch(`${DIRECTUS_URL}/items/salesman/${salesmanId}`, { headers: fetchHeaders });
             return NextResponse.json((await sRes.json()).data || null);
@@ -265,7 +292,7 @@ export async function GET(req: NextRequest) {
                                         branchCodeStr = bData?.branch_code || null;
                                     }
                                 } catch (e) {
-                                     console.error("[InventoryDebug] Branch resolution error:", e);
+                                    console.error("[InventoryDebug] Branch resolution error:", e);
                                 }
                             }
                         }
@@ -279,7 +306,7 @@ export async function GET(req: NextRequest) {
                             // Added date filter as suggested
                             const invUrl = `${SPRING_API_BASE_URL.replace(/\/$/, "")}/api/view-running-inventory-by-unit/all?startDate=2025-01-01&endDate=2026-12-30`;
                             console.log(`[InventoryDebug] Fetching: ${invUrl}`);
-                            
+
                             const inventoryRes = await fetch(invUrl, {
                                 headers: {
                                     "Accept": "application/json",
@@ -287,12 +314,12 @@ export async function GET(req: NextRequest) {
                                 },
                                 cache: 'no-store',
                             });
-                            
+
                             if (inventoryRes.ok) {
                                 const invJson = await inventoryRes.json();
                                 const invData = Array.isArray(invJson) ? invJson : (invJson.data || []);
                                 console.log(`[InventoryDebug] Records Received: ${invData.length}`);
-                                
+
                                 if (Array.isArray(invData)) {
                                     const branchesInStock = new Set<string>();
                                     invData.forEach((item: Record<string, unknown>) => {
@@ -311,7 +338,7 @@ export async function GET(req: NextRequest) {
                                             }
                                         }
                                     });
-                                    console.log(`[InventoryDebug] Branches found in API: ${Array.from(branchesInStock).slice(0,10).join(", ")}`);
+                                    console.log(`[InventoryDebug] Branches found in API: ${Array.from(branchesInStock).slice(0, 10).join(", ")}`);
                                     console.log(`[InventoryDebug] Map populated with ${Object.keys(inventoryMap).length} items for branch ${branchId}`);
                                 }
                             }
@@ -470,7 +497,7 @@ export async function GET(req: NextRequest) {
 
                 const itemsWithStock = finalProducts.filter(p => (Number(p.available_qty) || 0) > 0);
                 console.log(`[InventoryDebug] Total Products: ${finalProducts.length}, with Stock: ${itemsWithStock.length}`);
-                
+
                 if (itemsWithStock.length === 0 && finalProducts.length > 0) {
                     const p = finalProducts[0];
                     console.log(`[InventoryDebug] Sample Check (PID: ${p.product_id}): MapAvailable=${inventoryMap[Number(p.product_id)]?.available ?? 'MISSING'}`);
@@ -632,7 +659,7 @@ export async function POST(req: NextRequest) {
         const nowStr = now.toISOString();
         const dateOnly = nowStr.split('T')[0];
 
-        let headerPayload: any;
+        let headerPayload: HeaderPayload;
 
         if (finalOrderId) {
             // FOR PATCH (Existing Order) - FULL WORKFLOW ENABLED
@@ -649,7 +676,7 @@ export async function POST(req: NextRequest) {
                 ...(orderStatus === "Pending" ? { pending_date: nowStr } : {}),
                 ...(orderStatus === "For Approval" ? { for_approval_at: nowStr } : {}),
             };
-            
+
             if (header.po_no) headerPayload.po_no = header.po_no;
             if (header.due_date) headerPayload.due_date = header.due_date;
             if (header.delivery_date) headerPayload.delivery_date = header.delivery_date;
@@ -727,7 +754,7 @@ export async function POST(req: NextRequest) {
         const hJson = await hRes.json();
         const soId = hJson.data?.order_id || hJson.data?.id || finalOrderId;
 
-        const finalLineItems = lineItemsPayload.map((item: { _ordered_gross?: number; _ordered_discount?: number; [key: string]: unknown }) => {
+        const finalLineItems = lineItemsPayload.map((item: { _ordered_gross?: number; _ordered_discount?: number;[key: string]: unknown }) => {
             const li = { ...item };
             delete li._ordered_gross;
             delete li._ordered_discount;

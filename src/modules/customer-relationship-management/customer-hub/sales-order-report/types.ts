@@ -87,6 +87,28 @@ export interface Supplier {
     supplier_shortcut: string;
 }
 
+export interface InvoiceDetail {
+    product_id: { product_name: string; product_code: string; description?: string; uom?: string };
+    unit_price: number;
+    quantity: number;
+    total_amount: number;
+    discount_amount: number;
+}
+
+export interface InvoiceData {
+    invoice_no: string;
+    invoice_date: string;
+    gross_amount: number;
+    discount_amount: number;
+    vat_amount?: number;
+    net_amount: number;
+}
+
+export interface Invoice {
+    invoice: InvoiceData;
+    details: InvoiceDetail[];
+}
+
 export interface SalesOrderDataResponse {
     salesOrders: SalesOrder[];
     salesOrderDetails: SalesOrderDetail[];

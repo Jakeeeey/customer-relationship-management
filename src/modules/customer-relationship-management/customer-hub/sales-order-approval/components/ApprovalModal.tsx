@@ -68,10 +68,9 @@ export function ApprovalModal({
             discount_amount: number;
         }[]
     } | null>(null);
-    const [attachments, setAttachments] = useState<any[]>([]);
+    const [attachments, setAttachments] = useState<{ file_id?: number; attachment_name?: string; filename?: string; file_url?: string }[]>([]);
     const [loadingDetails, setLoadingDetails] = useState(false);
     const [loadingInvoice, setLoadingInvoice] = useState(false);
-    const [loadingAttachments, setLoadingAttachments] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [discountTypes, setDiscountTypes] = useState<Record<number, string>>({});
 
@@ -112,14 +111,11 @@ export function ApprovalModal({
                 fetchInvoice();
             } else {
                 const fetchAttachments = async () => {
-                    setLoadingAttachments(true);
                     try {
                         const atts = await getOrderAttachments(order.order_id, order.order_no);
                         setAttachments(atts);
                     } catch (e) {
                         console.error("Failed to load attachments", e);
-                    } finally {
-                        setLoadingAttachments(false);
                     }
                 };
                 fetchAttachments();
@@ -157,18 +153,18 @@ export function ApprovalModal({
         const num = parseFloat(val) || 0;
         const newDetails = [...details];
         const oldItem = newDetails[index];
-        
+
         // Calculate unit-based discount if applicable
         const unitDiscount = oldItem.ordered_quantity > 0 ? (oldItem.discount_amount / oldItem.ordered_quantity) : 0;
         const newDiscount = unitDiscount * num;
-        
-        newDetails[index] = { 
-            ...oldItem, 
+
+        newDetails[index] = {
+            ...oldItem,
             allocated_quantity: num,
             // Temporarily store recalculated discount if we want to show it, 
             // but the calculations in this component use the item's properties.
             // Let's update it in the state so the summary totals are correct.
-            _recalculated_discount: newDiscount 
+            _recalculated_discount: newDiscount
         };
         setDetails(newDetails);
     };
@@ -501,8 +497,8 @@ export function ApprovalModal({
                                                         <TableCell className="text-center">
                                                             <span className={cn(
                                                                 "inline-flex items-center justify-center min-w-[28px] h-6 px-2 rounded-lg font-black text-[11px] border tabular-nums",
-                                                                (li.available_qty ?? 0) > 0 
-                                                                    ? "bg-sky-50 text-sky-600 border-sky-100" 
+                                                                (li.available_qty ?? 0) > 0
+                                                                    ? "bg-sky-50 text-sky-600 border-sky-100"
                                                                     : "bg-slate-100 text-slate-400 border-slate-200"
                                                             )}>
                                                                 {li.available_qty ?? 0}

@@ -33,7 +33,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { salesOrderProvider } from "../providers/fetchProvider";
-import { SalesOrder, Customer, Salesman, Branch, SalesOrderDetail } from "../types";
+import { SalesOrder, Customer, Salesman, Branch, Invoice, SalesOrderDetail, InvoiceDetail } from "../types";
 
 interface SalesOrderDetailsModalProps {
     isOpen: boolean;
@@ -52,8 +52,8 @@ export function SalesOrderDetailsModal({
     salesmen,
     branches,
 }: SalesOrderDetailsModalProps) {
-    const [details, setDetails] = useState<any[]>([]);
-    const [invoices, setInvoices] = useState<any[]>([]);
+    const [details, setDetails] = useState<SalesOrderDetail[]>([]);
+    const [invoices, setInvoices] = useState<Invoice[]>([]);
     const [activeTab, setActiveTab] = useState<string>("");
     const [loading, setLoading] = useState(false);
     const [loadingInvoice, setLoadingInvoice] = useState(false);
@@ -324,7 +324,7 @@ export function SalesOrderDetailsModal({
                                                     </TableRow>
                                                 </TableHeader>
                                                 <TableBody>
-                                                    {inv.details.map((item: any, idx: number) => (
+                                                    {inv.details.map((item: InvoiceDetail, idx: number) => (
                                                         <TableRow key={idx} className="border-slate-50 hover:bg-slate-50/50 transition-colors">
                                                             <TableCell className="pl-4 sm:pl-8 py-3">
                                                                 <div className="flex flex-col gap-0.5">

@@ -32,7 +32,6 @@ export default function SalesOrderDraftModule() {
         hasMore,
         loadNextPage,
         orders,
-        statusFilter,
         setStatusFilter,
         searchTerm,
         setSearchTerm,
@@ -240,7 +239,7 @@ export default function SalesOrderDraftModule() {
 
             {!hasMore && orders.length > 0 && (
                 <div className="flex justify-center p-8">
-                     <p className="text-[9px] font-black text-muted-foreground uppercase tracking-[0.3em] opacity-30">Archive end reached</p>
+                    <p className="text-[9px] font-black text-muted-foreground uppercase tracking-[0.3em] opacity-30">Archive end reached</p>
                 </div>
             )}
 
