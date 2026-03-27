@@ -1,7 +1,5 @@
 "use client";
 
-import React from "react";
-import { useRouter } from "next/navigation";
 import { FileText, PlusCircle, ExternalLink, Hash, Clock, CheckCircle2, XCircle } from "lucide-react";
 import {
     Table,
@@ -37,7 +35,6 @@ interface CallSheetTableProps {
     page: number;
     pageSize: number;
     onPageChange: (page: number) => void;
-    onFileClick: (row: SalesOrderAttachment) => void;
     onCreateSalesOrder: (row: SalesOrderAttachment) => void;
 }
 
@@ -48,10 +45,8 @@ export function CallSheetTable({
     page,
     pageSize,
     onPageChange,
-    onFileClick,
     onCreateSalesOrder,
 }: CallSheetTableProps) {
-    const router = useRouter();
     const totalPages = Math.ceil((metadata.total_count || 0) / pageSize);
 
     const getPageNumbers = () => {
@@ -145,7 +140,7 @@ export function CallSheetTable({
                                         <TableRow 
                                             key={row.id} 
                                             className="group hover:bg-primary/[0.02] transition-colors border-b border-border/30 relative cursor-pointer"
-                                            onClick={() => row.file_id && onFileClick(row)}
+                                            onClick={() => onCreateSalesOrder(row)}
                                         >
                                             <TableCell className="text-center font-mono text-xs font-bold text-muted-foreground/60 transition-colors group-hover:text-primary">
                                                 {rowNumber}
@@ -195,7 +190,10 @@ export function CallSheetTable({
                                                             variant="ghost"
                                                             size="sm"
                                                             className="h-auto w-fit px-0 py-0 font-bold text-[11px] text-muted-foreground hover:text-primary hover:bg-transparent group/file"
-                                                            onClick={() => onFileClick(row)}
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                onCreateSalesOrder(row);
+                                                            }}
                                                         >
                                                             <FileText className="h-3 w-3 mr-1.5 transition-transform group-hover/file:scale-110" />
                                                             <span className="truncate max-w-[150px] group-hover/file:underline decoration-primary underline-offset-4">

@@ -4,9 +4,10 @@ import { useSalesOrder } from "./hooks/useSalesOrder";
 import { SalesOrderHeader } from "./components/SalesOrderHeader";
 import { SalesOrderEncoding } from "./components/SalesOrderEncoding";
 import { SalesOrderCheckout } from "./components/SalesOrderCheckout";
-import { Loader2, PackagePlus } from "lucide-react";
+import { Loader2, PackagePlus, FileText, ExternalLink } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
-export default function CreateSalesOrderModule() {
+export default function CreateSalesOrderModule({ fileUrl }: { fileUrl?: string | null }) {
     const {
         salesmen, selectedSalesmanId, handleSalesmanChange, selectedSalesman,
         accounts, handleAccountChange, selectedAccount, loadingAccounts,
@@ -36,6 +37,11 @@ export default function CreateSalesOrderModule() {
         );
     }
 
+    const openSourceDoc = () => {
+        if (!fileUrl) return;
+        window.open(fileUrl, "SourceDoc", "width=1000,height=800,menubar=no,toolbar=no,location=no,status=no,resizable=yes,scrollbars=yes");
+    };
+
     return (
         <div className="w-full flex flex-col gap-8 animate-in slide-in-from-bottom duration-700">
             {/* Standardized Module Header */}
@@ -50,6 +56,19 @@ export default function CreateSalesOrderModule() {
                             <p className="text-sm text-muted-foreground font-medium">Generate new sales transactions and manage allocation</p>
                         </div>
                     </div>
+
+                    {fileUrl && (
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-11 px-5 gap-2 shadow-sm font-bold border-primary/20 text-primary hover:bg-primary/5 transition-all active:scale-95 shrink-0"
+                            onClick={openSourceDoc}
+                        >
+                            <FileText className="h-4 w-4" />
+                            <span>View Source Document</span>
+                            <ExternalLink className="h-3.5 w-3.5 opacity-50" />
+                        </Button>
+                    )}
                 </div>
             )}
 
