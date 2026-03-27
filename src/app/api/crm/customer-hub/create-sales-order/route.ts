@@ -572,7 +572,7 @@ export async function POST(req: NextRequest) {
         const lineItemsPayload = items.map((item: { unitPrice: number; quantity: number; allocated_quantity?: number; netAmount: number; uom?: string; product: { product_id: number; discount_type?: number }; remarks?: string }) => {
             const unitPrice = Number(item.unitPrice) || 0;
             const orderedQty = Number(item.quantity) || 0;
-            const allocatedQty = Number(item.allocated_quantity) || orderedQty;
+            const allocatedQty = item.allocated_quantity !== undefined ? Number(item.allocated_quantity) : orderedQty;
 
             const orderedGross = unitPrice * orderedQty;
             const orderedNetAmount = Number(item.netAmount) || orderedGross;

@@ -50,6 +50,7 @@ export default function SalesOrderApprovalModule() {
         handleApprove,
         handleHold,
         handleCancel,
+        handleSubmitForApproval,
         handleSaveDetails,
         refreshOrders
     } = useSalesOrderApproval();
@@ -267,7 +268,9 @@ export default function SalesOrderApprovalModule() {
                 onApprove={handleApprove}
                 onHold={handleHold}
                 onCancel={handleCancel}
+                onSubmitForApproval={handleSubmitForApproval}
                 onSaveDetails={handleSaveDetails}
+                isEditable={["Draft", "For Approval", "On Hold"].includes(selectedOrder?.order_status || "")}
             />
         </div>
     );

@@ -33,7 +33,8 @@ interface ApprovalModalProps {
     onApprove: (orderIds: (string | number)[]) => Promise<boolean>;
     onHold: (orderIds: (string | number)[]) => Promise<boolean>;
     onCancel: (orderIds: (string | number)[]) => Promise<boolean>;
-    onSaveDetails: (orderId: number, header: Record<string, number | string | null | undefined>, items: { order_detail_id: number, allocated_quantity: number, net_amount: number }[]) => Promise<boolean>;
+    onSubmitForApproval?: (orderIds: (string | number)[]) => Promise<boolean>;
+    onSaveDetails: (orderId: number, header: Record<string, number | string | null | undefined>, items: { detail_id: number, order_detail_id: number, allocated_quantity: number, net_amount: number }[]) => Promise<boolean>;
     isEditable?: boolean;
 }
 
@@ -44,6 +45,7 @@ export function ApprovalModal({
     onApprove,
     onHold,
     onCancel,
+    onSubmitForApproval,
     onSaveDetails,
     isEditable = false
 }: ApprovalModalProps) {
@@ -110,10 +112,10 @@ export function ApprovalModal({
                 const fetchDetails = async () => {
                     setLoadingDetails(true);
                     try {
-                        const data = await getOrderDetails(order.order_id);
+                        const data = await getOrderDetails(order.order_id, order.branch_id);
                         const enriched = (data || []).map((item: OrderDetail) => ({
                             ...item,
-                            allocated_quantity: item.allocated_quantity || item.ordered_quantity
+                            allocated_quantity: item.allocated_quantity ?? item.ordered_quantity
                         }));
                         setDetails(enriched);
                     } catch (error) {
@@ -132,19 +134,40 @@ export function ApprovalModal({
 
     if (!order) return null;
 
-    const isActionable = order.order_status === "For Approval" || order.order_status === "On Hold";
+    const isActionable = ["For Approval", "On Hold", "Draft"].includes(order?.order_status || "");
     const canHold = order.order_status === "For Approval";
 
     const updateAllocatedQty = (index: number, val: string) => {
         const num = parseFloat(val) || 0;
         const newDetails = [...details];
-        newDetails[index] = { ...newDetails[index], allocated_quantity: num };
+        const oldItem = newDetails[index];
+        
+        // Calculate unit-based discount if applicable
+        const unitDiscount = oldItem.ordered_quantity > 0 ? (oldItem.discount_amount / oldItem.ordered_quantity) : 0;
+        const newDiscount = unitDiscount * num;
+        
+        newDetails[index] = { 
+            ...oldItem, 
+            allocated_quantity: num,
+            // Temporarily store recalculated discount if we want to show it, 
+            // but the calculations in this component use the item's properties.
+            // Let's update it in the state so the summary totals are correct.
+            _recalculated_discount: newDiscount 
+        };
         setDetails(newDetails);
     };
 
-    // Calculate totals based on local details state
+    // Recalculate totals based on local details state
+    // We use a helper to get the "current" discount for each line
+    const getLineDiscount = (item: OrderDetail & { _recalculated_discount?: number }) => {
+        if (item._recalculated_discount !== undefined) return item._recalculated_discount;
+        // Fallback or Initial state: if allocated_quantity != ordered_quantity, we should probably scale it anyway
+        const unitDiscount = item.ordered_quantity > 0 ? (item.discount_amount / item.ordered_quantity) : 0;
+        return unitDiscount * item.allocated_quantity;
+    };
+
     const calculatedGross = details.reduce((sum, item) => sum + (item.allocated_quantity * item.unit_price), 0);
-    const calculatedDiscount = details.reduce((sum, item) => sum + (item.discount_amount || 0), 0);
+    const calculatedDiscount = details.reduce((sum, item) => sum + getLineDiscount(item), 0);
     const calculatedNetAllocation = calculatedGross - calculatedDiscount;
 
     const calculatedAllocatedTotal = calculatedNetAllocation; // For backward compatibility if needed elsewhere
@@ -156,18 +179,30 @@ export function ApprovalModal({
             if (isActionable || action === "cancel") {
                 const headerUpdates = {
                     allocated_amount: calculatedAllocatedTotal,
+                    net_amount: calculatedAllocatedTotal,
+                    discount_amount: calculatedDiscount,
+                    total_amount: calculatedGross,
                 };
                 const itemsToUpdate = details.map(d => ({
-                    order_detail_id: d.order_detail_id,
+                    detail_id: (d.detail_id || d.order_detail_id || (d as { id?: number }).id) as number,
+                    order_detail_id: (d.detail_id || d.order_detail_id || (d as { id?: number }).id) as number,
                     allocated_quantity: d.allocated_quantity,
-                    net_amount: (d.allocated_quantity * d.unit_price) - (d.discount_amount || 0)
+                    net_amount: (d.allocated_quantity * d.unit_price) - getLineDiscount(d),
+                    discount_amount: getLineDiscount(d)
                 }));
-                await onSaveDetails(order.order_id, headerUpdates, itemsToUpdate);
+                const success = await onSaveDetails(order.order_id, headerUpdates, itemsToUpdate);
+                if (!success && action !== "cancel") return; // Stop if save failed
             }
 
             // 2. Perform status update
             let success = false;
-            if (action === "approve") success = await onApprove([order.order_id]);
+            if (action === "approve") {
+                if (order.order_status === "Draft" && onSubmitForApproval) {
+                    success = await onSubmitForApproval([order.order_id]);
+                } else {
+                    success = await onApprove([order.order_id]);
+                }
+            }
             else if (action === "hold") success = await onHold([order.order_id]);
             else if (action === "cancel") success = await onCancel([order.order_id]);
 
@@ -380,6 +415,7 @@ export function ApprovalModal({
                                             <TableHead className="text-center h-11 uppercase text-[9px] font-black text-muted-foreground tracking-widest">Unit</TableHead>
                                             <TableHead className="text-right h-11 uppercase text-[9px] font-black text-muted-foreground tracking-widest whitespace-nowrap">Unit Price</TableHead>
                                             <TableHead className="text-center h-11 uppercase text-[9px] font-black text-muted-foreground tracking-widest whitespace-nowrap">Ordered Qty</TableHead>
+                                            <TableHead className="text-center h-11 uppercase text-[9px] font-black text-muted-foreground tracking-widest whitespace-nowrap bg-sky-50/50">Available</TableHead>
                                             <TableHead className="text-center h-11 uppercase text-[9px] font-black text-muted-foreground tracking-widest w-[120px] whitespace-nowrap">Allocated Qty</TableHead>
                                             <TableHead className="text-right h-11 uppercase text-[9px] font-black text-muted-foreground tracking-widest">Discount</TableHead>
                                             <TableHead className="text-center h-11 uppercase text-[9px] font-black text-muted-foreground tracking-widest whitespace-nowrap">Discount Type</TableHead>
@@ -399,7 +435,7 @@ export function ApprovalModal({
                                             ))
                                         ) : details.length === 0 ? (
                                             <TableRow>
-                                                <TableCell colSpan={8} className="h-64 text-center text-slate-400 font-bold uppercase text-[10px] tracking-widest">
+                                                <TableCell colSpan={10} className="h-64 text-center text-slate-400 font-bold uppercase text-[10px] tracking-widest">
                                                     No line items materialized.
                                                 </TableCell>
                                             </TableRow>
@@ -407,11 +443,11 @@ export function ApprovalModal({
                                             details.map((li, idx) => {
                                                 const productName = li.product_id?.product_name || li.product_id?.description || "Unknown";
                                                 const productCode = li.product_id?.product_code || "N/A";
-                                                const lineTotal = (li.allocated_quantity * li.unit_price) - (li.discount_amount || 0);
-                                                const isExceeding = li.allocated_quantity > li.ordered_quantity;
+                                                const lineTotal = (li.allocated_quantity * li.unit_price) - getLineDiscount(li);
+                                                const isExceeding = (li.allocated_quantity > li.ordered_quantity) || (li.available_qty !== undefined && li.allocated_quantity > li.available_qty);
 
                                                 return (
-                                                    <TableRow key={li.order_detail_id || idx} className={cn("hover:bg-slate-50/50 transition-colors border-slate-50 group", isExceeding && "bg-destructive/5 hover:bg-destructive/10")}>
+                                                    <TableRow key={li.detail_id || li.order_detail_id || idx} className={cn("hover:bg-slate-50/50 transition-colors border-slate-50 group", isExceeding && "bg-destructive/5 hover:bg-destructive/10")}>
                                                         <TableCell className="pl-4 sm:pl-8 py-4 sm:py-5 min-w-[200px]">
                                                             <span className="font-bold text-slate-900 text-[12px] sm:text-sm group-hover:text-primary transition-colors">{productName}</span>
                                                         </TableCell>
@@ -426,6 +462,16 @@ export function ApprovalModal({
                                                         <TableCell className="text-right font-bold text-slate-500 font-mono tracking-tight tabular-nums text-[12px] sm:text-sm">{formatCurrency(li.unit_price)}</TableCell>
                                                         <TableCell className="text-center font-bold text-muted-foreground text-[12px] sm:text-sm tabular-nums">{li.ordered_quantity}</TableCell>
                                                         <TableCell className="text-center">
+                                                            <span className={cn(
+                                                                "inline-flex items-center justify-center min-w-[28px] h-6 px-2 rounded-lg font-black text-[11px] border tabular-nums",
+                                                                (li.available_qty ?? 0) > 0 
+                                                                    ? "bg-sky-50 text-sky-600 border-sky-100" 
+                                                                    : "bg-slate-100 text-slate-400 border-slate-200"
+                                                            )}>
+                                                                {li.available_qty ?? 0}
+                                                            </span>
+                                                        </TableCell>
+                                                        <TableCell className="text-center">
                                                             {isEditable ? (
                                                                 <div className="flex flex-col items-center gap-1">
                                                                     <Input
@@ -434,25 +480,32 @@ export function ApprovalModal({
                                                                         onChange={(e) => updateAllocatedQty(idx, e.target.value)}
                                                                         className={cn(
                                                                             "w-20 text-center h-7 text-[11px] font-black border focus-visible:ring-emerald-500 mx-auto transition-all",
-                                                                            isExceeding
+                                                                            (li.allocated_quantity > li.ordered_quantity) || (li.available_qty !== undefined && li.allocated_quantity > li.available_qty)
                                                                                 ? "bg-destructive/10 text-destructive border-destructive focus-visible:ring-destructive"
                                                                                 : "text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-900/50"
                                                                         )}
                                                                         disabled={isSubmitting}
                                                                     />
-                                                                    {isExceeding && (
-                                                                        <span className="text-[8px] font-black text-destructive uppercase tracking-tighter leading-none animate-bounce">Exceeds Order!</span>
-                                                                    )}
+                                                                    {(li.allocated_quantity > li.ordered_quantity) ? (
+                                                                        <span className="text-[8px] font-black text-destructive uppercase tracking-tighter leading-none animate-bounce text-center">Exceeds Order!</span>
+                                                                    ) : (li.available_qty !== undefined && li.allocated_quantity > li.available_qty) ? (
+                                                                        <span className="text-[8px] font-black text-destructive uppercase tracking-tighter leading-none animate-bounce text-center">Low Stock!</span>
+                                                                    ) : null}
                                                                 </div>
                                                             ) : (
-                                                                <span className="inline-flex items-center justify-center min-w-[28px] h-6 px-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 font-black text-[10px] border border-emerald-100 dark:border-emerald-900/50 tabular-nums">
+                                                                <span className={cn(
+                                                                    "inline-flex items-center justify-center min-w-[28px] h-6 px-1.5 rounded-lg font-black text-[10px] border tabular-nums",
+                                                                    (li.available_qty !== undefined && li.allocated_quantity > li.available_qty)
+                                                                        ? "bg-destructive/10 text-destructive border-destructive/20"
+                                                                        : "bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 border-emerald-100 dark:border-emerald-900/50"
+                                                                )}>
                                                                     {li.allocated_quantity}
                                                                 </span>
                                                             )}
                                                         </TableCell>
                                                         <TableCell className="text-right text-muted-foreground font-mono tabular-nums text-[12px] whitespace-nowrap px-4 tracking-tighter">
-                                                            {li.discount_amount > 0 ? (
-                                                                <span className="text-rose-500 font-bold">-{formatCurrency(li.discount_amount)}</span>
+                                                            {getLineDiscount(li) > 0 ? (
+                                                                <span className="text-rose-500 font-bold">-{formatCurrency(getLineDiscount(li))}</span>
                                                             ) : "-"}
                                                         </TableCell>
                                                         <TableCell className="text-center">
@@ -504,8 +557,7 @@ export function ApprovalModal({
                             disabled={isSubmitting}
                             className="h-9 sm:h-12 px-4 sm:px-8 font-bold uppercase tracking-widest text-[10px] sm:text-xs rounded-xl border-border bg-background hover:bg-muted text-foreground transition-all shadow-sm"
                         >
-                            <span className="hidden sm:inline">Close Record</span>
-                            <span className="sm:hidden">Close</span>
+                            Close
                         </Button>
 
                         {!isInvoiceStatus && isActionable && (
@@ -530,11 +582,11 @@ export function ApprovalModal({
                                 )}
                                 <Button
                                     className="h-9 sm:h-12 px-6 sm:px-10 font-bold uppercase tracking-widest text-[10px] sm:text-xs rounded-xl bg-success hover:bg-success/90 text-success-foreground shadow-lg border-none transition-all hover:scale-[1.02] active:scale-[0.98]"
-                                    disabled={isSubmitting || details.some(d => d.allocated_quantity > d.ordered_quantity)}
+                                    disabled={isSubmitting || details.some(d => d.allocated_quantity > d.ordered_quantity || (d.available_qty !== undefined && d.allocated_quantity > d.available_qty))}
                                     onClick={() => handleSaveAndAction("approve")}
                                 >
                                     {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                                    {order.order_status === "Pending" ? "Submit for Approval" : "Approve"}
+                                    Approve
                                 </Button>
                             </div>
                         )}

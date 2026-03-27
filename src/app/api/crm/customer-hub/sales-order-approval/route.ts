@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
+import { cookies } from "next/headers";
 
 export const dynamic = "force-dynamic";
 
+const COOKIE_NAME = "vos_access_token";
 const DIRECTUS_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
 const DIRECTUS_TOKEN = process.env.DIRECTUS_STATIC_TOKEN;
+const SPRING_API_BASE_URL = process.env.SPRING_API_BASE_URL || "";
 
 const fetchHeaders = {
     Authorization: `Bearer ${DIRECTUS_TOKEN}`,
@@ -119,13 +122,22 @@ export async function GET(req: NextRequest) {
 
         if (type === "order-details") {
             const orderId = req.nextUrl.searchParams.get("orderId");
+            const branchId = req.nextUrl.searchParams.get("branchId");
             if (!orderId) return NextResponse.json({ error: "orderId required" }, { status: 400 });
 
             const detUrl = `${DIRECTUS_URL}/items/sales_order_details?filter[order_id][_eq]=${orderId}&fields=*&limit=-1`;
             const detRes = await fetch(detUrl, { headers: fetchHeaders });
             if (!detRes.ok) return NextResponse.json({ error: "Failed to fetch order details" }, { status: 500 });
             const detJson = await detRes.json();
-            const details = detJson.data || [];
+            const details = (detJson.data || []).map((d: any) => {
+                const pk = d.detail_id || d.order_detail_id || d.id;
+                return {
+                    ...d,
+                    detail_id: pk,
+                    order_detail_id: pk,
+                    id: pk
+                };
+            });
 
             // Fetch all units for mapping uom
             const unitsRes = await fetch(`${DIRECTUS_URL}/items/units?limit=-1`, { headers: fetchHeaders });
@@ -139,8 +151,9 @@ export async function GET(req: NextRequest) {
             });
 
             // Fetch products for descriptions
+            let productIds: number[] = [];
             if (details.length > 0) {
-                const productIds = Array.from(new Set(details.map((d: { product_id: number | string }) => d.product_id))).filter(Boolean);
+                productIds = Array.from(new Set(details.map((d: { product_id: number | string }) => Number(d.product_id)))).filter(Boolean) as number[];
                 const pRes = await fetch(`${DIRECTUS_URL}/items/products?filter[product_id][_in]=${productIds.join(',')}&fields=product_id,product_name,product_code,description,unit_of_measurement&limit=-1`, {
                     headers: fetchHeaders
                 });
@@ -160,6 +173,54 @@ export async function GET(req: NextRequest) {
                     });
                 }
             }
+
+            // --- SPRING BOOT INVENTORY SYNC ---
+            if (branchId && SPRING_API_BASE_URL && productIds.length > 0) {
+                try {
+                    const cookieStore = await cookies();
+                    const token = (await cookieStore).get(COOKIE_NAME)?.value;
+                    const invUrl = `${SPRING_API_BASE_URL.replace(/\/$/, "")}/api/view-running-inventory-by-unit/all?startDate=2025-01-01&endDate=2026-12-30`;
+                    
+                    const invRes = await fetch(invUrl, {
+                        headers: {
+                            "Accept": "application/json",
+                            ...(token ? { "Authorization": `Bearer ${token}` } : {})
+                        },
+                        cache: 'no-store',
+                    });
+
+                    if (invRes.ok) {
+                        const invJson = await invRes.json();
+                        const invData = Array.isArray(invJson) ? invJson : (invJson.data || []);
+                        
+                        // Map inventory for this specific branch
+                        const inventoryMap: Record<number, number> = {};
+                        invData.forEach((item: { branchId?: string | number, branch_id?: string | number, productId?: string | number, product_id?: string | number, runningInventoryUnit?: number | string }) => {
+                            const itemBId = item.branchId ?? item.branch_id;
+                            if (itemBId && Number(itemBId) === Number(branchId)) {
+                                const pid = item.productId ?? item.product_id;
+                                if (pid) {
+                                    inventoryMap[Number(pid)] = Number(item.runningInventoryUnit || 0);
+                                }
+                            }
+                        });
+
+                        // Enrich details with inventory
+                        details.forEach((d: { product_id?: { product_id?: number }, available_qty?: number }) => {
+                            const pid = Number(d.product_id?.product_id);
+                            if (pid && inventoryMap[pid] !== undefined) {
+                                d.available_qty = inventoryMap[pid];
+                            } else {
+                                d.available_qty = 0;
+                            }
+                        });
+                    }
+                } catch (e) {
+                    console.error("[InventorySyncError]", e);
+                }
+            }
+            // --- END SYNC ---
+
             return NextResponse.json({ data: details });
         }
 
@@ -297,13 +358,25 @@ export async function POST(req: NextRequest) {
                 const patchRes = await fetch(`${DIRECTUS_URL}/items/sales_order_details`, {
                     method: "PATCH",
                     headers: fetchHeaders,
-                    body: JSON.stringify(lineItems.map((li: { order_detail_id: number, allocated_quantity: number, net_amount: number }) => ({
-                        order_detail_id: li.order_detail_id,
-                        allocated_quantity: li.allocated_quantity,
-                        net_amount: li.net_amount
-                    })))
+                    body: JSON.stringify(lineItems.map((li: { detail_id?: number | string; order_detail_id?: number | string; id?: number | string; allocated_quantity: number; net_amount: number; discount_amount?: number }) => {
+                        const pkValue = li.detail_id || li.order_detail_id || li.id;
+                        return {
+                            id: pkValue,
+                            detail_id: pkValue,
+                            order_detail_id: pkValue,
+                            allocated_quantity: li.allocated_quantity,
+                            net_amount: li.net_amount,
+                            allocated_amount: li.net_amount,
+                            discount_amount: li.discount_amount ?? 0
+                        };
+                    }))
                 });
-                if (!patchRes.ok) throw new Error("Failed to update line items");
+                
+                if (!patchRes.ok) {
+                    const errDetail = await patchRes.text();
+                    console.error("Directus Details Patch Error:", errDetail);
+                    throw new Error(`Failed to update line items: ${errDetail}`);
+                }
             }
             return NextResponse.json({ success: true });
         }
@@ -320,6 +393,7 @@ export async function POST(req: NextRequest) {
         if (action === "approve") {
             status = "For Consolidation";
             updateObj.for_consolidation_at = now;
+            updateObj.approved_at = now;
         } else if (action === "submit_for_approval") {
             status = "For Approval";
             updateObj.for_approval_at = now;

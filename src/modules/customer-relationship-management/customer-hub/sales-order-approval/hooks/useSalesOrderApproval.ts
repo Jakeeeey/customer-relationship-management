@@ -3,14 +3,23 @@ import { getPendingOrders, updateOrders, updateOrderDetails } from "../providers
 import { toast } from "sonner";
 
 export interface OrderDetail {
+    detail_id: number;
     order_detail_id: number;
-    product_id: { product_name: string; product_code: string; description?: string; uom?: { uom_name: string; uom_shortcut: string } } | null;
+    product_id: { 
+        product_id: number;
+        product_name: string; 
+        product_code: string; 
+        description?: string; 
+        uom?: { uom_name: string; uom_shortcut: string } 
+    } | null;
     unit_price: number;
     ordered_quantity: number;
     allocated_quantity: number;
+    available_qty?: number;
     discount_amount: number;
     discount_type: number | string | null;
     net_amount: number;
+    _recalculated_discount?: number;
 }
 
 export interface SalesOrder {
@@ -20,6 +29,8 @@ export interface SalesOrder {
     customer_code: string;
     customer_name: string;
     salesman_id: string;
+    supplier_id?: number | string;
+    branch_id?: number | string;
     order_date: string;
     total_amount: number;
     allocated_amount?: number;
@@ -135,7 +146,7 @@ export function useSalesOrderApproval() {
     const handleSaveDetails = async (
         orderId: number,
         header: Record<string, string | number | boolean | null | undefined>,
-        items: { order_detail_id: number; allocated_quantity: number; net_amount: number }[]
+        items: { detail_id: number; order_detail_id: number; allocated_quantity: number; net_amount: number }[]
     ) => {
         try {
             await updateOrderDetails(orderId, header, items);
