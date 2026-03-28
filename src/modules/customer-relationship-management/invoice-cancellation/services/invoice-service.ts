@@ -1,4 +1,4 @@
-import { SalesInvoice, CancellationRequest, ApprovalParams } from "../types";
+import { SalesInvoice, CancellationRequest, ApprovalParams, CancellationReportDto } from "../types";
 
 export const InvoiceService = {
   // CSR: Get invoices eligible for cancellation
@@ -34,6 +34,13 @@ export const InvoiceService = {
       body: JSON.stringify({ action, updates }),
     });
     if (!res.ok) throw new Error("Action failed");
+    return await res.json();
+  },
+
+  // Report: Fetch cancellation report data
+  async getReportData(page = 0, size = 10): Promise<{ content: CancellationReportDto[], totalElements: number }> {
+    const res = await fetch(`/api/crm/invoice-summary-report?page=${page}&size=${size}`);
+    if (!res.ok) throw new Error("Failed to fetch report data");
     return await res.json();
   }
 };
