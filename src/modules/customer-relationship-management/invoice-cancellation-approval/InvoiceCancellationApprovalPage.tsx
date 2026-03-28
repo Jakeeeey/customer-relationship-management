@@ -12,13 +12,22 @@ import { mapToApprovalParams } from "./lib/utils";
 import { ApprovalAction, InvoiceRow } from "./types";
 
 export default function InvoiceCancellationApprovalPage() {
+  // 🚀 FIX 1: Destructure allRequests from the updated hook
   const {
-    pendingRequests,
-    approvedRequests,
+    allRequests,
     isLoading,
     isProcessing,
     handleAction,
   } = useApprovals();
+
+  // 🚀 FIX 2: Filter the data locally to recreate the arrays the rest of the file expects
+  const pendingRequests = useMemo(() => {
+    return (allRequests || []).filter((r) => r.status === "PENDING");
+  }, [allRequests]);
+
+  const approvedRequests = useMemo(() => {
+    return (allRequests || []).filter((r) => r.status === "APPROVED");
+  }, [allRequests]);
 
   const [activeTab, setActiveTab] = useState<string>("PENDING");
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -36,39 +45,40 @@ export default function InvoiceCancellationApprovalPage() {
   }, []);
 
   // 1. Memoized Data Mapping
-  const allRequests = useMemo(
-    () => mapRequestsToInvoiceRows(pendingRequests, approvedRequests),
-    [pendingRequests, approvedRequests],
+  // Renamed to mappedRequests to avoid conflict with the hook's allRequests
+  const mappedRequests = useMemo(
+      () => mapRequestsToInvoiceRows(pendingRequests, approvedRequests),
+      [pendingRequests, approvedRequests],
   );
 
   // 2. Dashboard Statistics
   const stats = useMemo(
-    () => ({
-      approved: approvedRequests.length,
-      pending: pendingRequests.length,
-      highValue: pendingRequests.filter((r) => (r.total_amount || 0) > 20000)
-        .length,
-    }),
-    [pendingRequests, approvedRequests],
+      () => ({
+        approved: approvedRequests.length,
+        pending: pendingRequests.length,
+        highValue: pendingRequests.filter((r) => (r.total_amount || 0) > 20000)
+            .length,
+      }),
+      [pendingRequests, approvedRequests],
   );
 
   // 3. Action Handlers
   const triggerActionConfirmation = useCallback(
-    (type: ApprovalAction, data: InvoiceRow | InvoiceRow[]) => {
-      setPendingAction({ type, data });
-      setConfirmOpen(true);
-    },
-    [],
+      (type: ApprovalAction, data: InvoiceRow | InvoiceRow[]) => {
+        setPendingAction({ type, data });
+        setConfirmOpen(true);
+      },
+      [],
   );
 
   const confirmAndExecute = async () => {
     if (!pendingAction?.data) return;
 
     const itemsToProcess = Array.isArray(pendingAction.data)
-      ? pendingAction.data
-      : [pendingAction.data];
+        ? pendingAction.data
+        : [pendingAction.data];
     const paramsArray = itemsToProcess.map((item) =>
-      mapToApprovalParams(item, 1),
+        mapToApprovalParams(item, 1),
     );
 
     await handleAction(pendingAction.type, paramsArray);
@@ -79,32 +89,32 @@ export default function InvoiceCancellationApprovalPage() {
   // 4. Column Selection logic
   const columns = useMemo(() => {
     return activeTab === "APPROVED"
-      ? approvedColumns
-      : pendingColumns;
+        ? approvedColumns
+        : pendingColumns;
   }, [activeTab]);
 
   return (
-    <div className="flex flex-1 flex-col px-4">
-      <div className="@container/main flex flex-1 flex-col gap-2 py-4">
-        <InvoiceSummaryApprovalCard stats={stats} />
+      <div className="flex flex-1 flex-col px-4">
+        <div className="@container/main flex flex-1 flex-col gap-2 py-4">
+          <InvoiceSummaryApprovalCard stats={stats} />
 
-        <ApprovalDataTable
-          columns={columns}
-          data={allRequests}
-          isLoading={isLoading}
-          onBulkAction={triggerActionConfirmation}
-          currentTab={activeTab}
-          onTabChange={(tab) => isMountedRef.current && setActiveTab(tab)}
-        />
+          <ApprovalDataTable
+              columns={columns}
+              data={mappedRequests} // 🚀 Passed the mappedRequests here
+              isLoading={isLoading}
+              onBulkAction={triggerActionConfirmation}
+              currentTab={activeTab}
+              onTabChange={(tab) => isMountedRef.current && setActiveTab(tab)}
+          />
 
-        <ActionConfirmationModal
-          open={confirmOpen}
-          onOpenChange={setConfirmOpen}
-          pendingAction={pendingAction}
-          isProcessing={isProcessing}
-          onConfirm={confirmAndExecute}
-        />
+          <ActionConfirmationModal
+              open={confirmOpen}
+              onOpenChange={setConfirmOpen}
+              pendingAction={pendingAction}
+              isProcessing={isProcessing}
+              onConfirm={confirmAndExecute}
+          />
+        </div>
       </div>
-    </div>
   );
 }

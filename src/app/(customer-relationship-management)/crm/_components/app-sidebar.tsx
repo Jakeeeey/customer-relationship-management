@@ -47,7 +47,7 @@ const data = {
                 },
                 {
                     title: "Customer Map",
-                    url: "/crm/customer-management/customer-map",
+                    url: "/crm/customer-hub/customer-map",
                     icon: MapPin,
                 }, {
                     title: "Customer Prospects",
