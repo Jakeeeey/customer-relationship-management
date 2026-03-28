@@ -168,7 +168,9 @@ export function BankAccountManager({ customerId }: BankAccountManagerProps) {
             }
         } catch (err: unknown) {
             toast.error("Failed to save bank account detail.");
-            err instanceof Error && console.error(err.message);
+            if (err instanceof Error) {
+                console.error(err.message);
+            }
         } finally {
             setIsSubmitting(false);
         }
