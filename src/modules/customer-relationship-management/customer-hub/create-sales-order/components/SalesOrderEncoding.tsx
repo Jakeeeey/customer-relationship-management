@@ -220,18 +220,28 @@ export function SalesOrderEncoding({
 
                     {/* Summary Footer */}
                     <div className="p-6 bg-muted/20 border-t grid grid-cols-1 md:grid-cols-4 gap-6 items-center">
-                        <div className="flex flex-col">
-                            <span className="text-[10px] font-black uppercase text-muted-foreground">Gross Total</span>
-                            <span className="font-bold text-lg">{formatCurrency(summary.totalAmount)}</span>
-                        </div>
-                        <div className="flex flex-col">
-                            <span className="text-[10px] font-black uppercase text-amber-600">Total Savings</span>
-                            <span className="font-bold text-lg text-amber-600">-{formatCurrency(summary.discountAmount)}</span>
-                        </div>
-                        <div className="flex flex-col bg-primary/10 p-3 rounded-lg border border-primary/30">
-                            <span className="text-[10px] font-black uppercase text-primary">Net Amount</span>
-                            <span className="text-2xl font-black text-primary">{formatCurrency(summary.netAmount)}</span>
-                        </div>
+                        {(() => {
+                            const calculatedGross = lineItems.reduce((acc, item) => acc + (Number(item.unitPrice) * Number(item.quantity) || 0), 0);
+                            const totalDiscount = lineItems.reduce((acc, item) => acc + (Number(item.unitPrice * item.quantity) - Number(item.netAmount) || 0), 0);
+                            const netTotal = calculatedGross - totalDiscount;
+
+                            return (
+                                <>
+                                    <div className="flex flex-col">
+                                        <span className="text-[10px] font-black uppercase text-muted-foreground">Gross Total</span>
+                                        <span className="font-bold text-lg">{formatCurrency(calculatedGross)}</span>
+                                    </div>
+                                    <div className="flex flex-col">
+                                        <span className="text-[10px] font-black uppercase text-amber-600">Total Discount</span>
+                                        <span className="font-bold text-lg text-amber-600">-{formatCurrency(totalDiscount)}</span>
+                                    </div>
+                                    <div className="flex flex-col bg-primary/10 p-3 rounded-lg border border-primary/30">
+                                        <span className="text-[10px] font-black uppercase text-primary">Net Amount</span>
+                                        <span className="text-2xl font-black text-primary">{formatCurrency(netTotal)}</span>
+                                    </div>
+                                </>
+                            );
+                        })()}
                         <Button
                             className="h-14 text-lg font-black shadow-xl"
                             size="lg"

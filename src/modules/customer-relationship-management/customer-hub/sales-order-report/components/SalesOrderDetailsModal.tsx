@@ -54,50 +54,64 @@ export function SalesOrderDetailsModal({
 }: SalesOrderDetailsModalProps) {
     const [details, setDetails] = useState<SalesOrderDetail[]>([]);
     const [invoices, setInvoices] = useState<Invoice[]>([]);
+    const [orderPdf, setOrderPdf] = useState<{ url: string; receipts: string } | null>(null);
+    const [attachments, setAttachments] = useState<{ id: number; name: string; url: string | null }[]>([]);
     const [activeTab, setActiveTab] = useState<string>("");
     const [loading, setLoading] = useState(false);
     const [loadingInvoice, setLoadingInvoice] = useState(false);
+    const [loadingPdf, setLoadingPdf] = useState(false);
+    const [loadingAttachments, setLoadingAttachments] = useState(false);
 
-    const isInvoiceStatus = ["For Loading", "For Shipping", "En Route", "Delivered"].includes(order?.order_status || "");
+    // Robust status check (ignores casing/spaces)
+    const normalizedStatus = (order?.order_status || "").toLowerCase().trim();
+    const isInvoiceStatus = ["for loading", "for shipping", "en route", "delivered", "for invoicing"].includes(normalizedStatus);
 
     useEffect(() => {
-        if (isOpen && order) {
-            if (isInvoiceStatus) {
-                const loadInvoice = async () => {
-                    setLoadingInvoice(true);
-                    try {
-                        const data = await salesOrderProvider.getInvoiceDetails(order.order_id, order.order_no);
-                        setInvoices(data);
-                        if (data.length > 0) {
-                            setActiveTab(data[0].invoice.invoice_no);
-                        }
-                    } catch (error) {
-                        console.error("Failed to fetch invoice details", error);
-                    } finally {
-                        setLoadingInvoice(false);
-                    }
-                };
-                loadInvoice();
-            } else {
-                const loadDetails = async () => {
-                    setLoading(true);
-                    try {
-                        const data = await salesOrderProvider.getSalesOrderDetails(order.order_id);
-                        setDetails(data);
-                    } catch (error) {
-                        console.error("Failed to fetch order details", error);
-                    } finally {
-                        setLoading(false);
-                    }
-                };
-                loadDetails();
-            }
-        } else {
+        if (!isOpen || !order) {
             setDetails([]);
             setInvoices([]);
+            setOrderPdf(null);
+            setAttachments([]);
             setActiveTab("");
+            return;
         }
-    }, [isOpen, order, isInvoiceStatus]);
+
+        console.log(`[PDF-DEBUG] Modal Opened. ID: ${order.order_id}, No: ${order.order_no}, Status: ${order.order_status}`);
+
+        const loadContent = async () => {
+            setLoading(true);
+            setLoadingPdf(true);
+            try {
+                // 1. Basic Details
+                const detailsData = await salesOrderProvider.getSalesOrderDetails(order.order_id);
+                setDetails(detailsData || []);
+                // 2. Attachments & PDF (Always try these)
+                const [pdfData, attData] = await Promise.all([
+                    salesOrderProvider.getOrderPdf(order.order_id, order.order_no),
+                    salesOrderProvider.getOrderAttachments(order.order_no)
+                ]);
+                console.log("[PDF-DEBUG] PDF fetch result:", pdfData);
+                setOrderPdf(pdfData);
+                setAttachments(attData || []);
+
+                // 3. Invoices (Only if relevant status)
+                if (isInvoiceStatus) {
+                    setLoadingInvoice(true);
+                    const invData = await salesOrderProvider.getInvoiceDetails(order.order_id, order.order_no);
+                    setInvoices(invData || []);
+                    if (invData && invData.length > 0) setActiveTab(invData[0].invoice.invoice_no);
+                }
+            } catch (err) {
+                console.error("[PDF-DEBUG] Load Error:", err);
+            } finally {
+                setLoading(false);
+                setLoadingInvoice(false);
+                setLoadingPdf(false);
+            }
+        };
+
+        loadContent();
+    }, [isOpen, order?.order_id, isInvoiceStatus]);
 
     if (!order) return null;
 
@@ -106,11 +120,15 @@ export function SalesOrderDetailsModal({
     const branch = branches.find((b) => b.id === order.branch_id);
 
     const getStatusStyle = (status: string) => {
-        switch (status) {
-            case "For Approval": return "bg-[#FEF9C3] text-[#854D0E] border-[#FEF08A]";
-            case "Delivered": return "bg-emerald-100 text-emerald-900 border-emerald-200";
-            case "Cancelled": return "bg-rose-100 text-rose-900 border-rose-200";
-            case "On Hold": return "bg-slate-100 text-slate-900 border-slate-200";
+        const s = status.toLowerCase().trim();
+        switch (s) {
+            case "for approval": return "bg-[#FEF9C3] text-[#854D0E] border-[#FEF08A]";
+            case "delivered": return "bg-emerald-100 text-emerald-900 border-emerald-200";
+            case "cancelled": return "bg-rose-100 text-rose-900 border-rose-200";
+            case "on hold": return "bg-slate-100 text-slate-900 border-slate-200";
+            case "for loading": 
+            case "en route":
+            case "for shipping": return "bg-sky-100 text-sky-900 border-sky-200";
             default: return "bg-blue-100 text-blue-900 border-blue-200";
         }
     };
@@ -187,8 +205,36 @@ export function SalesOrderDetailsModal({
                             </div>
                         </div>
 
-                        {/* Badge (sm+) + X button */}
+                        {/* Badge (sm+) + PDF Button + X button */}
                         <div className="flex items-center gap-1.5 shrink-0 ml-1">
+                            {orderPdf && (
+                                <Button
+                                    size="sm"
+                                    onClick={() => window.open(orderPdf.url, "_blank")}
+                                    className="hidden sm:flex h-8 bg-indigo-600 hover:bg-indigo-700 text-white font-black text-[10px] uppercase tracking-wider shadow-md active:scale-95 transition-all"
+                                >
+                                    <Package className="mr-1.5 h-3.5 w-3.5" />
+                                    View Invoice PDF
+                                </Button>
+                            )}
+                            {attachments.length > 0 && (
+                                <div className="hidden sm:flex items-center gap-1.5 overflow-x-auto max-w-[200px] custom-scrollbar pb-1">
+                                    {attachments.map((att, idx) => (
+                                        att.url && (
+                                            <Button
+                                                key={att.id}
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={() => window.open(att.url!, "_blank")}
+                                                className="h-8 w-8 p-0 border-indigo-200 bg-indigo-50/50 hover:bg-indigo-100/50 text-indigo-600 transition-all rounded-lg shrink-0"
+                                                title={`Photo Attachment ${idx + 1}`}
+                                            >
+                                                <Store className="h-4 w-4" />
+                                            </Button>
+                                        )
+                                    ))}
+                                </div>
+                            )}
                             <Badge
                                 variant="outline"
                                 className={`
@@ -211,13 +257,24 @@ export function SalesOrderDetailsModal({
                     </div>
 
                     {/* Mobile-only badge row */}
-                    <div className="flex sm:hidden mt-2">
+                    <div className="flex sm:hidden mt-2 items-center justify-between w-full">
                         <Badge
                             variant="outline"
                             className={`px-2.5 py-0.5 text-[9px] font-black tracking-widest rounded-lg ${getStatusStyle(order.order_status || "")}`}
                         >
                             {order.order_status?.toUpperCase()}
                         </Badge>
+
+                        {orderPdf && (
+                            <Button
+                                size="sm"
+                                variant="link"
+                                onClick={() => window.open(orderPdf.url, "_blank")}
+                                className="h-6 text-[10px] font-black text-indigo-600 p-0"
+                            >
+                                VIEW PDF
+                            </Button>
+                        )}
                     </div>
 
                     {/* ── SUMMARY CARDS ─────────────────────────────────
@@ -363,33 +420,49 @@ export function SalesOrderDetailsModal({
 
                                         {/* Totals block for this specific invoice */}
                                         <div className="p-4 sm:p-8 bg-slate-50/20 border-t flex justify-end">
-                                            <div className="w-full max-w-[260px] space-y-2.5 sm:space-y-3">
-                                                <div className="flex justify-between items-center text-slate-500">
-                                                    <span className="font-medium text-[11px] sm:text-xs uppercase tracking-wider">Gross Total</span>
-                                                    <span className="font-bold text-[11px] sm:text-xs tabular-nums font-mono">
-                                                        {formatCurrency(inv.invoice.gross_amount)}
-                                                    </span>
-                                                </div>
-                                                <div className="flex justify-between items-center">
-                                                    <span className="font-medium text-[11px] sm:text-xs uppercase tracking-wider text-slate-500">Discount</span>
-                                                    <span className="font-bold text-rose-500 text-[11px] sm:text-xs tabular-nums font-mono">
-                                                        -{formatCurrency(inv.invoice.discount_amount)}
-                                                    </span>
-                                                </div>
-                                                <div className="flex justify-between items-center">
-                                                    <span className="font-medium text-[11px] sm:text-xs uppercase tracking-wider text-slate-500">VAT (12%)</span>
-                                                    <span className="font-bold text-[11px] sm:text-xs tabular-nums font-mono text-slate-500">
-                                                        {formatCurrency(inv.invoice.vat_amount || 0)}
-                                                    </span>
-                                                </div>
-                                                <Separator className="bg-slate-200" />
-                                                <div className="flex justify-between items-center pt-0.5">
-                                                    <span className="text-[10px] font-black uppercase tracking-widest text-[#0EA5E9]">Invoice Total</span>
-                                                    <span className="text-lg sm:text-2xl font-black text-slate-950 tabular-nums font-mono">
-                                                        {formatCurrency(inv.invoice.net_amount)}
-                                                    </span>
-                                                </div>
-                                            </div>
+                                            {(() => {
+                                                const totalGross = inv.details.reduce((sum, item) => sum + (Number(item.unit_price) * Number(item.quantity) || 0), 0);
+                                                const totalDiscount = Number(inv.invoice.discount_amount) || 0;
+                                                const netBeforeVat = totalGross - totalDiscount;
+                                                const vatAmount = Number(inv.invoice.vat_amount) || 0;
+                                                const grandTotal = netBeforeVat + vatAmount;
+
+                                                return (
+                                                    <div className="w-full max-w-[260px] space-y-2.5 sm:space-y-3">
+                                                        <div className="flex justify-between items-center text-slate-500">
+                                                            <span className="font-medium text-[11px] sm:text-xs uppercase tracking-wider">Gross Total</span>
+                                                            <span className="font-bold text-[11px] sm:text-xs tabular-nums font-mono">
+                                                                {formatCurrency(totalGross)}
+                                                            </span>
+                                                        </div>
+                                                        <div className="flex justify-between items-center">
+                                                            <span className="font-medium text-[11px] sm:text-xs uppercase tracking-wider text-slate-500">Total Discount</span>
+                                                            <span className="font-bold text-rose-500 text-[11px] sm:text-xs tabular-nums font-mono">
+                                                                -{formatCurrency(totalDiscount)}
+                                                            </span>
+                                                        </div>
+                                                        <div className="flex justify-between items-center text-slate-500">
+                                                            <span className="font-medium text-[11px] sm:text-xs uppercase tracking-wider">Net Amount</span>
+                                                            <span className="font-bold text-[11px] sm:text-xs tabular-nums font-mono">
+                                                                {formatCurrency(netBeforeVat)}
+                                                            </span>
+                                                        </div>
+                                                        <div className="flex justify-between items-center">
+                                                            <span className="font-medium text-[11px] sm:text-xs uppercase tracking-wider text-slate-500">VAT (12%)</span>
+                                                            <span className="font-bold text-[11px] sm:text-xs tabular-nums font-mono text-slate-500">
+                                                                {formatCurrency(vatAmount)}
+                                                            </span>
+                                                        </div>
+                                                        <Separator className="bg-slate-200" />
+                                                        <div className="flex justify-between items-center pt-0.5">
+                                                            <span className="text-[10px] font-black uppercase tracking-widest text-[#0EA5E9]">Invoice Total</span>
+                                                            <span className="text-lg sm:text-2xl font-black text-slate-950 tabular-nums font-mono">
+                                                                {formatCurrency(grandTotal)}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })()}
                                         </div>
                                     </TabsContent>
                                 ))}
@@ -401,81 +474,75 @@ export function SalesOrderDetailsModal({
                             <div className="min-w-[650px]">
                                 <Table>
                                     <TableHeader className="bg-slate-50 sticky top-0 z-10 border-b">
-                                        <TableRow className="hover:bg-transparent border-none">
-                                            <TableHead className="pl-4 sm:pl-8 h-11 uppercase text-[9px] font-black text-[#94A3B8] tracking-widest">Product / SKU</TableHead>
-                                            <TableHead className="text-center h-11 uppercase text-[9px] font-black text-[#94A3B8] tracking-widest w-[80px]">UOM</TableHead>
-                                            <TableHead className="text-right h-11 uppercase text-[9px] font-black text-[#94A3B8] tracking-widest">Unit Price</TableHead>
-                                            <TableHead className="text-center h-11 uppercase text-[9px] font-black text-[#94A3B8] tracking-widest">Ordered</TableHead>
-                                            <TableHead className="text-center h-11 uppercase text-[9px] font-black text-[#94A3B8] tracking-widest">Allocated</TableHead>
-                                            <TableHead className="text-center h-11 uppercase text-[9px] font-black text-[#94A3B8] tracking-widest">Disc. Type</TableHead>
-                                            <TableHead className="text-right pr-4 sm:pr-8 h-11 uppercase text-[9px] font-black text-[#94A3B8] tracking-widest w-[130px]">Alloc. Amount</TableHead>
+                                        <TableRow className="hover:bg-transparent border-none h-11">
+                                            <TableHead className="pl-4 sm:pl-8 uppercase text-[9px] font-black text-[#94A3B8] tracking-widest">Product / SKU</TableHead>
+                                            <TableHead className="text-center uppercase text-[9px] font-black text-[#94A3B8] tracking-widest w-[80px]">UOM</TableHead>
+                                            <TableHead className="text-center uppercase text-[9px] font-black text-[#94A3B8] tracking-widest w-[80px]">Qty</TableHead>
+                                            <TableHead className="text-right uppercase text-[9px] font-black text-[#94A3B8] tracking-widest">Unit Price</TableHead>
+                                            <TableHead className="text-right uppercase text-[9px] font-black text-[#94A3B8] tracking-widest">Gross Total</TableHead>
+                                            <TableHead className="text-center uppercase text-[9px] font-black text-[#94A3B8] tracking-widest">Discounts</TableHead>
+                                            <TableHead className="text-right pr-4 sm:pr-8 uppercase text-[9px] font-black text-[#94A3B8] tracking-widest">Net Total</TableHead>
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
                                         {loading ? (
                                             Array.from({ length: 6 }).map((_, i) => (
                                                 <TableRow key={i} className="border-slate-50">
-                                                    <TableCell className="pl-4 sm:pl-8 py-4">
-                                                        <div className="h-3.5 w-36 sm:w-56 bg-slate-100 animate-pulse rounded" />
-                                                    </TableCell>
-                                                    <TableCell><div className="h-3.5 w-14 bg-slate-100 animate-pulse rounded ml-auto" /></TableCell>
+                                                    <TableCell className="pl-4 sm:pl-8 py-4"><div className="h-3.5 w-36 sm:w-56 bg-slate-100 animate-pulse rounded" /></TableCell>
+                                                    <TableCell><div className="h-3.5 w-10 bg-slate-100 animate-pulse rounded mx-auto" /></TableCell>
                                                     <TableCell><div className="h-3.5 w-8 bg-slate-100 animate-pulse rounded mx-auto" /></TableCell>
-                                                    <TableCell><div className="h-3.5 w-8 bg-slate-100 animate-pulse rounded mx-auto" /></TableCell>
-                                                    <TableCell className="pr-4 sm:pr-8"><div className="h-3.5 w-16 bg-slate-100 animate-pulse rounded ml-auto" /></TableCell>
+                                                    <TableCell><div className="h-3.5 w-16 bg-slate-100 animate-pulse rounded ml-auto" /></TableCell>
+                                                    <TableCell><div className="h-3.5 w-16 bg-slate-100 animate-pulse rounded ml-auto" /></TableCell>
+                                                    <TableCell><div className="h-3.5 w-14 bg-slate-100 animate-pulse rounded mx-auto" /></TableCell>
+                                                    <TableCell className="pr-4 sm:pr-8"><div className="h-3.5 w-20 bg-slate-100 animate-pulse rounded ml-auto" /></TableCell>
                                                 </TableRow>
                                             ))
                                         ) : details.length === 0 ? (
                                             <TableRow>
-                                                <TableCell colSpan={5} className="h-64 text-center text-slate-400">
+                                                <TableCell colSpan={7} className="h-64 text-center text-slate-400">
                                                     <div className="flex flex-col items-center gap-2">
                                                         <Package className="h-8 w-8 opacity-20" />
-                                                        <p className="text-[10px] font-black uppercase tracking-widest">
-                                                            No line items materialized for this record.
-                                                        </p>
+                                                        <p className="text-[10px] font-black uppercase tracking-widest">No line items for this record.</p>
                                                     </div>
                                                 </TableCell>
                                             </TableRow>
                                         ) : (
                                             details.map((li, idx) => {
-                                                const product = li.product_id;
-                                                const productName = typeof product === "object" ? (product?.description || product?.product_name) : (product || "N/A");
-                                                const productCode = typeof product === "object" ? product?.product_code : "";
+                                                // PRIORITIZE Database gross_amount for True Gross, fallback to UnitPrice * Qty
+                                                const itemGross = Number(li.gross_amount) || (Number(li.unit_price) * Number(li.ordered_quantity) || 0);
+                                                const itemNet = Number(li.net_amount) || (itemGross - Number(li.discount_amount || 0));
 
                                                 return (
                                                     <TableRow key={li.detail_id || idx} className="hover:bg-slate-50/50 transition-colors border-slate-50 group">
                                                         <TableCell className="pl-4 sm:pl-8 py-4 sm:py-5">
                                                             <div className="flex flex-col gap-0.5">
                                                                 <span className="font-bold text-slate-900 text-[12px] sm:text-sm group-hover:text-primary transition-colors">
-                                                                    {productName}
+                                                                    {typeof li.product_id === "object" ? (li.product_id?.description || li.product_id?.product_name) : (li.product_id || "N/A")}
                                                                 </span>
-                                                                <span className="text-[9px] font-bold text-slate-400 tracking-tighter font-mono">
-                                                                    {productCode}
+                                                                <span className="text-[9px] font-medium text-slate-400 uppercase tracking-tight">
+                                                                    {typeof li.product_id === "object" ? li.product_id?.product_code : ""}
                                                                 </span>
                                                             </div>
                                                         </TableCell>
-                                                        <TableCell className="text-center">
-                                                            <span className="text-[10px] font-black text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded uppercase">
-                                                                {(typeof product === "object" ? product?.uom : null) || "PCS"}
-                                                            </span>
+                                                        <TableCell className="text-center font-bold text-slate-500 text-[11px]">
+                                                            {(typeof li.product_id === "object" ? li.product_id?.uom : null) || "PCS"}
                                                         </TableCell>
-                                                        <TableCell className="text-right font-bold text-slate-500 font-mono tracking-tight tabular-nums text-[12px] sm:text-sm">
-                                                            {formatCurrency(li.unit_price)}
-                                                        </TableCell>
-                                                        <TableCell className="text-center font-bold text-blue-400/80 text-[12px] sm:text-sm tabular-nums">
+                                                        <TableCell className="text-center font-bold text-blue-500 text-[11px] sm:text-sm tabular-nums bg-blue-50/30">
                                                             {li.ordered_quantity}
                                                         </TableCell>
-                                                        <TableCell className="text-center">
-                                                            <span className="inline-flex items-center justify-center min-w-[28px] h-6 px-1.5 rounded-lg bg-[#F0FDF4] text-[#16A34A] font-black text-[10px] border border-[#DCFCE7] tabular-nums">
-                                                                {li.allocated_quantity}
-                                                            </span>
+                                                        <TableCell className="text-right font-medium text-slate-400 font-mono text-[11px] sm:text-xs tabular-nums">
+                                                            {formatCurrency(li.unit_price)}
+                                                        </TableCell>
+                                                        <TableCell className="text-right font-bold text-slate-950 font-mono text-[12px] sm:text-sm tabular-nums">
+                                                            {formatCurrency(itemGross)}
                                                         </TableCell>
                                                         <TableCell className="text-center">
-                                                            <span className="text-[10px] font-bold text-slate-500">
+                                                            <span className="inline-flex px-1.5 py-0.5 rounded bg-rose-50 text-rose-500 font-black text-[9px] uppercase border border-rose-100">
                                                                 {li.discount_type || "None"}
                                                             </span>
                                                         </TableCell>
-                                                        <TableCell className="text-right font-black text-slate-950 pr-4 sm:pr-8 font-mono text-[13px] sm:text-base tabular-nums tracking-tighter">
-                                                            {formatCurrency(li.net_amount || 0)}
+                                                        <TableCell className="text-right pr-4 sm:pr-8 font-black text-indigo-600 font-mono text-[13px] sm:text-base tabular-nums">
+                                                            {formatCurrency(itemNet)}
                                                         </TableCell>
                                                     </TableRow>
                                                 );
@@ -502,40 +569,116 @@ export function SalesOrderDetailsModal({
                             </p>
                         </div>
 
-                        <div className="w-px h-8 bg-slate-100 shrink-0" />
+                        <div className="w-px h-10 bg-slate-100 shrink-0" />
 
-                        <div className="flex flex-col gap-0.5 min-w-0">
-                            <p className="text-[8px] sm:text-[9px] text-slate-400 uppercase font-black tracking-widest leading-none truncate">
-                                {isInvoiceStatus ? "Grand Total Invoice" : "Net Amount"}
-                            </p>
-                            <div className="flex items-baseline gap-1 leading-none mt-1">
-                                <span className="text-[9px] sm:text-[11px] font-black text-slate-300 uppercase italic shrink-0">PHP</span>
-                                <p className="text-[20px] sm:text-[36px] lg:text-[48px] font-black text-slate-950 tabular-nums tracking-tighter leading-none">
-                                    {formatCurrency(displayAmount).replace("PHP", "").replace("₱", "").trim()}
-                                </p>
+                        {!isInvoiceStatus ? (
+                            <div className="flex items-center gap-6">
+                                {(() => {
+                                    const totalGross = details.reduce((sum, li) => sum + (Number(li.gross_amount) || (Number(li.unit_price) * Number(li.ordered_quantity) || 0)), 0);
+                                    const totalNet = details.reduce((sum, li) => sum + (Number(li.net_amount) || 0), 0);
+                                    const totalDiscount = totalGross - totalNet;
+
+                                    return (
+                                        <>
+                                            <div className="flex flex-col gap-0.5">
+                                                <p className="text-[8px] sm:text-[9px] text-slate-400 uppercase font-black tracking-widest leading-none">Gross Total</p>
+                                                <p className="text-[12px] sm:text-[14px] font-bold text-slate-500 tabular-nums">{formatCurrency(totalGross)}</p>
+                                            </div>
+                                            <div className="flex flex-col gap-0.5">
+                                                <p className="text-[8px] sm:text-[9px] text-rose-400 uppercase font-black tracking-widest leading-none">Total Discount</p>
+                                                <p className="text-[12px] sm:text-[14px] font-bold text-rose-500 tabular-nums">-{formatCurrency(totalDiscount)}</p>
+                                            </div>
+                                            <div className="flex flex-col gap-0.5 min-w-0">
+                                                <p className="text-[8px] sm:text-[9px] text-[#0EA5E9] uppercase font-black tracking-widest leading-none">Net Amount</p>
+                                                <div className="flex items-baseline gap-1 leading-none">
+                                                    <span className="text-[10px] sm:text-[14px] font-black text-[#0EA5E9] tabular-nums tracking-tighter">
+                                                        {formatCurrency(totalNet)}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </>
+                                    );
+                                })()}
                             </div>
-                        </div>
+                        ) : (
+                            <div className="flex flex-col gap-0.5 min-w-0">
+                                <p className="text-[8px] sm:text-[9px] text-slate-400 uppercase font-black tracking-widest leading-none truncate">
+                                    Grand Total Invoice
+                                </p>
+                                <div className="flex items-baseline gap-1 leading-none mt-1">
+                                    <span className="text-[9px] sm:text-[11px] font-black text-slate-300 uppercase italic shrink-0">PHP</span>
+                                    <p className="text-[20px] sm:text-[36px] lg:text-[48px] font-black text-slate-950 tabular-nums tracking-tighter leading-none">
+                                        {formatCurrency(displayAmount).replace("PHP", "").replace("₱", "").trim()}
+                                    </p>
+                                </div>
+                            </div>
+                        )}
                     </div>
 
-                    {/* Close button */}
-                    <Button
-                        variant="outline"
-                        onClick={onClose}
-                        className="
-                            shrink-0
-                            font-black uppercase tracking-widest
-                            text-[10px] sm:text-[12px]
-                            px-4 sm:px-8 lg:px-10
-                            h-9 sm:h-12 lg:h-14
-                            rounded-lg sm:rounded-xl
-                            border-2 sm:border-[3px] border-[#38BDF8]
-                            text-[#0284C7] hover:bg-[#F0F9FF]
-                            active:scale-95 transition-all shadow-sm
-                        "
-                    >
-                        <span className="hidden sm:inline">Close Record</span>
-                        <span className="sm:hidden">Close</span>
-                    </Button>
+                    {/* Action Buttons */}
+                    <div className="flex items-center gap-2 shrink-0">
+                        {loadingPdf ? (
+                            <Button disabled className="h-9 sm:h-12 lg:h-14 px-8 rounded-xl bg-slate-100 text-slate-400 font-black animate-pulse">
+                                FETCHING PDF...
+                            </Button>
+                        ) : orderPdf ? (
+                            <Button
+                                onClick={() => window.open(orderPdf.url, "_blank")}
+                                className="
+                                    shrink-0
+                                    font-black uppercase tracking-widest
+                                    text-[10px] sm:text-[12px]
+                                    px-6 sm:px-10 lg:px-12
+                                    h-9 sm:h-12 lg:h-14
+                                    rounded-lg sm:rounded-xl
+                                    bg-gradient-to-r from-indigo-600 to-blue-600
+                                    hover:from-indigo-700 hover:to-blue-700
+                                    text-white border-0 shadow-[0_10px_20px_-5px_rgba(79,70,229,0.4)]
+                                    active:scale-95 transition-all
+                                "
+                            >
+                                <Package className="mr-2 h-4 w-4 sm:h-5 sm:w-5" />
+                                <span className="hidden sm:inline">View Invoice Receipt</span>
+                                <span className="sm:hidden">PDF RECEIPT</span>
+                            </Button>
+                        ) : (
+                            <Button
+                                disabled
+                                className="
+                                    shrink-0
+                                    font-black uppercase tracking-widest
+                                    text-[10px] sm:text-[12px]
+                                    px-6 sm:px-10 lg:px-12
+                                    h-9 sm:h-12 lg:h-14
+                                    rounded-lg sm:rounded-xl
+                                    bg-slate-100 text-slate-400 border border-slate-200
+                                    cursor-not-allowed
+                                "
+                            >
+                                <X className="mr-2 h-4 w-4 sm:h-5 sm:w-5" />
+                                <span>No PDF Found</span>
+                            </Button>
+                        )}
+                        
+                        <Button
+                            variant="outline"
+                            onClick={onClose}
+                            className="
+                                shrink-0
+                                font-black uppercase tracking-widest
+                                text-[10px] sm:text-[12px]
+                                px-4 sm:px-8 lg:px-10
+                                h-9 sm:h-12 lg:h-14
+                                rounded-lg sm:rounded-xl
+                                border-2 sm:border-[3px] border-slate-200
+                                text-slate-500 hover:bg-slate-50
+                                active:scale-95 transition-all shadow-sm
+                            "
+                        >
+                            <span className="hidden sm:inline">Close Record</span>
+                            <span className="sm:hidden">Close</span>
+                        </Button>
+                    </div>
                 </div>
 
             </DialogContent>

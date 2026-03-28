@@ -62,8 +62,30 @@ export const fetchInvoiceDetails = async (orderId: number, orderNo?: string) => 
     return json.data;
 };
  
+export const fetchOrderPdf = async (salesOrderId: number, orderNo?: string) => {
+    const params = new URLSearchParams({ type: "order-pdf", salesOrderId: salesOrderId.toString() });
+    if (orderNo) params.append("orderNo", orderNo);
+    const response = await fetch(`/api/crm/customer-hub/sales-order-report?${params.toString()}`);
+    if (!response.ok) {
+        throw new Error("Failed to fetch order PDF");
+    }
+    const json = await response.json();
+    return json.data;
+};
+
+export const fetchOrderAttachments = async (orderNo: string) => {
+    const response = await fetch(`/api/crm/customer-hub/sales-order-report?type=order-attachments&orderNo=${orderNo}`);
+    if (!response.ok) {
+        throw new Error("Failed to fetch order attachments");
+    }
+    const json = await response.json();
+    return json.data || [];
+};
+
 export const salesOrderProvider = {
     getSalesOrderDetails: fetchSalesOrderDetails,
     getInvoiceDetails: fetchInvoiceDetails,
     getMonthlyAverage: fetchMonthlyAverage,
+    getOrderPdf: fetchOrderPdf,
+    getOrderAttachments: fetchOrderAttachments,
 };

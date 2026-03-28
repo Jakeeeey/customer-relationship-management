@@ -128,7 +128,7 @@ export async function GET(req: NextRequest) {
             }
 
             // 4. Fetch Paginated Flat Orders
-            ordersParams.set("sort", "-modified_date,-created_date,-order_id");
+            ordersParams.set("sort", "-created_date,-order_id,-modified_date");
             ordersParams.set("page", page.toString());
             ordersParams.set("limit", limit.toString());
             ordersParams.set("fields", "*");

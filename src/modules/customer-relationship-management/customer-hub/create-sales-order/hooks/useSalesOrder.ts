@@ -525,8 +525,9 @@ export function useSalesOrder() {
         };
 
         setLineItems(prev => [...prev, newItem]);
-        // Also initialize allocation for the new item
-        setAllocatedQuantities(prev => ({ ...prev, [id]: quantity }));
+        // Also initialize allocation for the new item - but GUARD against 0/negative stock
+        const initialAlloc = Math.max(0, Math.min(quantity, Number(product.available_qty) || 0));
+        setAllocatedQuantities(prev => ({ ...prev, [id]: initialAlloc }));
     };
 
     const removeLineItem = async (id: string) => {
@@ -574,9 +575,14 @@ export function useSalesOrder() {
                 discountAmount: totalAmount - netAmount
             };
         }));
-        // Sync with allocation quantities so checkout sees the same number
-        setAllocatedQuantities(prev => ({ ...prev, [id]: qty }));
-    }, []);
+        const matchedItem = lineItems.find(li => li.id === id);
+        if (!matchedItem) return;
+
+        // Sync with allocation quantities so checkout sees the same number - with Stock Guard
+        const available = Number(matchedItem.product.available_qty) || 0;
+        const initialAlloc = Math.max(0, Math.min(qty, available));
+        setAllocatedQuantities(prev => ({ ...prev, [id]: initialAlloc }));
+    }, [lineItems]);
 
     const summary = useMemo(() => {
         // Ordered totals (Base sa buong order na kinuha)
@@ -668,17 +674,28 @@ export function useSalesOrder() {
             setOrderNo(generatedNo);
         }
 
-        // Ensure all line items have an entry in allocatedQuantities
+        // Ensure all line items have an entry in allocatedQuantities - with Stock Guard 🛡️
         lineItems.forEach(item => {
             if (allocatedQuantities[item.id] === undefined) {
-                setAllocatedQuantities(prev => ({ ...prev, [item.id]: item.quantity }));
+                const initialAlloc = Math.max(0, Math.min(item.quantity, Number(item.product.available_qty) || 0));
+                setAllocatedQuantities(prev => ({ ...prev, [item.id]: initialAlloc }));
             }
         });
         setIsCheckout(true);
     };
 
     const updateAllocatedQty = (id: string, qty: number) => {
-        setAllocatedQuantities(prev => ({ ...prev, [id]: qty }));
+        const item = lineItems.find(li => li.id === id);
+        if (!item) return;
+
+        const available = Number(item.product.available_qty) || 0;
+        const maxAllowed = Math.max(0, Math.min(item.quantity, available));
+        
+        let finalQty = qty;
+        if (finalQty > maxAllowed) finalQty = maxAllowed;
+        if (finalQty < 0) finalQty = 0;
+
+        setAllocatedQuantities(prev => ({ ...prev, [id]: finalQty }));
     };
 
     const handleSubmitOrder = useCallback(async (forcedStatus?: string) => {

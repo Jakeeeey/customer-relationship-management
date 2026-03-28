@@ -323,23 +323,41 @@ export function SalesOrderCheckout({
                             </div>
 
                             <div className="space-y-4">
-                                <Button
-                                    className="w-full h-16 text-base font-black uppercase tracking-[0.2em] shadow-2xl transition-all duration-500 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 hover:scale-[1.02] hover:shadow-emerald-500/20 active:scale-95 shadow-emerald-500/10"
-                                    onClick={handleConfirmClick}
-                                    disabled={submitting}
-                                >
-                                    {submitting ? (
-                                        <span className="flex items-center gap-3 animate-pulse">
-                                            <Loader2 className="w-5 h-5 animate-spin" />
-                                            Authenticating Order...
-                                        </span>
-                                    ) : (
-                                        <span className="flex items-center gap-3">
-                                            SUBMIT SALES ORDER
-                                            <CheckCircle2 className="w-6 h-6 text-slate-950/50" />
-                                        </span>
-                                    )}
-                                </Button>
+                                {(() => {
+                                    const anyHasError = lineItems.some(item => {
+                                        const alloc = allocatedQuantities[item.id] ?? 0;
+                                        const avail = Number(item.product.available_qty) || 0;
+                                        return (alloc > item.quantity) || (alloc > 0 && alloc > avail);
+                                    });
+
+                                    return (
+                                        <>
+                                            {anyHasError && (
+                                                <div className="flex items-center justify-center gap-2 text-rose-500 bg-rose-50/50 py-2 rounded-lg border border-rose-100 animate-in fade-in slide-in-from-bottom-2 duration-500">
+                                                    <AlertCircle className="w-4 h-4" />
+                                                    <span className="text-[10px] font-black uppercase tracking-widest">Adjust over-allocated items</span>
+                                                </div>
+                                            )}
+                                            <Button
+                                                className={`w-full h-16 text-base font-black uppercase tracking-[0.2em] shadow-2xl transition-all duration-500 rounded-xl ${anyHasError ? 'bg-slate-700 opacity-50 cursor-not-allowed text-slate-400' : 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 hover:scale-[1.02] hover:shadow-emerald-500/20 active:scale-95 shadow-emerald-500/10'}`}
+                                                onClick={handleConfirmClick}
+                                                disabled={submitting || anyHasError}
+                                            >
+                                                {submitting ? (
+                                                    <span className="flex items-center gap-3 animate-pulse">
+                                                        <Loader2 className="w-5 h-5 animate-spin" />
+                                                        Authenticating Order...
+                                                    </span>
+                                                ) : (
+                                                    <span className="flex items-center gap-3">
+                                                        SUBMIT SALES ORDER
+                                                        <CheckCircle2 className="w-6 h-6 text-slate-950/50" />
+                                                    </span>
+                                                )}
+                                            </Button>
+                                        </>
+                                    );
+                                })()}
                                 <p className="text-[10px] text-center text-slate-500 font-medium leading-relaxed italic">
                                     Finalize your allocation and select target workflow status.
                                 </p>

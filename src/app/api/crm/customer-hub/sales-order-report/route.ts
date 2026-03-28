@@ -157,6 +157,130 @@ export async function GET(req: NextRequest) {
         }
     }
 
+    if (type === "order-pdf") {
+        try {
+            const soId = searchParams.get("salesOrderId");
+            const orderNo = searchParams.get("orderNo");
+            const FOLDER_ID = "ba39f489-2388-4b7a-85aa-e01def0f484a";
+
+            if (!soId) return NextResponse.json({ error: "salesOrderId required" }, { status: 400 });
+
+            console.log(`[PDF-FINAL] Start search for SOID=${soId}, No=${orderNo}`);
+
+            // 1. Get Invoices for this SO first
+            const invUrl = `${BASE_URL}/sales_invoice?filter[order_id][_eq]=${soId}&fields=invoice_id,invoice_no&limit=-1`;
+            const invRes = await fetch(invUrl, { headers, cache: "no-store" });
+            const invJson = await invRes.json();
+            const invoices = invJson.data || [];
+            
+            let record: any = null;
+
+            // CHAIN 1: Direct ID Match (Revised Schema)
+            if (invoices.length > 0) {
+                const invIds = invoices.map((i: any) => i.invoice_id);
+                const pdfUrl = `${BASE_URL}/sales_invoice_pdf?filter[sales_invoice_id][_in]=${invIds.join(",")}&fields=pdf_file,receipt_numbers&limit=1`;
+                const pdfRes = await fetch(pdfUrl, { headers, cache: "no-store" });
+                const pdfJson = await pdfRes.json();
+                record = pdfJson.data?.[0];
+            }
+
+            // CHAIN 2: Invoice No string search in 'receipt_numbers'
+            if (!record && invoices.length > 0) {
+                for (const inv of invoices) {
+                    const pdfUrl = `${BASE_URL}/sales_invoice_pdf?filter[receipt_numbers][_icontains]=${inv.invoice_no}&fields=pdf_file,receipt_numbers&limit=1`;
+                    const pdfRes = await fetch(pdfUrl, { headers, cache: "no-store" });
+                    const pdfJson = await pdfRes.json();
+                    if (pdfJson.data?.[0]) { record = pdfJson.data[0]; break; }
+                }
+            }
+
+            // CHAIN 3: Order No string search in 'receipt_numbers'
+            if (!record && orderNo) {
+                const pdfUrl = `${BASE_URL}/sales_invoice_pdf?filter[receipt_numbers][_icontains]=${orderNo}&fields=pdf_file,receipt_numbers&limit=1`;
+                const pdfRes = await fetch(pdfUrl, { headers, cache: "no-store" });
+                const pdfJson = await pdfRes.json();
+                record = pdfJson.data?.[0];
+            }
+
+            // CHAIN 4: Legacy sales_order_id field
+            if (!record) {
+                const pdfUrl = `${BASE_URL}/sales_invoice_pdf?filter[sales_order_id][_eq]=${soId}&fields=pdf_file,receipt_numbers&limit=1`;
+                const pdfRes = await fetch(pdfUrl, { headers, cache: "no-store" });
+                const pdfJson = await pdfRes.json();
+                record = pdfJson.data?.[0];
+            }
+
+            // CHAIN 5: THE "FALLSAFE" - Direct /files search in specific folder
+            if (!record) {
+                console.log(`[PDF-FINAL] Searching direct /files in folder ${FOLDER_ID}...`);
+                const queries = [orderNo, ...(invoices.map((i: any) => i.invoice_no))].filter(Boolean);
+                
+                for (const query of queries) {
+                    // Search title OR filename for the keyword in the correct folder
+                    const filesUrl = `${process.env.NEXT_PUBLIC_API_BASE_URL}/files?filter[folder][_eq]=${FOLDER_ID}&filter[_or][0][title][_icontains]=${query}&filter[_or][1][filename_download][_icontains]=${query}&limit=1`;
+                    const filesRes = await fetch(filesUrl, { headers, cache: "no-store" });
+                    const filesJson = await filesRes.json();
+                    
+                    if (filesJson.data?.[0]?.id) {
+                        const file = filesJson.data[0];
+                        console.log(`[PDF-FINAL] FOUND IN /FILES! fileId=${file.id}, match=${query}`);
+                        return NextResponse.json({ 
+                            data: {
+                                fileId: file.id,
+                                receipts: file.title,
+                                url: `${process.env.NEXT_PUBLIC_API_BASE_URL}/assets/${file.id}`
+                            }
+                        });
+                    }
+                }
+            }
+
+            if (!record || !record.pdf_file) {
+                console.log(`[PDF-FINAL] No record found anywhere for SOID=${soId}`);
+                return NextResponse.json({ data: null });
+            }
+
+            console.log(`[PDF-FINAL] Success! asset=${record.pdf_file}`);
+            return NextResponse.json({ 
+                data: {
+                    fileId: record.pdf_file,
+                    receipts: record.receipt_numbers,
+                    url: `${process.env.NEXT_PUBLIC_API_BASE_URL}/assets/${record.pdf_file}`
+                }
+            });
+
+        } catch (error: unknown) {
+            console.error("[PDF-FINAL] Fatal Error:", error);
+            return NextResponse.json({ error: String(error) }, { status: 500 });
+        }
+    }
+
+    if (type === "order-attachments") {
+        try {
+            const orderNo = searchParams.get("orderNo");
+            if (!orderNo) return NextResponse.json({ error: "orderNo required" }, { status: 400 });
+
+            const attUrl = `${BASE_URL}/sales_order_attachment?filter[sales_order_no][_eq]=${orderNo}&fields=*&limit=-1`;
+            const attRes = await fetch(attUrl, { headers });
+            
+            if (!attRes.ok) return NextResponse.json({ error: "Failed to fetch attachments" }, { status: 500 });
+            
+            const attJson = await attRes.json();
+            const attachments = attJson.data || [];
+
+            const enriched = attachments.map((att: any) => ({
+                id: att.id,
+                name: att.attachment_name,
+                url: att.file ? `${process.env.NEXT_PUBLIC_API_BASE_URL}/assets/${att.file}` : null
+            }));
+
+            return NextResponse.json({ data: enriched });
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : String(error);
+            return NextResponse.json({ error: message }, { status: 500 });
+        }
+    }
+
     if (type === "invoice-details") {
         try {
             const orderId = searchParams.get("orderId");

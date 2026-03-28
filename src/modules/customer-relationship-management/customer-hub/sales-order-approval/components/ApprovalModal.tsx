@@ -124,8 +124,14 @@ export function ApprovalModal({
                     setLoadingDetails(true);
                     try {
                         const data = await getOrderDetails(order.order_id, order.branch_id);
-                        // Accurate flow: set as-is from DB.
-                        setDetails(data || []);
+                        // ENFORCE: Default to 0 if out of stock
+                        const guardedData = (data || []).map((li: any) => {
+                            if ((li.available_qty ?? 0) <= 0) {
+                                return { ...li, allocated_quantity: 0 };
+                            }
+                            return li;
+                        });
+                        setDetails(guardedData);
                     } catch (error) {
                         console.error("Failed to load order details", error);
                     } finally {
@@ -147,9 +153,14 @@ export function ApprovalModal({
     const canHold = order.order_status === "For Approval";
 
     const updateAllocatedQty = (index: number, val: string) => {
-        const num = parseFloat(val) || 0;
+        let num = parseFloat(val) || 0;
         const newDetails = [...details];
         const oldItem = newDetails[index];
+
+        // GUARD: Cannot exceed Ordered Qty OR Available Qty
+        const maxAllowed = Math.min(oldItem.ordered_quantity || 0, oldItem.available_qty ?? 999999);
+        if (num > maxAllowed) num = maxAllowed;
+        if (num < 0) num = 0;
 
         // Calculate unit-based discount if applicable
         const unitDiscount = oldItem.ordered_quantity > 0 ? (oldItem.discount_amount / oldItem.ordered_quantity) : 0;
@@ -158,9 +169,6 @@ export function ApprovalModal({
         newDetails[index] = {
             ...oldItem,
             allocated_quantity: num,
-            // Temporarily store recalculated discount if we want to show it, 
-            // but the calculations in this component use the item's properties.
-            // Let's update it in the state so the summary totals are correct.
             _recalculated_discount: newDiscount
         };
         setDetails(newDetails);
