@@ -96,8 +96,31 @@ interface DiscountItem {
 
 export async function GET(req: NextRequest) {
     const action = req.nextUrl.searchParams.get("action");
+    const searchParams = req.nextUrl.searchParams;
 
     try {
+        if (action === "delete_item") {
+            const detailId = searchParams.get("id");
+            if (!detailId) return NextResponse.json({ error: "id required" }, { status: 400 });
+
+            console.log(`[API] Force Deleting Detail ID: ${detailId}`);
+            // Use Directus standard delete by ID
+            const delRes = await fetch(`${DIRECTUS_URL}/items/sales_order_details/${detailId}`, {
+                method: "DELETE",
+                headers: fetchHeaders
+            });
+
+            if (!delRes.ok) {
+                // Secondary attempt using filter to be absolutely sure
+                await fetch(`${DIRECTUS_URL}/items/sales_order_details?filter[detail_id][_eq]=${detailId}`, {
+                    method: "DELETE",
+                    headers: fetchHeaders
+                });
+            }
+
+            return NextResponse.json({ success: true });
+        }
+
         if (action === "salesmen") {
             const res = await fetch(`${DIRECTUS_URL}/items/salesman?filter[isActive][_eq]=1&limit=-1`, { headers: fetchHeaders });
             const smData = (await res.json()).data || [];
@@ -521,6 +544,48 @@ export async function GET(req: NextRequest) {
             return NextResponse.json(data);
         }
 
+        if (action === "get_order") {
+            const orderId = req.nextUrl.searchParams.get("order_id") || req.nextUrl.searchParams.get("id");
+            if (!orderId) return NextResponse.json({ error: "order_id required" }, { status: 400 });
+
+            // 1. Fetch Header
+            const hRes = await fetch(`${DIRECTUS_URL}/items/sales_order/${orderId}?fields=*`, { headers: fetchHeaders });
+            const header = (await hRes.json()).data;
+            if (!header) return NextResponse.json({ error: "Order not found" }, { status: 404 });
+
+            // 2. Fetch Details
+            const dRes = await fetch(`${DIRECTUS_URL}/items/sales_order_details?filter[order_id][_eq]=${orderId}&fields=*&limit=-1`, { headers: fetchHeaders });
+            const items = (await dRes.json()).data || [];
+
+            // 3. Enrich products
+            if (items.length > 0) {
+                const productIds = Array.from(new Set(items.map((i: any) => i.product_id))).filter(Boolean);
+                // Included description and discount_type
+                const pRes = await fetch(`${DIRECTUS_URL}/items/products?filter[product_id][_in]=${productIds.join(',')}&fields=product_id,product_name,product_code,description,discount_type&limit=-1`, { headers: fetchHeaders });
+                const products = (await pRes.json()).data || [];
+                const pMap = new Map(products.map((p: any) => [Number(p.product_id), p]));
+
+                items.forEach((item: any) => {
+                    const pid = Number(item.product_id);
+                    if (pMap.has(pid)) {
+                        const pData = pMap.get(pid) as any;
+                        item.product = {
+                            ...pData,
+                            id: pData.product_id,
+                            product_id: pData.product_id,
+                            product_name: pData.product_name,
+                            display_name: pData.product_name, // Map for UI
+                            description: pData.description,
+                            discount_level: pData.discount_type, // UI expects discount_level
+                            unit_count: pData.unit_of_measurement_count || 1 // Support UC column
+                        };
+                    }
+                });
+            }
+
+            return NextResponse.json({ header, items });
+        }
+
         return NextResponse.json({ error: "Invalid action" }, { status: 400 });
     } catch (e: unknown) {
         const err = e as Error;
@@ -533,6 +598,13 @@ export async function POST(req: NextRequest) {
         const body = await req.json();
         const { header, items } = body;
         const now = new Date();
+
+        console.log(`\n>>> [POST /create-sales-order] Received request: order_id=${header.order_id || 'NEW'}, items=${items?.length || 0}`);
+        if (items && items.length > 0) {
+            items.forEach((it: any, i: number) => {
+                console.log(`  [Recv Item ${i}] detail_id=${it.detail_id}, product_id=${it.product?.product_id}, qty=${it.quantity}`);
+            });
+        }
 
         let orderNo = header.order_no;
         if (!orderNo) {
@@ -596,10 +668,14 @@ export async function POST(req: NextRequest) {
             }
         }
 
-        const lineItemsPayload = items.map((item: { unitPrice: number; quantity: number; allocated_quantity?: number; netAmount: number; uom?: string; product: { product_id: number; discount_type?: number }; remarks?: string }) => {
+        const lineItemsPayload = items.map((item: { detail_id?: number | string; unitPrice: number; quantity: number; allocated_quantity?: number; netAmount: number; uom?: string; product: { product_id: number; discount_type?: number }; remarks?: string; discountType?: string; discounts?: number[] }, idx: number) => {
             const unitPrice = Number(item.unitPrice) || 0;
             const orderedQty = Number(item.quantity) || 0;
-            const allocatedQty = item.allocated_quantity !== undefined ? Number(item.allocated_quantity) : orderedQty;
+            
+            // Direct read from payload -- no guessing
+            const allocatedQty = Number((item as any).allocated_quantity) || 0;
+
+            console.log(`[CreateSalesOrder] INCOMING item[${idx}]: PID=${item.product?.product_id}, unitPrice=${unitPrice}, orderedQty=${orderedQty}, allocated_quantity=${(item as any).allocated_quantity}, parsed=${allocatedQty}, discountType=${item.discountType || item.product?.discount_type}`);
 
             const orderedGross = unitPrice * orderedQty;
             const orderedNetAmount = Number(item.netAmount) || orderedGross;
@@ -611,16 +687,22 @@ export async function POST(req: NextRequest) {
             const netAmountLine = Math.max(0, allocatedGross - allocatedDiscount);
             const allocatedAmountLine = netAmountLine;
 
-            console.log(`[CreateSalesOrder] Item PK: ${item.product?.product_id}, UnitPrice: ${unitPrice}, Ordered: ${orderedQty}, Allocated: ${allocatedQty}, DiscountAmt: ${allocatedDiscount}, LineNet: ${netAmountLine}`);
+            // Resolve discount_type: prefer numeric ID from product, fallback to discountType string if numeric
+            const resolvedDiscountType = item.product?.discount_type
+                || (typeof item.discountType === 'string' && !isNaN(Number(item.discountType)) ? Number(item.discountType) : null);
+
+            console.log(`[CreateSalesOrder] SAVING item[${idx}]: PID=${item.product?.product_id}, allocQty=${allocatedQty}, disc=${allocatedDiscount}, net=${netAmountLine}, discType=${resolvedDiscountType}`);
 
             return {
+                detail_id: item.detail_id,
                 order_id: 0,
                 product_id: item.product.product_id,
                 unit_price: unitPrice,
                 ordered_quantity: orderedQty,
+                quantity: orderedQty,
                 allocated_quantity: allocatedQty,
                 served_quantity: 0,
-                discount_type: item.product?.discount_type || null,
+                discount_type: resolvedDiscountType,
                 discount_amount: allocatedDiscount,
                 gross_amount: allocatedGross,
                 net_amount: netAmountLine,
@@ -715,22 +797,6 @@ export async function POST(req: NextRequest) {
 
         let hRes;
         if (finalOrderId) {
-            // 1. Delete Existing Details first
-            try {
-                const existingDetailsRes = await fetch(`${DIRECTUS_URL}/items/sales_order_details?filter[order_id][_eq]=${finalOrderId}&fields=id&limit=-1`, { headers: fetchHeaders });
-                const existingDetails = (await existingDetailsRes.json()).data || [];
-                if (existingDetails.length > 0) {
-                    const idsToDel = existingDetails.map((d: { id: number | string }) => d.id);
-                    await fetch(`${DIRECTUS_URL}/items/sales_order_details`, {
-                        method: "DELETE",
-                        headers: fetchHeaders,
-                        body: JSON.stringify(idsToDel)
-                    });
-                }
-            } catch (e) {
-                console.error("Cleanup of existing details failed", e);
-            }
-
             // 2. Patch Header
             hRes = await fetch(`${DIRECTUS_URL}/items/sales_order/${finalOrderId}`, {
                 method: "PATCH",
@@ -752,46 +818,123 @@ export async function POST(req: NextRequest) {
         }
 
         const hJson = await hRes.json();
-        const soId = hJson.data?.order_id || hJson.data?.id || finalOrderId;
+        const targetId = Number(finalOrderId || hJson.data?.order_id || hJson.data?.id || header.order_id);
+        
+        // --- SMART UPSERT (SYNC) LOGIC ---
+        try {
+            // 1. Fetch current items in DB to see what to delete
+            const currentRes = await fetch(`${DIRECTUS_URL}/items/sales_order_details?filter[order_id][_eq]=${targetId}&fields=detail_id,id&limit=-1`, {
+                headers: fetchHeaders,
+                cache: 'no-store'
+            });
+            const currentItems = currentRes.ok ? (await currentRes.json()).data || [] : [];
+            
+            // Map IDs robustly from DB (using detail_id primarily)
+            const currentIds = currentItems.map((it: any) => Number(it.detail_id || it.id)).filter((n: number) => !isNaN(n) && n > 0);
 
-        const finalLineItems = lineItemsPayload.map((item: { _ordered_gross?: number; _ordered_discount?: number;[key: string]: unknown }) => {
-            const li = { ...item };
-            delete li._ordered_gross;
-            delete li._ordered_discount;
-            return { ...li, order_id: soId };
-        });
+            // Get IDs from incoming items (those to KEEP)
+            const incomingIds = items.map((it: any) => Number(it.detail_id || it.id || it.order_detail_id)).filter((n: number) => !isNaN(n) && n > 0);
 
-        const itemsRes = await fetch(`${DIRECTUS_URL}/items/sales_order_details`, {
-            method: "POST",
-            headers: fetchHeaders,
-            body: JSON.stringify(finalLineItems)
-        });
+            const idsToDelete = currentIds.filter((id: number) => !incomingIds.includes(id));
+            const incomingWithIds = lineItemsPayload.filter((it: any) => it.detail_id);
+            const incomingNew = lineItemsPayload.filter((it: any) => !it.detail_id);
 
-        if (!itemsRes.ok) {
-            const errText = await itemsRes.text();
-            console.error("Lines Save Error:", errText);
-            return NextResponse.json({ success: false, error: errText });
+            console.log(`\n========== [SmartSync] Order ${targetId} ==========`);
+            console.log(`  DB has ${currentIds.length} item(s): [${currentIds.join(", ")}]`);
+            console.log(`  Frontend sent ${incomingIds.length} item(s): [${incomingIds.join(", ")}]`);
+            console.log(`  Items to DELETE: ${idsToDelete.length > 0 ? `[${idsToDelete.join(", ")}]` : "none"}`);
+            console.log(`  Items to UPDATE: ${incomingWithIds.length}`);
+            console.log(`  Items to INSERT: ${incomingNew.length}`);
+            console.log(`===============================================\n`);
+
+            // 2. Perform DELETES — delete each removed item from DB individually
+            for (const idToDelete of idsToDelete) {
+                console.log(`[SmartSync] Deleting detail_id=${idToDelete} from DB...`);
+                const delRes = await fetch(`${DIRECTUS_URL}/items/sales_order_details/${idToDelete}`, {
+                    method: "DELETE",
+                    headers: fetchHeaders
+                });
+                if (!delRes.ok) {
+                    const errText = await delRes.text();
+                    console.error(`[SmartSync] FAILED to delete detail_id=${idToDelete}: ${errText}`);
+                    throw new Error(`Failed to delete order detail ${idToDelete}: ${errText}`);
+                }
+                console.log(`[SmartSync] SUCCESS deleted detail_id=${idToDelete}`);
+            }
+
+            // 3. Perform UPDATES (PATCH)
+            if (incomingWithIds.length > 0) {
+                for (const item of incomingWithIds) {
+                    const pk = item.detail_id;
+                    const updatePayload = { ...item };
+                    delete updatePayload.detail_id;
+                    delete updatePayload._ordered_gross;
+                    delete updatePayload._ordered_discount;
+                    updatePayload.order_id = targetId;
+
+                    await fetch(`${DIRECTUS_URL}/items/sales_order_details/${pk}`, {
+                        method: "PATCH",
+                        headers: { ...fetchHeaders, "Content-Type": "application/json" },
+                        body: JSON.stringify(updatePayload)
+                    });
+                }
+            }
+
+            // 4. Perform INSERTS (POST) for brand new items
+            if (incomingNew.length > 0) {
+                const inserts = incomingNew.map((item: any) => {
+                    const li = { ...item };
+                    delete li.detail_id; // Remove detail_id if present for new items
+                    delete li._ordered_gross;
+                    delete li._ordered_discount;
+                    return { ...li, order_id: targetId };
+                });
+
+                const itemsRes = await fetch(`${DIRECTUS_URL}/items/sales_order_details`, {
+                    method: "POST",
+                    headers: fetchHeaders,
+                    body: JSON.stringify(inserts)
+                });
+                
+                if (!itemsRes.ok) {
+                    console.error("Lines Insert Error:", await itemsRes.text());
+                }
+            }
+
+        } catch (syncErr) {
+            console.error("[CreateSalesOrder] Sync Logic Error:", syncErr);
+            return NextResponse.json({ success: false, error: "Line Item Sync Failed" });
         }
+        // --- END SMART SYNC ---
 
         if (header.attachment_id) {
+            console.log(`[CreateSalesOrder] Processing attachment linkage for ID: ${header.attachment_id}, Target SO ID: ${targetId}`);
             try {
-                await fetch(`${DIRECTUS_URL}/items/sales_order_attachment/${header.attachment_id}`, {
+                // Link the attachment and mark as Approved to indicate it's been processed
+                const attachRes = await fetch(`${DIRECTUS_URL}/items/sales_order_attachment/${header.attachment_id}`, {
                     method: "PATCH",
                     headers: fetchHeaders,
                     body: JSON.stringify({
-                        sales_order_id: soId,
-                        status: "approved"
+                        order_id: targetId, // Ensure it's a number
+                        status: "Approved"
                     })
                 });
+
+                if (attachRes.ok) {
+                    console.log(`[CreateSalesOrder] SUCCESSFULLY linked attachment ${header.attachment_id} to SO ${targetId}`);
+                } else {
+                    const attachErr = await attachRes.text();
+                    console.error(`[CreateSalesOrder] Attachment Update FAILED for ${header.attachment_id}:`, attachErr);
+                }
             } catch (e) {
-                console.error("Back-linking attachment failed", e);
+                console.error("[CreateSalesOrder] Back-linking attachment exception:", e);
             }
         }
 
-        return NextResponse.json({ success: true, order_no: orderNo });
+        return NextResponse.json({ success: true, order_no: orderNo, order_id: targetId });
     } catch (e: unknown) {
         const err = e as Error;
-        console.error("Submission Exception:", err);
+        console.error("[CreateSalesOrder] Submission Exception:", err);
         return NextResponse.json({ success: false, error: err.message });
     }
 }

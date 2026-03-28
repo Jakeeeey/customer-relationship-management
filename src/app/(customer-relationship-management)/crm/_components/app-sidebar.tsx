@@ -80,44 +80,12 @@ export function AppSidebar({
     className,
     ...props
 }: React.ComponentProps<typeof Sidebar>) {
-    const [counts, setCounts] = React.useState({ draft: 0, approval: 0, callsheet: 0 });
 
-    const fetchCounts = React.useCallback(async () => {
-        try {
-            const res = await fetch("/api/crm/sidebar-counts");
-            if (res.ok) {
-                const data = await res.json();
-                setCounts(data);
-            }
-        } catch (e) {
-            console.error("Failed to fetch sidebar counts:", e);
-        }
-    }, []);
 
-    React.useEffect(() => {
-        fetchCounts();
-        
-        // Listen for standard refresh events if any, or just interval
-        const interval = setInterval(fetchCounts, 60000);
-        return () => clearInterval(interval);
-    }, [fetchCounts]);
 
     const navMainWithCounts = React.useMemo(() => {
-        return data.navMain.map(group => {
-            if (group.title === "Customer Hub" && group.items) {
-                return {
-                    ...group,
-                    items: group.items.map(item => {
-                        if (item.title === "Sales Order Draft") return { ...item, badge: counts.draft || undefined };
-                        if (item.title === "Sales Order Approval") return { ...item, badge: counts.approval || undefined };
-                        if (item.title === "Callsheet") return { ...item, badge: counts.callsheet || undefined };
-                        return item;
-                    })
-                };
-            }
-            return group;
-        });
-    }, [counts]);
+        return data.navMain;
+    }, []);
 
     return (
         <Sidebar
@@ -172,7 +140,7 @@ export function AppSidebar({
                     )}
                 >
                     <div className="w-full min-w-0">
-                        <NavMain items={navMainWithCounts} />
+                        <NavMain items={data.navMain} />
                     </div>
                 </ScrollArea>
             </SidebarContent>

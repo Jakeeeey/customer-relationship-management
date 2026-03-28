@@ -34,9 +34,9 @@ interface SalesOrderCheckoutProps {
     onBack: () => void;
     onConfirm: (status?: "Draft" | "For Approval") => void;
     submitting: boolean;
-    // isValidAllocation is now handled differently (allowing 0)
     orderRemarks: string;
     setOrderRemarks: (val: string) => void;
+    isExistingOrder?: boolean;
     header: {
         salesman: Salesman | null;
         account: Salesman | null;
@@ -54,11 +54,11 @@ interface SalesOrderCheckoutProps {
 export function SalesOrderCheckout({
     orderNo, lineItems, allocatedQuantities, updateAllocatedQty,
     summary, onBack, onConfirm, submitting, header,
-    orderRemarks, setOrderRemarks
+    orderRemarks, setOrderRemarks, isExistingOrder = false
 }: SalesOrderCheckoutProps) {
     const [showConfirmDialog, setShowConfirmDialog] = useState(false);
 
-    const hasZeroAllocation = lineItems.some(item => (allocatedQuantities[item.id] ?? item.quantity) === 0);
+    const hasZeroAllocation = lineItems.some(item => (allocatedQuantities[item.id] ?? 0) === 0);
 
     const handleConfirmClick = () => {
         if (hasZeroAllocation) {
@@ -82,7 +82,7 @@ export function SalesOrderCheckout({
                 </Button>
                 <div className="flex items-center gap-3">
                     <Badge variant="outline" className="px-3 py-1 text-xs font-bold border-primary/30 text-primary bg-primary/5 uppercase tracking-widest">
-                        Reviewing Order
+                        {isExistingOrder ? "Modifying Draft" : "Reviewing Order"}
                     </Badge>
                 </div>
             </div>
@@ -160,9 +160,11 @@ export function SalesOrderCheckout({
                                     </TableHeader>
                                     <TableBody>
                                         {lineItems.map((item) => {
-                                            const allocatedQty = allocatedQuantities[item.id] ?? item.quantity;
-                                            const netPrice = calculateChainNetPrice(item.unitPrice, item.discounts);
-                                            const allocatedTotal = netPrice * allocatedQty;
+                                            const allocatedQty = allocatedQuantities[item.id] ?? 0;
+                                            // Exact Mapping Support for visual row total
+                                            const allocatedTotal = (item.savedAllocatedQty !== undefined && allocatedQty === item.savedAllocatedQty && item.savedNetAmount !== undefined)
+                                                ? item.savedNetAmount
+                                                : calculateChainNetPrice(item.unitPrice, item.discounts) * allocatedQty;
 
                                             return (
                                                 <TableRow key={item.id} className="hover:bg-slate-50/50 border-b group transition-colors">
@@ -353,6 +355,7 @@ export function SalesOrderCheckout({
                 onConfirm={handleFinalConfirm}
                 orderNo={orderNo}
                 hasZeroAllocation={hasZeroAllocation}
+                isExistingOrder={isExistingOrder}
             />
         </div>
     );

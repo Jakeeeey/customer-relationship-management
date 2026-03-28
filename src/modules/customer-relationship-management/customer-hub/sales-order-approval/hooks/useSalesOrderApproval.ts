@@ -67,13 +67,19 @@ export function useSalesOrderApproval() {
             setLoadingMore(true);
         } else {
             setLoadingOrders(true);
+            setOrders([]); // Clear list on fresh fetch to avoid ghosting
+            setPage(1);
         }
 
         try {
             const result = await getPendingOrders(currentStatus, currentSearch, fetchPage, 30, currentStart, currentEnd);
 
             if (isLoadMore) {
-                setOrders(prev => [...prev, ...result.data]);
+                setOrders(prev => {
+                    const combined = [...prev, ...result.data];
+                    // Using a Map ensures uniqueness by order_id
+                    return Array.from(new Map(combined.map(o => [o.order_id, o])).values());
+                });
             } else {
                 setOrders(result.data);
             }

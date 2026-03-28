@@ -19,7 +19,9 @@ export async function getPendingOrders(status: string = "For Approval", search: 
 export async function getOrderDetails(orderId: number, branchId?: number | string) {
     let url = `/api/crm/customer-hub/sales-order-approval?type=order-details&orderId=${orderId}`;
     if (branchId) url += `&branchId=${branchId}`;
-    const res = await fetch(url);
+    // Cache-bust para laging fresh data ang makuha
+    url += `&_t=${Date.now()}`;
+    const res = await fetch(url, { cache: "no-store" });
     if (!res.ok) throw new Error("Failed to fetch order details");
     const json = await res.json();
     return json.data || [];

@@ -124,11 +124,8 @@ export function ApprovalModal({
                     setLoadingDetails(true);
                     try {
                         const data = await getOrderDetails(order.order_id, order.branch_id);
-                        const enriched = (data || []).map((item: OrderDetail) => ({
-                            ...item,
-                            allocated_quantity: item.allocated_quantity ?? item.ordered_quantity
-                        }));
-                        setDetails(enriched);
+                        // Accurate flow: set as-is from DB.
+                        setDetails(data || []);
                     } catch (error) {
                         console.error("Failed to load order details", error);
                     } finally {
@@ -170,17 +167,33 @@ export function ApprovalModal({
     };
 
     // Recalculate totals based on local details state
-    // We use a helper to get the "current" discount for each line
     const getLineDiscount = (item: OrderDetail & { _recalculated_discount?: number }) => {
+        // Preference: If manually changed, use recalculated value
         if (item._recalculated_discount !== undefined) return item._recalculated_discount;
-        // Fallback or Initial state: if allocated_quantity != ordered_quantity, we should probably scale it anyway
+        
+        // Initial Fetch Preference: use EXACT value from database
+        // No division or multiplication to avoid precision loss or invalid assumptions
+        if (item.discount_amount !== undefined && item.discount_amount !== 0) {
+            return item.discount_amount;
+        }
+
+        // Only fallback to math if we MUST (usually shouldn't happen for accurate rows)
         const unitDiscount = item.ordered_quantity > 0 ? (item.discount_amount / item.ordered_quantity) : 0;
         return unitDiscount * item.allocated_quantity;
     };
 
-    const calculatedGross = details.reduce((sum, item) => sum + (item.allocated_quantity * item.unit_price), 0);
+    const getLineNet = (item: OrderDetail & { _recalculated_discount?: number }) => {
+        // If manually changed, recalculate
+        if (item._recalculated_discount !== undefined) {
+             return (item.allocated_quantity * item.unit_price) - item._recalculated_discount;
+        }
+        // Initial: use exact database NET AMOUNT if provided
+        return (item.net_amount !== undefined && item.net_amount !== 0) ? item.net_amount : (item.allocated_quantity * item.unit_price) - getLineDiscount(item);
+    };
+
+    const calculatedGross = details.reduce((sum, item) => sum + (item.allocated_quantity * (item.unit_price || 0)), 0);
     const calculatedDiscount = details.reduce((sum, item) => sum + getLineDiscount(item), 0);
-    const calculatedNetAllocation = calculatedGross - calculatedDiscount;
+    const calculatedNetAllocation = details.reduce((sum, item) => sum + getLineNet(item), 0);
 
     const calculatedAllocatedTotal = calculatedNetAllocation; // For backward compatibility if needed elsewhere
 
@@ -476,7 +489,7 @@ export function ApprovalModal({
                                             details.map((li, idx) => {
                                                 const productName = li.product_id?.product_name || li.product_id?.description || "Unknown";
                                                 const productCode = li.product_id?.product_code || "N/A";
-                                                const lineTotal = (li.allocated_quantity * li.unit_price) - getLineDiscount(li);
+                                                const lineTotal = getLineNet(li);
                                                 const isExceeding = (li.allocated_quantity > li.ordered_quantity) || (li.available_qty !== undefined && li.allocated_quantity > li.available_qty);
 
                                                 return (

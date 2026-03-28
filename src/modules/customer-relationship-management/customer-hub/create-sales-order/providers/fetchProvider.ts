@@ -72,4 +72,9 @@ export const salesOrderProvider = {
         return res.json();
     },
 
+    deleteOrderItem: async (detailId: number | string): Promise<{ success: boolean; error?: string }> => {
+        const res = await fetch(`${API_BASE}?action=delete_item&id=${detailId}`);
+        return res.json();
+    },
+
 };

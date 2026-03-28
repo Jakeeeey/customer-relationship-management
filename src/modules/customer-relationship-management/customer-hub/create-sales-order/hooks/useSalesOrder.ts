@@ -11,7 +11,7 @@ import { toast } from "sonner";
 export function useSalesOrder() {
     const searchParams = useSearchParams();
     const attachmentId = searchParams.get("attachment_id");
-    const externalSalesOrderId = searchParams.get("sales_order_id");
+    const externalSalesOrderId = searchParams.get("orderId") || searchParams.get("sales_order_id");
     const isAutoFilled = useRef(false);
 
     // Selection State (IDs for dropdowns)
@@ -201,19 +201,94 @@ export function useSalesOrder() {
                             if (header.sales_type) setSelectedSalesTypeId(header.sales_type.toString());
 
                             if (items && Array.isArray(items)) {
-                                console.log("[useSalesOrder] Mapping Items:", items.length);
-                                const mappedItems = items.map(it => ({
-                                    id: Math.random().toString(36).substr(2, 9),
-                                    product: it.product_id,
-                                    quantity: Number(it.ordered_quantity || it.quantity),
-                                    uom: it.uom || "PCS",
-                                    unitPrice: Number(it.unit_price),
-                                    discounts: it.product_id?.discounts || [],
-                                    netAmount: Number(it.net_amount),
-                                    totalAmount: Number(it.gross_amount || (it.unit_price * (it.ordered_quantity || it.quantity))),
-                                    discountAmount: Number(it.discount_amount || 0)
-                                }));
-                                setLineItems(mappedItems);
+                                console.log("[useSalesOrder] Mapping Items with Enrichment:", items.length);
+                                
+                                // 1. Fetch full product metadata for enriched information (discounts, categories)
+                                // We use the current header context to get the same discount logic as the catalog
+                                let enrichedProductsMap = new Map<number, any>();
+                                try {
+                                    const pUrl = `${salesOrderProvider.API_BASE}?action=products&customer_code=${header.customer_code}&supplier_id=${header.supplier_id}&branch_id=${header.branch_id}`;
+                                    const pData = await fetch(pUrl).then(r => r.json());
+                                    if (Array.isArray(pData)) {
+                                        pData.forEach(p => enrichedProductsMap.set(Number(p.product_id), p));
+                                    }
+                                } catch (e) {
+                                    console.error("[useSalesOrder] Product enrichment failed:", e);
+                                }
+
+                                const allocMap: Record<string, number> = {};
+                                const mappedItems = items.map((it: any) => {
+                                    const tempId = Math.random().toString(36).substr(2, 9);
+                                    allocMap[tempId] = Number(it.allocated_quantity ?? 0);
+
+                                    // Preserve original Detail ID for Smart Update logic
+                                    const originalPK = it.detail_id || it.order_detail_id || it.id;
+
+                                    const pid = Number(typeof it.product_id === 'object' ? it.product_id?.product_id : it.product_id);
+                                    const enrichedP = enrichedProductsMap.get(pid);
+                                    const p = enrichedP || it.product || (typeof it.product_id === 'object' ? it.product_id : { product_id: it.product_id });
+
+                                    const rawOrdered = it.ordered_quantity;
+                                    const rawQty = it.quantity;
+                                    const qty = (rawOrdered !== undefined && rawOrdered !== null) ? Number(rawOrdered) : Number(rawQty ?? 0);
+                                    const uPrice = Number(it.unit_price || 0);
+
+                                    // Always prefer enriched product discounts from catalog
+                                    const discounts = (enrichedP?.discounts && enrichedP.discounts.length > 0)
+                                        ? enrichedP.discounts
+                                        : (p.discounts || []);
+                                    
+                                    let netUnitPrice: number;
+                                    if (discounts.length > 0) {
+                                        // Best case: recalculate from actual discount percentages
+                                        netUnitPrice = calculateChainNetPrice(uPrice, discounts);
+                                    } else {
+                                        // Fallback: use gross vs net from DB based on ORDERED qty (not allocated)
+                                        // This preserves the discount even if allocated was 0
+                                        const dbGross = Number(it.gross_amount || 0);
+                                        const dbOrdered = Number(it.ordered_quantity || it.quantity || 0);
+                                        const dbNet = Number(it.net_amount || 0);
+                                        if (dbGross > 0 && dbNet > 0 && dbOrdered > 0 && dbGross !== dbNet) {
+                                            netUnitPrice = uPrice * (dbNet / dbGross);
+                                        } else {
+                                            netUnitPrice = uPrice;
+                                        }
+                                    }
+
+                                    const calcTotal = uPrice * qty;
+                                    const calcNet = netUnitPrice * qty;
+
+                                    console.log(`[useSalesOrder] Item PID=${pid}, ordQty=${qty}, allocQty=${allocMap[tempId]}, uPrice=${uPrice}, discounts=${JSON.stringify(discounts)}, netUnit=${netUnitPrice}, calcNet=${calcNet}`);
+
+                                    return {
+                                        id: tempId,
+                                        detail_id: originalPK, // Bida to! 🚀
+                                        uom: it.uom || "PCS",
+                                        unitPrice: uPrice,
+                                        quantity: qty,
+                                        discountType: typeof it.discount_type === 'number' && it.discount_type !== 0 ? String(it.discount_type) : (p.discount_level || it.discount_type || p.discount_type || "None"),
+                                        product: {
+                                            ...p,
+                                            discount_type: it.discount_type || p.discount_type,
+                                            id: p.id || p.product_id,
+                                            product_id: p.product_id || pid,
+                                            display_name: p.display_name || p.product_name,
+                                            product_name: p.product_name,
+                                            description: p.description,
+                                            available_qty: p.available_qty ?? 0,
+                                            unit_count: p.unit_count || p.unit_of_measurement_count || 1
+                                        },
+                                        discounts: discounts,
+                                        netAmount: calcNet,
+                                        totalAmount: calcTotal,
+                                        discountAmount: calcTotal - calcNet,
+                                        savedNetAmount: Number(it.net_amount || 0),
+                                        savedDiscountAmount: Number(it.discount_amount || 0),
+                                        savedAllocatedQty: Number(it.allocated_quantity || 0)
+                                    };
+                                });
+                                setLineItems(mappedItems as any);
+                                setAllocatedQuantities(allocMap);
                             }
                         }
                     }
@@ -386,6 +461,35 @@ export function useSalesOrder() {
         }
     }, [selectedCustomerId, selectedSupplierId, priceType, priceTypeId, selectedAccountId, selectedBranchId, customers]);
 
+    // Sync cart items with freshly fetched products (especially 'available' stock info)
+    useEffect(() => {
+        if (supplierProducts.length > 0 && lineItems.length > 0) {
+            setLineItems(prev => {
+                let changed = false;
+                const next = prev.map(li => {
+                    const match = supplierProducts.find(sp => Number(sp.product_id) === Number(li.product.product_id));
+                    if (match && (match.available_qty !== li.product.available_qty || match.display_name !== li.product.display_name)) {
+                        changed = true;
+                        return {
+                            ...li,
+                            discountType: (match.discount_level || match.discount_type || li.discountType) as string | undefined,
+                            product: {
+                                ...li.product,
+                                available_qty: (match.available_qty ?? match.available ?? 0) as number,
+                                display_name: match.display_name || match.product_name || li.product.display_name,
+                                description: match.description || li.product.description,
+                                unit_count: (match.unit_count || li.product.unit_count) as number | null
+                            }
+                        };
+                    }
+                    return li;
+                });
+                return changed ? next : prev;
+            });
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [supplierProducts]);
+
     // Line Item Logic
     const addProduct = (product: Product, quantity: number, uom: string) => {
         // Check if product already exists in cart with the same UOM
@@ -421,17 +525,43 @@ export function useSalesOrder() {
         };
 
         setLineItems(prev => [...prev, newItem]);
+        // Also initialize allocation for the new item
+        setAllocatedQuantities(prev => ({ ...prev, [id]: quantity }));
     };
 
-    const removeLineItem = (id: string) => {
-        setLineItems(prev => prev.filter(item => item.id !== id));
+    const removeLineItem = async (id: string) => {
+        const item = lineItems.find(i => i.id === id);
+        
+        // --- REAL-TIME DELETION ---
+        // If the item exists in the DB (has detail_id), force delete it now
+        if ((item as any)?.detail_id) {
+            console.log(`[RemoveItem] Force deleting detail_id=${(item as any).detail_id} from DB...`);
+            try {
+                const res = await salesOrderProvider.deleteOrderItem((item as any).detail_id);
+                if (res.success) {
+                    toast.success("Item removed from database");
+                } else {
+                    console.error("[RemoveItem] DB Deletion failed:", res.error);
+                }
+            } catch (err) {
+                console.error("[RemoveItem] DB Deletion Exception:", err);
+            }
+        }
+
+        setLineItems(prev => {
+            console.log(`[RemoveItem] Removing from local state: tempId=${id}`);
+            return prev.filter(item => item.id !== id);
+        });
+        setAllocatedQuantities(prev => {
+            const next = { ...prev };
+            delete next[id];
+            return next;
+        });
     };
 
-    const updateLineItemQty = (id: string, qty: number) => {
+    const updateLineItemQty = useCallback((id: string, qty: number) => {
         setLineItems(prev => prev.map(item => {
             if (item.id !== id) return item;
-
-
 
             const totalAmount = item.unitPrice * qty;
             const netPrice = calculateChainNetPrice(item.unitPrice, item.discounts);
@@ -444,7 +574,9 @@ export function useSalesOrder() {
                 discountAmount: totalAmount - netAmount
             };
         }));
-    };
+        // Sync with allocation quantities so checkout sees the same number
+        setAllocatedQuantities(prev => ({ ...prev, [id]: qty }));
+    }, []);
 
     const summary = useMemo(() => {
         // Ordered totals (Base sa buong order na kinuha)
@@ -457,17 +589,30 @@ export function useSalesOrder() {
 
         // Allocated totals (Base lang sa kung ano ang ibibigay o "allocated")
         const allocatedGross = lineItems.reduce((sum, item) => {
-            const qty = allocatedQuantities[item.id] ?? item.quantity;
+            const qty = allocatedQuantities[item.id] !== undefined ? allocatedQuantities[item.id] : item.quantity;
             return sum + (item.unitPrice * qty);
         }, 0);
 
         const allocatedNet = lineItems.reduce((sum, item) => {
-            const qty = allocatedQuantities[item.id] ?? item.quantity;
+            const qty = allocatedQuantities[item.id] !== undefined ? allocatedQuantities[item.id] : item.quantity;
+            // Exact Mapping: If qty matches saved allocation, use saved net amount
+            if (item.savedAllocatedQty !== undefined && qty === item.savedAllocatedQty && item.savedNetAmount !== undefined) {
+                return sum + item.savedNetAmount;
+            }
             const netPrice = calculateChainNetPrice(item.unitPrice, item.discounts);
             return sum + (netPrice * qty);
         }, 0);
 
-        const allocatedDiscount = allocatedGross - allocatedNet;
+        const allocatedDiscount = lineItems.reduce((sum, item) => {
+            const qty = allocatedQuantities[item.id] !== undefined ? allocatedQuantities[item.id] : item.quantity;
+            // Exact Mapping: If qty matches saved allocation, use saved discount amount
+            if (item.savedAllocatedQty !== undefined && qty === item.savedAllocatedQty && item.savedDiscountAmount !== undefined) {
+                return sum + item.savedDiscountAmount;
+            }
+            const gross = item.unitPrice * qty;
+            const net = calculateChainNetPrice(item.unitPrice, item.discounts) * qty;
+            return sum + (gross - net);
+        }, 0);
 
         const vattableSales = allocatedNet / 1.12;
         const vatAmount = allocatedNet - vattableSales;
@@ -523,17 +668,12 @@ export function useSalesOrder() {
             setOrderNo(generatedNo);
         }
 
-        // UOM Decomposition Logic:
-        // Before entering checkout, we "explode" the existing line items into the 
-        // most efficient UOMs (Box, Pack/Tie, Pieces) using sibling product variants.
-        // Initialize allocated quantities with total fulfillment
-        const initialAllocated: Record<string, number> = {};
+        // Ensure all line items have an entry in allocatedQuantities
         lineItems.forEach(item => {
-            const available = Number(item.product.available_qty) || 0;
-            // Default to 0 if no stock, otherwise cap at available stock or ordered quantity
-            initialAllocated[item.id] = available > 0 ? Math.min(item.quantity, available) : 0;
+            if (allocatedQuantities[item.id] === undefined) {
+                setAllocatedQuantities(prev => ({ ...prev, [item.id]: item.quantity }));
+            }
         });
-        setAllocatedQuantities(initialAllocated);
         setIsCheckout(true);
     };
 
@@ -552,7 +692,8 @@ export function useSalesOrder() {
         }
 
         const hasZeroAllocation = Object.values(allocatedQuantities).some(v => v === 0);
-        const finalStatus = forcedStatus || (hasZeroAllocation ? "Draft" : "For Approval");
+        // Priority: Manual Force > Existing Draft (Elevate to For Approval) > Allocation-based default
+        const finalStatus = forcedStatus || (existingOrderId ? "For Approval" : (hasZeroAllocation ? "Draft" : "For Approval"));
 
         setSubmitting(true);
         try {
@@ -585,14 +726,23 @@ export function useSalesOrder() {
                 attachment_id: attachmentId ? Number(attachmentId) : null
             };
 
-            const itemsWithAllocation = lineItems.map(item => ({
-                ...item,
-                allocated_quantity: allocatedQuantities[item.id] ?? item.quantity,
-                allocated_amount: (calculateChainNetPrice(item.unitPrice, item.discounts)) * (allocatedQuantities[item.id] ?? item.quantity)
-            }));
+            const itemsWithAllocation = lineItems.map(item => {
+                const qtyVal = allocatedQuantities[item.id] !== undefined ? allocatedQuantities[item.id] : item.quantity;
+                return {
+                    ...item,
+                    allocated_quantity: qtyVal,
+                    allocated_amount: (calculateChainNetPrice(item.unitPrice, item.discounts)) * (qtyVal ?? 0)
+                };
+            });
+
+            console.log(`[SubmitOrder] Sending ${itemsWithAllocation.length} item(s) to API. Existing order: ${!!existingOrderId}`);
+            itemsWithAllocation.forEach((item: any, idx: number) => {
+                console.log(`  [Item ${idx}] detail_id=${item.detail_id}, product=${item.product?.display_name || item.product?.product_id}`);
+            });
 
             const res = await salesOrderProvider.createOrder(payload, itemsWithAllocation);
             if (res.success) {
+                console.log(`[SubmitOrder] SUCCESS: ${res.order_no}`);
                 toast.success(`Order created: ${res.order_no}`);
                 // Instead of reload, reset the local state
                 setLineItems([]);
@@ -609,14 +759,18 @@ export function useSalesOrder() {
                 setSelectedSupplierId("");
                 setSelectedReceiptTypeId("");
                 setSelectedBranchId("");
+                setExistingOrderId(null);
+                setExistingOrderNo("");
 
                 // Optional: Force a refresh of product inventory if needed
                 // But definitely avoid the jarring reload
             } else {
+                console.error(`[SubmitOrder] FAILED: ${res.error}`);
                 toast.error(res.error || "Failed to create order");
             }
         } catch (e: unknown) {
             const err = e as Error;
+            console.error(`[SubmitOrder] EXCEPTION:`, err);
             toast.error(err.message || "Submission error");
         } finally {
             setSubmitting(false);
@@ -642,6 +796,7 @@ export function useSalesOrder() {
         summary, isValidAllocation,
         isCheckout, setIsCheckout, orderNo, previewOrderNo, enterCheckout, allocatedQuantities, updateAllocatedQty,
         orderRemarks, setOrderRemarks,
-        handleSubmitOrder, submitting
+        handleSubmitOrder, submitting,
+        existingOrderId
     };
 }

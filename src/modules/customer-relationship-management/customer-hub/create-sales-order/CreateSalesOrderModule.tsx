@@ -26,7 +26,8 @@ export default function CreateSalesOrderModule({ fileUrl }: { fileUrl?: string |
         summary,
         isCheckout, setIsCheckout, orderNo, previewOrderNo, enterCheckout, allocatedQuantities, updateAllocatedQty,
         orderRemarks, setOrderRemarks,
-        handleSubmitOrder, submitting
+        handleSubmitOrder, submitting,
+        existingOrderId
     } = useSalesOrder();
 
     if (salesmen.length === 0 && !loadingAccounts) {
@@ -52,8 +53,12 @@ export default function CreateSalesOrderModule({ fileUrl }: { fileUrl?: string |
                             <PackagePlus className="h-7 w-7" />
                         </div>
                         <div>
-                            <h1 className="text-3xl font-black tracking-tighter text-slate-900">Create Sales Order</h1>
-                            <p className="text-sm text-muted-foreground font-medium">Generate new sales transactions and manage allocation</p>
+                            <h1 className="text-3xl font-black tracking-tighter text-slate-900">
+                                {existingOrderId ? "Update Sales Order" : "Create Sales Order"}
+                            </h1>
+                            <p className="text-sm text-muted-foreground font-medium">
+                                {existingOrderId ? "Refine existing order allocation and details" : "Generate new sales transactions and manage allocation"}
+                            </p>
                         </div>
                     </div>
 
@@ -84,6 +89,7 @@ export default function CreateSalesOrderModule({ fileUrl }: { fileUrl?: string |
                     submitting={submitting}
                     orderRemarks={orderRemarks}
                     setOrderRemarks={setOrderRemarks}
+                    isExistingOrder={!!existingOrderId}
                     header={{
                         salesman: salesmen.find(s => (s.user_id || s.id)?.toString() === selectedSalesmanId) || null,
                         account: selectedAccount || null,

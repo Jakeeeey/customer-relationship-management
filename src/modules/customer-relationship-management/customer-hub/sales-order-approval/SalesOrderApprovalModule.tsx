@@ -270,7 +270,7 @@ export default function SalesOrderApprovalModule() {
                 onCancel={handleCancel}
                 onSubmitForApproval={handleSubmitForApproval}
                 onSaveDetails={handleSaveDetails}
-                isEditable={["Draft", "For Approval", "On Hold"].includes(selectedOrder?.order_status || "")}
+                isEditable={false}
             />
         </div>
     );

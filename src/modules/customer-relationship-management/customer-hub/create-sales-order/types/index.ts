@@ -58,6 +58,7 @@ export interface Product {
     parent_product_name?: string;
     available_qty?: number | null;
     unit_count?: number | null;
+    discount_type?: number | string | null;
     [key: string]: unknown;
 }
 
@@ -72,6 +73,9 @@ export interface LineItem {
     netAmount: number;
     totalAmount: number;
     discountAmount: number;
+    savedNetAmount?: number;
+    savedDiscountAmount?: number;
+    savedAllocatedQty?: number;
 }
 
 export interface SalesOrderHeader {

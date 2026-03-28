@@ -46,7 +46,6 @@ export function SalesOrderEncoding({
                 <Card className="flex-1 flex flex-col min-h-[600px] shadow-sm">
                     <CardHeader className="p-4 flex flex-row items-center justify-between border-b">
                         <CardTitle className="text-sm font-bold uppercase tracking-wider">Product Catalog</CardTitle>
-                        <Badge variant="outline" className="text-[10px]">{Array.isArray(products) ? products.length : 0} Items</Badge>
                     </CardHeader>
                     <div className="p-3 border-b">
                         <div className="relative">
@@ -80,18 +79,7 @@ export function SalesOrderEncoding({
                                                     {p.display_name}
                                                 </span>
 
-                                                <div className="flex flex-wrap gap-1 mt-1">
-                                                    {p.brand_name && (
-                                                        <Badge variant="secondary" className="text-[8px] font-black uppercase px-1 py-0 h-3.5 bg-blue-500/10 text-blue-600 border-blue-500/20 dark:bg-blue-500/20 dark:text-blue-400 dark:border-blue-500/30">
-                                                            {p.brand_name}
-                                                        </Badge>
-                                                    )}
-                                                    {p.category_name && (
-                                                        <Badge variant="secondary" className="text-[8px] font-black uppercase px-1 py-0 h-3.5 bg-slate-500/10 text-slate-500 border-slate-500/20 dark:bg-slate-500/20 dark:text-slate-400 dark:border-slate-500/30">
-                                                            {p.category_name}
-                                                        </Badge>
-                                                    )}
-                                                </div>
+                                                {/* Removed Brand/Category Badges */}
 
                                                 <div className="flex items-center justify-between mt-2">
                                                     <div className="flex flex-col">
@@ -147,7 +135,6 @@ export function SalesOrderEncoding({
                             <ShoppingCart className="w-4 h-4 text-primary" />
                             <CardTitle className="text-sm font-bold uppercase tracking-wider">Order Items</CardTitle>
                         </div>
-                        <Badge variant="default" className="text-[10px]">{lineItems.length} Lines</Badge>
                     </CardHeader>
                     <CardContent className="p-0 flex-1 flex flex-col min-h-[400px]">
                         <div className="flex-1 overflow-y-auto max-h-[600px] relative border-b">
@@ -172,18 +159,7 @@ export function SalesOrderEncoding({
                                             <TableCell>
                                                 <div className="flex flex-col">
                                                     <span className="font-bold text-[11px] leading-tight text-slate-900">{item.product.display_name}</span>
-                                                    <div className="flex flex-wrap gap-1 mt-0.5">
-                                                        {item.product.brand_name && (
-                                                            <Badge variant="secondary" className="text-[7px] font-black uppercase px-1 py-0 h-3 bg-blue-500/10 text-blue-600 border-blue-500/20 dark:bg-blue-500/20 dark:text-blue-400 dark:border-blue-500/30">
-                                                                {item.product.brand_name}
-                                                            </Badge>
-                                                        )}
-                                                        {item.product.category_name && (
-                                                            <Badge variant="secondary" className="text-[7px] font-black uppercase px-1 py-0 h-3 bg-slate-500/10 text-slate-500 border-slate-500/20 dark:bg-slate-500/20 dark:text-slate-400 dark:border-slate-500/30">
-                                                                {item.product.category_name}
-                                                            </Badge>
-                                                        )}
-                                                    </div>
+                                                    {/* Removed Brand/Category Badges */}
                                                     <div className="flex items-center gap-2 mt-1">
                                                         <span className="text-[9px] text-primary/70 uppercase font-black tracking-tighter">{item.discountType}</span>
                                                     </div>
