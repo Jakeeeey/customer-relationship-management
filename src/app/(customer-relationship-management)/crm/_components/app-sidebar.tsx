@@ -8,11 +8,10 @@ import {
     FileXCorner,
     LayoutDashboard,
     ShoppingCart,
-    Users,
     Printer,
     PersonStanding,
     StoreIcon,
-    MapPin, Scroll, PlusIcon, LucideAnnoyed, LucideChevronUp,
+    MapPin, PlusIcon, LucideChevronUp,
 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";

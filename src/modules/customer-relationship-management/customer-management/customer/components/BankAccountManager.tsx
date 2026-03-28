@@ -45,7 +45,7 @@ import {
     Building2,
     CheckCircle2,
 } from "lucide-react";
-import { useForm, Resolver, SubmitHandler, FieldErrors } from "react-hook-form";
+import { useForm, Resolver, SubmitHandler } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { BankAccount } from "../types";
@@ -168,6 +168,7 @@ export function BankAccountManager({ customerId }: BankAccountManagerProps) {
             }
         } catch (err: unknown) {
             toast.error("Failed to save bank account detail.");
+            err instanceof Error && console.error(err.message);
         } finally {
             setIsSubmitting(false);
         }
@@ -265,7 +266,7 @@ export function BankAccountManager({ customerId }: BankAccountManagerProps) {
                     <DialogHeader>
                         <DialogTitle>{selectedAccount ? "Edit Bank Account" : "Add Bank Account"}</DialogTitle>
                         <DialogDescription>
-                            Enter the financial details for this customer's account.
+                            Enter the financial details for this customer&#39;s account.
                         </DialogDescription>
                     </DialogHeader>
                     <Form {...form}>
