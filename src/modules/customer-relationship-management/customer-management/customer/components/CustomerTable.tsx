@@ -13,7 +13,7 @@ import { Input } from "@/components/ui/input";
 import {
     Search, Filter, UserPlus, X, Loader2, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight
 } from "lucide-react";
-import { CustomerWithRelations, BankAccount, CustomersAPIResponse } from "../types";
+import { CustomerWithRelations, BankAccount, CustomersAPIResponse, ReferenceItem, CustomerFormData } from "../types";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { CustomerFormSheet } from "./CustomerFormSheet";
@@ -72,12 +72,12 @@ export function CustomerTable({
 
                 if (storeRes.ok) {
                     const json = await storeRes.json();
-                    setStoreTypeOptions(json.data?.map((i: any) => ({ id: String(i.id), name: i.store_type })) || []);
+                    setStoreTypeOptions(json.data?.map((i: ReferenceItem) => ({ id: String(i.id), name: i.store_type })) || []);
                 }
 
                 if (classRes.ok) {
                     const json = await classRes.json();
-                    setClassificationOptions(json.data?.map((i: any) => ({ id: String(i.id), name: i.classification_name })) || []);
+                    setClassificationOptions(json.data?.map((i: ReferenceItem) => ({ id: String(i.id), name: i.classification_name })) || []);
                 }
             } catch (err) {
                 console.error("Failed to fetch filter options", err);
@@ -309,11 +309,33 @@ export function CustomerTable({
                 open={isDialogOpen}
                 onOpenChange={setIsDialogOpen}
                 customer={selectedCustomer}
-                onSubmit={async (data: any) => {
+                onSubmit={async (data: CustomerFormData) => {
                     if (selectedCustomer) {
-                        await onUpdate(selectedCustomer.id, data);
+                        // Transform CustomerFormData to Partial<CustomerWithRelations>
+                        const updateData: Partial<CustomerWithRelations> = {
+                            ...data,
+                            bank_accounts: data.bank_accounts?.map(ba => ({
+                                ...ba,
+                                id: 0, // Will be set by database/API
+                                customer_id: selectedCustomer.id,
+                                created_at: new Date().toISOString(),
+                                updated_at: new Date().toISOString()
+                            }))
+                        };
+                        await onUpdate(selectedCustomer.id, updateData);
                     } else {
-                        await onCreate(data);
+                        // Transform CustomerFormData to Partial<CustomerWithRelations>
+                        const createData: Partial<CustomerWithRelations> = {
+                            ...data,
+                            bank_accounts: data.bank_accounts?.map(ba => ({
+                                ...ba,
+                                id: 0, // Will be set by database/API
+                                customer_id: 0, // Will be set after customer creation
+                                created_at: new Date().toISOString(),
+                                updated_at: new Date().toISOString()
+                            }))
+                        };
+                        await onCreate(createData);
                     }
                 }}
                 defaultTab={defaultDialogTab}

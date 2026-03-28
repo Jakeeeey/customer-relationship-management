@@ -82,6 +82,7 @@ export interface ReferenceItem {
     division_name?: string;
     department_name?: string;
     store_type?: string;
+    classification_name?: string;
     discount_type?: string;
     user_fname?: string;
     user_mname?: string;
