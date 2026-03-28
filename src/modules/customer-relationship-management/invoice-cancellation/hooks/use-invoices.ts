@@ -28,25 +28,29 @@ export function useInvoices() {
         try {
           const errorData = await res.json();
           errorMessage = errorData.message || errorData.error || errorMessage;
-        } catch (e) {
+        } catch {
           // Fallback if the response isn't JSON (e.g., a hard 404 or 500 page)
           errorMessage = await res.text();
         }
-        throw new Error(errorMessage);
+        // Replaced throw with direct error handling to fix "throw of exception caught locally" warning
+        console.error("Fetch error detailed:", new Error(errorMessage));
+        toast.error(`Failed to load: ${errorMessage}`);
+        return;
       }
 
       const data = await res.json();
       setInvoices(data);
-    } catch (err: any) {
+    } catch (err) {
       console.error("Fetch error detailed:", err);
-      toast.error(`Failed to load: ${err.message}`);
+      const message = err instanceof Error ? err.message : String(err);
+      toast.error(`Failed to load: ${message}`);
     } finally {
       setIsLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    fetchInvoices();
+    void fetchInvoices();
   }, [fetchInvoices]);
 
   return {

@@ -17,11 +17,14 @@ export function useApprovals() {
           "Authorization": `Bearer ${localStorage.getItem("token")}`,
         }
       });
-      if (!res.ok) throw new Error("Failed to fetch approval queue");
+      if (!res.ok) {
+        toast.error("Failed to fetch approval queue");
+        return;
+      }
 
       const result = await res.json();
       setAllData(result.data || []);
-    } catch (err) {
+    } catch {
       toast.error("Failed to load approval queue.");
     } finally {
       setIsLoading(false);
@@ -44,14 +47,19 @@ export function useApprovals() {
           });
 
           if (!res.ok) {
-            const resData = await res.json();
-            throw new Error(resData.message || "Action failed");
+            const resData = await res.json().catch(() => ({ message: "Action failed" }));
+            toast.error(resData.message || "Action failed");
+            return;
           }
 
           toast.success(`Requests successfully ${action === "APPROVE" ? "approved" : "rejected"}!`);
           await fetchRequests();
-        } catch (err: any) {
-          toast.error(err.message);
+        } catch (err) {
+          if (err instanceof Error) {
+            toast.error(err.message);
+          } else {
+            toast.error("An unknown error occurred.");
+          }
         } finally {
           setIsProcessing(false);
         }
@@ -60,7 +68,7 @@ export function useApprovals() {
   );
 
   useEffect(() => {
-    fetchRequests();
+    void fetchRequests();
   }, [fetchRequests]);
 
   return {
