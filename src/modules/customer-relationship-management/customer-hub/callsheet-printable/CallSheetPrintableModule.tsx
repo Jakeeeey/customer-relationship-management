@@ -36,6 +36,7 @@ export default function CallSheetPrintableModule() {
         loadingSuppliers,
         products,
         loadingProducts,
+        moAvgData,
         handleSalesmanChange,
         handleAccountChange,
         handleCustomerChange,
@@ -48,6 +49,7 @@ export default function CallSheetPrintableModule() {
             customer: selectedCustomer,
             supplier: selectedSupplier,
             products,
+            moAvgData,
             salesman: selectedSalesman,
             account: selectedAccount
         });
@@ -106,6 +108,7 @@ export default function CallSheetPrintableModule() {
                 supplier={selectedSupplier}
                 products={products}
                 loadingProducts={loadingProducts}
+                moAvgData={moAvgData}
             />
 
             <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>

@@ -4,7 +4,8 @@ import {
     getAccounts,
     getCustomers,
     getSuppliers,
-    getProducts
+    getProducts,
+    getMonthlyAverage
 } from "../providers/fetchProvider";
 
 export interface Salesman {
@@ -57,6 +58,7 @@ export function useCallSheetForm() {
 
     const [products, setProducts] = useState<Product[]>([]);
     const [loadingProducts, setLoadingProducts] = useState(false);
+    const [moAvgData, setMoAvgData] = useState<Record<number, number>>({});
 
     useEffect(() => {
         const fetchInitialSalesmen = async () => {
@@ -123,10 +125,14 @@ export function useCallSheetForm() {
         if (customer) {
             setLoadingSuppliers(true);
             try {
-                const data = await getSuppliers();
-                setSuppliers(data);
+                const [suppliersData, moAvg] = await Promise.all([
+                    getSuppliers(),
+                    getMonthlyAverage(customer.customer_code)
+                ]);
+                setSuppliers(suppliersData);
+                setMoAvgData(moAvg);
             } catch (e) {
-                console.error(e);
+                console.error("Failed to fetch customer data:", e);
             }
             setLoadingSuppliers(false);
         }
@@ -163,6 +169,7 @@ export function useCallSheetForm() {
         loadingSuppliers,
         products,
         loadingProducts,
+        moAvgData,
         handleSalesmanChange,
         handleAccountChange,
         handleCustomerChange,

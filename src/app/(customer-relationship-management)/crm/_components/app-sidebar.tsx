@@ -1,20 +1,24 @@
 "use client";
 
-import * as React from "react";
-import Link from "next/link";
-import Image from "next/image";
 import {
-    LayoutDashboard,
-    Users,
     Bot,
+    ChartNoAxesCombined,
+    CircleCheckBig,
     ClipboardList,
+    FileXCorner,
+    LayoutDashboard,
     ShoppingCart,
+    Printer,
+    PersonStanding,
+    StoreIcon,
+    MapPin, PlusIcon, LucideChevronUp,
 } from "lucide-react";
+import Image from "next/image";
+import Link from "next/link";
+import * as React from "react";
 
-import { NavMain } from "./nav-main";
-import { Separator } from "@/components/ui/separator";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { cn } from "@/lib/utils";
+import {ScrollArea} from "@/components/ui/scroll-area";
+import {Separator} from "@/components/ui/separator";
 import {
     Sidebar,
     SidebarContent,
@@ -24,11 +28,39 @@ import {
     SidebarMenuButton,
     SidebarMenuItem,
 } from "@/components/ui/sidebar";
+import {cn} from "@/lib/utils";
+import {NavMain} from "./nav-main";
 
 const data = {
     navMain: [
-        { title: "Dashboard", url: "/crm/", icon: LayoutDashboard },
-        { title: "Customer", url: "/crm/customer/", icon: Users },
+        {title: "Dashboard", url: "/crm/", icon: LayoutDashboard},
+        {
+            title: "Customer Management",
+            url: "#",
+            icon: PersonStanding,
+            isActive: true, // 🚀 MOVED HERE: This keeps the dropdown open by default
+            items: [
+                {
+                    title: "Customer List",
+                    url: "/crm/customer-management/customer",
+                    icon: StoreIcon,
+                },
+                {
+                    title: "Customer Map",
+                    url: "/crm/customer-management/customer-map",
+                    icon: MapPin,
+                }, {
+                    title: "Customer Prospects",
+                    url: "/crm/customer-management/customer-map", // 🚀 FIX: Updated unique URL
+                    icon: PlusIcon,
+                },
+            ]
+        },
+        {
+            title: "Salesman Management",
+            url: "/crm/customer-hub/salesman-management",
+            icon: LucideChevronUp,
+        },
         {
             title: "Customer Hub",
             url: "#",
@@ -64,24 +96,50 @@ const data = {
                     url: "/crm/customer-hub/sales-order-approval",
                     icon: ClipboardList,
                 },
-                // { title: "Disbursement", url: "/fm/treasury/disbursement" },
-                // { title: "Remittances", url: "/fm/treasury/remittances" },
+            ],
+        },
+        {
+            title: "Defective Invoice Summary",
+            icon: ChartNoAxesCombined,
+            url: "/crm/invoice-management/invoice-summary-report",
+        },
+        {
+            title: "Invoice Cancellation Requests",
+            icon: FileXCorner,
+            url: "/crm/invoice-management/invoice-cancellation",
+        },
+        {
+            title: "Invoice Cancellation Approval",
+            icon: CircleCheckBig,
+            url: "/crm/invoice-management/invoice-cancellation-approval",
+        },
+        {
+            title: "Printables",
+            url: "#",
+            icon: Printer,
+            isActive: true,
+            items: [
+                {
+                    title: "Product Printables",
+                    url: "/crm/printables/product-printables",
+                    icon: Printer,
+                },
             ],
         },
     ],
 };
 
 export function AppSidebar({
-    className,
-    ...props
-}: React.ComponentProps<typeof Sidebar>) {
+                               className,
+                               ...props
+                           }: React.ComponentProps<typeof Sidebar>) {
     return (
         <Sidebar
             {...props}
             className={cn(
                 "border-r border-sidebar-border/60 dark:border-white/20",
                 "shadow-sm dark:shadow-[0_0_0_1px_rgba(255,255,255,0.10),0_16px_40px_-24px_rgba(0,0,0,0.9)]",
-                className
+                className,
             )}
         >
             <SidebarHeader>
@@ -112,7 +170,7 @@ export function AppSidebar({
                 </SidebarMenu>
             </SidebarHeader>
 
-            <Separator />
+            <Separator/>
 
             <SidebarContent>
                 <div className="px-4 pt-3 pb-2 text-xs font-medium text-muted-foreground">
@@ -124,17 +182,17 @@ export function AppSidebar({
                         "min-h-0 flex-1",
                         "[&_[data-radix-scroll-area-viewport]>div]:block",
                         "[&_[data-radix-scroll-area-viewport]>div]:w-full",
-                        "[&_[data-radix-scroll-area-viewport]>div]:min-w-0"
+                        "[&_[data-radix-scroll-area-viewport]>div]:min-w-0",
                     )}
                 >
                     <div className="w-full min-w-0">
-                        <NavMain items={data.navMain} />
+                        <NavMain items={data.navMain}/>
                     </div>
                 </ScrollArea>
             </SidebarContent>
 
             <SidebarFooter className="p-0">
-                <Separator />
+                <Separator/>
                 <div className="py-3 text-center text-xs text-muted-foreground">
                     VOS Web v2.0
                 </div>

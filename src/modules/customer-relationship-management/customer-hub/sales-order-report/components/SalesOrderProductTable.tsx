@@ -44,8 +44,8 @@ export function SalesOrderProductTable({ details }: SalesOrderProductTableProps)
                             <TableRow key={detail.detail_id}>
                                 <TableCell className="font-medium">-</TableCell>
                                 <TableCell>-</TableCell>
-                                <TableCell>{detail.product_id}</TableCell>
-                                <TableCell>-</TableCell>
+                                <TableCell>{typeof detail.product_id === 'object' ? detail.product_id.product_code : detail.product_id}</TableCell>
+                                <TableCell>{typeof detail.product_id === 'object' ? detail.product_id.product_name : '-'}</TableCell>
                                 <TableCell>-</TableCell>
                                 <TableCell className="text-right">{detail.ordered_quantity}</TableCell>
                                 <TableCell className="text-right">{detail.allocated_quantity}</TableCell>

@@ -6,11 +6,12 @@ interface GeneratePDFOptions {
     customer: Customer | null;
     supplier: Supplier | null;
     products: Product[];
+    moAvgData?: Record<number, number>;
     salesman?: Salesman | null;
     account?: Account | null;
 }
 
-export function generateCallSheetPDF({ customer, supplier, products, salesman, account }: GeneratePDFOptions) {
+export function generateCallSheetPDF({ customer, supplier, products, salesman, account, moAvgData = {} }: GeneratePDFOptions) {
     const doc = new jsPDF({
         orientation: "portrait",
         unit: "pt",
@@ -92,9 +93,10 @@ export function generateCallSheetPDF({ customer, supplier, products, salesman, a
 
     const tableBody = products.map((p) => {
         const productName = p.display_name || "Unnamed Product";
+        const moAvg = (moAvgData[p.product_id] || 0.0).toFixed(2);
         return [
             productName,
-            "0.0", // MO AVG
+            moAvg,
             "", "", // Week 1
             "", "", // Week 2
             "", "", // Week 3

@@ -5,12 +5,13 @@ interface PrintableTableProps {
     supplier: Supplier | null;
     products: Product[];
     loadingProducts: boolean;
+    moAvgData?: Record<number, number>;
 }
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 
-export function PrintableTable({ supplier, products, loadingProducts }: PrintableTableProps) {
+export function PrintableTable({ supplier, products, loadingProducts, moAvgData = {} }: PrintableTableProps) {
     const [currentPage, setCurrentPage] = useState(1);
     const pageSize = 25;
 
@@ -77,7 +78,9 @@ export function PrintableTable({ supplier, products, loadingProducts }: Printabl
                                     <td className="p-3 print:p-1 max-w-[200px] truncate" title={p.display_name}>
                                         <div className="font-medium">{p.display_name || "Unnamed Product"}</div>
                                     </td>
-                                    <td className="p-3 print:p-1 text-center border-l print:border-l-0">0.0</td>
+                                    <td className="p-3 print:p-1 text-center border-l print:border-l-0">
+                                        {(moAvgData[p.product_id] || 0).toFixed(2)}
+                                    </td>
                                     <td className="p-0 border-l print:border-black">
                                         <div className="flex w-full h-full min-h-[40px]">
                                             <div className="w-1/2 border-r print:border-gray-300"></div>
