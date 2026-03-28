@@ -68,6 +68,11 @@ const data = {
           url: "/crm/customer-hub/sales-order-approval",
           icon: ClipboardList,
         },
+        {
+          title: "Customer Map",
+          url: "/crm/customer-hub/customer-map",
+          icon: ClipboardList,
+        }
         // { title: "Disbursement", url: "/fm/treasury/disbursement" },
         // { title: "Remittances", url: "/fm/treasury/remittances" },
       ],

@@ -86,9 +86,9 @@ export function InvoiceDataTable({ data, onRequest }: DataTableProps) {
                     {header.isPlaceholder
                       ? null
                       : flexRender(
-                          header.column.columnDef.header,
-                          header.getContext(),
-                        )}
+                        header.column.columnDef.header,
+                        header.getContext(),
+                      )}
                   </TableHead>
                 ))}
               </TableRow>
@@ -111,7 +111,7 @@ export function InvoiceDataTable({ data, onRequest }: DataTableProps) {
             ) : (
               <TableRow>
                 <TableCell
-                  colSpan={columnDefs(() => {}).length}
+                  colSpan={columnDefs(() => { }).length}
                   className="h-24 text-center"
                 >
                   No active invoices found.
