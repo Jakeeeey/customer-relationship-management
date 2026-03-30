@@ -8,11 +8,9 @@ import { ApprovalDataTable } from "./components/data-table";
 import { InvoiceSummaryApprovalCard } from "./components/cards/InvoiceSummaryApprovalCard";
 import { ActionConfirmationModal } from "./components/confirmation-modal";
 import { mapRequestsToInvoiceRows } from "./lib/mapping";
-import { mapToApprovalParams } from "./lib/utils";
-import { ApprovalAction, InvoiceRow } from "./types";
+import { ApprovalAction, InvoiceRow, ApprovalParams } from "./types";
 
 export default function InvoiceCancellationApprovalPage() {
-  // 🚀 FIX 1: Destructure allRequests from the updated hook
   const {
     allRequests,
     isLoading,
@@ -20,7 +18,6 @@ export default function InvoiceCancellationApprovalPage() {
     handleAction,
   } = useApprovals();
 
-  // 🚀 FIX 2: Filter the data locally to recreate the arrays the rest of the file expects
   const pendingRequests = useMemo(() => {
     return (allRequests || []).filter((r) => r.status === "PENDING");
   }, [allRequests]);
@@ -44,25 +41,21 @@ export default function InvoiceCancellationApprovalPage() {
     };
   }, []);
 
-  // 1. Memoized Data Mapping
-  // Renamed to mappedRequests to avoid conflict with the hook's allRequests
   const mappedRequests = useMemo(
       () => mapRequestsToInvoiceRows(pendingRequests, approvedRequests),
       [pendingRequests, approvedRequests],
   );
 
-  // 2. Dashboard Statistics
+  // 🚀 Perfectly typed! TS knows 'total_amount' exists now.
   const stats = useMemo(
       () => ({
         approved: approvedRequests.length,
         pending: pendingRequests.length,
-        highValue: pendingRequests.filter((r) => (r.total_amount || 0) > 20000)
-            .length,
+        highValue: pendingRequests.filter((r) => (r.total_amount || 0) > 20000).length,
       }),
       [pendingRequests, approvedRequests],
   );
 
-  // 3. Action Handlers
   const triggerActionConfirmation = useCallback(
       (type: ApprovalAction, data: InvoiceRow | InvoiceRow[]) => {
         setPendingAction({ type, data });
@@ -77,16 +70,19 @@ export default function InvoiceCancellationApprovalPage() {
     const itemsToProcess = Array.isArray(pendingAction.data)
         ? pendingAction.data
         : [pendingAction.data];
-    const paramsArray = itemsToProcess.map((item) =>
-        mapToApprovalParams(item, 1),
-    );
+
+    // 🚀 Perfectly typed! Maps the UI Row to the exact ApprovalParams interface
+    const paramsArray: ApprovalParams[] = itemsToProcess.map((item) => ({
+      requestId: item.id,
+      auditorId: 1,
+      rejectionReason: pendingAction.type === "REJECT" ? "Rejected via Audit UI" : undefined,
+    }));
 
     await handleAction(pendingAction.type, paramsArray);
     setConfirmOpen(false);
     setPendingAction(null);
   };
 
-  // 4. Column Selection logic
   const columns = useMemo(() => {
     return activeTab === "APPROVED"
         ? approvedColumns
@@ -100,7 +96,7 @@ export default function InvoiceCancellationApprovalPage() {
 
           <ApprovalDataTable
               columns={columns}
-              data={mappedRequests} // 🚀 Passed the mappedRequests here
+              data={mappedRequests}
               isLoading={isLoading}
               onBulkAction={triggerActionConfirmation}
               currentTab={activeTab}
