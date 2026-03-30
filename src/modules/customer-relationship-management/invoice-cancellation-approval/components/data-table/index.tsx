@@ -26,7 +26,7 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { formatCurrency } from "@/lib/utils";
 import {
-  InvoiceAction,
+  ApprovalAction, // 🚀 FIX: Changed from InvoiceAction to ApprovalAction
   InvoiceRow,
 } from "@/modules/customer-relationship-management/invoice-cancellation-approval/types";
 import { TableToolbar } from "./table-view-option";
@@ -35,24 +35,25 @@ import { TasksTableActionBar } from "./table-action-bar";
 interface ApprovalDataTableProps {
   data: InvoiceRow[];
   isLoading: boolean;
-  onBulkAction: (action: InvoiceAction, rows: InvoiceRow[]) => void;
+  // 🚀 FIX: Updated the type here as well
+  onBulkAction: (action: ApprovalAction, rows: InvoiceRow[]) => void;
   columns: ColumnDef<InvoiceRow>[];
   currentTab: string;
   onTabChange: (val: string) => void;
 }
 
 export function ApprovalDataTable({
-  data,
-  isLoading,
-  onBulkAction,
-  columns,
-  currentTab,
-  onTabChange,
-}: ApprovalDataTableProps) {
+                                    data,
+                                    isLoading,
+                                    onBulkAction,
+                                    columns,
+                                    currentTab,
+                                    onTabChange,
+                                  }: ApprovalDataTableProps) {
   const [rowSelection, setRowSelection] = React.useState<RowSelectionState>({});
   const [sorting, setSorting] = React.useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
-    [],
+      [],
   );
 
   const filteredData = React.useMemo(() => {
@@ -85,17 +86,9 @@ export function ApprovalDataTable({
   const selectedRows = table.getSelectedRowModel().rows;
   const selectedCount = selectedRows.length;
   const selectedTotal = selectedRows.reduce(
-    (sum, row) => sum + row.original.total_amount,
-    0,
+      (sum, row) => sum + row.original.total_amount,
+      0,
   );
-
-  // const handleBulkAction = (action: InvoiceAction) => {
-  //   onBulkAction(
-  //     action,
-  //     selectedRows.map((r) => r.original),
-  //   );
-  //   setRowSelection({});
-  // };
 
   // FIX: Clear row selection when currentTab changes (via useEffect, not during render)
   React.useEffect(() => {
@@ -103,142 +96,107 @@ export function ApprovalDataTable({
   }, [currentTab]);
 
   return (
-    <div className="space-y-4">
-      <Tabs value={currentTab} onValueChange={onTabChange} className="w-full">
-        <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <TabsList className="w-full sm:w-auto">
-            <TabsTrigger value="PENDING">Pending</TabsTrigger>
-            <TabsTrigger value="APPROVED">Approved</TabsTrigger>
-          </TabsList>
-          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center sm:gap-2">
-            <Input
-              placeholder="Search invoice number..."
-              value={
-                (table.getColumn("invoice_no")?.getFilterValue() as string) ??
-                ""
-              }
-              onChange={(event) =>
-                table
-                  .getColumn("invoice_no")
-                  ?.setFilterValue(event.target.value)
-              }
-              className="w-full sm:w-62.5"
-            />
-            <TableToolbar table={table} />
-          </div>
-        </div>
-
-        {/* BULK ACTION TOOLBAR */}
-        {selectedCount > 0 && (
-          <div className="flex items-center justify-between px-4 py-2 border rounded-lg bg-muted/50 animate-in fade-in slide-in-from-bottom-1">
-            <div className="flex items-center gap-4">
-              {/* <div className="flex items-center gap-2 text-sm font-medium">
-                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary text-[10px] text-primary-foreground">
-                  {selectedCount}
-                </span>
-                Invoices Selected
-              </div>
-              <div className="h-4 w-px bg-blue-200" /> */}
-              <div className="text-sm font-semibold">
-                Total: {formatCurrency(selectedTotal)}
-              </div>
+      <div className="space-y-4">
+        <Tabs value={currentTab} onValueChange={onTabChange} className="w-full">
+          <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <TabsList className="w-full sm:w-auto">
+              <TabsTrigger value="PENDING">Pending</TabsTrigger>
+              <TabsTrigger value="APPROVED">Approved</TabsTrigger>
+            </TabsList>
+            <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center sm:gap-2">
+              <Input
+                  placeholder="Search invoice number..."
+                  value={
+                      (table.getColumn("invoice_no")?.getFilterValue() as string) ??
+                      ""
+                  }
+                  onChange={(event) =>
+                      table
+                          .getColumn("invoice_no")
+                          ?.setFilterValue(event.target.value)
+                  }
+                  className="w-full sm:w-62.5"
+              />
+              <TableToolbar table={table} />
             </div>
-            {/* <div className="flex items-center gap-2">
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => setRowSelection({})}
-                disabled={isProcessing}
-                className="h-8 text-xs"
-              >
-                Clear
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => handleBulkAction("REJECT")}
-                disabled={isProcessing}
-                className="h-8 text-xs"
-              >
-                Reject
-              </Button>
-              <Button
-                size="sm"
-                onClick={() => handleBulkAction("APPROVE")}
-                disabled={isProcessing}
-                className="h-8 text-xs bg-blue-700 text-white hover:bg-blue-600"
-              >
-                Approve
-              </Button>
-            </div> */}
           </div>
-        )}
 
-        <TasksTableActionBar table={table} onBulkAction={onBulkAction} />
+          {/* BULK ACTION TOOLBAR */}
+          {selectedCount > 0 && (
+              <div className="flex items-center justify-between px-4 py-2 border rounded-lg bg-muted/50 animate-in fade-in slide-in-from-bottom-1">
+                <div className="flex items-center gap-4">
+                  <div className="text-sm font-semibold">
+                    Total: {formatCurrency(selectedTotal)}
+                  </div>
+                </div>
+              </div>
+          )}
 
-        <TabsContent value={currentTab}>
-          <div className="overflow-hidden rounded-md border">
-            <Table>
-              <TableHeader className="sticky top-0 z-10">
-                {table.getHeaderGroups().map((headerGroup) => (
-                  <TableRow key={headerGroup.id}>
-                    {headerGroup.headers.map((header) => (
-                      <TableHead key={header.id}>
-                        {header.isPlaceholder
-                          ? null
-                          : flexRender(
-                            header.column.columnDef.header,
-                            header.getContext(),
-                          )}
-                      </TableHead>
-                    ))}
-                  </TableRow>
-                ))}
-              </TableHeader>
-              <TableBody>
-                {isLoading ? (
-                  <TableRow>
-                    <TableCell
-                      colSpan={columns.length}
-                      className="h-24 text-center"
-                    >
-                      Loading...
-                    </TableCell>
-                  </TableRow>
-                ) : table.getRowModel().rows.length > 0 ? (
-                  table.getRowModel().rows.map((row) => (
-                    <TableRow
-                      key={row.id}
-                      data-state={row.getIsSelected() && "selected"}
-                    >
-                      {row.getVisibleCells().map((cell) => (
-                        <TableCell key={cell.id}>
-                          {flexRender(
-                            cell.column.columnDef.cell,
-                            cell.getContext(),
-                          )}
+          <TasksTableActionBar table={table} onBulkAction={onBulkAction} />
+
+          <TabsContent value={currentTab}>
+            <div className="overflow-hidden rounded-md border">
+              <Table>
+                <TableHeader className="sticky top-0 z-10">
+                  {table.getHeaderGroups().map((headerGroup) => (
+                      <TableRow key={headerGroup.id}>
+                        {headerGroup.headers.map((header) => (
+                            <TableHead key={header.id}>
+                              {header.isPlaceholder
+                                  ? null
+                                  : flexRender(
+                                      header.column.columnDef.header,
+                                      header.getContext(),
+                                  )}
+                            </TableHead>
+                        ))}
+                      </TableRow>
+                  ))}
+                </TableHeader>
+                <TableBody>
+                  {isLoading ? (
+                      <TableRow>
+                        <TableCell
+                            colSpan={columns.length}
+                            className="h-24 text-center"
+                        >
+                          Loading...
                         </TableCell>
-                      ))}
-                    </TableRow>
-                  ))
-                ) : (
-                  <TableRow>
-                    <TableCell
-                      colSpan={columns.length}
-                      className="h-24 text-center text-muted-foreground"
-                    >
-                      {currentTab === "PENDING"
-                        ? "No pending requests."
-                        : "No approved requests."}
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </div>
-          <DataTablePagination table={table} />
-        </TabsContent>
-      </Tabs>
-    </div>
+                      </TableRow>
+                  ) : table.getRowModel().rows.length > 0 ? (
+                      table.getRowModel().rows.map((row) => (
+                          <TableRow
+                              key={row.id}
+                              data-state={row.getIsSelected() && "selected"}
+                          >
+                            {row.getVisibleCells().map((cell) => (
+                                <TableCell key={cell.id}>
+                                  {flexRender(
+                                      cell.column.columnDef.cell,
+                                      cell.getContext(),
+                                  )}
+                                </TableCell>
+                            ))}
+                          </TableRow>
+                      ))
+                  ) : (
+                      <TableRow>
+                        <TableCell
+                            colSpan={columns.length}
+                            className="h-24 text-center text-muted-foreground"
+                        >
+                          {currentTab === "PENDING"
+                              ? "No pending requests."
+                              : "No approved requests."}
+                        </TableCell>
+                      </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+            <DataTablePagination table={table} />
+          </TabsContent>
+        </Tabs>
+      </div>
   );
 }
