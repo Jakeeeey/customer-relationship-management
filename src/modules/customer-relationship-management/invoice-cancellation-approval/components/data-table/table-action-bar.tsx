@@ -34,12 +34,6 @@ export function TasksTableActionBar({
     [table],
   );
 
-  const handleBulkAction = (action: ApprovalAction) => {
-    onBulkAction(
-      action,
-      selectedRows.map((r) => r.original),
-    );
-
     const handleBulkAction = (e: React.MouseEvent, action: ApprovalAction) => {
         // 🚀 THE FIX: Stop the click from bubbling up and auto-closing the bar prematurely!
         e.preventDefault();
