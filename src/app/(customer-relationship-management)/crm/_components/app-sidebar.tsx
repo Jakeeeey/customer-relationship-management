@@ -83,10 +83,6 @@ export function AppSidebar({
 
 
 
-    const navMainWithCounts = React.useMemo(() => {
-        return data.navMain;
-    }, []);
-
     return (
         <Sidebar
             {...props}

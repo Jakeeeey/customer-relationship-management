@@ -41,6 +41,41 @@ const fetchHeaders = {
     "Content-Type": "application/json",
 };
 
+interface ProductMetadata {
+    product_id: number;
+    product_name: string;
+    product_code: string;
+    description: string;
+    discount_type: string;
+    unit_of_measurement_count?: number;
+}
+
+interface IncomingLineItem {
+    id: string;
+    detail_id?: number | string;
+    order_detail_id?: number | string;
+    unitPrice: number;
+    quantity: number;
+    allocated_quantity?: number;
+    netAmount: number;
+    uom?: string;
+    product: { 
+        product_id: number; 
+        discount_type?: number;
+        display_name?: string;
+        product_name?: string;
+        description?: string;
+        available_qty?: number;
+        unit_count?: number;
+    };
+    remarks?: string;
+    discountType?: string;
+    discounts?: number[];
+    savedAllocatedQty?: number;
+    savedNetAmount?: number;
+    savedDiscountAmount?: number;
+}
+
 interface DirectusItem {
     id: number | string;
 }
@@ -81,6 +116,7 @@ interface HeaderPayload {
     branch_id?: number;
     price_type_id?: number | null;
     order_date?: string;
+    payment_terms?: number | null;
     created_by?: number | null;
     created_date?: string;
 }
@@ -466,7 +502,7 @@ export async function GET(req: NextRequest) {
 
                     if (!winId) {
                         const l3 = l3Items.find((item: DiscountItem) => item.product_id === p.product_id) || l3Items.find((item: DiscountItem) => p.parent_id && item.product_id === p.parent_id);
-                        if (l3) { winId = l3.discount_type; level = "Supplier Product Discount"; }
+                        if (l3) { winId = l3.discount_type; level = "none"; }
                     }
 
                     if (!winId) {
@@ -559,16 +595,16 @@ export async function GET(req: NextRequest) {
 
             // 3. Enrich products
             if (items.length > 0) {
-                const productIds = Array.from(new Set(items.map((i: any) => i.product_id))).filter(Boolean);
+                const productIds = Array.from(new Set(items.map((i: { product_id: number }) => i.product_id))).filter(Boolean);
                 // Included description and discount_type
                 const pRes = await fetch(`${DIRECTUS_URL}/items/products?filter[product_id][_in]=${productIds.join(',')}&fields=product_id,product_name,product_code,description,discount_type&limit=-1`, { headers: fetchHeaders });
                 const products = (await pRes.json()).data || [];
-                const pMap = new Map(products.map((p: any) => [Number(p.product_id), p]));
+                const pMap = new Map<number, ProductMetadata>(products.map((p: ProductMetadata) => [Number(p.product_id), p]));
 
-                items.forEach((item: any) => {
+                items.forEach((item: Record<string, any>) => {
                     const pid = Number(item.product_id);
                     if (pMap.has(pid)) {
-                        const pData = pMap.get(pid) as any;
+                        const pData = pMap.get(pid)!;
                         item.product = {
                             ...pData,
                             id: pData.product_id,
@@ -601,7 +637,7 @@ export async function POST(req: NextRequest) {
 
         console.log(`\n>>> [POST /create-sales-order] Received request: order_id=${header.order_id || 'NEW'}, items=${items?.length || 0}`);
         if (items && items.length > 0) {
-            items.forEach((it: any, i: number) => {
+            items.forEach((it: IncomingLineItem, i: number) => {
                 console.log(`  [Recv Item ${i}] detail_id=${it.detail_id}, product_id=${it.product?.product_id}, qty=${it.quantity}`);
             });
         }
@@ -668,14 +704,14 @@ export async function POST(req: NextRequest) {
             }
         }
 
-        const lineItemsPayload = items.map((item: { detail_id?: number | string; unitPrice: number; quantity: number; allocated_quantity?: number; netAmount: number; uom?: string; product: { product_id: number; discount_type?: number }; remarks?: string; discountType?: string; discounts?: number[] }, idx: number) => {
+        const lineItemsPayload = items.map((item: IncomingLineItem, idx: number) => {
             const unitPrice = Number(item.unitPrice) || 0;
             const orderedQty = Number(item.quantity) || 0;
             
             // Direct read from payload -- no guessing
-            const allocatedQty = Number((item as any).allocated_quantity) || 0;
+            const allocatedQty = Number(item.allocated_quantity) || 0;
 
-            console.log(`[CreateSalesOrder] INCOMING item[${idx}]: PID=${item.product?.product_id}, unitPrice=${unitPrice}, orderedQty=${orderedQty}, allocated_quantity=${(item as any).allocated_quantity}, parsed=${allocatedQty}, discountType=${item.discountType || item.product?.discount_type}`);
+            console.log(`[CreateSalesOrder] INCOMING item[${idx}]: PID=${item.product?.product_id}, unitPrice=${unitPrice}, orderedQty=${orderedQty}, allocated_quantity=${item.allocated_quantity}, parsed=${allocatedQty}, discountType=${item.discountType || item.product?.discount_type}`);
 
             const orderedGross = unitPrice * orderedQty;
             const orderedNetAmount = Number(item.netAmount) || orderedGross;
@@ -764,6 +800,7 @@ export async function POST(req: NextRequest) {
             if (header.delivery_date) headerPayload.delivery_date = header.delivery_date;
             if (header.receipt_type) headerPayload.receipt_type = Number(header.receipt_type);
             if (header.sales_type) headerPayload.sales_type = Number(header.sales_type);
+            if (header.payment_terms !== undefined) headerPayload.payment_terms = header.payment_terms ? Number(header.payment_terms) : null;
         } else {
             // FOR POST (New Order)
             headerPayload = {
@@ -776,6 +813,7 @@ export async function POST(req: NextRequest) {
                 price_type_id: header.price_type_id || null,
                 receipt_type: header.receipt_type,
                 sales_type: header.sales_type || 1,
+                payment_terms: header.payment_terms ? Number(header.payment_terms) : null,
                 order_date: dateOnly,
                 order_status: orderStatus,
                 due_date: header.due_date || null,
@@ -830,14 +868,14 @@ export async function POST(req: NextRequest) {
             const currentItems = currentRes.ok ? (await currentRes.json()).data || [] : [];
             
             // Map IDs robustly from DB (using detail_id primarily)
-            const currentIds = currentItems.map((it: any) => Number(it.detail_id || it.id)).filter((n: number) => !isNaN(n) && n > 0);
+            const currentIds = currentItems.map((it: { detail_id?: number | string; id?: number | string }) => Number(it.detail_id || it.id)).filter((n: number) => !isNaN(n) && n > 0);
 
             // Get IDs from incoming items (those to KEEP)
-            const incomingIds = items.map((it: any) => Number(it.detail_id || it.id || it.order_detail_id)).filter((n: number) => !isNaN(n) && n > 0);
+            const incomingIds = items.map((it: IncomingLineItem) => Number(it.detail_id || it.id || it.order_detail_id)).filter((n: number) => !isNaN(n) && n > 0);
 
             const idsToDelete = currentIds.filter((id: number) => !incomingIds.includes(id));
-            const incomingWithIds = lineItemsPayload.filter((it: any) => it.detail_id);
-            const incomingNew = lineItemsPayload.filter((it: any) => !it.detail_id);
+            const incomingWithIds = lineItemsPayload.filter((it: { detail_id?: number | string }) => it.detail_id);
+            const incomingNew = lineItemsPayload.filter((it: { detail_id?: number | string }) => !it.detail_id);
 
             console.log(`\n========== [SmartSync] Order ${targetId} ==========`);
             console.log(`  DB has ${currentIds.length} item(s): [${currentIds.join(", ")}]`);
@@ -882,7 +920,7 @@ export async function POST(req: NextRequest) {
 
             // 4. Perform INSERTS (POST) for brand new items
             if (incomingNew.length > 0) {
-                const inserts = incomingNew.map((item: any) => {
+                const inserts = incomingNew.map((item: Record<string, any>) => {
                     const li = { ...item };
                     delete li.detail_id; // Remove detail_id if present for new items
                     delete li._ordered_gross;

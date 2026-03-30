@@ -48,6 +48,7 @@ interface SalesOrderCheckoutProps {
         dueDate: string;
         deliveryDate: string;
         poNo: string;
+        paymentTerms?: number | null;
     };
 }
 
@@ -140,6 +141,12 @@ export function SalesOrderCheckout({
                                         <span className="text-[10px] font-black text-muted-foreground uppercase tracking-wider mb-1">PO#</span>
                                         <span className="text-xs font-bold text-slate-700">{header.poNo || "N/A"}</span>
                                     </div>
+                                    {header.paymentTerms !== undefined && header.paymentTerms !== null && (
+                                        <div className="flex flex-col">
+                                            <span className="text-[10px] font-black text-sky-600 uppercase tracking-wider mb-1">Terms</span>
+                                            <span className="text-xs font-bold text-sky-700">{header.paymentTerms} Days</span>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         </CardHeader>

@@ -124,8 +124,8 @@ export function ApprovalModal({
                     setLoadingDetails(true);
                     try {
                         const data = await getOrderDetails(order.order_id, order.branch_id);
-                        // ENFORCE: Default to 0 if out of stock
-                        const guardedData = (data || []).map((li: any) => {
+                        // ENFORCE: Default to 0 if out of stock to permit approval with partial availability
+                        const guardedData = (data || []).map((li: Record<string, any>) => {
                             if ((li.available_qty ?? 0) <= 0) {
                                 return { ...li, allocated_quantity: 0 };
                             }
@@ -191,12 +191,10 @@ export function ApprovalModal({
     };
 
     const getLineNet = (item: OrderDetail & { _recalculated_discount?: number }) => {
-        // If manually changed, recalculate
-        if (item._recalculated_discount !== undefined) {
-             return (item.allocated_quantity * item.unit_price) - item._recalculated_discount;
-        }
-        // Initial: use exact database NET AMOUNT if provided
-        return (item.net_amount !== undefined && item.net_amount !== 0) ? item.net_amount : (item.allocated_quantity * item.unit_price) - getLineDiscount(item);
+        // ALWAYS recalculate base on current allocated_quantity in approval session
+        // to prevent mismatch when quantity is zeroed out but item.net_amount exists.
+        const discount = getLineDiscount(item);
+        return (item.allocated_quantity * item.unit_price) - discount;
     };
 
     const calculatedGross = details.reduce((sum, item) => sum + (item.allocated_quantity * (item.unit_price || 0)), 0);
@@ -350,30 +348,36 @@ export function ApprovalModal({
                     </div>
 
                     {/* Summary Cards */}
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 mt-4">
-                        <div className="bg-background border border-border rounded-xl p-3 sm:p-4 flex flex-col gap-1 shadow-sm">
+                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 sm:gap-3 mt-4">
+                        <div className="bg-background border border-border rounded-xl p-3 sm:p-4 flex flex-col gap-1 shadow-sm text-center">
                             <p className="text-[8px] sm:text-[10px] text-muted-foreground uppercase font-black tracking-widest leading-none">Order Date</p>
-                            <p className="font-bold text-[12px] sm:text-sm text-foreground mt-0.5">
+                            <p className="font-bold text-[12px] sm:text-sm text-foreground mt-1 text-center">
                                 {order.order_date ? format(new Date(order.order_date), "MMM d, yyyy") : "N/A"}
                             </p>
                         </div>
-                        <div className="bg-background border border-border rounded-xl p-3 sm:p-4 flex flex-col gap-1 shadow-sm">
+                        <div className="bg-background border border-border rounded-xl p-3 sm:p-4 flex flex-col gap-1 shadow-sm text-center">
                             <p className="text-[8px] sm:text-[10px] text-muted-foreground uppercase font-black tracking-widest leading-none">PO Number</p>
-                            <p className="font-bold text-[12px] sm:text-sm text-foreground truncate mt-0.5">
+                            <p className="font-bold text-[12px] sm:text-sm text-foreground truncate mt-1 text-center">
                                 {order.po_no || "N/A"}
                             </p>
                         </div>
-                        <div className="bg-background border border-border rounded-xl p-3 sm:p-4 flex flex-col gap-1 shadow-sm">
+                        <div className="bg-background border border-border rounded-xl p-3 sm:p-4 flex flex-col gap-1 shadow-sm text-center">
+                            <p className="text-[8px] sm:text-[10px] text-muted-foreground uppercase font-black tracking-widest leading-none">Terms</p>
+                            <p className="font-bold text-[12px] sm:text-sm text-sky-600 mt-1 text-center">
+                                {order.payment_terms ? `${order.payment_terms} Days` : "COD"}
+                            </p>
+                        </div>
+                        <div className="bg-background border border-border rounded-xl p-3 sm:p-4 flex flex-col gap-1 shadow-sm text-center">
                             <p className="text-[8px] sm:text-[10px] text-muted-foreground uppercase font-black tracking-widest leading-none">Ordered Total</p>
-                            <p className="font-bold text-[12px] sm:text-sm text-foreground truncate mt-0.5">
+                            <p className="font-bold text-[12px] sm:text-sm text-foreground truncate mt-1 text-center">
                                 {formatCurrency(order.net_amount)}
                             </p>
                         </div>
-                        <div className="bg-sky-50 dark:bg-sky-950/30 border border-sky-100 dark:border-sky-900/50 rounded-xl p-3 sm:p-4 flex flex-col gap-1 shadow-sm">
+                        <div className="bg-sky-50 dark:bg-sky-950/30 border border-sky-100 dark:border-sky-900/50 rounded-xl p-3 sm:p-4 flex flex-col gap-1 shadow-sm text-center">
                             <p className="text-[8px] sm:text-[10px] text-sky-600 dark:text-sky-400 uppercase font-black tracking-widest leading-none">
                                 {isInvoiceStatus ? "Invoice Total" : "Net Allocation"}
                             </p>
-                            <p className="font-black text-[13px] sm:text-lg text-sky-600 dark:text-sky-400 tabular-nums mt-0.5">
+                            <p className="font-black text-[13px] sm:text-lg text-sky-600 dark:text-sky-400 tabular-nums mt-1 text-center">
                                 {formatCurrency(isInvoiceStatus ? (invoiceData?.invoice?.net_amount || 0) : calculatedNetAllocation)}
                             </p>
                         </div>
@@ -560,7 +564,7 @@ export function ApprovalModal({
                                                         <TableCell className="text-right text-muted-foreground font-mono tabular-nums text-[12px] whitespace-nowrap px-4 tracking-tighter">
                                                             {getLineDiscount(li) > 0 ? (
                                                                 <span className="text-rose-500 font-bold">-{formatCurrency(getLineDiscount(li))}</span>
-                                                            ) : "-"}
+                                                            ) : "none"}
                                                         </TableCell>
                                                         <TableCell className="text-center">
                                                             <Badge variant="outline" className="text-[10px] font-bold px-2 py-0.5 border-amber-200 bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:border-amber-900/50 dark:text-amber-400 whitespace-nowrap">
@@ -636,7 +640,7 @@ export function ApprovalModal({
                                 )}
                                 <Button
                                     className="h-9 sm:h-12 px-6 sm:px-10 font-bold uppercase tracking-widest text-[10px] sm:text-xs rounded-xl bg-success hover:bg-success/90 text-success-foreground shadow-lg border-none transition-all hover:scale-[1.02] active:scale-[0.98]"
-                                    disabled={isSubmitting || details.some(d => d.allocated_quantity > d.ordered_quantity || (d.available_qty !== undefined && d.allocated_quantity > d.available_qty))}
+                                    disabled={isSubmitting}
                                     onClick={() => handleSaveAndAction("approve")}
                                 >
                                     {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}

@@ -8,7 +8,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Check, ChevronsUpDown, Calendar as CalendarIcon, Hash } from "lucide-react";
+import { Check, ChevronsUpDown, Calendar as CalendarIcon, Hash, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 
@@ -64,6 +64,8 @@ interface SalesOrderHeaderProps {
     priceTypeId?: number | null;
     priceTypeModels?: PriceTypeModel[];
     previewOrderNo?: string;
+    paymentTerms: number | null;
+    onPaymentTermsChange: (val: number | null) => void;
 }
 
 export function SalesOrderHeader({
@@ -79,7 +81,8 @@ export function SalesOrderHeader({
     poNo, onPoNoChange,
     branches, selectedBranchId, onBranchChange,
     priceType, priceTypeId, priceTypeModels,
-    previewOrderNo
+    previewOrderNo,
+    paymentTerms, onPaymentTermsChange
 }: SalesOrderHeaderProps) {
     const [openSalesman, setOpenSalesman] = useState(false);
     const [openAccount, setOpenAccount] = useState(false);
@@ -353,6 +356,20 @@ export function SalesOrderHeader({
                     <div className="relative">
                         <Hash className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
                         <Input placeholder="Enter PO#" value={poNo || ""} onChange={(e) => onPoNoChange(e.target.value)} className="pl-9 h-9 text-xs" required />
+                    </div>
+                </div>
+
+                <div className="flex flex-col gap-1.5">
+                    <label className="text-xs font-bold uppercase text-muted-foreground">Payment Terms (Days)</label>
+                    <div className="relative">
+                        <Clock className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-sky-500" />
+                        <Input 
+                            type="number" 
+                            placeholder="Days" 
+                            value={paymentTerms ?? ""} 
+                            onChange={(e) => onPaymentTermsChange(e.target.value ? parseInt(e.target.value) : null)} 
+                            className="pl-9 h-9 text-xs border-sky-100 bg-sky-50/20 focus-visible:ring-sky-500" 
+                        />
                     </div>
                 </div>
             </CardContent>

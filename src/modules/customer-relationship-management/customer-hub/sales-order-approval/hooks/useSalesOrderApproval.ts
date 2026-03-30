@@ -37,14 +37,10 @@ export interface SalesOrder {
     discount_amount?: number;
     net_amount: number;
     order_status: string;
+    payment_terms?: number | null;
 }
 
-export interface CustomerGroup {
-    customer_code: string;
-    customer_name: string;
-    orders: SalesOrder[];
-    total_net_amount: number;
-}
+
 
 export function useSalesOrderApproval() {
     const [orders, setOrders] = useState<SalesOrder[]>([]);

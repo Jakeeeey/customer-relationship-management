@@ -13,10 +13,17 @@ const fetchHeaders = {
     "Content-Type": "application/json",
 };
 
-interface SalesOrderDetailItem {
+interface RawDetailRow {
     detail_id?: number | string;
     order_detail_id?: number | string;
     id: number | string;
+    product_id: number | string;
+    allocated_quantity?: number | string | null;
+    discount_amount?: number | string | null;
+    net_amount?: number | string | null;
+    gross_amount?: number | string | null;
+    ordered_quantity?: number | string | null;
+    unit_price?: number | string | null;
     [key: string]: unknown;
 }
 
@@ -195,7 +202,7 @@ export async function GET(req: NextRequest) {
             const rawRows = detJson.data || [];
             console.log(`[ApprovalAPI] Raw rows from DB: ${rawRows.length} for Order: ${orderId}`);
 
-            const details = rawRows.map((d: any) => {
+            const details = rawRows.map((d: RawDetailRow) => {
                 const pk = d.detail_id || d.order_detail_id || d.id;
                 // Log the exact values entering the mapper
                 console.log(` -> Row PK=${pk}, ProductID=${d.product_id}, DBAlloc=${d.allocated_quantity}, DBDisc=${d.discount_amount}, DBNet=${d.net_amount}`);

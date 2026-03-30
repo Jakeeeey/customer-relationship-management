@@ -66,6 +66,7 @@ export function useSalesOrder() {
     const [allocatedQuantities, setAllocatedQuantities] = useState<Record<string, number>>({});
     const [orderRemarks, setOrderRemarks] = useState("");
     const [existingOrderId, setExistingOrderId] = useState<number | null>(null);
+    const [paymentTerms, setPaymentTerms] = useState<number | null>(null);
 
     const selectedSalesman = useMemo(() => Array.isArray(salesmen) ? salesmen.find(s => (s.user_id || s.id)?.toString() === selectedSalesmanId) : undefined, [salesmen, selectedSalesmanId]);
     const selectedAccount = useMemo(() => Array.isArray(accounts) ? accounts.find(a => a.id.toString() === selectedAccountId) : undefined, [accounts, selectedAccountId]);
@@ -186,8 +187,11 @@ export function useSalesOrder() {
                                 if (custs.length > 0) {
                                     setCustomers(custs);
                                     setSelectedCustomerId(custs[0].id.toString());
+                                    if (custs[0].payment_term !== undefined) setPaymentTerms(custs[0].payment_term);
                                 }
                             }
+
+                            if (header.payment_terms !== undefined) setPaymentTerms(header.payment_terms);
 
                             console.log("[useSalesOrder] Setting Other IDs:", {
                                 supplier: header.supplier_id,
@@ -401,6 +405,7 @@ export function useSalesOrder() {
         if (customer) {
             if (customer.price_type) setPriceType(customer.price_type);
             if (customer.price_type_id) setPriceTypeId(Number(customer.price_type_id));
+            if (customer.payment_term !== undefined) setPaymentTerms(customer.payment_term);
         }
 
         if (id) {
@@ -740,7 +745,8 @@ export function useSalesOrder() {
                 pending_date: finalStatus === "Pending" ? now : null,
                 for_approval_at: finalStatus === "For Approval" ? now : null,
                 remarks: orderRemarks || "",
-                attachment_id: attachmentId ? Number(attachmentId) : null
+                attachment_id: attachmentId ? Number(attachmentId) : null,
+                payment_terms: paymentTerms ? Number(paymentTerms) : null
             };
 
             const itemsWithAllocation = lineItems.map(item => {
@@ -813,6 +819,7 @@ export function useSalesOrder() {
         summary, isValidAllocation,
         isCheckout, setIsCheckout, orderNo, previewOrderNo, enterCheckout, allocatedQuantities, updateAllocatedQty,
         orderRemarks, setOrderRemarks,
+        paymentTerms, setPaymentTerms,
         handleSubmitOrder, submitting,
         existingOrderId
     };
