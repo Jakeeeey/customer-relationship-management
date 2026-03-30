@@ -162,7 +162,7 @@ export async function GET(req: NextRequest) {
         try {
             const soId = searchParams.get("salesOrderId");
             const orderNo = searchParams.get("orderNo");
-            const FOLDER_ID = "ba39f489-2388-4b7a-85aa-e01def0f484a";
+            const FOLDER_ID = process.env.DIRECTUS_INVOICE_PDF_FOLDER_ID;
 
             if (!soId) return NextResponse.json({ error: "salesOrderId required" }, { status: 400 });
 

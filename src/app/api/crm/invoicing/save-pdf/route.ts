@@ -88,8 +88,7 @@ export async function POST(req: NextRequest) {
                 Authorization: `Bearer ${DIRECTUS_TOKEN}`,
             },
             body: JSON.stringify({
-                folder: "ba39f489-2388-4b7a-85aa-e01def0f484a"
-            }),
+                folder: process.env.DIRECTUS_INVOICE_PDF_FOLDER_ID}),
         }).catch(err => console.warn("[Save PDF API] Folder patch failed:", err));
 
         // 3. Create records in sales_invoice_pdf for EACH invoice
