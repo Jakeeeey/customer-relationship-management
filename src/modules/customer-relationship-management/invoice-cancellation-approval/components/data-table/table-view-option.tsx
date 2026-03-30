@@ -36,9 +36,9 @@ export function TableToolbar({ table }: TableToolbarProps) {
               .map((column) => {
                 const label = String(
                   ((column.columnDef.meta as Record<string, unknown>)?.label as string) ??
-                    (typeof column.columnDef.header === "string"
-                      ? column.columnDef.header
-                      : column.id)
+                  (typeof column.columnDef.header === "string"
+                    ? column.columnDef.header
+                    : column.id)
                 );
                 return (
                   <DropdownMenuCheckboxItem

@@ -41,10 +41,10 @@ type NavUserProps = {
      * Optional override. If not provided, NavUser will perform:
      * POST /api/auth/logout -> router.replace("/login") -> router.refresh()
      */
-    onLogout?: () => void
+    onLogoutAction?: () => void
 }
 
-export function NavUser({ user, onLogout }: NavUserProps) {
+export function NavUser({ user, onLogoutAction }: NavUserProps) {
     const { isMobile } = useSidebar()
     const router = useRouter()
     const [loggingOut, setLoggingOut] = React.useState(false)
@@ -77,20 +77,19 @@ export function NavUser({ user, onLogout }: NavUserProps) {
 
         try {
             // If a parent provided a handler, use it.
-            if (onLogout) {
-                await Promise.resolve(onLogout())
+            if (onLogoutAction) {
+                await Promise.resolve(onLogoutAction())
                 return
             }
 
             // Default wiring: clear HttpOnly cookie via Next route
             await fetch("/api/auth/logout", { method: "POST" })
         } finally {
-            // Always redirect to login + refresh UI
             router.replace("/login")
             router.refresh()
             setLoggingOut(false)
         }
-    }, [loggingOut, onLogout, router])
+    }, [loggingOut, onLogoutAction, router])
 
     return (
         <SidebarMenu>
