@@ -93,6 +93,7 @@ export interface InvoiceDetail {
     quantity: number;
     total_amount: number;
     discount_amount: number;
+    discount_type?: string | number | null;
 }
 
 export interface InvoiceData {
@@ -104,9 +105,18 @@ export interface InvoiceData {
     net_amount: number;
 }
 
+export interface PdfData {
+    fileId: string;
+    receipts: string;
+    url: string;
+    width_mm?: number;
+    height_mm?: number;
+}
+
 export interface Invoice {
     invoice: InvoiceData;
     details: InvoiceDetail[];
+    pdf?: PdfData | null;
 }
 
 export interface SalesOrderDataResponse {

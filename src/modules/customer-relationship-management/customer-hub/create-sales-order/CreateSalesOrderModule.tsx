@@ -28,7 +28,7 @@ export default function CreateSalesOrderModule({ fileUrl }: { fileUrl?: string |
         orderRemarks, setOrderRemarks,
         paymentTerms, setPaymentTerms,
         handleSubmitOrder, submitting,
-        existingOrderId
+        existingOrderId, existingOrderStatus
     } = useSalesOrder();
 
     if (salesmen.length === 0 && !loadingAccounts) {
@@ -91,6 +91,7 @@ export default function CreateSalesOrderModule({ fileUrl }: { fileUrl?: string |
                     orderRemarks={orderRemarks}
                     setOrderRemarks={setOrderRemarks}
                     isExistingOrder={!!existingOrderId}
+                    existingOrderStatus={existingOrderStatus}
                     header={{
                         salesman: salesmen.find(s => (s.user_id || s.id)?.toString() === selectedSalesmanId) || null,
                         account: selectedAccount || null,

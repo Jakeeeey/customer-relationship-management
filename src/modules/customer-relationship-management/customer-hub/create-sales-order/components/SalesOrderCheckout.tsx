@@ -37,6 +37,7 @@ interface SalesOrderCheckoutProps {
     orderRemarks: string;
     setOrderRemarks: (val: string) => void;
     isExistingOrder?: boolean;
+    existingOrderStatus?: string;
     header: {
         salesman: Salesman | null;
         account: Salesman | null;
@@ -55,7 +56,7 @@ interface SalesOrderCheckoutProps {
 export function SalesOrderCheckout({
     orderNo, lineItems, allocatedQuantities, updateAllocatedQty,
     summary, onBack, onConfirm, submitting, header,
-    orderRemarks, setOrderRemarks, isExistingOrder = false
+    orderRemarks, setOrderRemarks, isExistingOrder = false, existingOrderStatus
 }: SalesOrderCheckoutProps) {
     const [showConfirmDialog, setShowConfirmDialog] = useState(false);
 
@@ -196,7 +197,7 @@ export function SalesOrderCheckout({
                                                                 <Badge variant="outline" className="text-[9px] font-black px-1.5 py-0 border-slate-200 text-slate-400">
                                                                     {item.uom}
                                                                 </Badge>
-                                                                <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-tighter">
+                                                                <span className="text-[10px] font-bold text-emerald-600 tracking-tighter">
                                                                     {item.discountType}
                                                                 </span>
                                                             </div>
@@ -381,6 +382,7 @@ export function SalesOrderCheckout({
                 orderNo={orderNo}
                 hasZeroAllocation={hasZeroAllocation}
                 isExistingOrder={isExistingOrder}
+                existingOrderStatus={existingOrderStatus}
             />
         </div>
     );

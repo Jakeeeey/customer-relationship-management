@@ -18,6 +18,7 @@ interface OrderConfirmationDialogProps {
     orderNo: string;
     hasZeroAllocation: boolean;
     isExistingOrder?: boolean;
+    existingOrderStatus?: string;
 }
 
 export function OrderConfirmationDialog({
@@ -26,7 +27,8 @@ export function OrderConfirmationDialog({
     onConfirm,
     orderNo,
     hasZeroAllocation,
-    isExistingOrder = false
+    isExistingOrder = false,
+    existingOrderStatus
 }: OrderConfirmationDialogProps) {
     return (
         <Dialog open={open} onOpenChange={onClose}>
@@ -63,7 +65,7 @@ export function OrderConfirmationDialog({
                     )}
 
                     <div className="grid grid-cols-1 gap-3 mt-8">
-                        {!isExistingOrder && (
+                        {existingOrderStatus !== "Draft" && (
                             <Button
                                 variant="outline"
                                 className="h-20 rounded-2xl border-2 border-slate-100 hover:border-indigo-500/30 hover:bg-indigo-50/50 flex flex-col items-center justify-center gap-1 transition-all group"

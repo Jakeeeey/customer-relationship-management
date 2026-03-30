@@ -19,7 +19,16 @@ export interface OrderDetail {
     discount_amount: number;
     discount_type: number | string | null;
     net_amount: number;
+    gross_amount?: number;
     _recalculated_discount?: number;
+    _recalculated_gross?: number;
+}
+
+export interface CustomerGroup {
+    customer_code: string;
+    customer_name: string;
+    orders: SalesOrder[];
+    total_net_amount: number;
 }
 
 export interface SalesOrder {
@@ -150,7 +159,7 @@ export function useSalesOrderApproval() {
     const handleSaveDetails = async (
         orderId: number,
         header: Record<string, string | number | boolean | null | undefined>,
-        items: { detail_id: number; order_detail_id: number; allocated_quantity: number; net_amount: number }[]
+        items: { detail_id: number; order_detail_id: number; allocated_quantity: number; net_amount: number; discount_amount: number; gross_amount: number }[]
     ) => {
         try {
             await updateOrderDetails(orderId, header, items);

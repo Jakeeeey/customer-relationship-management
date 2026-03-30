@@ -25,7 +25,7 @@ interface SalesOrderEncodingProps {
 export function SalesOrderEncoding({
     products, loadingProducts, lineItems,
     addProduct, removeLineItem, updateLineItemQty,
-    summary, onSubmit, submitting
+    onSubmit, submitting
 }: SalesOrderEncodingProps) {
     const [search, setSearch] = useState("");
 
@@ -93,7 +93,7 @@ export function SalesOrderEncoding({
                                                                 {formatCurrency(netPrice)}
                                                             </span>
                                                         </div>
-                                                        <span className="text-[9px] text-muted-foreground font-black uppercase tracking-tighter">
+                                                        <span className="text-[9px] text-muted-foreground font-black tracking-tighter">
                                                             {p.discount_level} {p.uom ? `• ${p.uom}` : ''}
                                                             <span className="ml-2 text-indigo-500">• Avail: {Number(p.available_qty) || 0}</span>
                                                         </span>
@@ -161,7 +161,7 @@ export function SalesOrderEncoding({
                                                     <span className="font-bold text-[11px] leading-tight text-slate-900">{item.product.display_name}</span>
                                                     {/* Removed Brand/Category Badges */}
                                                     <div className="flex items-center gap-2 mt-1">
-                                                        <span className="text-[9px] text-primary/70 uppercase font-black tracking-tighter">{item.discountType}</span>
+                                                        <span className="text-[9px] text-primary/70 font-black tracking-tighter">{item.discountType}</span>
                                                     </div>
                                                 </div>
                                             </TableCell>
@@ -190,7 +190,7 @@ export function SalesOrderEncoding({
                                                             {item.discountType}
                                                         </Badge>
                                                     )}
-                                                    {!item.discountType && <span className="text-[10px] text-muted-foreground italic">None</span>}
+                                                    {!item.discountType && <span className="text-[10px] text-muted-foreground italic">none</span>}
                                                 </div>
                                             </TableCell>
                                             <TableCell className="text-center border-l border-muted/20">

@@ -1,9 +1,8 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { useSalesOrderApproval, SalesOrder } from "../sales-order-approval/hooks/useSalesOrderApproval";
-import { ApprovalModal } from "../sales-order-approval/components/ApprovalModal";
+import { useSalesOrderApproval } from "../sales-order-approval/hooks/useSalesOrderApproval";
 import {
     Table,
     TableBody,
@@ -40,16 +39,10 @@ export default function SalesOrderDraftModule() {
         setStartDate,
         endDate,
         setEndDate,
-        handleSubmitForApproval,
-        handleHold,
-        handleCancel,
-        handleSaveDetails,
-        refreshOrders,
-        totalCount
+        refreshOrders
     } = useSalesOrderApproval();
     const router = useRouter();
 
-    const [selectedOrder, setSelectedOrder] = useState<SalesOrder | null>(null);
     const observerTarget = useRef<HTMLDivElement>(null);
 
     // Force "Draft" filter on mount for this module

@@ -601,10 +601,28 @@ export async function GET(req: NextRequest) {
                 const products = (await pRes.json()).data || [];
                 const pMap = new Map<number, ProductMetadata>(products.map((p: ProductMetadata) => [Number(p.product_id), p]));
 
-                items.forEach((item: Record<string, any>) => {
+                // Fetch discount types for mapping
+                const dtRes = await fetch(`${DIRECTUS_URL}/items/discount_type?fields=id,discount_type&limit=-1`, { headers: fetchHeaders });
+                const dtMap = new Map<number, string>();
+                if (dtRes.ok) {
+                    const dtData = (await dtRes.json()).data || [];
+                    dtData.forEach((dt: { id: number, discount_type: string }) => {
+                        dtMap.set(Number(dt.id), dt.discount_type);
+                    });
+                }
+
+                items.forEach((item: { product_id: number; discount_type?: string | number; product?: unknown; discountType?: string | number; [key: string]: unknown }) => {
                     const pid = Number(item.product_id);
                     if (pMap.has(pid)) {
                         const pData = pMap.get(pid)!;
+
+                        // Resolve discount name
+                        const rawDt = item.discount_type || pData.discount_type;
+                        let resolvedDtName = rawDt;
+                        if (rawDt && dtMap.has(Number(rawDt))) {
+                            resolvedDtName = dtMap.get(Number(rawDt))!;
+                        }
+
                         item.product = {
                             ...pData,
                             id: pData.product_id,
@@ -612,9 +630,14 @@ export async function GET(req: NextRequest) {
                             product_name: pData.product_name,
                             display_name: pData.product_name, // Map for UI
                             description: pData.description,
-                            discount_level: pData.discount_type, // UI expects discount_level
+                            discount_level: resolvedDtName, // UI expects discount_level
                             unit_count: pData.unit_of_measurement_count || 1 // Support UC column
                         };
+                        
+                        // Set it on the item directly too for consistency with cart
+                        if (resolvedDtName) {
+                            item.discountType = resolvedDtName;
+                        }
                     }
                 });
             }
@@ -920,7 +943,7 @@ export async function POST(req: NextRequest) {
 
             // 4. Perform INSERTS (POST) for brand new items
             if (incomingNew.length > 0) {
-                const inserts = incomingNew.map((item: Record<string, any>) => {
+                const inserts = incomingNew.map((item: Record<string, unknown>) => {
                     const li = { ...item };
                     delete li.detail_id; // Remove detail_id if present for new items
                     delete li._ordered_gross;

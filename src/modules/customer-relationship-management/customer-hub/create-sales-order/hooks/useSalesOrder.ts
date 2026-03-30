@@ -66,6 +66,7 @@ export function useSalesOrder() {
     const [allocatedQuantities, setAllocatedQuantities] = useState<Record<string, number>>({});
     const [orderRemarks, setOrderRemarks] = useState("");
     const [existingOrderId, setExistingOrderId] = useState<number | null>(null);
+    const [existingOrderStatus, setExistingOrderStatus] = useState<string>("");
     const [paymentTerms, setPaymentTerms] = useState<number | null>(null);
 
     const selectedSalesman = useMemo(() => Array.isArray(salesmen) ? salesmen.find(s => (s.user_id || s.id)?.toString() === selectedSalesmanId) : undefined, [salesmen, selectedSalesmanId]);
@@ -150,6 +151,7 @@ export function useSalesOrder() {
                         console.log("[useSalesOrder] Fetched Order Data:", { header, items });
 
                         if (header) {
+                            setExistingOrderStatus(header.order_status || "");
                             setExistingOrderNo(header.order_no || "");
                             setPoNo(header.po_no || "");
 
@@ -209,7 +211,8 @@ export function useSalesOrder() {
                                 
                                 // 1. Fetch full product metadata for enriched information (discounts, categories)
                                 // We use the current header context to get the same discount logic as the catalog
-                                let enrichedProductsMap = new Map<number, any>();
+                                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                                const enrichedProductsMap = new Map<number, any>();
                                 try {
                                     const pUrl = `${salesOrderProvider.API_BASE}?action=products&customer_code=${header.customer_code}&supplier_id=${header.supplier_id}&branch_id=${header.branch_id}`;
                                     const pData = await fetch(pUrl).then(r => r.json());
@@ -221,6 +224,7 @@ export function useSalesOrder() {
                                 }
 
                                 const allocMap: Record<string, number> = {};
+                                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                                 const mappedItems = items.map((it: any) => {
                                     const tempId = Math.random().toString(36).substr(2, 9);
                                     allocMap[tempId] = Number(it.allocated_quantity ?? 0);
@@ -270,7 +274,7 @@ export function useSalesOrder() {
                                         uom: it.uom || "PCS",
                                         unitPrice: uPrice,
                                         quantity: qty,
-                                        discountType: typeof it.discount_type === 'number' && it.discount_type !== 0 ? String(it.discount_type) : (p.discount_level || it.discount_type || p.discount_type || "None"),
+                                        discountType: p.discount_level || (typeof it.discount_type === 'number' && it.discount_type !== 0 ? String(it.discount_type) : (it.discount_type || "none")),
                                         product: {
                                             ...p,
                                             discount_type: it.discount_type || p.discount_type,
@@ -291,6 +295,7 @@ export function useSalesOrder() {
                                         savedAllocatedQty: Number(it.allocated_quantity || 0)
                                     };
                                 });
+                                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                                 setLineItems(mappedItems as any);
                                 setAllocatedQuantities(allocMap);
                             }
@@ -540,9 +545,12 @@ export function useSalesOrder() {
         
         // --- REAL-TIME DELETION ---
         // If the item exists in the DB (has detail_id), force delete it now
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         if ((item as any)?.detail_id) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             console.log(`[RemoveItem] Force deleting detail_id=${(item as any).detail_id} from DB...`);
             try {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 const res = await salesOrderProvider.deleteOrderItem((item as any).detail_id);
                 if (res.success) {
                     toast.success("Item removed from database");
@@ -759,6 +767,7 @@ export function useSalesOrder() {
             });
 
             console.log(`[SubmitOrder] Sending ${itemsWithAllocation.length} item(s) to API. Existing order: ${!!existingOrderId}`);
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             itemsWithAllocation.forEach((item: any, idx: number) => {
                 console.log(`  [Item ${idx}] detail_id=${item.detail_id}, product=${item.product?.display_name || item.product?.product_id}`);
             });
@@ -783,6 +792,7 @@ export function useSalesOrder() {
                 setSelectedReceiptTypeId("");
                 setSelectedBranchId("");
                 setExistingOrderId(null);
+                setExistingOrderStatus("");
                 setExistingOrderNo("");
 
                 // Optional: Force a refresh of product inventory if needed
@@ -798,7 +808,7 @@ export function useSalesOrder() {
         } finally {
             setSubmitting(false);
         }
-    }, [selectedAccountId, selectedCustomerId, selectedSupplierId, selectedReceiptTypeId, selectedBranchId, priceTypeId, lineItems, selectedCustomer, selectedSalesTypeId, poNo, dueDate, deliveryDate, summary, orderNo, orderRemarks, allocatedQuantities, existingOrderId, attachmentId]);
+    }, [selectedAccountId, selectedCustomerId, selectedSupplierId, selectedReceiptTypeId, selectedBranchId, priceTypeId, lineItems, selectedCustomer, selectedSalesTypeId, poNo, dueDate, deliveryDate, summary, orderNo, orderRemarks, allocatedQuantities, existingOrderId, attachmentId, paymentTerms]);
 
     return {
         salesmen, selectedSalesmanId, handleSalesmanChange, selectedSalesman,
@@ -821,6 +831,6 @@ export function useSalesOrder() {
         orderRemarks, setOrderRemarks,
         paymentTerms, setPaymentTerms,
         handleSubmitOrder, submitting,
-        existingOrderId
+        existingOrderId, existingOrderStatus
     };
 }
