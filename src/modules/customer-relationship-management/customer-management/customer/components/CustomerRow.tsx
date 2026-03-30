@@ -35,34 +35,34 @@ interface CustomerRowProps {
 }
 
 export const CustomerRow = memo(function CustomerRow({
-    customer,
-    onEdit,
-    onManageBanks,
-    userMapping = {},
-}: CustomerRowProps) {
+                                                         customer,
+                                                         onEdit,
+                                                         onManageBanks,
+                                                         userMapping = {},
+                                                     }: CustomerRowProps) {
     return (
-        <TableRow className="hover:bg-muted/30 transition-colors">
-            <TableCell className="font-medium text-blue-600 px-2 py-2">
+        <TableRow className="hover:bg-muted/40 transition-colors group">
+            <TableCell className="font-semibold text-xs text-primary px-4 py-3">
                 {customer.customer_code}
             </TableCell>
-            <TableCell className="px-2 py-2">
+            <TableCell className="px-4 py-3">
                 <div className="flex flex-col">
-                    <span className="font-semibold text-sm leading-tight">{customer.customer_name}</span>
+                    <span className="font-semibold text-sm leading-tight text-foreground">{customer.customer_name}</span>
                     {customer.customer_tin && (
-                        <span className="text-[10px] text-muted-foreground">TIN: {customer.customer_tin}</span>
+                        <span className="text-[11px] text-muted-foreground mt-0.5">TIN: {customer.customer_tin}</span>
                     )}
                 </div>
             </TableCell>
-            <TableCell className="px-2 py-2">
+            <TableCell className="px-4 py-3">
                 <Tooltip>
                     <TooltipTrigger asChild>
                         <div className="flex flex-col gap-0.5 cursor-help">
-                            <div className="flex items-center text-xs font-medium">
-                                <Building2 className="mr-1.5 h-3 w-3 text-muted-foreground shrink-0" />
+                            <div className="flex items-center text-xs font-medium text-foreground">
+                                <Building2 className="mr-1.5 h-3.5 w-3.5 text-muted-foreground shrink-0" />
                                 <span className="truncate max-w-[140px]">{customer.store_name}</span>
                             </div>
                             {customer.store_signage && (
-                                <span className="text-[10px] text-muted-foreground italic truncate max-w-[140px] pl-4.5">
+                                <span className="text-[11px] text-muted-foreground italic truncate max-w-[140px] pl-5">
                                     {customer.store_signage}
                                 </span>
                             )}
@@ -71,71 +71,75 @@ export const CustomerRow = memo(function CustomerRow({
                     <TooltipContent side="right" className="max-w-xs">
                         <div className="flex flex-col gap-1">
                             <p className="font-semibold">{customer.store_name}</p>
-                            {customer.store_signage && <p className="italic text-muted-foreground text-[10px]">{customer.store_signage}</p>}
+                            {customer.store_signage && <p className="italic text-muted-foreground text-xs">{customer.store_signage}</p>}
                         </div>
                     </TooltipContent>
                 </Tooltip>
             </TableCell>
-            <TableCell className="px-2 py-2">
-                <Badge variant="outline" className={`text-[10px] px-1.5 h-5 font-medium ${customer.type === 'Employee' ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-blue-50 text-blue-700 border-blue-200'}`}>
+            <TableCell className="px-4 py-3">
+                <Badge variant="outline" className={`text-[10px] font-semibold px-2 py-0.5 ${customer.type === 'Employee' ? 'bg-amber-100/50 text-amber-700 border-amber-200' : 'bg-blue-100/50 text-blue-700 border-blue-200'}`}>
                     {customer.type}
                 </Badge>
             </TableCell>
-            <TableCell className="px-2 py-2">
-                <div className="text-xs font-medium text-blue-600/80 max-w-[140px] truncate" title={customer.user_id ? (userMapping[customer.user_id] || `#${customer.user_id}`) : "None"}>
-                    {customer.user_id ? (userMapping[customer.user_id] || `#${customer.user_id}`) : <span className="text-muted-foreground font-normal">None</span>}
+            <TableCell className="px-4 py-3">
+                <div className="text-xs font-medium text-muted-foreground max-w-[120px] truncate">
+                    {customer.user_id ? (
+                        <span className="text-foreground">{userMapping[customer.user_id] || `#${customer.user_id}`}</span>
+                    ) : (
+                        "Unassigned"
+                    )}
                 </div>
             </TableCell>
-            <TableCell className="px-2 py-2">
-                <div className="flex flex-col gap-0.5 text-xs">
+            <TableCell className="px-4 py-3">
+                <div className="flex flex-col gap-1 text-xs">
                     {customer.customer_email && (
-                        <div className="flex items-center">
-                            <Mail className="mr-1.5 h-3 w-3 text-muted-foreground shrink-0" />
+                        <div className="flex items-center text-muted-foreground">
+                            <Mail className="mr-1.5 h-3.5 w-3.5 shrink-0" />
                             <span className="truncate max-w-[140px]">{customer.customer_email}</span>
                         </div>
                     )}
                     {customer.contact_number && (
-                        <div className="flex items-center">
-                            <Phone className="mr-1.5 h-3 w-3 text-muted-foreground shrink-0" />
+                        <div className="flex items-center text-muted-foreground">
+                            <Phone className="mr-1.5 h-3.5 w-3.5 shrink-0" />
                             <span className="truncate max-w-[140px]">{customer.contact_number}</span>
                         </div>
                     )}
                 </div>
             </TableCell>
-            <TableCell className="px-2 py-2">
+            <TableCell className="px-4 py-3">
                 <Tooltip>
                     <TooltipTrigger asChild>
-                        <div className="text-[11px] max-w-[140px] truncate cursor-help">
+                        <div className="text-xs text-muted-foreground max-w-[120px] truncate cursor-help">
                             {[customer.brgy, customer.city, customer.province].filter(Boolean).join(", ")}
                         </div>
                     </TooltipTrigger>
-                    <TooltipContent side="right" className="max-w-xs">
+                    <TooltipContent side="top">
                         {[customer.brgy, customer.city, customer.province].filter(Boolean).join(", ")}
                     </TooltipContent>
                 </Tooltip>
             </TableCell>
-            <TableCell className="px-2 py-2">
-                <Badge variant={customer.isActive ? "default" : "secondary"} className="text-[10px] px-1.5 h-5">
+            <TableCell className="px-4 py-3">
+                <Badge variant={customer.isActive ? "default" : "secondary"} className="text-[10px] px-2 py-0.5">
                     {customer.isActive ? "Active" : "Inactive"}
                 </Badge>
             </TableCell>
-            <TableCell className="text-right px-2 py-2">
+            <TableCell className="text-right px-4 py-3">
                 <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" className="h-8 w-8 p-0">
+                        <Button variant="ghost" className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity data-[state=open]:opacity-100">
                             <span className="sr-only">Open menu</span>
                             <MoreHorizontal className="h-4 w-4" />
                         </Button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
+                    <DropdownMenuContent align="end" className="w-48">
                         <DropdownMenuLabel>Actions</DropdownMenuLabel>
                         <DropdownMenuItem onClick={() => onEdit(customer)}>
-                            <Pencil className="mr-2 h-4 w-4" />
-                            Edit
+                            <Pencil className="mr-2 h-4 w-4 text-muted-foreground" />
+                            Edit Details
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem onClick={() => onManageBanks(customer)}>
-                            <CreditCard className="mr-2 h-4 w-4" />
+                            <CreditCard className="mr-2 h-4 w-4 text-muted-foreground" />
                             Manage Bank Accounts
                         </DropdownMenuItem>
                     </DropdownMenuContent>

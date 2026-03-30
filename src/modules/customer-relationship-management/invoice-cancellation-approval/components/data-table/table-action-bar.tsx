@@ -11,11 +11,11 @@ import {
   ActionBarSelection,
   ActionBarSeparator,
 } from "@/modules/customer-relationship-management/invoice-cancellation-approval/components/ui/action-bar";
-import { InvoiceAction, InvoiceRow } from "../../types";
+import { ApprovalAction, InvoiceRow } from "../../types";
 
 interface TasksTableActionBarProps {
   table: Table<InvoiceRow>;
-  onBulkAction: (action: InvoiceAction, rows: InvoiceRow[]) => void;
+  onBulkAction: (action: ApprovalAction, rows: InvoiceRow[]) => void;
 }
 
 export function TasksTableActionBar({
@@ -33,7 +33,7 @@ export function TasksTableActionBar({
     [table],
   );
 
-  const handleBulkAction = (action: InvoiceAction) => {
+  const handleBulkAction = (action: ApprovalAction) => {
     onBulkAction(
       action,
       selectedRows.map((r) => r.original),

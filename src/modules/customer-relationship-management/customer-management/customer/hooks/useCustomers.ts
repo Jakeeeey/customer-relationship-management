@@ -14,10 +14,14 @@ interface UseCustomersReturn {
     pageSize: number;
     searchQuery: string;
     statusFilter: string;
+    storeTypeFilter: string;      // 🚀 Added
+    classificationFilter: string; // 🚀 Added
     setPage: (page: number) => void;
     setPageSize: (pageSize: number) => void;
     setSearchQuery: (query: string) => void;
     setStatusFilter: (status: string) => void;
+    setStoreTypeFilter: (type: string) => void;         // 🚀 Added
+    setClassificationFilter: (classification: string) => void; // 🚀 Added
     userMapping: Record<number, string>;
     refetch: () => Promise<void>;
     createCustomer: (data: Partial<Customer>) => Promise<void>;
@@ -43,6 +47,8 @@ export function useCustomers(): UseCustomersReturn {
     const [pageSize, setPageSize] = useState(10);
     const [searchQuery, setSearchQuery] = useState("");
     const [statusFilter, setStatusFilter] = useState("all");
+    const [storeTypeFilter, setStoreTypeFilter] = useState("all");       // 🚀 Added
+    const [classificationFilter, setClassificationFilter] = useState("all"); // 🚀 Added
 
     const hasLoadedRef = useRef(false);
 
@@ -55,11 +61,14 @@ export function useCustomers(): UseCustomersReturn {
             setIsError(false);
             setError(null);
 
+            // 🚀 Wire up ALL filters to the API Request
             const params = new URLSearchParams({
                 page: page.toString(),
                 pageSize: pageSize.toString(),
                 q: searchQuery,
                 status: statusFilter,
+                storeType: storeTypeFilter,           // 🚀 Passed to Backend
+                classification: classificationFilter, // 🚀 Passed to Backend
                 t: Date.now().toString()
             });
 
@@ -100,7 +109,12 @@ export function useCustomers(): UseCustomersReturn {
         } finally {
             setIsLoading(false);
         }
-    }, [page, pageSize, searchQuery, statusFilter]);
+    }, [page, pageSize, searchQuery, statusFilter, storeTypeFilter, classificationFilter]); // 🚀 Added to dependency array
+
+    // 🚀 Reset to page 1 when any filter changes
+    useEffect(() => {
+        setPage(1);
+    }, [searchQuery, statusFilter, storeTypeFilter, classificationFilter]);
 
     useEffect(() => {
         fetchData(true);
@@ -167,10 +181,14 @@ export function useCustomers(): UseCustomersReturn {
         pageSize,
         searchQuery,
         statusFilter,
+        storeTypeFilter,        // 🚀 Returned
+        classificationFilter,   // 🚀 Returned
         setPage,
         setPageSize,
         setSearchQuery,
         setStatusFilter,
+        setStoreTypeFilter,     // 🚀 Returned
+        setClassificationFilter,// 🚀 Returned
         refetch,
         createCustomer,
         updateCustomer,
