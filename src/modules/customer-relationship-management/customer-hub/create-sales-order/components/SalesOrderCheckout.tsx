@@ -34,9 +34,10 @@ interface SalesOrderCheckoutProps {
     onBack: () => void;
     onConfirm: (status?: "Draft" | "For Approval") => void;
     submitting: boolean;
-    // isValidAllocation is now handled differently (allowing 0)
     orderRemarks: string;
     setOrderRemarks: (val: string) => void;
+    isExistingOrder?: boolean;
+    existingOrderStatus?: string;
     header: {
         salesman: Salesman | null;
         account: Salesman | null;
@@ -48,17 +49,18 @@ interface SalesOrderCheckoutProps {
         dueDate: string;
         deliveryDate: string;
         poNo: string;
+        paymentTerms?: number | null;
     };
 }
 
 export function SalesOrderCheckout({
     orderNo, lineItems, allocatedQuantities, updateAllocatedQty,
     summary, onBack, onConfirm, submitting, header,
-    orderRemarks, setOrderRemarks
+    orderRemarks, setOrderRemarks, isExistingOrder = false, existingOrderStatus
 }: SalesOrderCheckoutProps) {
     const [showConfirmDialog, setShowConfirmDialog] = useState(false);
 
-    const hasZeroAllocation = lineItems.some(item => (allocatedQuantities[item.id] ?? item.quantity) === 0);
+    const hasZeroAllocation = lineItems.some(item => (allocatedQuantities[item.id] ?? 0) === 0);
 
     const handleConfirmClick = () => {
         if (hasZeroAllocation) {
@@ -82,7 +84,7 @@ export function SalesOrderCheckout({
                 </Button>
                 <div className="flex items-center gap-3">
                     <Badge variant="outline" className="px-3 py-1 text-xs font-bold border-primary/30 text-primary bg-primary/5 uppercase tracking-widest">
-                        Reviewing Order
+                        {isExistingOrder ? "Modifying Draft" : "Reviewing Order"}
                     </Badge>
                 </div>
             </div>
@@ -140,6 +142,12 @@ export function SalesOrderCheckout({
                                         <span className="text-[10px] font-black text-muted-foreground uppercase tracking-wider mb-1">PO#</span>
                                         <span className="text-xs font-bold text-slate-700">{header.poNo || "N/A"}</span>
                                     </div>
+                                    {header.paymentTerms !== undefined && header.paymentTerms !== null && (
+                                        <div className="flex flex-col">
+                                            <span className="text-[10px] font-black text-sky-600 uppercase tracking-wider mb-1">Terms</span>
+                                            <span className="text-xs font-bold text-sky-700">{header.paymentTerms} Days</span>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         </CardHeader>
@@ -160,9 +168,11 @@ export function SalesOrderCheckout({
                                     </TableHeader>
                                     <TableBody>
                                         {lineItems.map((item) => {
-                                            const allocatedQty = allocatedQuantities[item.id] ?? item.quantity;
-                                            const netPrice = calculateChainNetPrice(item.unitPrice, item.discounts);
-                                            const allocatedTotal = netPrice * allocatedQty;
+                                            const allocatedQty = allocatedQuantities[item.id] ?? 0;
+                                            // Exact Mapping Support for visual row total
+                                            const allocatedTotal = (item.savedAllocatedQty !== undefined && allocatedQty === item.savedAllocatedQty && item.savedNetAmount !== undefined)
+                                                ? item.savedNetAmount
+                                                : calculateChainNetPrice(item.unitPrice, item.discounts) * allocatedQty;
 
                                             return (
                                                 <TableRow key={item.id} className="hover:bg-slate-50/50 border-b group transition-colors">
@@ -187,7 +197,7 @@ export function SalesOrderCheckout({
                                                                 <Badge variant="outline" className="text-[9px] font-black px-1.5 py-0 border-slate-200 text-slate-400">
                                                                     {item.uom}
                                                                 </Badge>
-                                                                <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-tighter">
+                                                                <span className="text-[10px] font-bold text-emerald-600 tracking-tighter">
                                                                     {item.discountType}
                                                                 </span>
                                                             </div>
@@ -321,23 +331,41 @@ export function SalesOrderCheckout({
                             </div>
 
                             <div className="space-y-4">
-                                <Button
-                                    className="w-full h-16 text-base font-black uppercase tracking-[0.2em] shadow-2xl transition-all duration-500 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 hover:scale-[1.02] hover:shadow-emerald-500/20 active:scale-95 shadow-emerald-500/10"
-                                    onClick={handleConfirmClick}
-                                    disabled={submitting}
-                                >
-                                    {submitting ? (
-                                        <span className="flex items-center gap-3 animate-pulse">
-                                            <Loader2 className="w-5 h-5 animate-spin" />
-                                            Authenticating Order...
-                                        </span>
-                                    ) : (
-                                        <span className="flex items-center gap-3">
-                                            SUBMIT SALES ORDER
-                                            <CheckCircle2 className="w-6 h-6 text-slate-950/50" />
-                                        </span>
-                                    )}
-                                </Button>
+                                {(() => {
+                                    const anyHasError = lineItems.some(item => {
+                                        const alloc = allocatedQuantities[item.id] ?? 0;
+                                        const avail = Number(item.product.available_qty) || 0;
+                                        return (alloc > item.quantity) || (alloc > 0 && alloc > avail);
+                                    });
+
+                                    return (
+                                        <>
+                                            {anyHasError && (
+                                                <div className="flex items-center justify-center gap-2 text-rose-500 bg-rose-50/50 py-2 rounded-lg border border-rose-100 animate-in fade-in slide-in-from-bottom-2 duration-500">
+                                                    <AlertCircle className="w-4 h-4" />
+                                                    <span className="text-[10px] font-black uppercase tracking-widest">Adjust over-allocated items</span>
+                                                </div>
+                                            )}
+                                            <Button
+                                                className={`w-full h-16 text-base font-black uppercase tracking-[0.2em] shadow-2xl transition-all duration-500 rounded-xl ${anyHasError ? 'bg-slate-700 opacity-50 cursor-not-allowed text-slate-400' : 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 hover:scale-[1.02] hover:shadow-emerald-500/20 active:scale-95 shadow-emerald-500/10'}`}
+                                                onClick={handleConfirmClick}
+                                                disabled={submitting || anyHasError}
+                                            >
+                                                {submitting ? (
+                                                    <span className="flex items-center gap-3 animate-pulse">
+                                                        <Loader2 className="w-5 h-5 animate-spin" />
+                                                        Authenticating Order...
+                                                    </span>
+                                                ) : (
+                                                    <span className="flex items-center gap-3">
+                                                        SUBMIT SALES ORDER
+                                                        <CheckCircle2 className="w-6 h-6 text-slate-950/50" />
+                                                    </span>
+                                                )}
+                                            </Button>
+                                        </>
+                                    );
+                                })()}
                                 <p className="text-[10px] text-center text-slate-500 font-medium leading-relaxed italic">
                                     Finalize your allocation and select target workflow status.
                                 </p>
@@ -353,6 +381,8 @@ export function SalesOrderCheckout({
                 onConfirm={handleFinalConfirm}
                 orderNo={orderNo}
                 hasZeroAllocation={hasZeroAllocation}
+                isExistingOrder={isExistingOrder}
+                existingOrderStatus={existingOrderStatus}
             />
         </div>
     );

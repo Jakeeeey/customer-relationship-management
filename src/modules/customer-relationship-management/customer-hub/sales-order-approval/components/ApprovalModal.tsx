@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { format } from "date-fns";
-import { Loader2, AlertCircle, Clock, Store, X, FileText } from "lucide-react";
+import { Loader2, AlertCircle, Clock, Store, X, FileText, Package } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 import {
@@ -24,7 +24,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
 import type { SalesOrder, OrderDetail } from "../hooks/useSalesOrderApproval";
-import { getOrderDetails, getInvoiceDetails, getOrderAttachments } from "../providers/fetchProvider";
+import { getOrderDetails, getInvoiceDetails, getOrderAttachments, getOrderHeader } from "../providers/fetchProvider";
 
 interface ApprovalModalProps {
     order: SalesOrder | null;
@@ -34,7 +34,7 @@ interface ApprovalModalProps {
     onHold: (orderIds: (string | number)[]) => Promise<boolean>;
     onCancel: (orderIds: (string | number)[]) => Promise<boolean>;
     onSubmitForApproval?: (orderIds: (string | number)[]) => Promise<boolean>;
-    onSaveDetails: (orderId: number, header: Record<string, number | string | null | undefined>, items: { detail_id: number, order_detail_id: number, allocated_quantity: number, net_amount: number }[]) => Promise<boolean>;
+    onSaveDetails: (orderId: number, header: Record<string, number | string | null | undefined>, items: { detail_id: number, order_detail_id: number, allocated_quantity: number, net_amount: number, discount_amount: number, gross_amount: number }[]) => Promise<boolean>;
     isEditable?: boolean;
 }
 
@@ -50,6 +50,7 @@ export function ApprovalModal({
     isEditable = false
 }: ApprovalModalProps) {
     const [details, setDetails] = useState<OrderDetail[]>([]);
+    const [freshOrder, setFreshOrder] = useState<SalesOrder | null>(null);
     const [invoiceData, setInvoiceData] = useState<{
         invoice: {
             invoice_no: string;
@@ -66,19 +67,39 @@ export function ApprovalModal({
             quantity: number;
             total_amount: number;
             discount_amount: number;
-        }[]
+        }[],
+        pdf?: {
+            url: string;
+            receipt_numbers: string;
+            width_mm?: number;
+            height_mm?: number;
+        } | null
     } | null>(null);
+    const [isPdfOpen, setIsPdfOpen] = useState(false);
     const [attachments, setAttachments] = useState<{ file_id?: number; attachment_name?: string; filename?: string; file_url?: string }[]>([]);
     const [loadingDetails, setLoadingDetails] = useState(false);
     const [loadingInvoice, setLoadingInvoice] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [discountTypes, setDiscountTypes] = useState<Record<number, string>>({});
 
-    const isInvoiceStatus = ["For Loading", "For Shipping", "En Route", "Delivered"].includes(order?.order_status || "");
+    const activeOrder = freshOrder || order;
+    const isInvoiceStatus = ["For Loading", "For Shipping", "En Route", "Delivered"].includes(activeOrder?.order_status || "");
 
     useEffect(() => {
         if (open && order) {
-            // Fetch Discount Types first
+            // 1. Fetch Header first to be sure
+            const refreshHeader = async () => {
+                try {
+                    const fresh = await getOrderHeader(order.order_id);
+                    setFreshOrder(fresh);
+                } catch (e) {
+                    console.error("Failed to fetch fresh header", e);
+                    setFreshOrder(order); // Fallback
+                }
+            };
+            refreshHeader();
+
+            // 2. Fetch Discount Types
             const fetchDiscountTypes = async () => {
                 try {
                     const res = await fetch(`${window.location.origin}/api/crm/customer-hub/sales-order-approval?type=discount-types`);
@@ -124,11 +145,8 @@ export function ApprovalModal({
                     setLoadingDetails(true);
                     try {
                         const data = await getOrderDetails(order.order_id, order.branch_id);
-                        const enriched = (data || []).map((item: OrderDetail) => ({
-                            ...item,
-                            allocated_quantity: item.allocated_quantity ?? item.ordered_quantity
-                        }));
-                        setDetails(enriched);
+                        // FETCH FRESH DATA: No more aggressive visual guards; show what is exactly on the DB record
+                        setDetails(data || []);
                     } catch (error) {
                         console.error("Failed to load order details", error);
                     } finally {
@@ -139,48 +157,79 @@ export function ApprovalModal({
             }
         } else {
             setDetails([]);
+            setFreshOrder(null);
             setInvoiceData(null);
             setAttachments([]);
         }
     }, [open, order, isInvoiceStatus]);
 
-    if (!order) return null;
+    if (!activeOrder) return null;
 
-    const isActionable = ["For Approval", "On Hold", "Draft"].includes(order?.order_status || "");
-    const canHold = order.order_status === "For Approval";
+    const isActionable = ["For Approval", "On Hold", "Draft"].includes(activeOrder?.order_status || "");
+    const canHold = activeOrder.order_status === "For Approval";
 
     const updateAllocatedQty = (index: number, val: string) => {
-        const num = parseFloat(val) || 0;
+        let num = parseFloat(val) || 0;
         const newDetails = [...details];
         const oldItem = newDetails[index];
+
+        // GUARD: Cannot exceed Ordered Qty OR Available Qty
+        const maxAllowed = Math.min(oldItem.ordered_quantity || 0, oldItem.available_qty ?? 999999);
+        if (num > maxAllowed) num = maxAllowed;
+        if (num < 0) num = 0;
 
         // Calculate unit-based discount if applicable
         const unitDiscount = oldItem.ordered_quantity > 0 ? (oldItem.discount_amount / oldItem.ordered_quantity) : 0;
         const newDiscount = unitDiscount * num;
+        const newGross = num * oldItem.unit_price;
 
         newDetails[index] = {
             ...oldItem,
             allocated_quantity: num,
-            // Temporarily store recalculated discount if we want to show it, 
-            // but the calculations in this component use the item's properties.
-            // Let's update it in the state so the summary totals are correct.
-            _recalculated_discount: newDiscount
+            _recalculated_discount: newDiscount,
+            _recalculated_gross: newGross
         };
         setDetails(newDetails);
     };
 
     // Recalculate totals based on local details state
-    // We use a helper to get the "current" discount for each line
-    const getLineDiscount = (item: OrderDetail & { _recalculated_discount?: number }) => {
+    const getLineDiscount = (item: OrderDetail) => {
+        // Preference: If manually changed in this session, use recalculated value
         if (item._recalculated_discount !== undefined) return item._recalculated_discount;
-        // Fallback or Initial state: if allocated_quantity != ordered_quantity, we should probably scale it anyway
-        const unitDiscount = item.ordered_quantity > 0 ? (item.discount_amount / item.ordered_quantity) : 0;
-        return unitDiscount * item.allocated_quantity;
+        
+        // Rely purely on database value for initial or fresh load
+        return Number(item.discount_amount || 0);
     };
 
-    const calculatedGross = details.reduce((sum, item) => sum + (item.allocated_quantity * item.unit_price), 0);
+    const getLineNet = (item: OrderDetail) => {
+        // Preference: If manually changed in this session, we must calculate based on new quantity
+        if (item._recalculated_discount !== undefined || item._recalculated_gross !== undefined) {
+             const discount = getLineDiscount(item);
+             const gross = item._recalculated_gross !== undefined ? item._recalculated_gross : (Number(item.allocated_quantity || 0) * Number(item.unit_price || 0));
+             return gross - discount;
+        }
+
+        // Rely purely on database values for initial or fresh load
+        if (item.net_amount !== undefined && item.net_amount !== null) {
+            return Number(item.net_amount);
+        }
+
+        // Final fallback calculation
+        const discount = getLineDiscount(item);
+        return (Number(item.allocated_quantity || 0) * Number(item.unit_price || 0)) - discount;
+    };
+
+    const getLineGross = (item: OrderDetail) => {
+        // If manually changed, use new calculation
+        if (item._recalculated_gross !== undefined) return item._recalculated_gross;
+        
+        // Otherwise use database value
+        return Number(item.gross_amount || 0);
+    };
+
+    const calculatedGross = details.reduce((sum, item) => sum + getLineGross(item), 0);
     const calculatedDiscount = details.reduce((sum, item) => sum + getLineDiscount(item), 0);
-    const calculatedNetAllocation = calculatedGross - calculatedDiscount;
+    const calculatedNetAllocation = details.reduce((sum, item) => sum + getLineNet(item), 0);
 
     const calculatedAllocatedTotal = calculatedNetAllocation; // For backward compatibility if needed elsewhere
 
@@ -196,27 +245,28 @@ export function ApprovalModal({
                     total_amount: calculatedGross,
                 };
                 const itemsToUpdate = details.map(d => ({
-                    detail_id: (d.detail_id || d.order_detail_id || (d as { id?: number }).id) as number,
-                    order_detail_id: (d.detail_id || d.order_detail_id || (d as { id?: number }).id) as number,
+                    detail_id: (d.detail_id || d.order_detail_id || (d as OrderDetail & { id?: number }).id) as number,
+                    order_detail_id: (d.detail_id || d.order_detail_id || (d as OrderDetail & { id?: number }).id) as number,
                     allocated_quantity: d.allocated_quantity,
-                    net_amount: (d.allocated_quantity * d.unit_price) - getLineDiscount(d),
-                    discount_amount: getLineDiscount(d)
+                    net_amount: getLineNet(d),
+                    discount_amount: getLineDiscount(d),
+                    gross_amount: getLineGross(d)
                 }));
-                const success = await onSaveDetails(order.order_id, headerUpdates, itemsToUpdate);
+                const success = await onSaveDetails(activeOrder.order_id, headerUpdates, itemsToUpdate);
                 if (!success && action !== "cancel") return; // Stop if save failed
             }
 
             // 2. Perform status update
             let success = false;
             if (action === "approve") {
-                if (order.order_status === "Draft" && onSubmitForApproval) {
-                    success = await onSubmitForApproval([order.order_id]);
+                if (activeOrder.order_status === "Draft" && onSubmitForApproval) {
+                    success = await onSubmitForApproval([activeOrder.order_id]);
                 } else {
-                    success = await onApprove([order.order_id]);
+                    success = await onApprove([activeOrder.order_id]);
                 }
             }
-            else if (action === "hold") success = await onHold([order.order_id]);
-            else if (action === "cancel") success = await onCancel([order.order_id]);
+            else if (action === "hold") success = await onHold([activeOrder.order_id]);
+            else if (action === "cancel") success = await onCancel([activeOrder.order_id]);
 
             if (success) onClose();
         } catch (e) {
@@ -235,6 +285,7 @@ export function ApprovalModal({
 
 
     return (
+        <>
         <Dialog open={open} onOpenChange={(val) => !val && onClose()}>
             <DialogContent
                 showCloseButton={false}
@@ -262,7 +313,7 @@ export function ApprovalModal({
 
                             <div className="min-w-0">
                                 <DialogTitle className="text-base sm:text-xl font-black flex flex-wrap items-center gap-1.5 text-foreground leading-tight">
-                                    <span className="shrink-0">SO: {order.order_no}</span>
+                                    <span className="shrink-0">SO: {activeOrder.order_no}</span>
                                     {isInvoiceStatus && invoiceData?.invoice?.invoice_no && (
                                         <>
                                             <span className="text-slate-300 font-light shrink-0">/</span>
@@ -277,10 +328,10 @@ export function ApprovalModal({
                                     <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 mt-1">
                                         <Store className="h-3 w-3 text-slate-400 shrink-0" />
                                         <span className="text-[11px] font-bold text-muted-foreground truncate max-w-[170px] sm:max-w-xs">
-                                            {order.customer_name || "Unknown Customer"}
+                                            {activeOrder.customer_name || "Unknown Customer"}
                                         </span>
                                         <span className="text-[10px] text-muted-foreground font-bold bg-muted px-1.5 py-0.5 rounded">
-                                            {order.customer_code}
+                                            {activeOrder.customer_code}
                                         </span>
                                     </div>
                                 </DialogDescription>
@@ -294,14 +345,14 @@ export function ApprovalModal({
                                     hidden sm:flex
                                     px-2.5 py-0.5 text-[9px] sm:text-[10px]
                                     font-black tracking-widest shadow-sm rounded-lg
-                                    ${order.order_status === "For Approval" ? "bg-[#FEF9C3] text-[#854D0E] border-[#FEF08A]" : ""}
-                                    ${order.order_status === "For Consolidation" ? "bg-purple-100 text-purple-800 border-purple-200" : ""}
-                                    ${order.order_status === "Delivered" ? "bg-emerald-100 text-emerald-900 border-emerald-200" : ""}
-                                    ${order.order_status === "Cancelled" ? "bg-rose-100 text-rose-900 border-rose-200" : ""}
-                                    ${order.order_status === "On Hold" ? "bg-slate-100 text-slate-900 border-slate-200" : ""}
+                                    ${activeOrder.order_status === "For Approval" ? "bg-[#FEF9C3] text-[#854D0E] border-[#FEF08A]" : ""}
+                                    ${activeOrder.order_status === "For Consolidation" ? "bg-purple-100 text-purple-800 border-purple-200" : ""}
+                                    ${activeOrder.order_status === "Delivered" ? "bg-emerald-100 text-emerald-900 border-emerald-200" : ""}
+                                    ${activeOrder.order_status === "Cancelled" ? "bg-rose-100 text-rose-900 border-rose-200" : ""}
+                                    ${activeOrder.order_status === "On Hold" ? "bg-slate-100 text-slate-900 border-slate-200" : ""}
                                 `}
                             >
-                                {order.order_status?.toUpperCase()}
+                                {activeOrder.order_status?.toUpperCase()}
                             </Badge>
                             <button
                                 onClick={onClose}
@@ -317,42 +368,48 @@ export function ApprovalModal({
                         <Badge
                             variant="outline"
                             className={`px-2.5 py-0.5 text-[9px] font-black tracking-widest rounded-lg 
-                                ${order.order_status === "For Approval" ? "bg-[#FEF9C3] text-[#854D0E] border-[#FEF08A]" : ""}
-                                ${order.order_status === "For Consolidation" ? "bg-purple-100 text-purple-800 border-purple-200" : ""}
-                                ${order.order_status === "Delivered" ? "bg-emerald-100 text-emerald-900 border-emerald-200" : ""}
-                                ${order.order_status === "Cancelled" ? "bg-rose-100 text-rose-900 border-rose-200" : ""}
-                                ${order.order_status === "On Hold" ? "bg-slate-100 text-slate-900 border-slate-200" : ""}
+                                ${activeOrder.order_status === "For Approval" ? "bg-[#FEF9C3] text-[#854D0E] border-[#FEF08A]" : ""}
+                                ${activeOrder.order_status === "For Consolidation" ? "bg-purple-100 text-purple-800 border-purple-200" : ""}
+                                ${activeOrder.order_status === "Delivered" ? "bg-emerald-100 text-emerald-900 border-emerald-200" : ""}
+                                ${activeOrder.order_status === "Cancelled" ? "bg-rose-100 text-rose-900 border-rose-200" : ""}
+                                ${activeOrder.order_status === "On Hold" ? "bg-slate-100 text-slate-900 border-slate-200" : ""}
                             `}
                         >
-                            {order.order_status?.toUpperCase()}
+                            {activeOrder.order_status?.toUpperCase()}
                         </Badge>
                     </div>
 
                     {/* Summary Cards */}
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 mt-4">
-                        <div className="bg-background border border-border rounded-xl p-3 sm:p-4 flex flex-col gap-1 shadow-sm">
+                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 sm:gap-3 mt-4">
+                        <div className="bg-background border border-border rounded-xl p-3 sm:p-4 flex flex-col gap-1 shadow-sm text-center">
                             <p className="text-[8px] sm:text-[10px] text-muted-foreground uppercase font-black tracking-widest leading-none">Order Date</p>
-                            <p className="font-bold text-[12px] sm:text-sm text-foreground mt-0.5">
-                                {order.order_date ? format(new Date(order.order_date), "MMM d, yyyy") : "N/A"}
+                            <p className="font-bold text-[12px] sm:text-sm text-foreground mt-1 text-center">
+                                {activeOrder.order_date ? format(new Date(activeOrder.order_date), "MMM d, yyyy") : "N/A"}
                             </p>
                         </div>
-                        <div className="bg-background border border-border rounded-xl p-3 sm:p-4 flex flex-col gap-1 shadow-sm">
+                        <div className="bg-background border border-border rounded-xl p-3 sm:p-4 flex flex-col gap-1 shadow-sm text-center">
                             <p className="text-[8px] sm:text-[10px] text-muted-foreground uppercase font-black tracking-widest leading-none">PO Number</p>
-                            <p className="font-bold text-[12px] sm:text-sm text-foreground truncate mt-0.5">
-                                {order.po_no || "N/A"}
+                            <p className="font-bold text-[12px] sm:text-sm text-foreground truncate mt-1 text-center">
+                                {activeOrder.po_no || "N/A"}
                             </p>
                         </div>
-                        <div className="bg-background border border-border rounded-xl p-3 sm:p-4 flex flex-col gap-1 shadow-sm">
+                        <div className="bg-background border border-border rounded-xl p-3 sm:p-4 flex flex-col gap-1 shadow-sm text-center">
+                            <p className="text-[8px] sm:text-[10px] text-muted-foreground uppercase font-black tracking-widest leading-none">Terms</p>
+                            <p className="font-bold text-[12px] sm:text-sm text-sky-600 mt-1 text-center">
+                                {activeOrder.payment_terms ? `${activeOrder.payment_terms} Days` : "COD"}
+                            </p>
+                        </div>
+                        <div className="bg-background border border-border rounded-xl p-3 sm:p-4 flex flex-col gap-1 shadow-sm text-center">
                             <p className="text-[8px] sm:text-[10px] text-muted-foreground uppercase font-black tracking-widest leading-none">Ordered Total</p>
-                            <p className="font-bold text-[12px] sm:text-sm text-foreground truncate mt-0.5">
-                                {formatCurrency(order.net_amount)}
+                            <p className="font-bold text-[12px] sm:text-sm text-foreground truncate mt-1 text-center">
+                                {formatCurrency(activeOrder.net_amount)}
                             </p>
                         </div>
-                        <div className="bg-sky-50 dark:bg-sky-950/30 border border-sky-100 dark:border-sky-900/50 rounded-xl p-3 sm:p-4 flex flex-col gap-1 shadow-sm">
+                        <div className="bg-sky-50 dark:bg-sky-950/30 border border-sky-100 dark:border-sky-900/50 rounded-xl p-3 sm:p-4 flex flex-col gap-1 shadow-sm text-center">
                             <p className="text-[8px] sm:text-[10px] text-sky-600 dark:text-sky-400 uppercase font-black tracking-widest leading-none">
                                 {isInvoiceStatus ? "Invoice Total" : "Net Allocation"}
                             </p>
-                            <p className="font-black text-[13px] sm:text-lg text-sky-600 dark:text-sky-400 tabular-nums mt-0.5">
+                            <p className="font-black text-[13px] sm:text-lg text-sky-600 dark:text-sky-400 tabular-nums mt-1 text-center">
                                 {formatCurrency(isInvoiceStatus ? (invoiceData?.invoice?.net_amount || 0) : calculatedNetAllocation)}
                             </p>
                         </div>
@@ -476,7 +533,7 @@ export function ApprovalModal({
                                             details.map((li, idx) => {
                                                 const productName = li.product_id?.product_name || li.product_id?.description || "Unknown";
                                                 const productCode = li.product_id?.product_code || "N/A";
-                                                const lineTotal = (li.allocated_quantity * li.unit_price) - getLineDiscount(li);
+                                                const lineTotal = getLineNet(li);
                                                 const isExceeding = (li.allocated_quantity > li.ordered_quantity) || (li.available_qty !== undefined && li.allocated_quantity > li.available_qty);
 
                                                 return (
@@ -539,15 +596,21 @@ export function ApprovalModal({
                                                         <TableCell className="text-right text-muted-foreground font-mono tabular-nums text-[12px] whitespace-nowrap px-4 tracking-tighter">
                                                             {getLineDiscount(li) > 0 ? (
                                                                 <span className="text-rose-500 font-bold">-{formatCurrency(getLineDiscount(li))}</span>
-                                                            ) : "-"}
+                                                            ) : "none"}
                                                         </TableCell>
                                                         <TableCell className="text-center">
                                                             <Badge variant="outline" className="text-[10px] font-bold px-2 py-0.5 border-amber-200 bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:border-amber-900/50 dark:text-amber-400 whitespace-nowrap">
-                                                                {discountTypes[Number(li.discount_type)] || "No Discount"}
+                                                                {(() => {
+                                                                    const val = li.discount_type;
+                                                                    if (!val) return "none";
+                                                                    const numVal = Number(val);
+                                                                    if (!isNaN(numVal) && discountTypes[numVal]) return discountTypes[numVal];
+                                                                    return val;
+                                                                })()}
                                                             </Badge>
                                                         </TableCell>
                                                         <TableCell className="text-right font-black text-foreground pr-4 sm:pr-8 font-mono text-[13px] sm:text-base tabular-nums tracking-tighter">
-                                                            {formatCurrency(lineTotal > 0 ? lineTotal : 0)}
+                                                            {formatCurrency(lineTotal)}
                                                         </TableCell>
                                                     </TableRow>
                                                 );
@@ -593,6 +656,16 @@ export function ApprovalModal({
                             Close
                         </Button>
 
+                        {isInvoiceStatus && invoiceData?.pdf && (
+                             <Button
+                                onClick={() => setIsPdfOpen(true)}
+                                className="h-9 sm:h-12 px-4 sm:px-6 font-black uppercase tracking-widest text-[10px] sm:text-xs rounded-xl bg-sky-600 hover:bg-sky-700 text-white shadow-lg transition-all"
+                             >
+                                <Package className="mr-2 h-4 w-4" />
+                                View Receipt
+                             </Button>
+                        )}
+
                         {!isInvoiceStatus && isActionable && (
                             <div className="flex items-center gap-2">
                                 <Button
@@ -615,7 +688,7 @@ export function ApprovalModal({
                                 )}
                                 <Button
                                     className="h-9 sm:h-12 px-6 sm:px-10 font-bold uppercase tracking-widest text-[10px] sm:text-xs rounded-xl bg-success hover:bg-success/90 text-success-foreground shadow-lg border-none transition-all hover:scale-[1.02] active:scale-[0.98]"
-                                    disabled={isSubmitting || details.some(d => d.allocated_quantity > d.ordered_quantity || (d.available_qty !== undefined && d.allocated_quantity > d.available_qty))}
+                                    disabled={isSubmitting}
                                     onClick={() => handleSaveAndAction("approve")}
                                 >
                                     {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
@@ -627,5 +700,72 @@ export function ApprovalModal({
                 </div>
             </DialogContent>
         </Dialog>
+
+        {/* ── PDF PREVIEW DIALOG ──────────────────────────────────── */}
+        <Dialog open={isPdfOpen} onOpenChange={setIsPdfOpen}>
+            <DialogContent className={cn(
+                "p-0 gap-0 overflow-hidden bg-slate-900 border-none shadow-2xl transition-all duration-300 min-w-0 max-w-[95dvw]",
+                invoiceData?.pdf?.width_mm && invoiceData.pdf.width_mm < 100 ? "sm:max-w-[400px]" : "sm:max-w-[90dvh] lg:max-w-4xl"
+            )}>
+                <div className="flex flex-col h-[90dvh]">
+                    <div className="px-4 py-3 bg-slate-800 flex items-center justify-between shrink-0">
+                        <div className="flex flex-col gap-0.5">
+                            <DialogTitle className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-tight">
+                                Digital Document Preview
+                            </DialogTitle>
+                            <DialogDescription className="text-sm font-bold text-white truncate max-w-[200px] sm:max-w-md">
+                                {invoiceData?.pdf?.receipt_numbers || "PDF Rendering..."}
+                            </DialogDescription>
+                        </div>
+                        <div className="flex items-center gap-2">
+                             {invoiceData?.pdf?.url && (
+                                <Button 
+                                    size="sm" 
+                                    variant="outline" 
+                                    onClick={() => window.open(invoiceData?.pdf?.url || "", '_blank')}
+                                    className="hidden sm:flex h-8 text-[10px] font-black bg-slate-700 border-slate-600 text-slate-300 hover:bg-slate-600 hover:text-white rounded-lg"
+                                >
+                                    OPEN TAB
+                                </Button>
+                             )}
+                             <Button size="icon" variant="ghost" onClick={() => setIsPdfOpen(false)} className="h-8 w-8 text-slate-400 hover:text-white hover:bg-slate-700 rounded-lg">
+                                <X className="h-4 w-4" />
+                             </Button>
+                        </div>
+                    </div>
+
+                    <div className="flex-1 bg-slate-100 flex justify-center p-2 sm:p-4 overflow-auto scrollbar-thin scrollbar-thumb-slate-300">
+                        <div 
+                            className="bg-white shadow-lg mx-auto"
+                            style={{
+                                width: invoiceData?.pdf?.width_mm ? `${(invoiceData.pdf.width_mm * 96) / 25.4}px` : '100%',
+                                minWidth: invoiceData?.pdf?.width_mm ? 'auto' : '100%',
+                                maxWidth: '100%',
+                                height: invoiceData?.pdf?.height_mm ? `${(invoiceData.pdf.height_mm * 96) / 25.4}px` : '100%',
+                                minHeight: '100%'
+                            }}
+                        >
+                            <iframe
+                                src={`${invoiceData?.pdf?.url}#toolbar=1&navpanes=0&scrollbar=1`}
+                                width="100%"
+                                height="100%"
+                                className="border-none"
+                                title="Invoice View"
+                            />
+                        </div>
+                    </div>
+
+                    {(invoiceData?.pdf?.width_mm || invoiceData?.pdf?.height_mm) && (
+                        <div className="px-4 py-2 bg-slate-800 text-[9px] font-bold text-slate-500 uppercase tracking-[0.2em] flex items-center gap-4">
+                            <span>Sizing:</span>
+                            {invoiceData?.pdf?.width_mm && <span>W: {invoiceData.pdf.width_mm}mm</span>}
+                            {invoiceData?.pdf?.height_mm && <span>H: {invoiceData.pdf.height_mm}mm</span>}
+                            <span className="ml-auto text-sky-500 animate-pulse">OPTIMIZED FIT ACTIVE</span>
+                        </div>
+                    )}
+                </div>
+            </DialogContent>
+        </Dialog>
+    </>
     );
 }

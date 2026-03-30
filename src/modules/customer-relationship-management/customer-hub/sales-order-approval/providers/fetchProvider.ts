@@ -16,10 +16,19 @@ export async function getPendingOrders(status: string = "For Approval", search: 
     return json; // Returns { data, metadata: { page, limit, totalCount, hasMore } }
 }
 
+export async function getOrderHeader(orderId: number) {
+    const res = await fetch(`/api/crm/customer-hub/sales-order-approval?type=order-header&orderId=${orderId}&_t=${Date.now()}`, { cache: "no-store" });
+    if (!res.ok) throw new Error("Failed to fetch order header");
+    const json = await res.json();
+    return json.data;
+}
+
 export async function getOrderDetails(orderId: number, branchId?: number | string) {
     let url = `/api/crm/customer-hub/sales-order-approval?type=order-details&orderId=${orderId}`;
     if (branchId) url += `&branchId=${branchId}`;
-    const res = await fetch(url);
+    // Cache-bust para laging fresh data ang makuha
+    url += `&_t=${Date.now()}`;
+    const res = await fetch(url, { cache: "no-store" });
     if (!res.ok) throw new Error("Failed to fetch order details");
     const json = await res.json();
     return json.data || [];
@@ -74,7 +83,7 @@ export async function approveOrders(orderIds: (string | number)[]) {
 export async function updateOrderDetails(
     orderId: number,
     headerUpdates: Record<string, string | number | boolean | null | undefined>,
-    lineItems: { detail_id: number; order_detail_id: number; allocated_quantity: number; net_amount: number }[]
+    lineItems: { detail_id: number; order_detail_id: number; allocated_quantity: number; net_amount: number; discount_amount: number; gross_amount: number }[]
 ) {
     const res = await fetch(`/api/crm/customer-hub/sales-order-approval`, {
         method: "POST",

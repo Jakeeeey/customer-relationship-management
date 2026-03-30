@@ -25,6 +25,7 @@ interface InvoiceItem {
 interface InvoiceDetailItem {
     invoice_no: string | number;
     product_id: number;
+    discount_type?: number | string | null;
     [key: string]: unknown;
 }
 
@@ -157,6 +158,132 @@ export async function GET(req: NextRequest) {
         }
     }
 
+    if (type === "order-pdf") {
+        try {
+            const soId = searchParams.get("salesOrderId");
+            const orderNo = searchParams.get("orderNo");
+            const FOLDER_ID = "ba39f489-2388-4b7a-85aa-e01def0f484a";
+
+            if (!soId) return NextResponse.json({ error: "salesOrderId required" }, { status: 400 });
+
+            console.log(`[PDF-FINAL] Start search for SOID=${soId}, No=${orderNo}`);
+
+            // 1. Get Invoices for this SO first
+            const invUrl = `${BASE_URL}/sales_invoice?filter[order_id][_eq]=${soId}&fields=invoice_id,invoice_no&limit=-1`;
+            const invRes = await fetch(invUrl, { headers, cache: "no-store" });
+            const invJson = await invRes.json();
+            const invoices = invJson.data || [];
+
+            let record: { pdf_file?: string; receipt_numbers?: string; width_mm?: number; height_mm?: number; [key: string]: unknown } | null = null;
+
+            // CHAIN 1: Direct ID Match (Revised Schema)
+            if (invoices.length > 0) {
+                const invIds = invoices.map((i: Record<string, unknown>) => i.invoice_id);
+                const pdfUrl = `${BASE_URL}/sales_invoice_pdf?filter[sales_invoice_id][_in]=${invIds.join(",")}&fields=pdf_file,receipt_numbers,width_mm,height_mm&limit=1`;
+                const pdfRes = await fetch(pdfUrl, { headers, cache: "no-store" });
+                const pdfJson = await pdfRes.json();
+                record = pdfJson.data?.[0];
+            }
+
+            // CHAIN 2: Invoice No string search in 'receipt_numbers'
+            if (!record && invoices.length > 0) {
+                for (const inv of invoices) {
+                    const pdfUrl = `${BASE_URL}/sales_invoice_pdf?filter[receipt_numbers][_icontains]=${inv.invoice_no}&fields=pdf_file,receipt_numbers,width_mm,height_mm&limit=1`;
+                    const pdfRes = await fetch(pdfUrl, { headers, cache: "no-store" });
+                    const pdfJson = await pdfRes.json();
+                    if (pdfJson.data?.[0]) { record = pdfJson.data[0]; break; }
+                }
+            }
+
+            // CHAIN 3: Order No string search in 'receipt_numbers'
+            if (!record && orderNo) {
+                const pdfUrl = `${BASE_URL}/sales_invoice_pdf?filter[receipt_numbers][_icontains]=${orderNo}&fields=pdf_file,receipt_numbers,width_mm,height_mm&limit=1`;
+                const pdfRes = await fetch(pdfUrl, { headers, cache: "no-store" });
+                const pdfJson = await pdfRes.json();
+                record = pdfJson.data?.[0];
+            }
+
+            // CHAIN 4: Legacy sales_order_id field
+            if (!record) {
+                const pdfUrl = `${BASE_URL}/sales_invoice_pdf?filter[sales_order_id][_eq]=${soId}&fields=pdf_file,receipt_numbers,width_mm,height_mm&limit=1`;
+                const pdfRes = await fetch(pdfUrl, { headers, cache: "no-store" });
+                const pdfJson = await pdfRes.json();
+                record = pdfJson.data?.[0];
+            }
+
+            // CHAIN 5: THE "FALLSAFE" - Direct /files search in specific folder
+            if (!record) {
+                console.log(`[PDF-FINAL] Searching direct /files in folder ${FOLDER_ID}...`);
+                const queries = [orderNo, ...(invoices.map((i: Record<string, unknown>) => i.invoice_no))].filter(Boolean);
+
+                for (const query of queries) {
+                    // Search title OR filename for the keyword in the correct folder
+                    const filesUrl = `${process.env.NEXT_PUBLIC_API_BASE_URL}/files?filter[folder][_eq]=${FOLDER_ID}&filter[_or][0][title][_icontains]=${query}&filter[_or][1][filename_download][_icontains]=${query}&limit=1`;
+                    const filesRes = await fetch(filesUrl, { headers, cache: "no-store" });
+                    const filesJson = await filesRes.json();
+
+                    if (filesJson.data?.[0]?.id) {
+                        const file = filesJson.data[0];
+                        console.log(`[PDF-FINAL] FOUND IN /FILES! fileId=${file.id}, match=${query}`);
+                        return NextResponse.json({
+                            data: {
+                                fileId: file.id,
+                                receipts: file.title,
+                                url: `${process.env.NEXT_PUBLIC_API_BASE_URL}/assets/${file.id}`
+                            }
+                        });
+                    }
+                }
+            }
+
+            if (!record || !record.pdf_file) {
+                console.log(`[PDF-FINAL] No record found anywhere for SOID=${soId}`);
+                return NextResponse.json({ data: null });
+            }
+
+            console.log(`[PDF-FINAL] Success! asset=${record.pdf_file}`);
+            return NextResponse.json({
+                data: {
+                    fileId: record.pdf_file,
+                    receipts: record.receipt_numbers,
+                    width_mm: record.width_mm,
+                    height_mm: record.height_mm,
+                    url: `${process.env.NEXT_PUBLIC_API_BASE_URL}/assets/${record.pdf_file}`
+                }
+            });
+
+        } catch (error: unknown) {
+            console.error("[PDF-FINAL] Fatal Error:", error);
+            return NextResponse.json({ error: String(error) }, { status: 500 });
+        }
+    }
+
+    if (type === "order-attachments") {
+        try {
+            const orderNo = searchParams.get("orderNo");
+            if (!orderNo) return NextResponse.json({ error: "orderNo required" }, { status: 400 });
+
+            const attUrl = `${BASE_URL}/sales_order_attachment?filter[sales_order_no][_eq]=${orderNo}&fields=*&limit=-1`;
+            const attRes = await fetch(attUrl, { headers });
+
+            if (!attRes.ok) return NextResponse.json({ error: "Failed to fetch attachments" }, { status: 500 });
+
+            const attJson = await attRes.json();
+            const attachments = attJson.data || [];
+
+            const enriched = attachments.map((att: Record<string, unknown>) => ({
+                id: att.id,
+                name: att.attachment_name,
+                url: att.file ? `${process.env.NEXT_PUBLIC_API_BASE_URL}/assets/${att.file}` : null
+            }));
+
+            return NextResponse.json({ data: enriched });
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : String(error);
+            return NextResponse.json({ error: message }, { status: 500 });
+        }
+    }
+
     if (type === "invoice-details") {
         try {
             const orderId = searchParams.get("orderId");
@@ -218,18 +345,38 @@ export async function GET(req: NextRequest) {
                             });
                         });
 
+                        // Fetch Discount Types for Invoice Details mapping
+                        const dtRes = await fetch(`${BASE_URL}/discount_type?limit=-1&fields=id,discount_type`, { headers });
+                        const dtMap = new Map<number, string>();
+                        if (dtRes.ok) {
+                            const dtJson = await dtRes.json();
+                            (dtJson.data || []).forEach((dt: { id: number; discount_type: string }) => dtMap.set(Number(dt.id), dt.discount_type));
+                        }
+
                         detailsWithProducts = allDetails.map((d: InvoiceDetailItem) => ({
                             ...d,
-                            product_id: pMap.get(Number(d.product_id)) || d.product_id
+                            product_id: pMap.get(Number(d.product_id)) || d.product_id,
+                            discount_type: d.discount_type ? (dtMap.get(Number(d.discount_type)) || d.discount_type) : null
                         }));
                     }
                 }
             }
 
-            // 4. Final Grouping by Invoice
+            // 4. Fetch PDFs for these invoices
+            const pdfRes = await fetch(`${BASE_URL}/sales_invoice_pdf?filter[sales_invoice_id][_in]=${invoiceIds.join(',')}&fields=pdf_file,sales_invoice_id,width_mm,height_mm&limit=-1`, { headers });
+            const pdfJson = await pdfRes.json();
+            const pdfsData = pdfJson.data || [];
+            const pdfMap = new Map();
+            pdfsData.forEach((p: Record<string, unknown>) => pdfMap.set(Number(p.sales_invoice_id), p));
+
+            // 5. Final Grouping by Invoice
             const invoicesWithDetails = invoices.map((inv: InvoiceItem) => ({
                 invoice: inv,
-                details: detailsWithProducts.filter((d: InvoiceDetailItem) => Number(d.invoice_no) === Number(inv.invoice_id))
+                details: detailsWithProducts.filter((d: InvoiceDetailItem) => Number(d.invoice_no) === Number(inv.invoice_id)),
+                pdf: pdfMap.get(Number(inv.invoice_id)) ? {
+                    ...pdfMap.get(Number(inv.invoice_id)),
+                    url: `${process.env.NEXT_PUBLIC_API_BASE_URL}/assets/${pdfMap.get(Number(inv.invoice_id)).pdf_file}`
+                } : null
             }));
 
             return NextResponse.json({ data: invoicesWithDetails });
@@ -252,6 +399,17 @@ export async function GET(req: NextRequest) {
 
             const json = await res.json();
             const details: SaleOrderDetail[] = json.data || [];
+
+            // Fetch Discount Types for mapping
+            const dtUrl = `${BASE_URL}/discount_type?limit=-1&fields=id,discount_type`;
+            const dtRes = await fetch(dtUrl, { headers });
+            const dtMap = new Map<number, string>();
+            if (dtRes.ok) {
+                const dtJson = await dtRes.json();
+                (dtJson.data || []).forEach((dt: { id: number; discount_type: string }) => {
+                    dtMap.set(Number(dt.id), dt.discount_type);
+                });
+            }
 
             // Manual join for product descriptions
             if (details.length > 0) {
@@ -290,6 +448,11 @@ export async function GET(req: NextRequest) {
                             const pid = Number(d.product_id);
                             if (productMap.has(pid)) {
                                 d.product_id = productMap.get(pid) as Product; // Transform ID to Object
+                            }
+
+                            // Map discount type ID to name
+                            if (d.discount_type && dtMap.has(Number(d.discount_type))) {
+                                d.discount_type = dtMap.get(Number(d.discount_type));
                             }
                         });
                     } else {

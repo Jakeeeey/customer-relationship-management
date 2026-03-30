@@ -25,7 +25,7 @@ interface SalesOrderEncodingProps {
 export function SalesOrderEncoding({
     products, loadingProducts, lineItems,
     addProduct, removeLineItem, updateLineItemQty,
-    summary, onSubmit, submitting
+    onSubmit, submitting
 }: SalesOrderEncodingProps) {
     const [search, setSearch] = useState("");
 
@@ -46,7 +46,6 @@ export function SalesOrderEncoding({
                 <Card className="flex-1 flex flex-col min-h-[600px] shadow-sm">
                     <CardHeader className="p-4 flex flex-row items-center justify-between border-b">
                         <CardTitle className="text-sm font-bold uppercase tracking-wider">Product Catalog</CardTitle>
-                        <Badge variant="outline" className="text-[10px]">{Array.isArray(products) ? products.length : 0} Items</Badge>
                     </CardHeader>
                     <div className="p-3 border-b">
                         <div className="relative">
@@ -80,18 +79,7 @@ export function SalesOrderEncoding({
                                                     {p.display_name}
                                                 </span>
 
-                                                <div className="flex flex-wrap gap-1 mt-1">
-                                                    {p.brand_name && (
-                                                        <Badge variant="secondary" className="text-[8px] font-black uppercase px-1 py-0 h-3.5 bg-blue-500/10 text-blue-600 border-blue-500/20 dark:bg-blue-500/20 dark:text-blue-400 dark:border-blue-500/30">
-                                                            {p.brand_name}
-                                                        </Badge>
-                                                    )}
-                                                    {p.category_name && (
-                                                        <Badge variant="secondary" className="text-[8px] font-black uppercase px-1 py-0 h-3.5 bg-slate-500/10 text-slate-500 border-slate-500/20 dark:bg-slate-500/20 dark:text-slate-400 dark:border-slate-500/30">
-                                                            {p.category_name}
-                                                        </Badge>
-                                                    )}
-                                                </div>
+                                                {/* Removed Brand/Category Badges */}
 
                                                 <div className="flex items-center justify-between mt-2">
                                                     <div className="flex flex-col">
@@ -105,7 +93,7 @@ export function SalesOrderEncoding({
                                                                 {formatCurrency(netPrice)}
                                                             </span>
                                                         </div>
-                                                        <span className="text-[9px] text-muted-foreground font-black uppercase tracking-tighter">
+                                                        <span className="text-[9px] text-muted-foreground font-black tracking-tighter">
                                                             {p.discount_level} {p.uom ? `• ${p.uom}` : ''}
                                                             <span className="ml-2 text-indigo-500">• Avail: {Number(p.available_qty) || 0}</span>
                                                         </span>
@@ -147,7 +135,6 @@ export function SalesOrderEncoding({
                             <ShoppingCart className="w-4 h-4 text-primary" />
                             <CardTitle className="text-sm font-bold uppercase tracking-wider">Order Items</CardTitle>
                         </div>
-                        <Badge variant="default" className="text-[10px]">{lineItems.length} Lines</Badge>
                     </CardHeader>
                     <CardContent className="p-0 flex-1 flex flex-col min-h-[400px]">
                         <div className="flex-1 overflow-y-auto max-h-[600px] relative border-b">
@@ -172,20 +159,9 @@ export function SalesOrderEncoding({
                                             <TableCell>
                                                 <div className="flex flex-col">
                                                     <span className="font-bold text-[11px] leading-tight text-slate-900">{item.product.display_name}</span>
-                                                    <div className="flex flex-wrap gap-1 mt-0.5">
-                                                        {item.product.brand_name && (
-                                                            <Badge variant="secondary" className="text-[7px] font-black uppercase px-1 py-0 h-3 bg-blue-500/10 text-blue-600 border-blue-500/20 dark:bg-blue-500/20 dark:text-blue-400 dark:border-blue-500/30">
-                                                                {item.product.brand_name}
-                                                            </Badge>
-                                                        )}
-                                                        {item.product.category_name && (
-                                                            <Badge variant="secondary" className="text-[7px] font-black uppercase px-1 py-0 h-3 bg-slate-500/10 text-slate-500 border-slate-500/20 dark:bg-slate-500/20 dark:text-slate-400 dark:border-slate-500/30">
-                                                                {item.product.category_name}
-                                                            </Badge>
-                                                        )}
-                                                    </div>
+                                                    {/* Removed Brand/Category Badges */}
                                                     <div className="flex items-center gap-2 mt-1">
-                                                        <span className="text-[9px] text-primary/70 uppercase font-black tracking-tighter">{item.discountType}</span>
+                                                        <span className="text-[9px] text-primary/70 font-black tracking-tighter">{item.discountType}</span>
                                                     </div>
                                                 </div>
                                             </TableCell>
@@ -214,7 +190,7 @@ export function SalesOrderEncoding({
                                                             {item.discountType}
                                                         </Badge>
                                                     )}
-                                                    {!item.discountType && <span className="text-[10px] text-muted-foreground italic">None</span>}
+                                                    {!item.discountType && <span className="text-[10px] text-muted-foreground italic">none</span>}
                                                 </div>
                                             </TableCell>
                                             <TableCell className="text-center border-l border-muted/20">
@@ -244,18 +220,28 @@ export function SalesOrderEncoding({
 
                     {/* Summary Footer */}
                     <div className="p-6 bg-muted/20 border-t grid grid-cols-1 md:grid-cols-4 gap-6 items-center">
-                        <div className="flex flex-col">
-                            <span className="text-[10px] font-black uppercase text-muted-foreground">Gross Total</span>
-                            <span className="font-bold text-lg">{formatCurrency(summary.totalAmount)}</span>
-                        </div>
-                        <div className="flex flex-col">
-                            <span className="text-[10px] font-black uppercase text-amber-600">Total Savings</span>
-                            <span className="font-bold text-lg text-amber-600">-{formatCurrency(summary.discountAmount)}</span>
-                        </div>
-                        <div className="flex flex-col bg-primary/10 p-3 rounded-lg border border-primary/30">
-                            <span className="text-[10px] font-black uppercase text-primary">Net Amount</span>
-                            <span className="text-2xl font-black text-primary">{formatCurrency(summary.netAmount)}</span>
-                        </div>
+                        {(() => {
+                            const calculatedGross = lineItems.reduce((acc, item) => acc + (Number(item.unitPrice) * Number(item.quantity) || 0), 0);
+                            const totalDiscount = lineItems.reduce((acc, item) => acc + (Number(item.unitPrice * item.quantity) - Number(item.netAmount) || 0), 0);
+                            const netTotal = calculatedGross - totalDiscount;
+
+                            return (
+                                <>
+                                    <div className="flex flex-col">
+                                        <span className="text-[10px] font-black uppercase text-muted-foreground">Gross Total</span>
+                                        <span className="font-bold text-lg">{formatCurrency(calculatedGross)}</span>
+                                    </div>
+                                    <div className="flex flex-col">
+                                        <span className="text-[10px] font-black uppercase text-amber-600">Total Discount</span>
+                                        <span className="font-bold text-lg text-amber-600">-{formatCurrency(totalDiscount)}</span>
+                                    </div>
+                                    <div className="flex flex-col bg-primary/10 p-3 rounded-lg border border-primary/30">
+                                        <span className="text-[10px] font-black uppercase text-primary">Net Amount</span>
+                                        <span className="text-2xl font-black text-primary">{formatCurrency(netTotal)}</span>
+                                    </div>
+                                </>
+                            );
+                        })()}
                         <Button
                             className="h-14 text-lg font-black shadow-xl"
                             size="lg"

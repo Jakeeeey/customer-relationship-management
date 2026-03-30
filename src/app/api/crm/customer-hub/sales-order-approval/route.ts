@@ -13,10 +13,17 @@ const fetchHeaders = {
     "Content-Type": "application/json",
 };
 
-interface SalesOrderDetailItem {
+interface RawDetailRow {
     detail_id?: number | string;
     order_detail_id?: number | string;
     id: number | string;
+    product_id: number | string;
+    allocated_quantity?: number | string | null;
+    discount_amount?: number | string | null;
+    net_amount?: number | string | null;
+    gross_amount?: number | string | null;
+    ordered_quantity?: number | string | null;
+    unit_price?: number | string | null;
     [key: string]: unknown;
 }
 
@@ -24,6 +31,18 @@ export async function GET(req: NextRequest) {
     const type = req.nextUrl.searchParams.get("type");
 
     try {
+        if (type === "order-header") {
+            const orderId = req.nextUrl.searchParams.get("orderId");
+            if (!orderId) return NextResponse.json({ error: "orderId required" }, { status: 400 });
+            
+            const url = `${DIRECTUS_URL}/items/sales_order/${orderId}?fields=*`;
+            const res = await fetch(url, { headers: fetchHeaders, cache: 'no-store' });
+            if (!res.ok) return NextResponse.json({ error: "Failed to fetch order header" }, { status: 500 });
+            
+            const json = await res.json();
+            return NextResponse.json({ data: json.data });
+        }
+
         if (type === "orders") {
             const statusFilter = req.nextUrl.searchParams.get("status") || "For Approval";
             const search = req.nextUrl.searchParams.get("search") || "";
@@ -31,8 +50,9 @@ export async function GET(req: NextRequest) {
             const limit = parseInt(req.nextUrl.searchParams.get("limit") || "30", 10);
             const startDate = req.nextUrl.searchParams.get("startDate");
             const endDate = req.nextUrl.searchParams.get("endDate");
+            let matchingCustomerCodes: string[] = [];
 
-            // 1. Build Directus Filter
+            // 1. Build Directus Filter (Legacy logic)
             const filter: { _and: Record<string, unknown>[] } = { _and: [] };
 
             if (statusFilter !== "All") {
@@ -47,25 +67,29 @@ export async function GET(req: NextRequest) {
                 filter._and.push({ order_date: { _lte: endDate } });
             }
 
-            if (search) {
+            const trimmedSearch = (search || "").trim();
+            if (trimmedSearch) {
                 // Find matching customer codes for the search term
-                let matchingCustomerCodes: string[] = [];
                 try {
-                    const cMatchRes = await fetch(`${DIRECTUS_URL}/items/customer?filter[customer_name][_icontains]=${encodeURIComponent(search)}&fields=customer_code&limit=-1`, {
+                    const cMatchRes = await fetch(`${DIRECTUS_URL}/items/customer?filter[customer_name][_icontains]=${encodeURIComponent(trimmedSearch)}&fields=customer_code&limit=100`, {
                         headers: fetchHeaders
                     });
                     if (cMatchRes.ok) {
                         const cMatchJson = await cMatchRes.json();
-                        matchingCustomerCodes = (cMatchJson.data || []).map((c: { customer_code: string }) => c.customer_code).filter(Boolean);
+                        matchingCustomerCodes = (cMatchJson.data || [])
+                            .map((c: { customer_code: string }) => c.customer_code)
+                            .filter(Boolean)
+                            .slice(0, 100); // Limit to 100 to prevent URI Too Long
+                        console.log(`[ApprovalAPI] Search '${trimmedSearch}' matched ${matchingCustomerCodes.length} customers.`);
                     }
                 } catch (e) {
                     console.error("Search customer match error:", e);
                 }
 
                 const orConditions: Record<string, unknown>[] = [
-                    { customer_code: { _icontains: search } },
-                    { order_no: { _icontains: search } },
-                    { po_no: { _icontains: search } }
+                    { customer_code: { _icontains: trimmedSearch } },
+                    { order_no: { _icontains: trimmedSearch } },
+                    { po_no: { _icontains: trimmedSearch } }
                 ];
 
                 if (matchingCustomerCodes.length > 0) {
@@ -75,20 +99,69 @@ export async function GET(req: NextRequest) {
                 filter._and.push({ _or: orConditions });
             }
 
-            const filterParam = filter._and.length > 0 ? `&filter=${encodeURIComponent(JSON.stringify(filter))}` : "";
+            // 2. Build Query Parameters using Indexed AND Filtering
+            const ordersParams = new URLSearchParams();
+            let andIndex = 0;
 
-            // 2. Fetch Total Count for pagination
-            const countUrl = `${DIRECTUS_URL}/items/sales_order?aggregate[count]=*${filterParam}`;
-            const countRes = await fetch(countUrl, { headers: fetchHeaders });
+            if (statusFilter !== "All") {
+                ordersParams.set(`filter[_and][${andIndex}][order_status][_eq]`, statusFilter);
+                andIndex++;
+            }
+
+            if (startDate && endDate) {
+                ordersParams.set(`filter[_and][${andIndex}][order_date][_between]`, `${startDate},${endDate}`);
+                andIndex++;
+            } else if (startDate) {
+                ordersParams.set(`filter[_and][${andIndex}][order_date][_gte]`, startDate);
+                andIndex++;
+            } else if (endDate) {
+                ordersParams.set(`filter[_and][${andIndex}][order_date][_lte]`, endDate);
+                andIndex++;
+            }
+
+            if (trimmedSearch) {
+                ordersParams.set(`filter[_and][${andIndex}][_or][0][customer_code][_icontains]`, trimmedSearch);
+                ordersParams.set(`filter[_and][${andIndex}][_or][1][order_no][_icontains]`, trimmedSearch);
+                ordersParams.set(`filter[_and][${andIndex}][_or][2][po_no][_icontains]`, trimmedSearch);
+                
+                if (matchingCustomerCodes.length > 0) {
+                    ordersParams.set(`filter[_and][${andIndex}][_or][3][customer_code][_in]`, matchingCustomerCodes.join(','));
+                }
+                andIndex++;
+            }
+
+            // 3. Fetch Total Count for pagination
+            const countUrl = `${DIRECTUS_URL}/items/sales_order?aggregate[count]=*&${ordersParams.toString()}`;
+            const countRes = await fetch(countUrl, { 
+                headers: fetchHeaders,
+                cache: 'no-store'
+            });
+            
             let totalCount = 0;
             if (countRes.ok) {
                 const countJson = await countRes.json();
-                totalCount = parseInt(countJson.data?.[0]?.count || "0", 10);
+                const countData = countJson.data?.[0]?.count;
+                if (typeof countData === 'number') {
+                    totalCount = countData;
+                } else if (typeof countData === 'string') {
+                    totalCount = parseInt(countData, 10);
+                } else if (typeof countData === 'object' && countData !== null) {
+                    const val = countData['*'] || countData[Object.keys(countData)[0]];
+                    totalCount = parseInt(String(val || "0"), 10);
+                }
             }
 
-            // 3. Fetch Paginated Flat Orders
-            const ordersUrl = `${DIRECTUS_URL}/items/sales_order?${filterParam}&sort=-modified_date,-created_date,-order_id&page=${page}&limit=${limit}&fields=*`;
-            const ordersRes = await fetch(ordersUrl, { headers: fetchHeaders });
+            // 4. Fetch Paginated Flat Orders
+            ordersParams.set("sort", "-created_date,-order_id,-modified_date");
+            ordersParams.set("page", page.toString());
+            ordersParams.set("limit", limit.toString());
+            ordersParams.set("fields", "*");
+            
+            const ordersUrl = `${DIRECTUS_URL}/items/sales_order?${ordersParams.toString()}`;
+            const ordersRes = await fetch(ordersUrl, { 
+                headers: fetchHeaders,
+                cache: 'no-store'
+            });
             if (!ordersRes.ok) {
                 const errText = await ordersRes.text();
                 return NextResponse.json({ error: "Failed to fetch orders", details: errText }, { status: 500 });
@@ -133,16 +206,36 @@ export async function GET(req: NextRequest) {
             if (!orderId) return NextResponse.json({ error: "orderId required" }, { status: 400 });
 
             const detUrl = `${DIRECTUS_URL}/items/sales_order_details?filter[order_id][_eq]=${orderId}&fields=*&limit=-1`;
-            const detRes = await fetch(detUrl, { headers: fetchHeaders });
+            console.log(`[ApprovalAPI] Fetching details from: ${detUrl}`);
+            
+            const detRes = await fetch(detUrl, { 
+                headers: fetchHeaders,
+                cache: 'no-store' // Absolute fresh fetch!🛡️
+            });
+
             if (!detRes.ok) return NextResponse.json({ error: "Failed to fetch order details" }, { status: 500 });
+            
             const detJson = await detRes.json();
-            const details = (detJson.data || []).map((d: SalesOrderDetailItem) => {
+            const rawRows = detJson.data || [];
+            console.log(`[ApprovalAPI] Raw rows from DB: ${rawRows.length} for Order: ${orderId}`);
+
+            const details = rawRows.map((d: RawDetailRow) => {
                 const pk = d.detail_id || d.order_detail_id || d.id;
+                // Log the exact values entering the mapper
+                console.log(` -> Row PK=${pk}, ProductID=${d.product_id}, DBAlloc=${d.allocated_quantity}, DBDisc=${d.discount_amount}, DBNet=${d.net_amount}`);
+                
                 return {
                     ...d,
                     detail_id: pk,
                     order_detail_id: pk,
-                    id: pk
+                    id: pk,
+                    // Direct mapped values from DB types
+                    allocated_quantity: d.allocated_quantity !== null && d.allocated_quantity !== undefined ? Number(d.allocated_quantity) : 0,
+                    discount_amount: d.discount_amount !== null && d.discount_amount !== undefined ? Number(d.discount_amount) : 0,
+                    net_amount: d.net_amount !== null && d.net_amount !== undefined ? Number(d.net_amount) : 0,
+                    gross_amount: d.gross_amount !== null && d.gross_amount !== undefined ? Number(d.gross_amount) : 0,
+                    ordered_quantity: d.ordered_quantity !== null && d.ordered_quantity !== undefined ? Number(d.ordered_quantity) : 0,
+                    unit_price: d.unit_price !== null && d.unit_price !== undefined ? Number(d.unit_price) : 0,
                 };
             });
 
@@ -156,6 +249,17 @@ export async function GET(req: NextRequest) {
                     uom_shortcut: u.unit_shortcut || ""
                 };
             });
+
+            // Fetch Discount Types for mapping
+            const dtUrl = `${DIRECTUS_URL}/items/discount_type?fields=id,discount_type&limit=-1`;
+            const dtRes = await fetch(dtUrl, { headers: fetchHeaders });
+            const dtMap = new Map<number, string>();
+            if (dtRes.ok) {
+                const dtJson = await dtRes.ok ? await dtRes.json() : { data: [] };
+                (dtJson.data || []).forEach((dt: { id: number; discount_type: string }) => {
+                    dtMap.set(Number(dt.id), dt.discount_type);
+                });
+            }
 
             // Fetch products for descriptions
             let productIds: number[] = [];
@@ -172,10 +276,15 @@ export async function GET(req: NextRequest) {
                         const uomInfo = uomId && unitMap[uomId] ? unitMap[uomId] : { uom_name: "", uom_shortcut: "" };
                         return [pid, { ...p, uom: uomInfo }];
                     }));
-                    details.forEach((d: { product_id: number | string | Record<string, unknown> }) => {
+                    details.forEach((d: { product_id: number | string | Record<string, unknown>, discount_type?: number | string | null }) => {
                         const pid = Number(d.product_id);
                         if (pMap.has(pid)) {
                             d.product_id = pMap.get(pid) as Record<string, unknown>;
+                        }
+
+                        // Map discount type ID to name
+                        if (d.discount_type && dtMap.has(Number(d.discount_type))) {
+                            d.discount_type = dtMap.get(Number(d.discount_type));
                         }
                     });
                 }
@@ -228,7 +337,12 @@ export async function GET(req: NextRequest) {
             }
             // --- END SYNC ---
 
-            return NextResponse.json({ data: details });
+            return NextResponse.json({ data: details }, {
+                headers: {
+                    "Cache-Control": "no-store, no-cache, must-revalidate",
+                    "Pragma": "no-cache"
+                }
+            });
         }
 
         if (type === "payment-summary") {
@@ -324,7 +438,21 @@ export async function GET(req: NextRequest) {
                 }
             }
 
-            return NextResponse.json({ data: { invoice, details } });
+            // 4. Fetch PDF info for this invoice
+            let pdfData = null;
+            if (invoice?.invoice_id) {
+                const pdfRes = await fetch(`${DIRECTUS_URL}/items/sales_invoice_pdf?filter[sales_invoice_id][_eq]=${invoice.invoice_id}&fields=pdf_file,sales_invoice_id,width_mm,height_mm&limit=1`, { headers: fetchHeaders });
+                const pdfJson = await pdfRes.json();
+                const record = pdfJson.data?.[0];
+                if (record) {
+                    pdfData = {
+                        ...record,
+                        url: `${process.env.NEXT_PUBLIC_API_BASE_URL}/assets/${record.pdf_file}`
+                    };
+                }
+            }
+
+            return NextResponse.json({ data: { invoice, details, pdf: pdfData } });
         }
 
         if (type === "discount-types") {
@@ -380,7 +508,7 @@ export async function POST(req: NextRequest) {
                 const patchRes = await fetch(`${DIRECTUS_URL}/items/sales_order_details`, {
                     method: "PATCH",
                     headers: fetchHeaders,
-                    body: JSON.stringify(lineItems.map((li: { detail_id?: number | string; order_detail_id?: number | string; id?: number | string; allocated_quantity: number; net_amount: number; discount_amount?: number }) => {
+                    body: JSON.stringify(lineItems.map((li: { detail_id?: number | string; order_detail_id?: number | string; id?: number | string; allocated_quantity: number; net_amount: number; discount_amount?: number; gross_amount?: number }) => {
                         const pkValue = li.detail_id || li.order_detail_id || li.id;
                         return {
                             id: pkValue,
@@ -389,7 +517,8 @@ export async function POST(req: NextRequest) {
                             allocated_quantity: li.allocated_quantity,
                             net_amount: li.net_amount,
                             allocated_amount: li.net_amount,
-                            discount_amount: li.discount_amount ?? 0
+                            discount_amount: li.discount_amount ?? 0,
+                            gross_amount: li.gross_amount ?? 0
                         };
                     }))
                 });
