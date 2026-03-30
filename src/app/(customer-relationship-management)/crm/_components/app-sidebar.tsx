@@ -47,7 +47,7 @@ const data = {
                 },
                 {
                     title: "Customer Map",
-                    url: "/crm/customer-management/customer-map",
+                    url: "/crm/customer-hub/customer-map",
                     icon: MapPin,
                 }, {
                     title: "Customer Prospects",
@@ -94,6 +94,11 @@ const data = {
             ],
         },
         {
+            title: "Invoicing",
+            icon: ClipboardList,
+            url: "/crm/invoicing",
+        },
+        {
             title: "Defective Invoice Summary",
             icon: ChartNoAxesCombined,
             url: "/crm/invoice-management/invoice-summary-report",
@@ -125,12 +130,9 @@ const data = {
 };
 
 export function AppSidebar({
-    className,
-    ...props
-}: React.ComponentProps<typeof Sidebar>) {
-
-
-
+                               className,
+                               ...props
+                           }: React.ComponentProps<typeof Sidebar>) {
     return (
         <Sidebar
             {...props}
