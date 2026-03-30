@@ -94,6 +94,11 @@ const data = {
             ],
         },
         {
+            title: "Invoicing",
+            icon: ClipboardList,
+            url: "/crm/invoicing",
+        },
+        {
             title: "Defective Invoice Summary",
             icon: ChartNoAxesCombined,
             url: "/crm/invoice-management/invoice-summary-report",
