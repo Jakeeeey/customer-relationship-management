@@ -1,41 +1,33 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Button } from "@/components/ui/button";
-import { Plus, Users, Search, Truck, CheckCircle2, AlertTriangle, Loader2, ChevronsUpDown, Check, UserPlus, Hash, Building2, Settings2, Trash2 } from "lucide-react";
-import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
-import { Separator } from "@/components/ui/separator";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { salesmanProvider } from "./providers/fetchProvider";
-import { Salesman, Branch, Division, Operation, User } from "./types";
+import { Salesman } from "./types";
 import { toast } from "sonner";
-import { cn } from "@/lib/utils";
+
+import { SalesmanHeader } from "./components/SalesmanHeader";
+import { SalesmanFilterCard } from "./components/SalesmanFilterCard";
+import { SalesmanTable } from "./components/SalesmanTable";
+import { SuccessionModal } from "./components/modals/SuccessionModal";
+import { CreateSalesmanModal } from "./components/modals/CreateSalesmanModal";
+// 🚀 FIX: Import the new detail sheet!
+import { SalesmanDetailSheet } from "./components/modals/SalesmanDetailSheet";
 
 export default function SalesmanManagementModule() {
-    // Data State
+    // Global Data State
     const [salesmen, setSalesmen] = useState<Salesman[]>([]);
-
     const [loading, setLoading] = useState(true);
     const [loadingMore, setLoadingMore] = useState(false);
+    const [hasMore, setHasMore] = useState(true);
+    const [page, setPage] = useState(1);
+
+    // Filter State
     const [search, setSearch] = useState("");
     const [debouncedSearch, setDebouncedSearch] = useState("");
-    const [page, setPage] = useState(1);
-    const [hasMore, setHasMore] = useState(true);
     const [statusFilter, setStatusFilter] = useState<"active" | "inactive" | "all">("all");
-    const [activeSalesmenForSuccession, setActiveSalesmenForSuccession] = useState<Salesman[]>([]);
-    const [loadingActive, setLoadingActive] = useState(false);
 
-    // Deactivation State
+    // Modal State
+    const [createModal, setCreateModal] = useState(false);
     const [deactivateModal, setDeactivateModal] = useState(false);
     const [selectedSalesman, setSelectedSalesman] = useState<Salesman | null>(null);
     const [customerCount, setCustomerCount] = useState(0);
@@ -47,11 +39,6 @@ export default function SalesmanManagementModule() {
     const [deleteSalesman, setDeleteSalesman] = useState<Salesman | null>(null);
     const [deleteCustomerCount, setDeleteCustomerCount] = useState(0);
     const [isDeleting, setIsDeleting] = useState(false);
-
-    // Edit Salesman State
-    const [editModal, setEditModal] = useState(false);
-    const [isUpdating, setIsUpdating] = useState(false);
-    const [editingSalesmanId, setEditingSalesmanId] = useState<number | null>(null);
 
     // New Salesman Modal State
     const [createModal, setCreateModal] = useState(false);
@@ -81,34 +68,31 @@ export default function SalesmanManagementModule() {
         canCollect: false,
     });
 
-    // Popover open states for searchable dropdowns
-    const [openEncoder, setOpenEncoder] = useState(false);
-    const [openDivision, setOpenDivision] = useState(false);
-    const [openBranch, setOpenBranch] = useState(false);
-    const [openOperation, setOpenOperation] = useState(false);
-    const [openPriceType, setOpenPriceType] = useState(false);
-    const [openInventoryDay, setOpenInventoryDay] = useState(false);
+    // Core Fetch Logic
+    const fetchData = useCallback(
+        async (p: number, s: string, status: "active" | "inactive" | "all", reset: boolean = false) => {
+            if (p === 1) setLoading(true);
+            else setLoadingMore(true);
 
-    const fetchData = useCallback(async (p: number, s: string, status: "active" | "inactive" | "all", reset: boolean = false) => {
-        if (p === 1) setLoading(true);
-        else setLoadingMore(true);
+            try {
+                const activeOnly = status === "all" ? undefined : status === "active";
+                const result = await salesmanProvider.getSalesmen(p, 20, s, activeOnly);
 
-        try {
-            const activeOnly = status === "all" ? undefined : status === "active";
-            const result = await salesmanProvider.getSalesmen(p, 20, s, activeOnly);
-            if (reset) {
-                setSalesmen(result.data);
-            } else {
-                setSalesmen(prev => [...prev, ...result.data]);
+                if (reset) {
+                    setSalesmen(result.data);
+                } else {
+                    setSalesmen((prev) => [...prev, ...result.data]);
+                }
+                setHasMore(result.data.length === 20);
+            } catch {
+                toast.error("Failed to load agents");
+            } finally {
+                setLoading(false);
+                setLoadingMore(false);
             }
-            setHasMore(result.data.length === 20);
-        } catch {
-            toast.error("Failed to load agents");
-        } finally {
-            setLoading(false);
-            setLoadingMore(false);
-        }
-    }, []);
+        },
+        []
+    );
 
     const handleLoadMore = useCallback(() => {
         if (!loadingMore && hasMore) {
@@ -118,16 +102,13 @@ export default function SalesmanManagementModule() {
         }
     }, [loadingMore, hasMore, page, debouncedSearch, statusFilter, fetchData]);
 
-
-    // Debounce search
+    // Handle Search Debouncing
     useEffect(() => {
-        const handler = setTimeout(() => {
-            setDebouncedSearch(search);
-        }, 500);
+        const handler = setTimeout(() => setDebouncedSearch(search), 500);
         return () => clearTimeout(handler);
     }, [search]);
 
-    // Handle search or status change - reset pagination
+    // Handle Fetching when Filters change
     useEffect(() => {
         if (debouncedSearch !== undefined) {
             setPage(1);
@@ -160,9 +141,9 @@ export default function SalesmanManagementModule() {
         }
     }, [deactivateModal, loadActiveSalesmen]);
 
-    // Load supporting data when modals open
+    // Load supporting data when create modal opens
     useEffect(() => {
-        if (createModal || editModal) {
+        if (createModal) {
             setLoadingSupportingData(true);
             salesmanProvider.getSupportingData()
                 .then((data) => {
@@ -174,7 +155,7 @@ export default function SalesmanManagementModule() {
                 .catch(() => toast.error("Failed to load form data"))
                 .finally(() => setLoadingSupportingData(false));
         }
-    }, [createModal, editModal]);
+    }, [createModal]);
 
     const resetCreateForm = () => {
         setNewAgent({
@@ -249,83 +230,6 @@ export default function SalesmanManagementModule() {
         }
     };
 
-    const handleEditClick = (salesman: Salesman) => {
-        setEditingSalesmanId(salesman.id);
-        setNewAgent({
-            salesman_name: salesman.salesman_name,
-            salesman_code: salesman.salesman_code,
-            employee_id: salesman.employee_id.toString(),
-            truck_plate: (typeof salesman.truck_plate === 'object' ? (salesman.truck_plate as { truck_plate: string }).truck_plate : salesman.truck_plate)?.toString() || "",
-            division_id: (typeof salesman.division_id === 'object' ? (salesman.division_id as Division).division_id : salesman.division_id)?.toString() || "",
-            branch_code: (typeof salesman.branch_code === 'object' ? (salesman.branch_code as Branch).id : salesman.branch_code)?.toString() || "",
-            operation: (typeof salesman.operation === 'object' ? (salesman.operation as Operation).id : salesman.operation)?.toString() || "",
-            company_code: salesman.company_code?.toString() || "",
-            supplier_code: salesman.supplier_code?.toString() || "",
-            price_type: salesman.price_type || "",
-            encoder_id: salesman.encoder_id?.toString() || "",
-            inventory_day: salesman.inventory_day?.toString() || "",
-            isActive: !!salesman.isActive,
-            isInventory: !!salesman.isInventory,
-            canCollect: !!salesman.canCollect,
-        });
-        setEditModal(true);
-    };
-
-    const handleUpdateSalesman = async () => {
-        if (!editingSalesmanId) return;
-
-        // Validation
-        if (!newAgent.salesman_name.trim()) {
-            toast.error("Salesman name is required.");
-            return;
-        }
-        if (!newAgent.salesman_code.trim()) {
-            toast.error("Salesman code is required.");
-            return;
-        }
-        if (!newAgent.employee_id) {
-            toast.error("Employee ID is required.");
-            return;
-        }
-
-        setIsUpdating(true);
-        try {
-            const payload: Partial<Salesman> = {
-                salesman_name: newAgent.salesman_name.trim().toUpperCase(),
-                salesman_code: newAgent.salesman_code.trim().toUpperCase(),
-                employee_id: Number(newAgent.employee_id),
-                isActive: newAgent.isActive ? 1 : 0,
-                isInventory: newAgent.isInventory ? 1 : 0,
-                canCollect: newAgent.canCollect ? 1 : 0,
-                truck_plate: newAgent.truck_plate.trim().toUpperCase() || undefined,
-                division_id: newAgent.division_id ? Number(newAgent.division_id) : undefined,
-                branch_code: newAgent.branch_code ? Number(newAgent.branch_code) : undefined,
-                operation: newAgent.operation ? Number(newAgent.operation) : undefined,
-                company_code: newAgent.company_code ? Number(newAgent.company_code) : undefined,
-                supplier_code: newAgent.supplier_code ? Number(newAgent.supplier_code) : undefined,
-                price_type: newAgent.price_type || undefined,
-                encoder_id: newAgent.encoder_id ? Number(newAgent.encoder_id) : undefined,
-                inventory_day: newAgent.inventory_day ? Number(newAgent.inventory_day) : undefined,
-            };
-
-            const res = await salesmanProvider.updateSalesman(editingSalesmanId, payload);
-
-            if (res.success) {
-                toast.success(`Salesman ${newAgent.salesman_name.toUpperCase()} has been updated.`);
-                setEditModal(false);
-                resetCreateForm();
-                setEditingSalesmanId(null);
-                fetchData(1, debouncedSearch, statusFilter, true);
-            } else {
-                toast.error(res.error || "Failed to update salesman.");
-            }
-        } catch {
-            toast.error("Critical error during update.");
-        } finally {
-            setIsUpdating(false);
-        }
-    };
-
     // Delete Salesman Handler
     const handleDeleteSalesman = async () => {
         if (!deleteSalesman) return;
@@ -350,19 +254,23 @@ export default function SalesmanManagementModule() {
 
     // Infinite Scroll Implementation
     const observer = useRef<IntersectionObserver | null>(null);
-    const lastElementRef = useCallback((node: HTMLDivElement | null) => {
-        if (loading || loadingMore) return;
-        if (observer.current) observer.current.disconnect();
+    const lastElementRef = useCallback(
+        (node: HTMLDivElement | null) => {
+            if (loading || loadingMore) return;
+            if (observer.current) observer.current.disconnect();
 
-        observer.current = new IntersectionObserver(entries => {
-            if (entries[0].isIntersecting && hasMore) {
-                handleLoadMore();
-            }
-        });
+            observer.current = new IntersectionObserver((entries) => {
+                if (entries[0].isIntersecting && hasMore) {
+                    handleLoadMore();
+                }
+            });
 
-        if (node) observer.current.observe(node);
-    }, [loading, loadingMore, hasMore, handleLoadMore]);
+            if (node) observer.current.observe(node);
+        },
+        [loading, loadingMore, hasMore, handleLoadMore]
+    );
 
+    // Active Toggle Logic
     const handleToggleActive = async (salesman: Salesman, checked: boolean) => {
         if (!checked) {
             setSelectedSalesman(salesman);
@@ -382,34 +290,10 @@ export default function SalesmanManagementModule() {
         }
     };
 
-    const confirmDeactivation = async () => {
-        if (!selectedSalesman) return;
-        if (customerCount > 0 && !reassignmentSalesmanId) {
-            toast.error("Successor required.");
-            return;
-        }
-
-        setIsProcessing(true);
-        try {
-            const res = await salesmanProvider.deactivateAndReassign(
-                selectedSalesman.id,
-                Number(reassignmentSalesmanId)
-            );
-
-            if (res.success) {
-                toast.success(`Agent retired. Customers transferred.`);
-                setDeactivateModal(false);
-                fetchData(1, debouncedSearch, statusFilter, true);
-            } else {
-                toast.error(res.error || "Deactivation failed");
-            }
-        } catch {
-            toast.error("Critical error");
-        } finally {
-            setIsProcessing(false);
-        }
+    // Re-fetch helper for modals
+    const handleSuccessRefresh = () => {
+        fetchData(1, debouncedSearch, statusFilter, true);
     };
-
 
     return (
         <div className="w-full flex flex-col gap-8 animate-in slide-in-from-bottom duration-700">
@@ -533,32 +417,21 @@ export default function SalesmanManagementModule() {
                                             </div>
                                         </TableCell>
                                         <TableCell className="text-right px-6">
-                                            <div className="flex items-center justify-end gap-2">
-                                                <Button
-                                                    variant="ghost"
-                                                    size="sm"
-                                                    className="text-[10px] font-black uppercase text-primary hover:bg-primary/5 transition-colors gap-1.5"
-                                                    onClick={() => handleEditClick(s)}
-                                                >
-                                                    <Settings2 className="w-3.5 h-3.5" />
-                                                    Edit
-                                                </Button>
-                                                <Button
-                                                    variant="ghost"
-                                                    size="sm"
-                                                    className="text-[10px] font-black uppercase text-red-500 hover:bg-red-50 hover:text-red-700 transition-colors gap-1.5"
-                                                    onClick={async (e) => {
-                                                        e.stopPropagation();
-                                                        setDeleteSalesman(s);
-                                                        const count = await salesmanProvider.getCustomerCount(s.id);
-                                                        setDeleteCustomerCount(count);
-                                                        setDeleteModal(true);
-                                                    }}
-                                                >
-                                                    <Trash2 className="w-3.5 h-3.5" />
-                                                    Delete
-                                                </Button>
-                                            </div>
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                className="text-[10px] font-black uppercase text-red-500 hover:bg-red-50 hover:text-red-700 transition-colors gap-1.5"
+                                                onClick={async (e) => {
+                                                    e.stopPropagation();
+                                                    setDeleteSalesman(s);
+                                                    const count = await salesmanProvider.getCustomerCount(s.id);
+                                                    setDeleteCustomerCount(count);
+                                                    setDeleteModal(true);
+                                                }}
+                                            >
+                                                <Trash2 className="w-3.5 h-3.5" />
+                                                Delete
+                                            </Button>
                                         </TableCell>
                                     </TableRow>
                                 ))}
@@ -1004,26 +877,6 @@ export default function SalesmanManagementModule() {
                                             />
                                         </div>
                                         <div className="space-y-2">
-                                            <Label className="text-[10px] font-black uppercase text-slate-400 tracking-widest px-1">Company Code</Label>
-                                            <Input
-                                                type="number"
-                                                placeholder="e.g. 1000"
-                                                className="h-11 text-xs font-bold border-muted-foreground/20 rounded-xl"
-                                                value={newAgent.company_code}
-                                                onChange={(e) => setNewAgent(prev => ({ ...prev, company_code: e.target.value }))}
-                                            />
-                                        </div>
-                                        <div className="space-y-2">
-                                            <Label className="text-[10px] font-black uppercase text-slate-400 tracking-widest px-1">Supplier Code</Label>
-                                            <Input
-                                                type="number"
-                                                placeholder="e.g. 2000"
-                                                className="h-11 text-xs font-bold border-muted-foreground/20 rounded-xl"
-                                                value={newAgent.supplier_code}
-                                                onChange={(e) => setNewAgent(prev => ({ ...prev, supplier_code: e.target.value }))}
-                                            />
-                                        </div>
-                                        <div className="space-y-2">
                                             <Label className="text-[10px] font-black uppercase text-slate-400 tracking-widest px-1">Inventory Day</Label>
                                             <Popover open={openInventoryDay} onOpenChange={setOpenInventoryDay}>
                                                 <PopoverTrigger asChild>
@@ -1195,319 +1048,6 @@ export default function SalesmanManagementModule() {
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
-            {/* ═══════════════════════════════════════════════════════════ */}
-            {/* EDIT SALESMAN DIALOG                                      */}
-            {/* ═══════════════════════════════════════════════════════════ */}
-            <Dialog open={editModal} onOpenChange={(open) => { if (!open) { setEditModal(false); resetCreateForm(); setEditingSalesmanId(null); } }}>
-                <DialogContent className="sm:max-w-[600px] p-0 overflow-hidden border-none shadow-2xl rounded-2xl bg-white animate-in zoom-in-95 duration-200">
-                    <DialogHeader className="p-8 pb-6 border-b bg-slate-50/50">
-                        <div className="flex items-center gap-4">
-                            <div className="h-12 w-12 rounded-2xl bg-primary/10 flex items-center justify-center text-primary shadow-inner shrink-0">
-                                <Settings2 className="h-6 w-6" />
-                            </div>
-                            <div>
-                                <DialogTitle className="text-xl font-black text-slate-900 uppercase tracking-tighter">Edit Salesman Credentials</DialogTitle>
-                                <DialogDescription className="text-slate-500 text-[10px] font-black uppercase tracking-[0.2em] mt-1 leading-none">
-                                    Salesman Profile Adjustment
-                                </DialogDescription>
-                            </div>
-                        </div>
-                    </DialogHeader>
-
-                    {loadingSupportingData ? (
-                        <div className="py-20 flex flex-col items-center gap-3">
-                            <Loader2 className="w-6 h-6 animate-spin text-primary opacity-50" />
-                            <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Initialising edit form...</span>
-                        </div>
-                    ) : (
-                        <ScrollArea className="max-h-[60vh]">
-                            <div className="p-8 space-y-8">
-                                {/* ── Section 1: Identity ── */}
-                                <div className="space-y-5">
-                                    <div className="flex items-center gap-2">
-                                        <Hash className="w-3.5 h-3.5 text-primary" />
-                                        <span className="text-[10px] font-black uppercase text-primary tracking-[0.2em]">Identity & Credentials</span>
-                                    </div>
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div className="col-span-2 space-y-2">
-                                            <Label className="text-[10px] font-black uppercase text-slate-400 tracking-widest px-1">Salesman Name <span className="text-red-400">*</span></Label>
-                                            <Input
-                                                placeholder="Full name of the salesman"
-                                                className="h-11 text-xs font-bold uppercase border-muted-foreground/20 rounded-xl"
-                                                value={newAgent.salesman_name}
-                                                onChange={(e) => setNewAgent(prev => ({ ...prev, salesman_name: e.target.value }))}
-                                            />
-                                        </div>
-                                        <div className="space-y-2">
-                                            <Label className="text-[10px] font-black uppercase text-slate-400 tracking-widest px-1">Salesman Code <span className="text-red-400">*</span></Label>
-                                            <Input
-                                                placeholder="e.g. SM001"
-                                                className="h-11 text-xs font-bold uppercase border-muted-foreground/20 rounded-xl"
-                                                value={newAgent.salesman_code}
-                                                onChange={(e) => setNewAgent(prev => ({ ...prev, salesman_code: e.target.value }))}
-                                            />
-                                        </div>
-                                        <div className="space-y-2">
-                                            <Label className="text-[10px] font-black uppercase text-slate-400 tracking-widest px-1">Employee ID <span className="text-red-400">*</span></Label>
-                                            <Input
-                                                type="number"
-                                                placeholder="Numeric ID"
-                                                className="h-11 text-xs font-bold border-muted-foreground/20 rounded-xl"
-                                                value={newAgent.employee_id}
-                                                onChange={(e) => setNewAgent(prev => ({ ...prev, employee_id: e.target.value }))}
-                                            />
-                                        </div>
-                                        <div className="col-span-2 space-y-2">
-                                            <Label className="text-[10px] font-black uppercase text-slate-400 tracking-widest px-1">Linked User</Label>
-                                            <Popover open={openEncoder} onOpenChange={setOpenEncoder}>
-                                                <PopoverTrigger asChild>
-                                                    <Button variant="outline" className="w-full h-11 justify-between text-xs font-bold uppercase border-muted-foreground/20 rounded-xl px-3">
-                                                        <span className={cn("truncate", !newAgent.encoder_id && "text-muted-foreground")}>
-                                                            {newAgent.encoder_id ? users.find(u => u.user_id.toString() === newAgent.encoder_id.toString())?.user_fname + " " + users.find(u => u.user_id.toString() === newAgent.encoder_id.toString())?.user_lname : "Select linked user (optional)"}
-                                                        </span>
-                                                        <ChevronsUpDown className="ml-2 h-3.5 w-3.5 shrink-0 opacity-30" />
-                                                    </Button>
-                                                </PopoverTrigger>
-                                                <PopoverContent className="w-[--radix-popover-trigger-width] p-0 shadow-2xl rounded-xl border-slate-100" align="start" sideOffset={4}>
-                                                    <Command className="rounded-xl" onWheel={(e) => e.stopPropagation()}>
-                                                        <div className="flex items-center border-b px-3 bg-slate-50/50">
-                                                            <Search className="mr-2 h-3.5 w-3.5 shrink-0 opacity-40" />
-                                                            <CommandInput placeholder="Search users..." className="h-10 text-xs font-bold uppercase border-none outline-none ring-0 focus:ring-0" />
-                                                        </div>
-                                                        <CommandList className="max-h-[200px]">
-                                                            <CommandEmpty className="py-6 text-[10px] font-bold uppercase text-slate-300 text-center">No user found.</CommandEmpty>
-                                                            <CommandGroup>
-                                                                {users.map((u) => (
-                                                                    <CommandItem key={u.user_id} value={`${u.user_fname} ${u.user_lname}`} onSelect={() => { setNewAgent(prev => ({ ...prev, encoder_id: u.user_id.toString() })); setOpenEncoder(false); }} className="text-xs font-bold uppercase py-2.5 cursor-pointer">
-                                                                        <Check className={cn("mr-2 h-3.5 w-3.5", newAgent.encoder_id.toString() === u.user_id.toString() ? "opacity-100" : "opacity-0")} />
-                                                                        {u.user_fname} {u.user_lname} — {u.user_position}
-                                                                    </CommandItem>
-                                                                ))}
-                                                            </CommandGroup>
-                                                        </CommandList>
-                                                    </Command>
-                                                </PopoverContent>
-                                            </Popover>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <Separator />
-
-                                {/* ── Section 2: Assignment ── */}
-                                <div className="space-y-5">
-                                    <div className="flex items-center gap-2">
-                                        <Building2 className="w-3.5 h-3.5 text-primary" />
-                                        <span className="text-[10px] font-black uppercase text-primary tracking-[0.2em]">Assignment & Logistics</span>
-                                    </div>
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div className="space-y-2">
-                                            <Label className="text-[10px] font-black uppercase text-slate-400 tracking-widest px-1">Division</Label>
-                                            <Popover open={openDivision} onOpenChange={setOpenDivision}>
-                                                <PopoverTrigger asChild>
-                                                    <Button variant="outline" className="w-full h-11 justify-between text-xs font-bold uppercase border-muted-foreground/20 rounded-xl px-3">
-                                                        <span className={cn("truncate", !newAgent.division_id && "text-muted-foreground")}>
-                                                            {newAgent.division_id ? divisions.find(d => d.division_id.toString() === newAgent.division_id.toString())?.division_name : "Select division"}
-                                                        </span>
-                                                        <ChevronsUpDown className="ml-2 h-3.5 w-3.5 shrink-0 opacity-30" />
-                                                    </Button>
-                                                </PopoverTrigger>
-                                                <PopoverContent className="w-[--radix-popover-trigger-width] p-0 shadow-2xl rounded-xl border-slate-100" align="start" sideOffset={4}>
-                                                    <Command className="rounded-xl" onWheel={(e) => e.stopPropagation()}>
-                                                        <div className="flex items-center border-b px-3 bg-slate-50/50">
-                                                            <Search className="mr-2 h-3.5 w-3.5 shrink-0 opacity-40" />
-                                                            <CommandInput placeholder="Search divisions..." className="h-10 text-xs font-bold uppercase border-none outline-none ring-0 focus:ring-0" />
-                                                        </div>
-                                                        <CommandList className="max-h-[200px]">
-                                                            <CommandEmpty className="py-6 text-[10px] font-bold uppercase text-slate-300 text-center">No division found.</CommandEmpty>
-                                                            <CommandGroup>
-                                                                {divisions.map((d) => (
-                                                                    <CommandItem key={d.division_id} value={d.division_name} onSelect={() => { setNewAgent(prev => ({ ...prev, division_id: d.division_id.toString() })); setOpenDivision(false); }} className="text-xs font-bold uppercase py-2.5 cursor-pointer">
-                                                                        <Check className={cn("mr-2 h-3.5 w-3.5", newAgent.division_id.toString() === d.division_id.toString() ? "opacity-100" : "opacity-0")} />
-                                                                        {d.division_name}
-                                                                    </CommandItem>
-                                                                ))}
-                                                            </CommandGroup>
-                                                        </CommandList>
-                                                    </Command>
-                                                </PopoverContent>
-                                            </Popover>
-                                        </div>
-                                        <div className="space-y-2">
-                                            <Label className="text-[10px] font-black uppercase text-slate-400 tracking-widest px-1">Branch</Label>
-                                            <Popover open={openBranch} onOpenChange={setOpenBranch}>
-                                                <PopoverTrigger asChild>
-                                                    <Button variant="outline" className="w-full h-11 justify-between text-xs font-bold uppercase border-muted-foreground/20 rounded-xl px-3">
-                                                        <span className={cn("truncate", !newAgent.branch_code && "text-muted-foreground")}>
-                                                            {newAgent.branch_code ? branches.find(b => b.id.toString() === newAgent.branch_code.toString())?.branch_name : "Select branch"}
-                                                        </span>
-                                                        <ChevronsUpDown className="ml-2 h-3.5 w-3.5 shrink-0 opacity-30" />
-                                                    </Button>
-                                                </PopoverTrigger>
-                                                <PopoverContent className="w-[--radix-popover-trigger-width] p-0 shadow-2xl rounded-xl border-slate-100" align="start" sideOffset={4}>
-                                                    <Command className="rounded-xl" onWheel={(e) => e.stopPropagation()}>
-                                                        <div className="flex items-center border-b px-3 bg-slate-50/50">
-                                                            <Search className="mr-2 h-3.5 w-3.5 shrink-0 opacity-40" />
-                                                            <CommandInput placeholder="Search branches..." className="h-10 text-xs font-bold uppercase border-none outline-none ring-0 focus:ring-0" />
-                                                        </div>
-                                                        <CommandList className="max-h-[200px]">
-                                                            <CommandEmpty className="py-6 text-[10px] font-bold uppercase text-slate-300 text-center">No branch found.</CommandEmpty>
-                                                            <CommandGroup>
-                                                                {branches.map((b) => (
-                                                                    <CommandItem key={b.id} value={b.branch_name} onSelect={() => { setNewAgent(prev => ({ ...prev, branch_code: b.id.toString() })); setOpenBranch(false); }} className="text-xs font-bold uppercase py-2.5 cursor-pointer">
-                                                                        <Check className={cn("mr-2 h-3.5 w-3.5", newAgent.branch_code.toString() === b.id.toString() ? "opacity-100" : "opacity-0")} />
-                                                                        {b.branch_name}
-                                                                    </CommandItem>
-                                                                ))}
-                                                            </CommandGroup>
-                                                        </CommandList>
-                                                    </Command>
-                                                </PopoverContent>
-                                            </Popover>
-                                        </div>
-                                        <div className="space-y-2">
-                                            <Label className="text-[10px] font-black uppercase text-slate-400 tracking-widest px-1">Operation</Label>
-                                            <Popover open={openOperation} onOpenChange={setOpenOperation}>
-                                                <PopoverTrigger asChild>
-                                                    <Button variant="outline" className="w-full h-11 justify-between text-xs font-bold uppercase border-muted-foreground/20 rounded-xl px-3">
-                                                        <span className={cn("truncate", !newAgent.operation && "text-muted-foreground")}>
-                                                            {newAgent.operation ? operations.find(o => o.id.toString() === newAgent.operation.toString())?.operation_name : "Select operation"}
-                                                        </span>
-                                                        <ChevronsUpDown className="ml-2 h-3.5 w-3.5 shrink-0 opacity-30" />
-                                                    </Button>
-                                                </PopoverTrigger>
-                                                <PopoverContent className="w-[--radix-popover-trigger-width] p-0 shadow-2xl rounded-xl border-slate-100" align="start" sideOffset={4}>
-                                                    <Command className="rounded-xl" onWheel={(e) => e.stopPropagation()}>
-                                                        <div className="flex items-center border-b px-3 bg-slate-50/50">
-                                                            <Search className="mr-2 h-3.5 w-3.5 shrink-0 opacity-40" />
-                                                            <CommandInput placeholder="Search operations..." className="h-10 text-xs font-bold uppercase border-none outline-none ring-0 focus:ring-0" />
-                                                        </div>
-                                                        <CommandList className="max-h-[200px]">
-                                                            <CommandEmpty className="py-6 text-[10px] font-bold uppercase text-slate-300 text-center">No operation found.</CommandEmpty>
-                                                            <CommandGroup>
-                                                                {operations.map((o) => (
-                                                                    <CommandItem key={o.id} value={o.operation_name || ""} onSelect={() => { setNewAgent(prev => ({ ...prev, operation: o.id.toString() })); setOpenOperation(false); }} className="text-xs font-bold uppercase py-2.5 cursor-pointer">
-                                                                        <Check className={cn("mr-2 h-3.5 w-3.5", newAgent.operation.toString() === o.id.toString() ? "opacity-100" : "opacity-0")} />
-                                                                        {o.operation_name}
-                                                                    </CommandItem>
-                                                                ))}
-                                                            </CommandGroup>
-                                                        </CommandList>
-                                                    </Command>
-                                                </PopoverContent>
-                                            </Popover>
-                                        </div>
-                                        <div className="space-y-2">
-                                            <Label className="text-[10px] font-black uppercase text-slate-400 tracking-widest px-1">Truck Plate</Label>
-                                            <Input
-                                                placeholder="e.g. ABC-123"
-                                                className="h-11 text-xs font-bold uppercase border-muted-foreground/20 rounded-xl"
-                                                value={newAgent.truck_plate}
-                                                onChange={(e) => setNewAgent(prev => ({ ...prev, truck_plate: e.target.value }))}
-                                            />
-                                        </div>
-                                        <div className="space-y-2">
-                                            <Label className="text-[10px] font-black uppercase text-slate-400 tracking-widest px-1">Company Code</Label>
-                                            <Input
-                                                type="number"
-                                                placeholder="e.g. 1000"
-                                                className="h-11 text-xs font-bold border-muted-foreground/20 rounded-xl"
-                                                value={newAgent.company_code}
-                                                onChange={(e) => setNewAgent(prev => ({ ...prev, company_code: e.target.value }))}
-                                            />
-                                        </div>
-                                        <div className="space-y-2">
-                                            <Label className="text-[10px] font-black uppercase text-slate-400 tracking-widest px-1">Supplier Code</Label>
-                                            <Input
-                                                type="number"
-                                                placeholder="e.g. 2000"
-                                                className="h-11 text-xs font-bold border-muted-foreground/20 rounded-xl"
-                                                value={newAgent.supplier_code}
-                                                onChange={(e) => setNewAgent(prev => ({ ...prev, supplier_code: e.target.value }))}
-                                            />
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <Separator />
-
-                                {/* ── Section 3: Configuration ── */}
-                                <div className="space-y-5">
-                                    <div className="flex items-center gap-2">
-                                        <Settings2 className="w-3.5 h-3.5 text-primary" />
-                                        <span className="text-[10px] font-black uppercase text-primary tracking-[0.2em]">Configuration</span>
-                                    </div>
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div className="space-y-2">
-                                            <Label className="text-[10px] font-black uppercase text-slate-400 tracking-widest px-1">Price Type</Label>
-                                            <Select value={newAgent.price_type} onValueChange={(v) => setNewAgent(prev => ({ ...prev, price_type: v }))}>
-                                                <SelectTrigger className="h-11 text-xs font-bold uppercase border-muted-foreground/20 rounded-xl">
-                                                    <SelectValue placeholder="Select type" />
-                                                </SelectTrigger>
-                                                <SelectContent className="rounded-xl">
-                                                    <SelectItem value="A" className="text-xs font-bold uppercase">Price A</SelectItem>
-                                                    <SelectItem value="B" className="text-xs font-bold uppercase">Price B</SelectItem>
-                                                    <SelectItem value="C" className="text-xs font-bold uppercase">Price C</SelectItem>
-                                                </SelectContent>
-                                            </Select>
-                                        </div>
-                                        <div className="space-y-2">
-                                            <Label className="text-[10px] font-black uppercase text-slate-400 tracking-widest px-1">Inventory Day</Label>
-                                            <Select value={newAgent.inventory_day} onValueChange={(v) => setNewAgent(prev => ({ ...prev, inventory_day: v }))}>
-                                                <SelectTrigger className="h-11 text-xs font-bold uppercase border-muted-foreground/20 rounded-xl">
-                                                    <SelectValue placeholder="Select day" />
-                                                </SelectTrigger>
-                                                <SelectContent className="rounded-xl">
-                                                    {Array.from({ length: 31 }, (_, i) => (
-                                                        <SelectItem key={i + 1} value={(i + 1).toString()} className="text-xs font-bold">
-                                                            Day {i + 1}
-                                                        </SelectItem>
-                                                    ))}
-                                                </SelectContent>
-                                            </Select>
-                                        </div>
-                                    </div>
-
-                                    <div className="grid grid-cols-3 gap-1 pt-2">
-                                        <div className="flex flex-col items-center gap-3 p-4 rounded-2xl border border-slate-100 bg-slate-50/50">
-                                            <Label className="text-[9px] font-black uppercase text-slate-400">Mobile Auth</Label>
-                                            <Switch checked={newAgent.isActive} onCheckedChange={(v) => setNewAgent(prev => ({ ...prev, isActive: v }))} />
-                                        </div>
-                                        <div className="flex flex-col items-center gap-3 p-4 rounded-2xl border border-slate-100 bg-slate-50/50">
-                                            <Label className="text-[9px] font-black uppercase text-slate-400">Inv Control</Label>
-                                            <Switch checked={newAgent.isInventory} onCheckedChange={(v) => setNewAgent(prev => ({ ...prev, isInventory: v }))} />
-                                        </div>
-                                        <div className="flex flex-col items-center gap-3 p-4 rounded-2xl border border-slate-100 bg-slate-50/50">
-                                            <Label className="text-[9px] font-black uppercase text-slate-400">Collections</Label>
-                                            <Switch checked={newAgent.canCollect} onCheckedChange={(v) => setNewAgent(prev => ({ ...prev, canCollect: v }))} />
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </ScrollArea>
-                    )}
-
-                    <DialogFooter className="p-8 border-t bg-slate-50/50 flex gap-3">
-                        <Button
-                            variant="ghost"
-                            className="flex-1 font-black uppercase text-[10px] tracking-widest h-12 rounded-xl text-slate-400 hover:text-slate-900 transition-all"
-                            onClick={() => { setEditModal(false); resetCreateForm(); setEditingSalesmanId(null); }}
-                            disabled={isUpdating}
-                        >
-                            Discard
-                        </Button>
-                        <Button
-                            className="flex-[2] font-black uppercase text-[10px] tracking-widest h-12 rounded-xl shadow-2xl bg-primary hover:bg-primary/90 disabled:opacity-20 transition-all"
-                            onClick={handleUpdateSalesman}
-                            disabled={isUpdating}
-                        >
-                            {isUpdating ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
-                            {isUpdating ? "UPDATING PROFILE..." : "SAVE ADJUSTMENTS"}
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
-
         </div>
     );
 }

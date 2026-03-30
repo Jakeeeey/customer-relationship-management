@@ -68,5 +68,34 @@ export const salesmanProvider = {
             method: "DELETE",
         });
         return res.json();
+    },
+
+    // 🚀 NEW: CUSTOMER MANAGEMENT ENDPOINTS
+    getAssignedCustomers: async (salesmanId: number) => {
+        const res = await fetch(`${API_BASE}?action=assigned-customers&id=${salesmanId}`);
+        const result = await res.json();
+        return result.data || [];
+    },
+
+    searchAvailableCustomers: async (search: string) => {
+        const res = await fetch(`${API_BASE}?action=search-customers&search=${encodeURIComponent(search)}`);
+        const result = await res.json();
+        return result.data || [];
+    },
+
+    assignCustomer: async (salesmanId: number, customerId: number) => {
+        const res = await fetch(`${API_BASE}?action=assign-customer`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ salesman_id: salesmanId, customer_id: customerId })
+        });
+        return res.json();
+    },
+
+    unassignCustomer: async (junctionId: number) => {
+        const res = await fetch(`${API_BASE}?action=unassign-customer&junctionId=${junctionId}`, {
+            method: "DELETE"
+        });
+        return res.json();
     }
 };
