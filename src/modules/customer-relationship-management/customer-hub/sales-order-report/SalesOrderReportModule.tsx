@@ -2,12 +2,11 @@
 
 import React, { useEffect, useState, useCallback, useRef } from "react";
 import { SalesOrder, Customer, Salesman, Branch, Supplier } from "./types";
-import { fetchSalesOrderData, deleteSalesOrder } from "./providers/fetchProvider";
+import { fetchSalesOrderData } from "./providers/fetchProvider";
 import { SalesOrderFormFields } from "./components/SalesOrderFormFields";
 import { SalesOrderTable } from "./components/SalesOrderTable";
 import { SalesOrderDetailsModal } from "./components/SalesOrderDetailsModal";
 import { Package2 } from "lucide-react";
-import { toast } from "sonner";
 
 import { SalesOrderSkeleton } from "./components/SalesOrderSkeleton";
 
@@ -21,6 +20,7 @@ interface AppliedFilters {
     endDate: string;
     salesmanId: string;
     branchId: string;
+    supplierId: string;
     status: string;
 }
 
@@ -47,6 +47,7 @@ export default function SalesOrderReportModule() {
         endDate: "",
         salesmanId: "",
         branchId: "",
+        supplierId: "",
         status: "",
     });
 
@@ -99,30 +100,6 @@ export default function SalesOrderReportModule() {
     const handleRowClick = (so: SalesOrder) => {
         setSelectedOrder(so);
         setIsModalOpen(true);
-    };
-
-    const handleDeleteOrder = async (order: SalesOrder) => {
-        if (!window.confirm(`Are you sure you want to delete Sales Order #${order.order_no}? This will also delete all associated order details.`)) {
-            return;
-        }
-
-        try {
-            loadingRef.current = true;
-            setLoading(true);
-            await deleteSalesOrder(Number(order.order_id));
-            toast.success("Sales order deleted successfully");
-            if (selectedOrder?.order_id === order.order_id) {
-                setSelectedOrder(null);
-                setIsModalOpen(false);
-            }
-            loadingRef.current = false;
-            loadData(currentPageRef.current, appliedFilters);
-        } catch (err: unknown) {
-            const e = err as Error;
-            toast.error(`Failed to delete order: ${e.message}`);
-            loadingRef.current = false;
-            setLoading(false);
-        }
     };
 
     const handleSearch = useCallback((newFilters: AppliedFilters) => {
@@ -210,6 +187,7 @@ export default function SalesOrderReportModule() {
                     onSearch={handleSearch}
                     salesmen={salesmen}
                     branches={branches}
+                    suppliers={suppliers}
                 />
             </section>
 
@@ -233,7 +211,6 @@ export default function SalesOrderReportModule() {
                         totalOrders={totalOrders}
                         pageSize={pageSize}
                         onLoadMore={handleLoadMore}
-                        onDelete={handleDeleteOrder}
                         isLoading={loading}
                         hasActiveDate={true}
                         selectedOrderId={selectedOrder?.order_id || undefined}

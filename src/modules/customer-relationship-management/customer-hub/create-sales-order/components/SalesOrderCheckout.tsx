@@ -10,6 +10,9 @@ import { ArrowLeft, CheckCircle2, Package, Calculator, AlertCircle, Loader2, Mes
 import { formatCurrency, calculateChainNetPrice } from "../utils/priceCalc";
 import { LineItem, Salesman, Customer, Supplier, ReceiptType, SalesType, Branch } from "../types";
 
+import { OrderConfirmationDialog } from "./OrderConfirmationDialog";
+import { useState } from "react";
+
 interface SalesOrderCheckoutProps {
     orderNo: string;
     lineItems: LineItem[];
@@ -29,11 +32,12 @@ interface SalesOrderCheckoutProps {
         vatAmount: number;
     };
     onBack: () => void;
-    onConfirm: () => void;
+    onConfirm: (status?: "Draft" | "For Approval") => void;
     submitting: boolean;
-    isValidAllocation: boolean;
     orderRemarks: string;
     setOrderRemarks: (val: string) => void;
+    isExistingOrder?: boolean;
+    existingOrderStatus?: string;
     header: {
         salesman: Salesman | null;
         account: Salesman | null;
@@ -45,14 +49,31 @@ interface SalesOrderCheckoutProps {
         dueDate: string;
         deliveryDate: string;
         poNo: string;
+        paymentTerms?: number | null;
     };
 }
 
 export function SalesOrderCheckout({
     orderNo, lineItems, allocatedQuantities, updateAllocatedQty,
-    summary, onBack, onConfirm, submitting, header, isValidAllocation,
-    orderRemarks, setOrderRemarks
+    summary, onBack, onConfirm, submitting, header,
+    orderRemarks, setOrderRemarks, isExistingOrder = false, existingOrderStatus
 }: SalesOrderCheckoutProps) {
+    const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+
+    const hasZeroAllocation = lineItems.some(item => (allocatedQuantities[item.id] ?? 0) === 0);
+
+    const handleConfirmClick = () => {
+        if (hasZeroAllocation) {
+            setShowConfirmDialog(true);
+        } else {
+            onConfirm("For Approval");
+        }
+    };
+
+    const handleFinalConfirm = (status: "Draft" | "For Approval") => {
+        setShowConfirmDialog(false);
+        onConfirm(status);
+    };
     return (
         <div className="flex flex-col gap-6 animate-in fade-in zoom-in duration-500">
             {/* Minimal Header */}
@@ -63,14 +84,14 @@ export function SalesOrderCheckout({
                 </Button>
                 <div className="flex items-center gap-3">
                     <Badge variant="outline" className="px-3 py-1 text-xs font-bold border-primary/30 text-primary bg-primary/5 uppercase tracking-widest">
-                        Reviewing Order
+                        {isExistingOrder ? "Modifying Draft" : "Reviewing Order"}
                     </Badge>
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
+            <div className="flex flex-col gap-6 w-full">
                 {/* Main Tabular Section */}
-                <div className="xl:col-span-3 flex flex-col gap-6">
+                <div className="flex flex-col gap-6">
                     <Card className="shadow-2xl border-none bg-white/80 backdrop-blur-md overflow-hidden">
                         <CardHeader className="p-8 border-b bg-gradient-to-r from-slate-50 to-white">
                             <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
@@ -121,6 +142,12 @@ export function SalesOrderCheckout({
                                         <span className="text-[10px] font-black text-muted-foreground uppercase tracking-wider mb-1">PO#</span>
                                         <span className="text-xs font-bold text-slate-700">{header.poNo || "N/A"}</span>
                                     </div>
+                                    {header.paymentTerms !== undefined && header.paymentTerms !== null && (
+                                        <div className="flex flex-col">
+                                            <span className="text-[10px] font-black text-sky-600 uppercase tracking-wider mb-1">Terms</span>
+                                            <span className="text-xs font-bold text-sky-700">{header.paymentTerms} Days</span>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         </CardHeader>
@@ -130,18 +157,22 @@ export function SalesOrderCheckout({
                                     <TableHeader className="bg-slate-50 sticky top-0 z-10 shadow-sm">
                                         <TableRow className="hover:bg-transparent">
                                             <TableHead className="py-5 px-8 text-[10px] font-black uppercase tracking-widest text-slate-500 bg-slate-50">Product Specification</TableHead>
+                                            <TableHead className="text-center text-[10px] font-black uppercase tracking-widest text-slate-500 bg-slate-50">Unit Count</TableHead>
                                             <TableHead className="text-center text-[10px] font-black uppercase tracking-widest text-slate-500 bg-slate-50">Ordered</TableHead>
+                                            <TableHead className="text-center text-[10px] font-black uppercase tracking-widest text-slate-500 bg-slate-50">Available</TableHead>
                                             <TableHead className="text-center text-[10px] font-black uppercase tracking-widest text-slate-900 bg-slate-100/50">Allocated</TableHead>
                                             <TableHead className="text-right text-[10px] font-black uppercase tracking-widest text-slate-500 bg-slate-50">Unit Price</TableHead>
-                                            <TableHead className="text-center text-[10px] font-black uppercase tracking-widest text-slate-500 bg-slate-50">Applied Discounts</TableHead>
-                                            <TableHead className="text-right text-[10px] font-black uppercase tracking-widest text-slate-500 bg-slate-50 text-right">Allocated Net</TableHead>
+                                            <TableHead className="text-center text-[10px] font-black uppercase tracking-widest text-slate-500 bg-slate-50"> Discounts Type</TableHead>
+                                            <TableHead className="text-right text-[10px] font-black uppercase tracking-widest text-slate-500 bg-slate-50 text-right">Net Amount</TableHead>
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
                                         {lineItems.map((item) => {
-                                            const allocatedQty = allocatedQuantities[item.id] ?? item.quantity;
-                                            const netPrice = calculateChainNetPrice(item.unitPrice, item.discounts);
-                                            const allocatedTotal = netPrice * allocatedQty;
+                                            const allocatedQty = allocatedQuantities[item.id] ?? 0;
+                                            // Exact Mapping Support for visual row total
+                                            const allocatedTotal = (item.savedAllocatedQty !== undefined && allocatedQty === item.savedAllocatedQty && item.savedNetAmount !== undefined)
+                                                ? item.savedNetAmount
+                                                : calculateChainNetPrice(item.unitPrice, item.discounts) * allocatedQty;
 
                                             return (
                                                 <TableRow key={item.id} className="hover:bg-slate-50/50 border-b group transition-colors">
@@ -166,15 +197,17 @@ export function SalesOrderCheckout({
                                                                 <Badge variant="outline" className="text-[9px] font-black px-1.5 py-0 border-slate-200 text-slate-400">
                                                                     {item.uom}
                                                                 </Badge>
-                                                                <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-tighter">
+                                                                <span className="text-[10px] font-bold text-emerald-600 tracking-tighter">
                                                                     {item.discountType}
                                                                 </span>
-                                                                <div className="flex items-center gap-1 text-[9px] font-black uppercase tracking-tighter ml-auto">
-                                                                    <span className="text-indigo-400">UC: {Number(item.product.unit_count) || 1}</span>
-                                                                    <span className="text-slate-300">•</span>
-                                                                    <span className="text-slate-400">Av: {Number(item.product.available_qty) || 0}</span>
-                                                                </div>
                                                             </div>
+                                                        </div>
+                                                    </TableCell>
+
+                                                    <TableCell className="text-center font-black text-slate-600 tabular-nums">
+                                                        <div className="flex flex-col items-center">
+                                                            <span className="text-lg leading-none">{Number(item.product.unit_count) || Number(item.product.unit_of_measurement_count) || 1}</span>
+                                                            <span className="text-[9px] text-muted-foreground uppercase font-black mt-1 tracking-widest">PCS</span>
                                                         </div>
                                                     </TableCell>
 
@@ -184,10 +217,17 @@ export function SalesOrderCheckout({
                                                             <span className="text-[9px] text-muted-foreground uppercase font-black mt-1 tracking-widest">{item.uom}</span>
                                                         </div>
                                                     </TableCell>
+                                                    <TableCell className="text-center font-bold text-slate-600 tabular-nums">
+                                                        <div className="flex flex-col items-center">
+                                                            <span className="text-lg leading-none">{Number(item.product.available_qty) || 0}</span>
+                                                            <span className="text-[9px] text-muted-foreground uppercase font-black mt-1 tracking-widest">{item.uom}</span>
+                                                        </div>
+                                                    </TableCell>
                                                     <TableCell className="text-center bg-slate-50/30 relative py-8">
                                                         {(() => {
                                                             const isExceedingOrder = allocatedQty > item.quantity;
-                                                            const hasError = isExceedingOrder;
+                                                            const isExceedingStock = allocatedQty > 0 && allocatedQty > (Number(item.product.available_qty) || 0);
+                                                            const hasError = isExceedingOrder || isExceedingStock;
 
                                                             return (
                                                                 <>
@@ -204,9 +244,9 @@ export function SalesOrderCheckout({
                                                                         <span className="text-[9px] font-black text-primary/60 uppercase tracking-widest leading-none">{item.uom}</span>
                                                                     </div>
                                                                     {hasError && (
-                                                                        <div className="absolute left-1/2 -translate-x-1/2 bottom-1.5 flex items-center gap-1 bg-red-500 text-[7px] text-white px-2 py-0.5 rounded-full font-black uppercase tracking-widest shadow-lg animate-in fade-in slide-in-from-top-1 duration-300 z-50 whitespace-nowrap">
-                                                                            <AlertCircle className="w-2 h-2" />
-                                                                            Exceeds Ordered Qty
+                                                                        <div className="absolute left-1/2 -translate-x-1/2 bottom-1.5 flex items-center gap-1 bg-red-500 text-[9px] text-white px-3 py-1 rounded-full font-black uppercase tracking-widest shadow-lg animate-in fade-in slide-in-from-top-1 duration-300 z-50 whitespace-nowrap">
+                                                                            <AlertCircle className="w-3 h-3" />
+                                                                            {isExceedingStock ? "Exceeds Stock" : "Exceeds Order Qty"}
                                                                         </div>
                                                                     )}
                                                                 </>
@@ -235,105 +275,115 @@ export function SalesOrderCheckout({
                                     </TableBody>
                                 </Table>
                             </div>
-                        </CardContent>
-                    </Card>
+                        </CardContent>                    </Card>
                 </div>
 
-                {/* Sidebar Summary */}
-                <div className="xl:col-span-1 flex flex-col gap-6">
-                    <Card className="shadow-2xl border-none bg-slate-900 text-white overflow-hidden sticky top-6">
+                {/* Sidebar Summary - Now Below Section */}
+                <div className="w-full flex flex-col gap-6">
+                    <Card className="shadow-2xl border-none bg-slate-900 text-white overflow-hidden">
                         <CardHeader className="p-8 pb-4">
-                            <div className="flex items-center gap-2 text-primary/80 text-[10px] font-black uppercase tracking-[0.2em] mb-4">
-                                <Calculator className="w-3 h-3" />
-                                Payment Summary
-                            </div>
-                            <div className="space-y-6">
-                                <div className="flex justify-between items-center group">
-                                    <span className="text-xs text-slate-400 font-bold uppercase tracking-wider group-hover:text-slate-300 transition-colors">Gross Amount</span>
-                                    {/* Gross Amount: Base sa Ordered Quantity */}
-                                    <span className="text-sm font-bold tabular-nums">{formatCurrency(summary.orderedGross)}</span>
-                                </div>
-                                <div className="flex justify-between items-center group">
-                                    <div className="flex flex-col">
-                                        <span className="text-xs text-amber-500 font-bold uppercase tracking-wider group-hover:text-amber-400 transition-colors">Discounts</span>
-                                        <span className="text-[9px] text-slate-500 font-bold">Allocated Deductions</span>
+                            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+                                <div className="space-y-4 flex-1">
+                                    <div className="flex items-center gap-2 text-primary/80 text-[12px] font-black uppercase tracking-[0.2em] mb-4">
+                                        <Calculator className="w-4 h-4" />
+                                        Payment Summary
                                     </div>
-                                    <span className="text-sm font-bold tabular-nums text-amber-500">-{formatCurrency(summary.allocatedDiscount)}</span>
-                                </div>
-
-                                <div className="pt-4 border-t border-slate-800 space-y-3">
-                                    <div className="flex justify-between items-center opacity-80">
-                                        <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">VAT</span>
-                                        <span className="text-xs font-bold tabular-nums">{formatCurrency(summary.vatAmount)}</span>
-                                    </div>
-                                </div>
-
-                                <div className="pt-6 border-t border-slate-800 space-y-4">
-                                    <div className="flex justify-between items-center pt-4 border-t border-slate-800/50">
+                                    <div className="flex flex-col md:flex-row md:items-center gap-10">
                                         <div className="flex flex-col">
-                                            <span className="text-[10px] text-primary font-black uppercase tracking-widest">Actual Fulfillment</span>
-                                            <span className="text-xs text-slate-400 font-medium">Grand Total (Net)</span>
+                                            <span className="text-xs text-slate-400 font-bold uppercase tracking-wider">Gross Amount</span>
+                                            <span className="text-xl font-bold tabular-nums">{formatCurrency(summary.orderedGross)}</span>
                                         </div>
-                                        {/* Actual Fulfillment: Net amount base sa allocated quantity (Grand Total) */}
-                                        <span className="text-3xl font-black text-emerald-400 tabular-nums tracking-tighter decoration-emerald-500/30 underline underline-offset-8">
-                                            {formatCurrency(summary.allocatedNet)}
-                                        </span>
-                                    </div>
-
-                                    {/* Order Remarks: Moved below actual fulfillment */}
-                                    <div className="flex flex-col gap-2 pt-4 border-t border-slate-800/50">
-                                        <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-slate-500">
-                                            <MessageSquare className="w-3 h-3" />
-                                            Order Remarks
+                                        <div className="flex flex-col">
+                                            <div className="flex flex-col">
+                                                <span className="text-xs text-amber-500 font-bold uppercase tracking-wider">Total</span>
+                                                <span className="text-[10px] text-slate-500 font-bold uppercase">Discount</span>
+                                            </div>
+                                            <span className="text-xl font-bold tabular-nums text-amber-500">-{formatCurrency(summary.allocatedDiscount)}</span>
                                         </div>
-                                        <Textarea
-                                            placeholder="Add special instructions, delivery notes, etc."
-                                            className="bg-slate-800/50 border-slate-700 text-slate-200 text-xs min-h-[80px] focus:border-primary/50 transition-all resize-none"
-                                            value={orderRemarks}
-                                            onChange={(e) => setOrderRemarks(e.target.value)}
-                                        />
+                                        <div className="flex flex-col">
+                                            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider opacity-60">VAT</span>
+                                            <span className="text-lg font-bold tabular-nums opacity-60">{formatCurrency(summary.vatAmount)}</span>
+                                        </div>
+                                        <div className="flex flex-col ml-auto bg-primary/10 p-5 rounded-2xl border border-primary/20 backdrop-blur-xl">
+                                            <span className="text-[10px] text-primary font-black uppercase tracking-[0.2em] mb-1">Net Amount</span>
+                                            <span className="text-4xl font-black text-emerald-400 tabular-nums tracking-tighter tabular-nums underline underline-offset-[12px] decoration-emerald-500/30">
+                                                {formatCurrency(summary.allocatedNet)}
+                                            </span>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
                         </CardHeader>
-                        <CardContent className="p-8 pt-6">
+
+                        <CardContent className="p-8 pt-6 grid grid-cols-1 md:grid-cols-2 gap-8 items-end">
+                            {/* Order Remarks: Moved below actual fulfillment */}
+                            <div className="flex flex-col gap-3">
+                                <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-slate-500">
+                                    <MessageSquare className="w-3 h-3" />
+                                    Order Remarks
+                                </div>
+                                <Textarea
+                                    placeholder="Add special instructions, delivery notes, etc."
+                                    className="bg-slate-800/50 border-slate-700 text-slate-200 text-sm min-h-[100px] focus:border-primary/50 transition-all resize-none rounded-xl"
+                                    value={orderRemarks}
+                                    onChange={(e) => setOrderRemarks(e.target.value)}
+                                />
+                            </div>
+
                             <div className="space-y-4">
-                                <Button
-                                    className={`w-full h-16 text-sm font-black uppercase tracking-[0.2em] shadow-2xl transition-all duration-500 rounded-xl ${!isValidAllocation
-                                        ? "bg-slate-800 text-slate-600 cursor-not-allowed border border-slate-700 shadow-none"
-                                        : "bg-emerald-500 hover:bg-emerald-400 text-slate-950 hover:scale-[1.02] hover:shadow-emerald-500/20 active:scale-95 shadow-emerald-500/10"
-                                        }`}
-                                    onClick={onConfirm}
-                                    disabled={submitting || !isValidAllocation}
-                                >
-                                    {submitting ? (
-                                        <span className="flex items-center gap-3 animate-pulse">
-                                            <Loader2 className="w-5 h-5 animate-spin" />
-                                            Authenticating Order...
-                                        </span>
-                                    ) : !isValidAllocation ? (
-                                        <span className="flex items-center gap-2 opacity-50">
-                                            <AlertCircle className="w-4 h-4" />
-                                            Check Allocation Limits
-                                        </span>
-                                    ) : (
-                                        <span className="flex items-center gap-3">
-                                            SUBMIT SALES ORDER
-                                            <CheckCircle2 className="w-6 h-6 text-slate-950/50" />
-                                        </span>
-                                    )}
-                                </Button>
-                                <p className="text-[9px] text-center text-slate-500 font-medium px-4 leading-relaxed italic">
-                                    By confirming, this order will be set to <strong className="text-slate-400 not-italic uppercase tracking-wider">For Approval</strong> status and synced with the central ERP.
+                                {(() => {
+                                    const anyHasError = lineItems.some(item => {
+                                        const alloc = allocatedQuantities[item.id] ?? 0;
+                                        const avail = Number(item.product.available_qty) || 0;
+                                        return (alloc > item.quantity) || (alloc > 0 && alloc > avail);
+                                    });
+
+                                    return (
+                                        <>
+                                            {anyHasError && (
+                                                <div className="flex items-center justify-center gap-2 text-rose-500 bg-rose-50/50 py-2 rounded-lg border border-rose-100 animate-in fade-in slide-in-from-bottom-2 duration-500">
+                                                    <AlertCircle className="w-4 h-4" />
+                                                    <span className="text-[10px] font-black uppercase tracking-widest">Adjust over-allocated items</span>
+                                                </div>
+                                            )}
+                                            <Button
+                                                className={`w-full h-16 text-base font-black uppercase tracking-[0.2em] shadow-2xl transition-all duration-500 rounded-xl ${anyHasError ? 'bg-slate-700 opacity-50 cursor-not-allowed text-slate-400' : 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 hover:scale-[1.02] hover:shadow-emerald-500/20 active:scale-95 shadow-emerald-500/10'}`}
+                                                onClick={handleConfirmClick}
+                                                disabled={submitting || anyHasError}
+                                            >
+                                                {submitting ? (
+                                                    <span className="flex items-center gap-3 animate-pulse">
+                                                        <Loader2 className="w-5 h-5 animate-spin" />
+                                                        Authenticating Order...
+                                                    </span>
+                                                ) : (
+                                                    <span className="flex items-center gap-3">
+                                                        SUBMIT SALES ORDER
+                                                        <CheckCircle2 className="w-6 h-6 text-slate-950/50" />
+                                                    </span>
+                                                )}
+                                            </Button>
+                                        </>
+                                    );
+                                })()}
+                                <p className="text-[10px] text-center text-slate-500 font-medium leading-relaxed italic">
+                                    Finalize your allocation and select target workflow status.
                                 </p>
                             </div>
                         </CardContent>
                     </Card>
-
-
-
                 </div>
             </div>
+
+            <OrderConfirmationDialog
+                open={showConfirmDialog}
+                onClose={() => setShowConfirmDialog(false)}
+                onConfirm={handleFinalConfirm}
+                orderNo={orderNo}
+                hasZeroAllocation={hasZeroAllocation}
+                isExistingOrder={isExistingOrder}
+                existingOrderStatus={existingOrderStatus}
+            />
         </div>
     );
 }

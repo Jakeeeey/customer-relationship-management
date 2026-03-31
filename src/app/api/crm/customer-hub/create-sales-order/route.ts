@@ -41,6 +41,41 @@ const fetchHeaders = {
     "Content-Type": "application/json",
 };
 
+interface ProductMetadata {
+    product_id: number;
+    product_name: string;
+    product_code: string;
+    description: string;
+    discount_type: string;
+    unit_of_measurement_count?: number;
+}
+
+interface IncomingLineItem {
+    id: string;
+    detail_id?: number | string;
+    order_detail_id?: number | string;
+    unitPrice: number;
+    quantity: number;
+    allocated_quantity?: number;
+    netAmount: number;
+    uom?: string;
+    product: { 
+        product_id: number; 
+        discount_type?: number;
+        display_name?: string;
+        product_name?: string;
+        description?: string;
+        available_qty?: number;
+        unit_count?: number;
+    };
+    remarks?: string;
+    discountType?: string;
+    discounts?: number[];
+    savedAllocatedQty?: number;
+    savedNetAmount?: number;
+    savedDiscountAmount?: number;
+}
+
 interface DirectusItem {
     id: number | string;
 }
@@ -58,6 +93,34 @@ interface ProductItem extends DirectusItem {
     [key: string]: unknown;
 }
 
+interface HeaderPayload {
+    order_status: string;
+    total_amount: number;
+    discount_amount: number;
+    net_amount: number;
+    allocated_amount: number;
+    remarks: string;
+    modified_by?: number | null;
+    draft_at?: string;
+    pending_date?: string;
+    for_approval_at?: string;
+    po_no?: string;
+    due_date?: string | null;
+    delivery_date?: string | null;
+    receipt_type?: number;
+    sales_type?: number;
+    order_no?: string;
+    customer_code?: string;
+    salesman_id?: number;
+    supplier_id?: number;
+    branch_id?: number;
+    price_type_id?: number | null;
+    order_date?: string;
+    payment_terms?: number | null;
+    created_by?: number | null;
+    created_date?: string;
+}
+
 interface DiscountItem {
     product_id?: number;
     category_id?: number;
@@ -69,8 +132,31 @@ interface DiscountItem {
 
 export async function GET(req: NextRequest) {
     const action = req.nextUrl.searchParams.get("action");
+    const searchParams = req.nextUrl.searchParams;
 
     try {
+        if (action === "delete_item") {
+            const detailId = searchParams.get("id");
+            if (!detailId) return NextResponse.json({ error: "id required" }, { status: 400 });
+
+            console.log(`[API] Force Deleting Detail ID: ${detailId}`);
+            // Use Directus standard delete by ID
+            const delRes = await fetch(`${DIRECTUS_URL}/items/sales_order_details/${detailId}`, {
+                method: "DELETE",
+                headers: fetchHeaders
+            });
+
+            if (!delRes.ok) {
+                // Secondary attempt using filter to be absolutely sure
+                await fetch(`${DIRECTUS_URL}/items/sales_order_details?filter[detail_id][_eq]=${detailId}`, {
+                    method: "DELETE",
+                    headers: fetchHeaders
+                });
+            }
+
+            return NextResponse.json({ success: true });
+        }
+
         if (action === "salesmen") {
             const res = await fetch(`${DIRECTUS_URL}/items/salesman?filter[isActive][_eq]=1&limit=-1`, { headers: fetchHeaders });
             const smData = (await res.json()).data || [];
@@ -110,8 +196,38 @@ export async function GET(req: NextRequest) {
             const csData = (await csRes.json()).data || [];
             const ids = csData.map((cs: { customer_id: number | string }) => cs.customer_id);
             if (ids.length === 0) return NextResponse.json([]);
-            const cRes = await fetch(`${DIRECTUS_URL}/items/customer?filter[id][_in]=${ids.join(',')}&limit=-1`, { headers: fetchHeaders });
+            const cRes = await fetch(`${DIRECTUS_URL}/items/customer?filter[id][_in]=${ids.join(',')}&fields=*,province,city&limit=-1`, { headers: fetchHeaders });
             return NextResponse.json((await cRes.json()).data || []);
+        }
+
+        if (action === "all_customers") {
+            const search = req.nextUrl.searchParams.get("search");
+            const offset = req.nextUrl.searchParams.get("offset") || "0";
+            let url = `${DIRECTUS_URL}/items/customer?fields=*,province,city&limit=30&offset=${offset}`;
+            if (search) {
+                url += `&filter[_or][0][customer_name][_icontains]=${encodeURIComponent(search)}&filter[_or][1][store_name][_icontains]=${encodeURIComponent(search)}&filter[_or][2][customer_code][_icontains]=${encodeURIComponent(search)}`;
+            }
+            const cRes = await fetch(url, { headers: fetchHeaders });
+            return NextResponse.json((await cRes.json()).data || []);
+        }
+
+        if (action === "salesman_by_customer") {
+            const customerId = req.nextUrl.searchParams.get("customer_id");
+            if (!customerId) return NextResponse.json({ error: "customer_id required" }, { status: 400 });
+            const csRes = await fetch(`${DIRECTUS_URL}/items/customer_salesmen?filter[customer_id][_eq]=${customerId}&limit=1`, { headers: fetchHeaders });
+            const csData = (await csRes.json()).data || [];
+            if (csData.length === 0) return NextResponse.json(null);
+
+            const salesmanId = csData[0].salesman_id;
+            const sRes = await fetch(`${DIRECTUS_URL}/items/salesman/${salesmanId}`, { headers: fetchHeaders });
+            return NextResponse.json((await sRes.json()).data || null);
+        }
+
+        if (action === "salesman_by_id") {
+            const id = req.nextUrl.searchParams.get("id");
+            if (!id) return NextResponse.json({ error: "id required" }, { status: 400 });
+            const sRes = await fetch(`${DIRECTUS_URL}/items/salesman/${id}`, { headers: fetchHeaders });
+            return NextResponse.json((await sRes.json()).data || null);
         }
 
         if (action === "suppliers") {
@@ -127,6 +243,22 @@ export async function GET(req: NextRequest) {
         if (action === "operations") {
             const res = await fetch(`${DIRECTUS_URL}/items/operation?limit=-1`, { headers: fetchHeaders });
             return NextResponse.json((await res.json()).data || []);
+        }
+
+        if (action === "get_order") {
+            const orderId = req.nextUrl.searchParams.get("order_id");
+            if (!orderId) return NextResponse.json({ error: "order_id required" }, { status: 400 });
+
+            // Fetch Header
+            const hRes = await fetch(`${DIRECTUS_URL}/items/sales_order/${orderId}?fields=*`, { headers: fetchHeaders });
+            const hData = (await hRes.json()).data;
+            if (!hData) return NextResponse.json({ error: "Order not found" }, { status: 404 });
+
+            // Fetch Details
+            const dRes = await fetch(`${DIRECTUS_URL}/items/sales_order_details?filter[order_id][_eq]=${orderId}&fields=*,product_id.*&limit=-1`, { headers: fetchHeaders });
+            const dData = (await dRes.json()).data || [];
+
+            return NextResponse.json({ header: hData, items: dData });
         }
 
         if (action === "products") {
@@ -200,77 +332,94 @@ export async function GET(req: NextRequest) {
                                     branchId = smData.branch_code || smData.branch_id;
                                     if (branchId && typeof branchId === 'object') {
                                         const obj = branchId as { id?: number | string; branch_code?: number | string; branch_id?: number | string };
-                                        branchId = obj.id || obj.branch_code || obj.branch_id || null;
+                                        branchId = obj.branch_code || obj.id || obj.branch_id || null;
                                     }
                                 }
                             }
                         }
 
-                        console.log(`[InventoryDebug] Final Branch ID: ${branchId}`);
+                        // Resolve numeric ID vs string code
+                        let branchCodeStr: string | null = null;
+                        if (branchId) {
+                            if (isNaN(Number(branchId))) {
+                                branchCodeStr = String(branchId);
+                            } else {
+                                try {
+                                    const bRes = await fetch(`${DIRECTUS_URL}/items/branches/${branchId}?fields=branch_code`, { headers: fetchHeaders });
+                                    if (bRes.ok) {
+                                        const bData = (await bRes.json()).data;
+                                        branchCodeStr = bData?.branch_code || null;
+                                    }
+                                } catch (e) {
+                                    console.error("[InventoryDebug] Branch resolution error:", e);
+                                }
+                            }
+                        }
+
+                        console.log(`[InventoryDebug] Final Branch Target: ID=${branchId}, Code=${branchCodeStr}`);
 
                         if (branchId && SPRING_API_BASE_URL) {
                             const cookieStore = await cookies();
                             const token = cookieStore.get(COOKIE_NAME)?.value;
 
-                            // Fetch running inventory by unit
-                            const invUrl = `${SPRING_API_BASE_URL.replace(/\/$/, "")}/api/view-running-inventory-by-unit/all`;
-                            console.log(`[InventoryDebug] Fetching Inventory from: ${invUrl}`);
+                            // Added date filter as suggested
+                            const invUrl = `${SPRING_API_BASE_URL.replace(/\/$/, "")}/api/view-running-inventory-by-unit/all?startDate=2025-01-01&endDate=2026-12-30`;
+                            console.log(`[InventoryDebug] Fetching: ${invUrl}`);
+
                             const inventoryRes = await fetch(invUrl, {
-                                headers: token ? { "Authorization": `Bearer ${token}` } : {},
-                                cache: 'no-store'
+                                headers: {
+                                    "Accept": "application/json",
+                                    ...(token ? { "Authorization": `Bearer ${token}` } : {})
+                                },
+                                cache: 'no-store',
                             });
+
                             if (inventoryRes.ok) {
                                 const invJson = await inventoryRes.json();
                                 const invData = Array.isArray(invJson) ? invJson : (invJson.data || []);
-                                console.log(`[InventoryDebug] Inventory Records Received: ${invData.length}`);
-                                if (Array.isArray(invData)) {
-                                    console.log(`[InventoryDebug] Matching for Branch ID: ${branchId} (Type: ${typeof branchId})`);
-                                    if (invData.length > 0) {
-                                        console.log(`[InventoryDebug] Sample Inv Item:`, JSON.stringify(invData[0]));
-                                    }
+                                console.log(`[InventoryDebug] Records Received: ${invData.length}`);
 
-                                    // filter STRICTLY by the salesman's branch
-                                    invData.forEach((item: { branchId?: number | string; branch_id?: number | string; productId?: number | string; product_id?: number | string; runningInventoryUnit?: number | string; running_inventory_unit?: number | string; unitCount?: number | string; unit_count?: number | string }) => {
-                                        // The Spring Boot API uses camelCase (productId, branchId, runningInventoryUnit, unitCount)
-                                        const itemBranchId = item.branchId || item.branch_id;
-                                        if (itemBranchId && Number(itemBranchId) === Number(branchId)) {
-                                            const pid = Number(item.productId || item.product_id);
+                                if (Array.isArray(invData)) {
+                                    const branchesInStock = new Set<string>();
+                                    invData.forEach((item: Record<string, unknown>) => {
+                                        const itemBId = item.branchId ?? item.branch_id ?? item.BranchId;
+                                        if (itemBId) branchesInStock.add(itemBId.toString());
+
+                                        const matchId = (itemBId && Number(itemBId) === Number(branchId));
+                                        const matchCode = (branchCodeStr && itemBId && String(itemBId).toUpperCase() === String(branchCodeStr).toUpperCase());
+
+                                        if (matchId || matchCode) {
+                                            const pid = item.productId ?? item.product_id ?? item.ProductId;
                                             if (pid) {
-                                                inventoryMap[pid] = {
-                                                    available: Number(item.runningInventoryUnit || item.running_inventory_unit) || 0,
-                                                    unitCount: Number(item.unitCount || item.unit_count) || 1
-                                                };
+                                                const available = Number(item.runningInventoryUnit ?? item.running_inventory_unit ?? item.runningInventory ?? item.running_inventory ?? 0);
+                                                const unitCount = Number(item.unitCount ?? item.unit_count ?? 1);
+                                                inventoryMap[Number(pid)] = { available, unitCount };
                                             }
                                         }
                                     });
+                                    console.log(`[InventoryDebug] Branches found in API: ${Array.from(branchesInStock).slice(0, 10).join(", ")}`);
+                                    console.log(`[InventoryDebug] Map populated with ${Object.keys(inventoryMap).length} items for branch ${branchId}`);
                                 }
-                            } else {
-                                console.log(`[InventoryDebug] Spring Boot Fetch Error: ${inventoryRes.status}`);
                             }
-                        } else {
-                            console.log(`[InventoryDebug] No Branch ID found for salesman ${salesmanId}`);
                         }
                     } catch (e) {
-                        console.error("[InventoryDebug] Failed to fetch inventory from Spring Boot:", e);
+                        console.error("[InventoryDebug] Inventory Fetch Exception:", e);
                     }
                 }
                 // --- End Inventory Fetch ---
 
-                const initialProducts = await fetchInChunks<ProductItem>(`${DIRECTUS_URL}/items/products?filter[isActive][_eq]=1&fields=*,unit_of_measurement.unit_name,product_category.category_name,product_brand.brand_name`, linkedProductIds, "product_id");
+                const initialProducts = await fetchInChunks<ProductItem>(`${DIRECTUS_URL}/items/products?filter[isActive][_eq]=1&fields=*,product_category.category_name,product_brand.brand_name`, linkedProductIds, "product_id");
 
-                // Collect all involved parents
                 const directParentIds = initialProducts.map(p => p.parent_id).filter((id): id is number => !!id);
-                // Also treat initial products with parent_id as null as their own family anchors
                 const selfParentIds = initialProducts.filter(p => !p.parent_id).map(p => Number(p.product_id));
                 const allFamilyAnchorIds = Array.from(new Set([...directParentIds, ...selfParentIds]));
 
-                // Fetch all members of these product families to get sibling UOMs
                 const familyMembers = allFamilyAnchorIds.length > 0
-                    ? await fetchInChunks<ProductItem>(`${DIRECTUS_URL}/items/products?filter[isActive][_eq]=1&fields=*,unit_of_measurement.unit_name,product_category.category_name,product_brand.brand_name`, allFamilyAnchorIds, "parent_id")
+                    ? await fetchInChunks<ProductItem>(`${DIRECTUS_URL}/items/products?filter[isActive][_eq]=1&fields=*,product_category.category_name,product_brand.brand_name`, allFamilyAnchorIds, "parent_id")
                     : [];
 
                 const anchors = allFamilyAnchorIds.length > 0
-                    ? await fetchInChunks<ProductItem>(`${DIRECTUS_URL}/items/products?filter[isActive][_eq]=1&fields=*,unit_of_measurement.unit_name,product_category.category_name,product_brand.brand_name`, allFamilyAnchorIds, "product_id")
+                    ? await fetchInChunks<ProductItem>(`${DIRECTUS_URL}/items/products?filter[isActive][_eq]=1&fields=*,product_category.category_name,product_brand.brand_name`, allFamilyAnchorIds, "product_id")
                     : [];
 
                 const unitsRes = await fetch(`${DIRECTUS_URL}/items/units?limit=-1`, { headers: fetchHeaders });
@@ -353,7 +502,7 @@ export async function GET(req: NextRequest) {
 
                     if (!winId) {
                         const l3 = l3Items.find((item: DiscountItem) => item.product_id === p.product_id) || l3Items.find((item: DiscountItem) => p.parent_id && item.product_id === p.parent_id);
-                        if (l3) { winId = l3.discount_type; level = "Supplier Product Discount"; }
+                        if (l3) { winId = l3.discount_type; level = "none"; }
                     }
 
                     if (!winId) {
@@ -379,7 +528,6 @@ export async function GET(req: NextRequest) {
                         else uomName = uomName.charAt(0).toUpperCase() + uomName.slice(1).toLowerCase();
                     }
 
-                    // Append UOM to display name if not already present
                     if (uomShortcut && !displayName.toLowerCase().includes(uomShortcut.toLowerCase())) {
                         displayName = `${displayName} (${uomShortcut})`;
                     } else if (uomName && !displayName.toLowerCase().includes(uomName.toLowerCase())) {
@@ -401,10 +549,18 @@ export async function GET(req: NextRequest) {
                         discounts: winId ? (discountMap[winId] || []) : [],
                         category_name: (p.product_category as { category_name?: string })?.category_name || null,
                         brand_name: (p.product_brand as { brand_name?: string })?.brand_name || null,
-                        available_qty: inventoryMap[Number(p.product_id)]?.available ?? 0,
-                        unit_count: inventoryMap[Number(p.product_id)]?.unitCount ?? (Number(p.unit_of_measurement_count) || 1)
+                        available_qty: inventoryMap[Number(p.product_id)]?.available ?? inventoryMap[Number(p.id)]?.available ?? 0,
+                        unit_count: inventoryMap[Number(p.product_id)]?.unitCount ?? inventoryMap[Number(p.id)]?.unitCount ?? (Number(p.unit_of_measurement_count) || 1)
                     };
                 });
+
+                const itemsWithStock = finalProducts.filter(p => (Number(p.available_qty) || 0) > 0);
+                console.log(`[InventoryDebug] Total Products: ${finalProducts.length}, with Stock: ${itemsWithStock.length}`);
+
+                if (itemsWithStock.length === 0 && finalProducts.length > 0) {
+                    const p = finalProducts[0];
+                    console.log(`[InventoryDebug] Sample Check (PID: ${p.product_id}): MapAvailable=${inventoryMap[Number(p.product_id)]?.available ?? 'MISSING'}`);
+                }
 
                 return NextResponse.json(finalProducts);
             } catch (err: unknown) {
@@ -413,7 +569,81 @@ export async function GET(req: NextRequest) {
             }
         }
 
+        if (action === "get_attachment") {
+            const id = req.nextUrl.searchParams.get("id");
+            if (!id) return NextResponse.json({ error: "id required" }, { status: 400 });
 
+            const res = await fetch(`${DIRECTUS_URL}/items/sales_order_attachment/${id}?fields=*`, { headers: fetchHeaders });
+            const data = (await res.json()).data;
+            if (!data) return NextResponse.json({ error: "Attachment not found" }, { status: 404 });
+
+            return NextResponse.json(data);
+        }
+
+        if (action === "get_order") {
+            const orderId = req.nextUrl.searchParams.get("order_id") || req.nextUrl.searchParams.get("id");
+            if (!orderId) return NextResponse.json({ error: "order_id required" }, { status: 400 });
+
+            // 1. Fetch Header
+            const hRes = await fetch(`${DIRECTUS_URL}/items/sales_order/${orderId}?fields=*`, { headers: fetchHeaders });
+            const header = (await hRes.json()).data;
+            if (!header) return NextResponse.json({ error: "Order not found" }, { status: 404 });
+
+            // 2. Fetch Details
+            const dRes = await fetch(`${DIRECTUS_URL}/items/sales_order_details?filter[order_id][_eq]=${orderId}&fields=*&limit=-1`, { headers: fetchHeaders });
+            const items = (await dRes.json()).data || [];
+
+            // 3. Enrich products
+            if (items.length > 0) {
+                const productIds = Array.from(new Set(items.map((i: { product_id: number }) => i.product_id))).filter(Boolean);
+                // Included description and discount_type
+                const pRes = await fetch(`${DIRECTUS_URL}/items/products?filter[product_id][_in]=${productIds.join(',')}&fields=product_id,product_name,product_code,description,discount_type&limit=-1`, { headers: fetchHeaders });
+                const products = (await pRes.json()).data || [];
+                const pMap = new Map<number, ProductMetadata>(products.map((p: ProductMetadata) => [Number(p.product_id), p]));
+
+                // Fetch discount types for mapping
+                const dtRes = await fetch(`${DIRECTUS_URL}/items/discount_type?fields=id,discount_type&limit=-1`, { headers: fetchHeaders });
+                const dtMap = new Map<number, string>();
+                if (dtRes.ok) {
+                    const dtData = (await dtRes.json()).data || [];
+                    dtData.forEach((dt: { id: number, discount_type: string }) => {
+                        dtMap.set(Number(dt.id), dt.discount_type);
+                    });
+                }
+
+                items.forEach((item: { product_id: number; discount_type?: string | number; product?: unknown; discountType?: string | number; [key: string]: unknown }) => {
+                    const pid = Number(item.product_id);
+                    if (pMap.has(pid)) {
+                        const pData = pMap.get(pid)!;
+
+                        // Resolve discount name
+                        const rawDt = item.discount_type || pData.discount_type;
+                        let resolvedDtName = rawDt;
+                        if (rawDt && dtMap.has(Number(rawDt))) {
+                            resolvedDtName = dtMap.get(Number(rawDt))!;
+                        }
+
+                        item.product = {
+                            ...pData,
+                            id: pData.product_id,
+                            product_id: pData.product_id,
+                            product_name: pData.product_name,
+                            display_name: pData.product_name, // Map for UI
+                            description: pData.description,
+                            discount_level: resolvedDtName, // UI expects discount_level
+                            unit_count: pData.unit_of_measurement_count || 1 // Support UC column
+                        };
+                        
+                        // Set it on the item directly too for consistency with cart
+                        if (resolvedDtName) {
+                            item.discountType = resolvedDtName;
+                        }
+                    }
+                });
+            }
+
+            return NextResponse.json({ header, items });
+        }
 
         return NextResponse.json({ error: "Invalid action" }, { status: 400 });
     } catch (e: unknown) {
@@ -428,7 +658,13 @@ export async function POST(req: NextRequest) {
         const { header, items } = body;
         const now = new Date();
 
-        // Enhance fallback generation if order_no is missing
+        console.log(`\n>>> [POST /create-sales-order] Received request: order_id=${header.order_id || 'NEW'}, items=${items?.length || 0}`);
+        if (items && items.length > 0) {
+            items.forEach((it: IncomingLineItem, i: number) => {
+                console.log(`  [Recv Item ${i}] detail_id=${it.detail_id}, product_id=${it.product?.product_id}, qty=${it.quantity}`);
+            });
+        }
+
         let orderNo = header.order_no;
         if (!orderNo) {
             let prefix = "SO";
@@ -491,34 +727,46 @@ export async function POST(req: NextRequest) {
             }
         }
 
-        const lineItemsPayload = items.map((item: { unitPrice: number; quantity: number; allocated_quantity?: number; netAmount: number; product: { product_id: number; discount_type?: number }; remarks?: string }) => {
+        const lineItemsPayload = items.map((item: IncomingLineItem, idx: number) => {
             const unitPrice = Number(item.unitPrice) || 0;
             const orderedQty = Number(item.quantity) || 0;
-            const allocatedQty = Number(item.allocated_quantity) || orderedQty;
+            
+            // Direct read from payload -- no guessing
+            const allocatedQty = Number(item.allocated_quantity) || 0;
+
+            console.log(`[CreateSalesOrder] INCOMING item[${idx}]: PID=${item.product?.product_id}, unitPrice=${unitPrice}, orderedQty=${orderedQty}, allocated_quantity=${item.allocated_quantity}, parsed=${allocatedQty}, discountType=${item.discountType || item.product?.discount_type}`);
 
             const orderedGross = unitPrice * orderedQty;
             const orderedNetAmount = Number(item.netAmount) || orderedGross;
-            const totalDiscountOrdered = orderedGross - orderedNetAmount;
-
+            const totalDiscountOrdered = Math.max(0, orderedGross - orderedNetAmount);
             const unitDiscount = orderedQty > 0 ? totalDiscountOrdered / orderedQty : 0;
 
-            const allocatedDiscount = unitDiscount * allocatedQty;
-            const allocatedGross = unitPrice * allocatedQty;
-            const netAmountLine = allocatedGross - allocatedDiscount;
+            const allocatedDiscount = Math.max(0, unitDiscount * allocatedQty);
+            const allocatedGross = Math.max(0, unitPrice * allocatedQty);
+            const netAmountLine = Math.max(0, allocatedGross - allocatedDiscount);
             const allocatedAmountLine = netAmountLine;
 
+            // Resolve discount_type: prefer numeric ID from product, fallback to discountType string if numeric
+            const resolvedDiscountType = item.product?.discount_type
+                || (typeof item.discountType === 'string' && !isNaN(Number(item.discountType)) ? Number(item.discountType) : null);
+
+            console.log(`[CreateSalesOrder] SAVING item[${idx}]: PID=${item.product?.product_id}, allocQty=${allocatedQty}, disc=${allocatedDiscount}, net=${netAmountLine}, discType=${resolvedDiscountType}`);
+
             return {
+                detail_id: item.detail_id,
                 order_id: 0,
                 product_id: item.product.product_id,
                 unit_price: unitPrice,
                 ordered_quantity: orderedQty,
+                quantity: orderedQty,
                 allocated_quantity: allocatedQty,
                 served_quantity: 0,
-                discount_type: item.product?.discount_type || null,
+                discount_type: resolvedDiscountType,
                 discount_amount: allocatedDiscount,
                 gross_amount: allocatedGross,
                 net_amount: netAmountLine,
                 allocated_amount: allocatedAmountLine,
+                uom: item.uom || null,
                 remarks: item.remarks || "",
                 _ordered_gross: orderedGross,
                 _ordered_discount: totalDiscountOrdered
@@ -526,40 +774,103 @@ export async function POST(req: NextRequest) {
         });
 
         const computedTotalAmount = lineItemsPayload.reduce((sum: number, li: { _ordered_gross: number; _ordered_discount: number }) => sum + (li._ordered_gross - li._ordered_discount), 0);
-        const computedDiscountAmount = lineItemsPayload.reduce((sum: number, li: { discount_amount: number }) => sum + li.discount_amount, 0);
-        const computedNetAmount = lineItemsPayload.reduce((sum: number, li: { net_amount: number }) => sum + li.net_amount, 0);
-        const computedAllocatedAmount = lineItemsPayload.reduce((sum: number, li: { allocated_amount: number }) => sum + li.allocated_amount, 0);
+        const computedDiscountAmount = Math.max(0, lineItemsPayload.reduce((sum: number, li: { discount_amount: number }) => sum + li.discount_amount, 0));
+        const computedNetAmount = Math.max(0, lineItemsPayload.reduce((sum: number, li: { net_amount: number }) => sum + li.net_amount, 0));
+        const computedAllocatedAmount = Math.max(0, lineItemsPayload.reduce((sum: number, li: { allocated_amount: number }) => sum + li.allocated_amount, 0));
 
-        const headerPayload = {
-            ...(header.order_id ? { order_id: header.order_id } : {}),
-            order_no: orderNo,
-            po_no: header.po_no || "",
-            customer_code: header.customer_code,
-            salesman_id: header.salesman_id,
-            supplier_id: header.supplier_id,
-            branch_id: branchId,
-            price_type_id: header.price_type_id || null,
-            receipt_type: header.receipt_type,
-            sales_type: header.sales_type || 1,
-            order_date: now.toISOString().split('T')[0],
-            order_status: "For Approval",
-            due_date: header.due_date || null,
-            delivery_date: header.delivery_date || null,
-            total_amount: computedTotalAmount,
-            discount_amount: computedDiscountAmount,
-            net_amount: computedNetAmount,
-            allocated_amount: computedAllocatedAmount,
-            remarks: header.remarks || "",
-            created_by: createdBy,
-            created_date: now.toISOString(),
-            for_approval_at: now.toISOString()
-        };
+        const hasZeroAllocation = lineItemsPayload.some((item: { allocated_quantity: number }) => item.allocated_quantity === 0);
+        // Prioritize manual choice from modal if available
+        const orderStatus = header.order_status || (hasZeroAllocation ? "Draft" : "For Approval");
 
-        const hRes = await fetch(`${DIRECTUS_URL}/items/sales_order`, {
-            method: "POST",
-            headers: fetchHeaders,
-            body: JSON.stringify(headerPayload)
-        });
+        let finalOrderId = header.order_id;
+        // If no ID but we have an order_no, check if it exists to avoid RECORD_NOT_UNIQUE
+        if (!finalOrderId && header.order_no) {
+            try {
+                const checkRes = await fetch(`${DIRECTUS_URL}/items/sales_order?filter[order_no][_eq]=${encodeURIComponent(header.order_no)}&fields=order_id&limit=1`, { headers: fetchHeaders });
+                const checkData = (await checkRes.json()).data;
+                if (checkData && checkData.length > 0) {
+                    finalOrderId = checkData[0].order_id;
+                    console.log(`[CreateSalesOrder] Found existing order by number: ${header.order_no} -> ID: ${finalOrderId}`);
+                }
+            } catch (e) {
+                console.error("Check existing by order_no failed", e);
+            }
+        }
+
+        const nowStr = now.toISOString();
+        const dateOnly = nowStr.split('T')[0];
+
+        let headerPayload: HeaderPayload;
+
+        if (finalOrderId) {
+            // FOR PATCH (Existing Order) - FULL WORKFLOW ENABLED
+            headerPayload = {
+                order_status: orderStatus, // Re-enabled now that trigger is fixed!
+                total_amount: Number(computedTotalAmount),
+                discount_amount: Number(computedDiscountAmount),
+                net_amount: Number(computedNetAmount),
+                allocated_amount: Number(computedAllocatedAmount),
+                remarks: header.remarks || "",
+                modified_by: createdBy,
+                // Update specific timestamps based on status
+                ...(orderStatus === "Draft" ? { draft_at: nowStr } : {}),
+                ...(orderStatus === "Pending" ? { pending_date: nowStr } : {}),
+                ...(orderStatus === "For Approval" ? { for_approval_at: nowStr } : {}),
+            };
+
+            if (header.po_no) headerPayload.po_no = header.po_no;
+            if (header.due_date) headerPayload.due_date = header.due_date;
+            if (header.delivery_date) headerPayload.delivery_date = header.delivery_date;
+            if (header.receipt_type) headerPayload.receipt_type = Number(header.receipt_type);
+            if (header.sales_type) headerPayload.sales_type = Number(header.sales_type);
+            if (header.payment_terms !== undefined) headerPayload.payment_terms = header.payment_terms ? Number(header.payment_terms) : null;
+        } else {
+            // FOR POST (New Order)
+            headerPayload = {
+                order_no: orderNo,
+                po_no: header.po_no || "",
+                customer_code: header.customer_code,
+                salesman_id: header.salesman_id,
+                supplier_id: header.supplier_id,
+                branch_id: branchId,
+                price_type_id: header.price_type_id || null,
+                receipt_type: header.receipt_type,
+                sales_type: header.sales_type || 1,
+                payment_terms: header.payment_terms ? Number(header.payment_terms) : null,
+                order_date: dateOnly,
+                order_status: orderStatus,
+                due_date: header.due_date || null,
+                delivery_date: header.delivery_date || null,
+                total_amount: computedTotalAmount,
+                discount_amount: computedDiscountAmount,
+                net_amount: computedNetAmount,
+                allocated_amount: computedAllocatedAmount,
+                remarks: header.remarks || "",
+                created_by: createdBy,
+                created_date: nowStr,
+                ...(orderStatus === "Draft" ? { draft_at: nowStr } : {}),
+                ...(orderStatus === "Pending" ? { pending_date: nowStr } : {}),
+                ...(orderStatus === "For Approval" ? { for_approval_at: nowStr } : {}),
+            };
+        }
+
+        console.log("[CreateSalesOrder] Header Payload:", JSON.stringify(headerPayload));
+
+        let hRes;
+        if (finalOrderId) {
+            // 2. Patch Header
+            hRes = await fetch(`${DIRECTUS_URL}/items/sales_order/${finalOrderId}`, {
+                method: "PATCH",
+                headers: fetchHeaders,
+                body: JSON.stringify(headerPayload)
+            });
+        } else {
+            hRes = await fetch(`${DIRECTUS_URL}/items/sales_order`, {
+                method: "POST",
+                headers: fetchHeaders,
+                body: JSON.stringify(headerPayload)
+            });
+        }
 
         if (!hRes.ok) {
             const errText = await hRes.text();
@@ -568,31 +879,123 @@ export async function POST(req: NextRequest) {
         }
 
         const hJson = await hRes.json();
-        const soId = hJson.data.order_id || hJson.data.id;
+        const targetId = Number(finalOrderId || hJson.data?.order_id || hJson.data?.id || header.order_id);
+        
+        // --- SMART UPSERT (SYNC) LOGIC ---
+        try {
+            // 1. Fetch current items in DB to see what to delete
+            const currentRes = await fetch(`${DIRECTUS_URL}/items/sales_order_details?filter[order_id][_eq]=${targetId}&fields=detail_id,id&limit=-1`, {
+                headers: fetchHeaders,
+                cache: 'no-store'
+            });
+            const currentItems = currentRes.ok ? (await currentRes.json()).data || [] : [];
+            
+            // Map IDs robustly from DB (using detail_id primarily)
+            const currentIds = currentItems.map((it: { detail_id?: number | string; id?: number | string }) => Number(it.detail_id || it.id)).filter((n: number) => !isNaN(n) && n > 0);
 
-        const finalLineItems = lineItemsPayload.map((item: { _ordered_gross?: number; _ordered_discount?: number;[key: string]: unknown }) => {
-            const li = { ...item };
-            delete li._ordered_gross;
-            delete li._ordered_discount;
-            return { ...li, order_id: soId };
-        });
+            // Get IDs from incoming items (those to KEEP)
+            const incomingIds = items.map((it: IncomingLineItem) => Number(it.detail_id || it.id || it.order_detail_id)).filter((n: number) => !isNaN(n) && n > 0);
 
-        const itemsRes = await fetch(`${DIRECTUS_URL}/items/sales_order_details`, {
-            method: "POST",
-            headers: fetchHeaders,
-            body: JSON.stringify(finalLineItems)
-        });
+            const idsToDelete = currentIds.filter((id: number) => !incomingIds.includes(id));
+            const incomingWithIds = lineItemsPayload.filter((it: { detail_id?: number | string }) => it.detail_id);
+            const incomingNew = lineItemsPayload.filter((it: { detail_id?: number | string }) => !it.detail_id);
 
-        if (!itemsRes.ok) {
-            const errText = await itemsRes.text();
-            console.error("Lines Save Error:", errText);
-            return NextResponse.json({ success: false, error: errText });
+            console.log(`\n========== [SmartSync] Order ${targetId} ==========`);
+            console.log(`  DB has ${currentIds.length} item(s): [${currentIds.join(", ")}]`);
+            console.log(`  Frontend sent ${incomingIds.length} item(s): [${incomingIds.join(", ")}]`);
+            console.log(`  Items to DELETE: ${idsToDelete.length > 0 ? `[${idsToDelete.join(", ")}]` : "none"}`);
+            console.log(`  Items to UPDATE: ${incomingWithIds.length}`);
+            console.log(`  Items to INSERT: ${incomingNew.length}`);
+            console.log(`===============================================\n`);
+
+            // 2. Perform DELETES — delete each removed item from DB individually
+            for (const idToDelete of idsToDelete) {
+                console.log(`[SmartSync] Deleting detail_id=${idToDelete} from DB...`);
+                const delRes = await fetch(`${DIRECTUS_URL}/items/sales_order_details/${idToDelete}`, {
+                    method: "DELETE",
+                    headers: fetchHeaders
+                });
+                if (!delRes.ok) {
+                    const errText = await delRes.text();
+                    console.error(`[SmartSync] FAILED to delete detail_id=${idToDelete}: ${errText}`);
+                    throw new Error(`Failed to delete order detail ${idToDelete}: ${errText}`);
+                }
+                console.log(`[SmartSync] SUCCESS deleted detail_id=${idToDelete}`);
+            }
+
+            // 3. Perform UPDATES (PATCH)
+            if (incomingWithIds.length > 0) {
+                for (const item of incomingWithIds) {
+                    const pk = item.detail_id;
+                    const updatePayload = { ...item };
+                    delete updatePayload.detail_id;
+                    delete updatePayload._ordered_gross;
+                    delete updatePayload._ordered_discount;
+                    updatePayload.order_id = targetId;
+
+                    await fetch(`${DIRECTUS_URL}/items/sales_order_details/${pk}`, {
+                        method: "PATCH",
+                        headers: { ...fetchHeaders, "Content-Type": "application/json" },
+                        body: JSON.stringify(updatePayload)
+                    });
+                }
+            }
+
+            // 4. Perform INSERTS (POST) for brand new items
+            if (incomingNew.length > 0) {
+                const inserts = incomingNew.map((item: Record<string, unknown>) => {
+                    const li = { ...item };
+                    delete li.detail_id; // Remove detail_id if present for new items
+                    delete li._ordered_gross;
+                    delete li._ordered_discount;
+                    return { ...li, order_id: targetId };
+                });
+
+                const itemsRes = await fetch(`${DIRECTUS_URL}/items/sales_order_details`, {
+                    method: "POST",
+                    headers: fetchHeaders,
+                    body: JSON.stringify(inserts)
+                });
+                
+                if (!itemsRes.ok) {
+                    console.error("Lines Insert Error:", await itemsRes.text());
+                }
+            }
+
+        } catch (syncErr) {
+            console.error("[CreateSalesOrder] Sync Logic Error:", syncErr);
+            return NextResponse.json({ success: false, error: "Line Item Sync Failed" });
+        }
+        // --- END SMART SYNC ---
+
+        if (header.attachment_id) {
+            console.log(`[CreateSalesOrder] Processing attachment linkage for ID: ${header.attachment_id}, Target SO ID: ${targetId}`);
+            try {
+                // Link the attachment and mark as Approved to indicate it's been processed
+                const attachRes = await fetch(`${DIRECTUS_URL}/items/sales_order_attachment/${header.attachment_id}`, {
+                    method: "PATCH",
+                    headers: fetchHeaders,
+                    body: JSON.stringify({
+                        order_id: targetId, // Ensure it's a number
+                        status: "Approved"
+                    })
+                });
+
+                if (attachRes.ok) {
+                    console.log(`[CreateSalesOrder] SUCCESSFULLY linked attachment ${header.attachment_id} to SO ${targetId}`);
+                } else {
+                    const attachErr = await attachRes.text();
+                    console.error(`[CreateSalesOrder] Attachment Update FAILED for ${header.attachment_id}:`, attachErr);
+                }
+            } catch (e) {
+                console.error("[CreateSalesOrder] Back-linking attachment exception:", e);
+            }
         }
 
-        return NextResponse.json({ success: true, order_no: orderNo });
+        return NextResponse.json({ success: true, order_no: orderNo, order_id: targetId });
     } catch (e: unknown) {
         const err = e as Error;
-        console.error("Submission Exception:", err);
+        console.error("[CreateSalesOrder] Submission Exception:", err);
         return NextResponse.json({ success: false, error: err.message });
     }
 }

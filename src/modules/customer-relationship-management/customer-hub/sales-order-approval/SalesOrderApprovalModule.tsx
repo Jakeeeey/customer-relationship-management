@@ -50,6 +50,7 @@ export default function SalesOrderApprovalModule() {
         handleApprove,
         handleHold,
         handleCancel,
+        handleSubmitForApproval,
         handleSaveDetails,
         refreshOrders
     } = useSalesOrderApproval();
@@ -135,18 +136,9 @@ export default function SalesOrderApprovalModule() {
                             <SelectValue placeholder="Status" />
                         </SelectTrigger>
                         <SelectContent>
-                            <SelectItem value="All">All Statuses</SelectItem>
                             <SelectItem value="For Approval">For Approval</SelectItem>
-                            <SelectItem value="For Consolidation">For Consolidation</SelectItem>
-                            <SelectItem value="For Picking">For Picking</SelectItem>
-                            <SelectItem value="For Invoicing">For Invoicing</SelectItem>
-                            <SelectItem value="For Loading">For Loading</SelectItem>
-                            <SelectItem value="For Shipping">For Shipping</SelectItem>
-                            <SelectItem value="En Route">En Route</SelectItem>
-                            <SelectItem value="Delivered">Delivered</SelectItem>
                             <SelectItem value="On Hold">On Hold</SelectItem>
                             <SelectItem value="Cancelled">Cancelled</SelectItem>
-                            <SelectItem value="Not Fulfilled">Not Fulfilled</SelectItem>
                         </SelectContent>
                     </Select>
                 </div>
@@ -191,12 +183,12 @@ export default function SalesOrderApprovalModule() {
                             orders.map((order) => {
                                 const status = order.order_status;
 
-                                let badgeColor = "bg-secondary text-secondary-foreground";
-                                if (status === "For Approval") badgeColor = "bg-amber-100 text-amber-800 border-amber-200";
-                                else if (status === "For Consolidation") badgeColor = "bg-purple-100 text-purple-800 border-purple-200";
-                                else if (status === "Delivered") badgeColor = "bg-emerald-100 text-emerald-800 border-emerald-200";
+                                let badgeColor = "bg-secondary text-secondary-foreground border-border";
+                                if (status === "For Approval") badgeColor = "bg-amber-500/10 text-amber-600 border-amber-500/20 dark:bg-amber-500/20 dark:text-amber-400 dark:border-amber-500/30";
+                                else if (status === "For Consolidation") badgeColor = "bg-purple-500/10 text-purple-600 border-purple-500/20 dark:bg-purple-500/20 dark:text-purple-400 dark:border-purple-500/30";
+                                else if (status === "Delivered") badgeColor = "bg-success/10 text-success border-success/20 dark:bg-success/20 dark:text-success dark:border-success/30";
                                 else if (status === "Cancelled") badgeColor = "bg-destructive/10 text-destructive border-destructive/20";
-                                else if (status === "On Hold") badgeColor = "bg-slate-200 text-slate-900 border-slate-300";
+                                else if (status === "On Hold") badgeColor = "bg-slate-500/10 text-slate-600 border-slate-500/20 dark:bg-slate-500/20 dark:text-slate-400 dark:border-slate-500/30";
 
                                 return (
                                     <TableRow
@@ -218,7 +210,7 @@ export default function SalesOrderApprovalModule() {
                                         <TableCell className="text-right text-muted-foreground">
                                             {formatCurrency(order.total_amount)}
                                         </TableCell>
-                                        <TableCell className="text-right text-emerald-600 font-bold">
+                                        <TableCell className="text-right text-success font-bold">
                                             {formatCurrency(order.net_amount)}
                                         </TableCell>
                                         <TableCell className="text-center">
@@ -267,7 +259,9 @@ export default function SalesOrderApprovalModule() {
                 onApprove={handleApprove}
                 onHold={handleHold}
                 onCancel={handleCancel}
+                onSubmitForApproval={handleSubmitForApproval}
                 onSaveDetails={handleSaveDetails}
+                isEditable={true}
             />
         </div>
     );

@@ -12,7 +12,7 @@ import { NavUser } from "../../_components/nav-user";
 
 import { cookies } from "next/headers";
 
-import { CreateSalesOrderModule } from "@/modules/customer-relationship-management/customer-hub/create-sales-order";
+import SalesOrderDraftModule from "@/modules/customer-relationship-management/customer-hub/sales-order-draft/SalesOrderDraftModule";
 
 export const dynamic = "force-dynamic";
 
@@ -70,50 +70,15 @@ function buildHeaderUserFromToken(token: string | null | undefined) {
     };
 }
 
-export default async function Page(props: {
-    searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
-}) {
-    const searchParams = await props.searchParams;
-    const attachmentId = searchParams.attachment_id as string | undefined;
-
-    // ✅ Next.js 16: cookies() is async
+export default async function Page() {
     const cookieStore = await cookies();
     const token = cookieStore.get(COOKIE_NAME)?.value ?? null;
 
     const headerUser = buildHeaderUserFromToken(token);
 
-    let fileUrl = null;
-
-    if (attachmentId) {
-        try {
-            const DIRECTUS_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
-            const DIRECTUS_TOKEN = process.env.DIRECTUS_STATIC_TOKEN;
-
-            const res = await fetch(`${DIRECTUS_URL}/items/sales_order_attachment/${attachmentId}?fields=file_id,attachment_name`, {
-                headers: {
-                    Authorization: `Bearer ${DIRECTUS_TOKEN}`,
-                    "Content-Type": "application/json"
-                },
-                cache: 'no-store'
-            });
-
-            if (res.ok) {
-                const json = await res.json();
-                const attachment = json.data;
-                if (attachment?.file_id) {
-                    const encodedName = encodeURIComponent(attachment.attachment_name);
-                    fileUrl = `/api/crm/customer-hub/callsheet/file?id=${attachment.file_id}&filename=${encodedName}`;
-                }
-            }
-        } catch (e) {
-            console.error("Failed to fetch attachment for header button:", e);
-        }
-    }
-
     return (
-        // ✅ This fills the RIGHT column provided by SidebarInset (which is now fixed-height).
         <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-            {/* ✅ Topbar is fixed in place because ONLY <main> scrolls */}
+            {/* Topbar is fixed in place because ONLY <main> scrolls */}
             <header className="relative z-10 flex h-14 shrink-0 items-center justify-between border-b shadow-sm bg-background sm:h-16 overflow-hidden">
                 <div className="flex h-full min-w-0 items-center gap-2 px-3 sm:px-4 overflow-hidden">
                     <SidebarTrigger className="-ml-1 shrink-0" />
@@ -132,7 +97,7 @@ export default async function Page(props: {
                                 <BreadcrumbSeparator className="hidden md:block shrink-0" />
                                 <BreadcrumbItem className="min-w-0 overflow-hidden">
                                     <BreadcrumbPage className="truncate max-w-[56vw] sm:max-w-[60vw] md:max-w-none">
-                                        Sales Order
+                                        Sales Order Draft
                                     </BreadcrumbPage>
                                 </BreadcrumbItem>
                             </BreadcrumbList>
@@ -145,9 +110,9 @@ export default async function Page(props: {
                 </div>
             </header>
 
-            {/* ✅ Only content scrolls inside RIGHT column */}
+            {/* Only content scrolls inside RIGHT column */}
             <main className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden p-6 sm:p-8">
-                <CreateSalesOrderModule fileUrl={fileUrl} />
+                <SalesOrderDraftModule />
             </main>
         </div>
     );
