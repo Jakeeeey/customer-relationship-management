@@ -45,8 +45,8 @@ export function useSalesOrder() {
     const [salesTypes, setSalesTypes] = useState<SalesType[]>([]);
     const [selectedSalesTypeId, setSelectedSalesTypeId] = useState<string>("1");
 
-    const [dueDate, setDueDate] = useState<string>("");
-    const [deliveryDate, setDeliveryDate] = useState<string>("");
+    const [dueDate, setDueDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
+    const [deliveryDate, setDeliveryDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
     const [poNo, setPoNo] = useState("");
     const [priceType, setPriceType] = useState<string>("A");
     const [priceTypeId, setPriceTypeId] = useState<number | null>(null);
@@ -68,6 +68,16 @@ export function useSalesOrder() {
     const [existingOrderId, setExistingOrderId] = useState<number | null>(null);
     const [existingOrderStatus, setExistingOrderStatus] = useState<string>("");
     const [paymentTerms, setPaymentTerms] = useState<number | null>(null);
+
+    // --- AUTO-DATE CALCULATION ---
+    useEffect(() => {
+        // If paymentTerms is a number (including 0 for COD), calculate due date
+        if (paymentTerms !== null && paymentTerms !== undefined) {
+            const today = new Date();
+            const futureDate = new Date(today.getTime() + (paymentTerms * 24 * 60 * 60 * 1000));
+            setDueDate(futureDate.toISOString().split('T')[0]);
+        }
+    }, [paymentTerms]);
 
     const selectedSalesman = useMemo(() => Array.isArray(salesmen) ? salesmen.find(s => (s.user_id || s.id)?.toString() === selectedSalesmanId) : undefined, [salesmen, selectedSalesmanId]);
     const selectedAccount = useMemo(() => Array.isArray(accounts) ? accounts.find(a => a.id.toString() === selectedAccountId) : undefined, [accounts, selectedAccountId]);
@@ -795,8 +805,7 @@ export function useSalesOrder() {
                 setExistingOrderStatus("");
                 setExistingOrderNo("");
 
-                // Optional: Force a refresh of product inventory if needed
-                // But definitely avoid the jarring reload
+                // Just confirmation, since state is already reset
             } else {
                 console.error(`[SubmitOrder] FAILED: ${res.error}`);
                 toast.error(res.error || "Failed to create order");

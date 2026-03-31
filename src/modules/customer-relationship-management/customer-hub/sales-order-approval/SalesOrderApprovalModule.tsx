@@ -261,7 +261,6 @@ export default function SalesOrderApprovalModule() {
                 onCancel={handleCancel}
                 onSubmitForApproval={handleSubmitForApproval}
                 onSaveDetails={handleSaveDetails}
-                isEditable={true}
             />
         </div>
     );
