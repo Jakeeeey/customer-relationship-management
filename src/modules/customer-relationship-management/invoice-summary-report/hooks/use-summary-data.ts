@@ -11,6 +11,7 @@ interface ApiInvoiceItem {
   reason_code?: string | null;
   remarks?: string | null;
   status?: string;
+  approver_name?: string | null; // 🚀 FIX: Added to interface
 }
 
 export function useSummaryData() {
@@ -20,24 +21,21 @@ export function useSummaryData() {
   const fetchData = useCallback(async () => {
     setIsLoading(true);
     try {
-      // 🚀 FIX 1: Fetch a large batch so your dashboard charts have data to aggregate
       const response = await fetch("/api/crm/invoice-summary-report?page=0&size=1000");
       const json = await response.json();
 
-      // 🚀 FIX 2: Spring Boot pagination puts the array inside 'content', not 'data'
       const rawItems = json.content || [];
 
-      // 🚀 FIX 3: The Translation Layer! Map backend keys to your UI's expected keys
       const mappedData: InvoiceReportRow[] = rawItems.map((item: ApiInvoiceItem) => ({
-        date_time: item.date_approved || null, // Map from date_approved
-        original_invoice: String(item.invoice_no || "N/A"), // Map from invoice_no
-        sales_order_no: item.sales_order_id || "N/A", // Map from sales_order_id
-        customer_name: item.customer_code || "Unknown Customer", // Map from customer_code
-        amount: Number(item.total_amount) || 0, // Map from total_amount
-        defect_reason: item.reason_code || "Uncategorized", // Map from reason_code
-        csr_remarks: item.remarks || null, // Map from remarks
-        approver: null, // Default to null until your backend provides the approver's name
-        status: item.status || "PENDING",
+        date_time: item.date_approved || null,
+        original_invoice: String(item.invoice_no || "N/A"),
+        sales_order_no: String(item.sales_order_id || "N/A"),
+        customer_name: item.customer_code || "Unknown Customer",
+        amount: Number(item.total_amount) || 0,
+        defect_reason: item.reason_code || "Uncategorized",
+        csr_remarks: item.remarks || null,
+        approver: item.approver_name || null, // 🚀 FIX: Successfully mapped to the UI!
+        status: (item.status as "PENDING" | "APPROVED" | "REJECTED") || "PENDING",
       }));
 
       setRawData(mappedData);
