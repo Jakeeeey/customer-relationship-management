@@ -1,6 +1,18 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { InvoiceReportRow } from "../types";
 
+// Type for the raw API response item
+interface ApiInvoiceItem {
+  date_approved?: string | null;
+  invoice_no?: string | number | null;
+  sales_order_id?: string | number | null;
+  customer_code?: string | null;
+  total_amount?: number | null;
+  reason_code?: string | null;
+  remarks?: string | null;
+  status?: string;
+}
+
 export function useSummaryData() {
   const [rawData, setRawData] = useState<InvoiceReportRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -16,16 +28,7 @@ export function useSummaryData() {
       const rawItems = json.content || [];
 
       // 🚀 FIX 3: The Translation Layer! Map backend keys to your UI's expected keys
-      const mappedData: InvoiceReportRow[] = rawItems.map((item: {
-        date_approved?: string | null;
-        invoice_no?: string | number;
-        sales_order_id?: string | number;
-        customer_code?: string;
-        total_amount?: number;
-        reason_code?: string;
-        remarks?: string | null;
-        status?: string;
-      }) => ({
+      const mappedData: InvoiceReportRow[] = rawItems.map((item: ApiInvoiceItem) => ({
         date_time: item.date_approved || null, // Map from date_approved
         original_invoice: String(item.invoice_no || "N/A"), // Map from invoice_no
         sales_order_no: item.sales_order_id || "N/A", // Map from sales_order_id

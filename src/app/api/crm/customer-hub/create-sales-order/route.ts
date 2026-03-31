@@ -874,11 +874,23 @@ export async function POST(req: NextRequest) {
 
         if (!hRes.ok) {
             const errText = await hRes.text();
-            console.error("Header Save Error:", errText);
+            console.error(`[CreateSalesOrder] Header Save Error (Status: ${hRes.status}):`, errText);
             return NextResponse.json({ success: false, error: errText });
         }
 
-        const hJson = await hRes.json();
+        const hText = await hRes.text();
+        let hJson: { data?: { order_id?: number | string; id?: number | string } } = {};
+        if (hText.trim()) {
+            try {
+                hJson = JSON.parse(hText);
+            } catch {
+                console.error("[CreateSalesOrder] Failed to parse Header response JSON:", hText);
+                // We keep hJson empty but don't crash
+            }
+        } else {
+            console.log(`[CreateSalesOrder] Header save successful but returned empty body (Status: ${hRes.status})`);
+        }
+
         const targetId = Number(finalOrderId || hJson.data?.order_id || hJson.data?.id || header.order_id);
         
         // --- SMART UPSERT (SYNC) LOGIC ---

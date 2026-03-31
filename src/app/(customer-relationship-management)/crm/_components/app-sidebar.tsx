@@ -12,6 +12,7 @@ import {
     PersonStanding,
     StoreIcon,
     MapPin, PlusIcon, LucideChevronUp,
+    WalletCards
 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
@@ -50,8 +51,8 @@ const data = {
                     url: "/crm/customer-hub/customer-map",
                     icon: MapPin,
                 }, {
-                    title: "Customer Prospects",
-                    url: "/crm/customer-management/customer-map", // 🚀 FIX: Updated unique URL
+                    title: "Customer Prospect",
+                    url: "/crm/customer-management/customer-prospect", // 🚀 FIX: Updated unique URL
                     icon: PlusIcon,
                 },
             ]
@@ -85,6 +86,11 @@ const data = {
                     title: "Create Sales Order",
                     url: "/crm/customer-hub/create-sales-order",
                     icon: ShoppingCart,
+                },
+                {
+                    title: "Sales Order Draft",
+                    url: "/crm/customer-hub/sales-order-draft",
+                    icon: WalletCards,
                 },
                 {
                     title: "Sales Order Approval",
