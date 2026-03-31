@@ -79,7 +79,18 @@ export function SalesOrderEncoding({
                                                     {p.display_name}
                                                 </span>
 
-                                                {/* Removed Brand/Category Badges */}
+                                                <div className="flex flex-wrap gap-1 mt-1">
+                                                    {p.brand_name && (
+                                                        <Badge variant="outline" className="text-[7px] font-black uppercase px-1 py-0 border-blue-100 bg-blue-50/50 text-blue-500 leading-none">
+                                                            {p.brand_name}
+                                                        </Badge>
+                                                    )}
+                                                    {p.category_name && (
+                                                        <Badge variant="outline" className="text-[7px] font-black uppercase px-1 py-0 border-slate-100 bg-slate-50/50 text-slate-400 leading-none">
+                                                            {p.category_name}
+                                                        </Badge>
+                                                    )}
+                                                </div>
 
                                                 <div className="flex items-center justify-between mt-2">
                                                     <div className="flex flex-col">
@@ -94,19 +105,12 @@ export function SalesOrderEncoding({
                                                             </span>
                                                         </div>
                                                         <span className="text-[9px] text-muted-foreground font-black tracking-tighter">
-                                                            {p.discount_level} {p.uom ? `• ${p.uom}` : ''}
+                                                            {p.uom || ''}
                                                             <span className="ml-2 text-indigo-500">• Avail: {Number(p.available_qty) || 0}</span>
                                                         </span>
                                                     </div>
                                                     <div className="flex gap-1 items-center">
-                                                        <div className="flex gap-1">
-                                                            {p.discount_level && (
-                                                                <span className="text-[10px] font-black px-1.5 py-0.5 bg-amber-500/10 text-amber-600 rounded border border-amber-500/20 dark:bg-amber-500/20 dark:text-amber-400 dark:border-amber-500/30 uppercase tracking-tighter shadow-sm">
-                                                                    {p.discount_level}
-                                                                </span>
-                                                            )}
-                                                            {!p.discount_level && <span className="text-[10px] text-slate-300 italic">No Discount</span>}
-                                                        </div>
+                                                        {/* Discount badge removed */}
                                                     </div>
                                                 </div>
                                             </div>
@@ -159,9 +163,17 @@ export function SalesOrderEncoding({
                                             <TableCell>
                                                 <div className="flex flex-col">
                                                     <span className="font-bold text-[11px] leading-tight text-slate-900">{item.product.display_name}</span>
-                                                    {/* Removed Brand/Category Badges */}
-                                                    <div className="flex items-center gap-2 mt-1">
-                                                        <span className="text-[9px] text-primary/70 font-black tracking-tighter">{item.discountType}</span>
+                                                    <div className="flex flex-wrap gap-1 mt-1">
+                                                        {item.product.brand_name && (
+                                                            <Badge variant="outline" className="text-[7px] font-black uppercase px-1 py-0 border-blue-100 bg-blue-50/50 text-blue-500">
+                                                                {item.product.brand_name}
+                                                            </Badge>
+                                                        )}
+                                                        {item.product.category_name && (
+                                                            <Badge variant="outline" className="text-[7px] font-black uppercase px-1 py-0 border-slate-100 bg-slate-50/50 text-slate-400">
+                                                                {item.product.category_name}
+                                                            </Badge>
+                                                        )}
                                                     </div>
                                                 </div>
                                             </TableCell>

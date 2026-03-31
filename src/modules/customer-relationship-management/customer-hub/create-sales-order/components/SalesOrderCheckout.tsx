@@ -197,9 +197,6 @@ export function SalesOrderCheckout({
                                                                 <Badge variant="outline" className="text-[9px] font-black px-1.5 py-0 border-slate-200 text-slate-400">
                                                                     {item.uom}
                                                                 </Badge>
-                                                                <span className="text-[10px] font-bold text-emerald-600 tracking-tighter">
-                                                                    {item.discountType}
-                                                                </span>
                                                             </div>
                                                         </div>
                                                     </TableCell>

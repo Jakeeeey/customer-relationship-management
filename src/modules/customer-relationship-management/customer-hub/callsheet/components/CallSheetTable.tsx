@@ -10,16 +10,12 @@ import {
     TableRow,
 } from "@/components/ui/table";
 import {
-    Pagination,
-    PaginationContent,
-    PaginationItem,
-    PaginationNext,
-    PaginationPrevious,
     PaginationEllipsis,
 } from "@/components/ui/pagination";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 import {
     Tooltip,
     TooltipContent,
@@ -295,47 +291,68 @@ export function CallSheetTable({
                     </Table>
                 </div>
 
-                {/* Pagination */}
+                {/* Professional Pagination Section */}
                 {totalPages > 1 && (
-                    <div className="flex items-center justify-between px-2 pt-2 pb-6">
-                        <p className="text-xs text-muted-foreground font-medium italic">
-                            Showing {data.length} of {metadata.total_count} callsheet records
-                        </p>
-                        <Pagination className="w-auto ml-auto">
-                            <PaginationContent>
-                                <PaginationItem>
-                                    <PaginationPrevious
-                                        onClick={() => onPageChange(Math.max(1, page - 1))}
-                                        className={`h-9 w-9 p-0 bg-background border shadow-sm transition-all hover:bg-muted active:scale-90 ${page <= 1 ? "pointer-events-none opacity-40" : "cursor-pointer"}`}
-                                    />
-                                </PaginationItem>
+                    <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-2 pt-4 pb-8 border-t border-border/20">
+                        <div className="flex flex-col gap-0.5">
+                            <p className="text-[10px] uppercase font-black text-muted-foreground tracking-widest opacity-40">Records Statistics</p>
+                            <p className="text-xs text-muted-foreground font-bold">
+                                Displaying <span className="text-foreground">{data.length}</span> of <span className="text-foreground">{metadata.total_count}</span> callsheet records
+                            </p>
+                        </div>
+                        
+                        <div className="flex items-center gap-2">
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => onPageChange(Math.max(1, page - 1))}
+                                disabled={page <= 1}
+                                className={cn(
+                                    "h-9 px-4 gap-2 font-bold text-[11px] uppercase tracking-wider transition-all rounded-xl border-border bg-background shadow-sm hover:translate-y-[-2px] hover:shadow-md active:translate-y-[0px]",
+                                    page <= 1 ? "opacity-30 grayscale pointer-events-none" : "hover:border-primary hover:text-primary"
+                                )}
+                            >
+                                <span className="h-4 w-4 flex items-center justify-center">←</span>
+                                Previous
+                            </Button>
 
-                                <div className="flex items-center gap-1 px-3">
-                                    {getPageNumbers().map((p, i) =>
-                                        p === "ellipsis" ? (
-                                            <PaginationEllipsis key={`ellipsis-${i}`} className="h-4 w-4" />
-                                        ) : (
-                                            <Button
-                                                key={p}
-                                                variant={page === p ? "default" : "ghost"}
-                                                size="icon"
-                                                className={`h-8 w-8 text-xs font-bold transition-all rounded-lg ${page === p ? "shadow-md shadow-primary/20 scale-110" : "hover:bg-primary/5 hover:text-primary"}`}
-                                                onClick={() => onPageChange(p)}
-                                            >
-                                                {p}
-                                            </Button>
-                                        )
-                                    )}
-                                </div>
+                            <div className="flex items-center gap-1.5 px-3 py-1 bg-muted/20 rounded-2xl border border-border/30">
+                                {getPageNumbers().map((p, i) =>
+                                    p === "ellipsis" ? (
+                                        <PaginationEllipsis key={`ellipsis-${i}`} className="h-4 w-4" />
+                                    ) : (
+                                        <Button
+                                            key={p}
+                                            variant={page === p ? "default" : "ghost"}
+                                            size="icon"
+                                            className={cn(
+                                                "h-8 w-8 text-[11px] font-black transition-all rounded-lg",
+                                                page === p 
+                                                    ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20 scale-110 z-10" 
+                                                    : "text-muted-foreground hover:bg-primary/10 hover:text-primary"
+                                            )}
+                                            onClick={() => onPageChange(p)}
+                                        >
+                                            {p}
+                                        </Button>
+                                    )
+                                )}
+                            </div>
 
-                                <PaginationItem>
-                                    <PaginationNext
-                                        onClick={() => onPageChange(Math.min(totalPages, page + 1))}
-                                        className={`h-9 w-9 p-0 bg-background border shadow-sm transition-all hover:bg-muted active:scale-90 ${page >= totalPages ? "pointer-events-none opacity-40" : "cursor-pointer"}`}
-                                    />
-                                </PaginationItem>
-                            </PaginationContent>
-                        </Pagination>
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => onPageChange(Math.min(totalPages, page + 1))}
+                                disabled={page >= totalPages}
+                                className={cn(
+                                    "h-9 px-4 gap-2 font-bold text-[11px] uppercase tracking-wider transition-all rounded-xl border-border bg-background shadow-sm hover:translate-y-[-2px] hover:shadow-md active:translate-y-[0px]",
+                                    page >= totalPages ? "opacity-30 grayscale pointer-events-none" : "hover:border-primary hover:text-primary"
+                                )}
+                            >
+                                Next
+                                <span className="h-4 w-4 flex items-center justify-center">→</span>
+                            </Button>
+                        </div>
                     </div>
                 )}
             </div>
