@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { useSalesOrderApproval, SalesOrder } from "./hooks/useSalesOrderApproval";
-import ApprovalModal from "./components/ApprovalModal";
+import { ApprovalModal } from "./components/ApprovalModal";
 import {
     Table,
     TableBody,
