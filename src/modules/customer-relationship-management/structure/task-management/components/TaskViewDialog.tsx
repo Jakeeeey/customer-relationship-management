@@ -1,7 +1,7 @@
 // src/modules/customer-relationship-management/structure/task-management/components/TaskViewDialog.tsx
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { 
     Dialog, 
     DialogContent, 
