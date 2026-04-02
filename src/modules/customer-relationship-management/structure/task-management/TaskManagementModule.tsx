@@ -124,6 +124,7 @@ export default function TaskManagementModule() {
             />
 
             <TaskViewDialog
+                key={selectedDate ? `view-${selectedDate.toISOString()}` : "view-none"}
                 isOpen={isViewDialogOpen}
                 onClose={() => setIsViewDialogOpen(false)}
                 dayTasks={selectedDate ? getTasksForDay(selectedDate) : []}

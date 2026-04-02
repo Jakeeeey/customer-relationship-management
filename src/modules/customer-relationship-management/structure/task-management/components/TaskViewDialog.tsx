@@ -62,17 +62,10 @@ export const TaskViewDialog: React.FC<TaskViewDialogProps> = ({
     onUpdateTask,
     onDeleteTask,
 }) => {
-    const [selectedTaskId, setSelectedTaskId] = useState<number | "new" | null>(null);
-
-    useEffect(() => {
-        if (isOpen && selectedTaskId === null) {
-            if (dayTasks.length === 0) {
-                setSelectedTaskId("new");
-            } else {
-                setSelectedTaskId(dayTasks[0].id);
-            }
-        }
-    }, [isOpen, dayTasks, selectedTaskId]);
+    const [selectedTaskId, setSelectedTaskId] = useState<number | "new" | null>(() => {
+        if (dayTasks.length === 0) return "new";
+        return dayTasks[0].id;
+    });
 
     const onOpenChange = (open: boolean) => {
         if (!open) {

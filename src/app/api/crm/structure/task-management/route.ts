@@ -29,7 +29,7 @@ function decodeUserIdFromJwt(token: string): number | null {
     }
 }
 
-export async function GET(_req: NextRequest) {
+export async function GET() {
     const cookieStore = await cookies();
     const token = cookieStore.get("vos_access_token")?.value;
 
