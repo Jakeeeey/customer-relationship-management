@@ -133,8 +133,15 @@ export const useTaskManagement = () => {
 
     const handleCreateTask = async (taskData: Partial<DailyActionPlan>) => {
         try {
+            const employeeId = taskData.employee_id || parseInt(selectedEmployeeId);
+            const employee = data?.users.find(u => u.user_id === employeeId);
+            const employeeName = employee ? `${employee.user_fname} ${employee.user_lname}` : null;
+            const employeeEmail = employee?.user_email || null;
+
             const payload = {
                 ...taskData,
+                employee_name: employeeName,
+                employee_email: employeeEmail,
                 date: taskData.date || format(new Date(), "yyyy-MM-dd"),
                 created_at: new Date().toISOString().slice(0, 19).replace('T', ' '),
                 created_by: data?.currentUserId,
@@ -156,7 +163,18 @@ export const useTaskManagement = () => {
 
     const handleUpdateTask = async (id: number, taskData: Partial<DailyActionPlan>) => {
         try {
-            const success = await updateDailyActionPlan(id, taskData);
+            const employeeId = taskData.employee_id || parseInt(selectedEmployeeId);
+            const employee = data?.users.find(u => u.user_id === employeeId);
+            const employeeName = employee ? `${employee.user_fname} ${employee.user_lname}` : null;
+            const employeeEmail = employee?.user_email || null;
+
+            const payload = {
+                ...taskData,
+                employee_name: employeeName,
+                employee_email: employeeEmail,
+            };
+
+            const success = await updateDailyActionPlan(id, payload);
             if (success) {
                 toast.success("Task updated successfully");
                 fetchTasks(); // Refresh

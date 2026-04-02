@@ -80,6 +80,8 @@ export interface DailyActionPlan {
     customer_id: number | null;
     salesman_id: number | null;
     employee_id?: number | null;
+    employee_name?: string | null;
+    employee_email?: string | null;
     created_by: number;
     created_at: string;
 }
