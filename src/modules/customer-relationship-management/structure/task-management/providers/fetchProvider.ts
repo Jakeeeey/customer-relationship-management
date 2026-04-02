@@ -1,5 +1,4 @@
-// src/modules/customer-relationship-management/structure/task-management/providers/fetchProvider.ts
-import { TaskManagementData } from "../types";
+import { TaskManagementData, DailyActionPlan } from "../types";
 
 const API_ENDPOINT = "/api/crm/structure/task-management";
 
@@ -12,7 +11,7 @@ export const fetchTaskManagementData = async (): Promise<TaskManagementData & { 
     return res.json();
 };
 
-export const createDailyActionPlan = async (data: any): Promise<boolean> => {
+export const createDailyActionPlan = async (data: Partial<DailyActionPlan>): Promise<boolean> => {
     const res = await fetch(API_ENDPOINT, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -26,7 +25,7 @@ export const createDailyActionPlan = async (data: any): Promise<boolean> => {
     return true;
 };
 
-export const updateDailyActionPlan = async (id: number, data: any): Promise<boolean> => {
+export const updateDailyActionPlan = async (id: number, data: Partial<DailyActionPlan>): Promise<boolean> => {
     const res = await fetch(API_ENDPOINT, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },

@@ -1,7 +1,7 @@
 import React from "react";
 import { DailyActionPlan } from "../types";
 import { cn } from "@/lib/utils";
-import { format, startOfMonth, endOfMonth, getDay, isToday } from "date-fns";
+import { format, startOfMonth, getDay, isToday } from "date-fns";
 
 interface TaskCalendarProps {
     days: Date[];
@@ -50,7 +50,7 @@ export const TaskCalendar: React.FC<TaskCalendarProps> = ({
                     <div key={`pad-${p}`} className="h-28 md:h-32 bg-muted/10 opacity-50" />
                 ))}
 
-                {days.map((day, idx) => {
+                {days.map((day) => {
                     const tasks = getTasksForDay(day);
                     const total = tasks.length;
                     const accomplished = tasks.filter(t => t.is_completed === 1).length;

@@ -34,7 +34,7 @@ interface TaskFormProps {
     initialData?: DailyActionPlan | null;
     tasks: Task[];
     customers: Customer[];
-    onSubmit: (data: any) => Promise<boolean>;
+    onSubmit: (data: Partial<DailyActionPlan>) => Promise<boolean>;
     onDelete?: (id: number) => Promise<boolean>;
     isSubmitting?: boolean;
     selectedSalesmanId: string;
@@ -96,7 +96,7 @@ export const TaskForm: React.FC<TaskFormProps> = ({
             ...(initialData?.id && { id: initialData.id })
         };
 
-        await onSubmit(payload);
+        await onSubmit(payload as Partial<DailyActionPlan>);
     };
 
     return (

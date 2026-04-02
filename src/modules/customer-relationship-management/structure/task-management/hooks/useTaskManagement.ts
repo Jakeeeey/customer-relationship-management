@@ -13,11 +13,6 @@ import {
     format,
 } from "date-fns";
 import { 
-    User, 
-    Salesman, 
-    Task, 
-    TaskType, 
-    Customer, 
     TaskManagementData, 
     SalesmanPerSupervisor,
     SupervisorPerDivision,
@@ -44,8 +39,8 @@ export const useTaskManagement = () => {
         try {
             const result = await fetchTaskManagementData();
             setData(result);
-        } catch (error: any) {
-            toast.error(error.message || "Failed to load tasks");
+        } catch (error) {
+            toast.error(error instanceof Error ? error.message : "Failed to load tasks");
         } finally {
             setIsLoading(false);
         }
@@ -121,7 +116,6 @@ export const useTaskManagement = () => {
 
             // 1. Filter by specific Salesman
             if (selectedSalesmanId !== "all") {
-                // @ts-ignore - salesman_id is passed in payload
                 return String(t.salesman_id) === selectedSalesmanId;
             }
 
@@ -130,15 +124,14 @@ export const useTaskManagement = () => {
                 const employeeSalesmanIds = data.salesmen
                     .filter(s => String(s.employee_id) === selectedEmployeeId)
                     .map(s => String(s.id));
-                // @ts-ignore
                 return employeeSalesmanIds.includes(String(t.salesman_id));
             }
             
             return true;
         });
-    }, [data, currentDate, selectedEmployeeId, selectedSalesmanId]);
+    }, [data, selectedEmployeeId, selectedSalesmanId]);
 
-    const handleCreateTask = async (taskData: any) => {
+    const handleCreateTask = async (taskData: Partial<DailyActionPlan>) => {
         try {
             const payload = {
                 ...taskData,
@@ -149,19 +142,19 @@ export const useTaskManagement = () => {
                 mcp_id: 1 // Default
             };
 
-            const success = await createDailyActionPlan(payload);
+            const success = await createDailyActionPlan(payload as Partial<DailyActionPlan>);
             if (success) {
                 toast.success("Task created successfully");
                 fetchTasks(); // Refresh
             }
             return success;
-        } catch (error: any) {
-            toast.error(error.message);
+        } catch (error) {
+            toast.error(error instanceof Error ? error.message : "Failed to create task");
             return false;
         }
     };
 
-    const handleUpdateTask = async (id: number, taskData: any) => {
+    const handleUpdateTask = async (id: number, taskData: Partial<DailyActionPlan>) => {
         try {
             const success = await updateDailyActionPlan(id, taskData);
             if (success) {
@@ -169,8 +162,8 @@ export const useTaskManagement = () => {
                 fetchTasks(); // Refresh
             }
             return success;
-        } catch (error: any) {
-            toast.error(error.message);
+        } catch (error) {
+            toast.error(error instanceof Error ? error.message : "Failed to update task");
             return false;
         }
     };
@@ -183,8 +176,8 @@ export const useTaskManagement = () => {
                 fetchTasks(); // Refresh
             }
             return success;
-        } catch (error: any) {
-            toast.error(error.message);
+        } catch (error) {
+            toast.error(error instanceof Error ? error.message : "Failed to delete task");
             return false;
         }
     };

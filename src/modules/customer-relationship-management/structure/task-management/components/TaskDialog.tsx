@@ -15,7 +15,7 @@ import { Calendar } from "lucide-react";
 interface TaskDialogProps {
     isOpen: boolean;
     onClose: () => void;
-    onSubmit: (data: any) => Promise<boolean>;
+    onSubmit: (data: Partial<DailyActionPlan>) => Promise<boolean>;
     onDelete?: (id: number) => Promise<boolean>;
     selectedDate: Date | null;
     tasks: Task[];

@@ -29,7 +29,7 @@ function decodeUserIdFromJwt(token: string): number | null {
     }
 }
 
-export async function GET(req: NextRequest) {
+export async function GET(_req: NextRequest) {
     const cookieStore = await cookies();
     const token = cookieStore.get("vos_access_token")?.value;
 
@@ -93,9 +93,9 @@ export async function GET(req: NextRequest) {
             attachments,
             currentUserId: userId
         });
-    } catch (error: any) {
+    } catch (error) {
         console.error("Task Management BFF Error:", error);
-        return NextResponse.json({ ok: false, message: error.message }, { status: 500 });
+        return NextResponse.json({ ok: false, message: error instanceof Error ? error.message : "Internal Server Error" }, { status: 500 });
     }
 }
 
@@ -126,8 +126,8 @@ export async function POST(req: NextRequest) {
 
         const data = await res.json();
         return NextResponse.json({ ok: true, data: data.data });
-    } catch (error: any) {
-        return NextResponse.json({ ok: false, message: error.message }, { status: 500 });
+    } catch (error) {
+        return NextResponse.json({ ok: false, message: error instanceof Error ? error.message : "Internal Server Error" }, { status: 500 });
     }
 }
 
@@ -160,8 +160,8 @@ export async function PATCH(req: NextRequest) {
 
         const data = await res.json();
         return NextResponse.json({ ok: true, data: data.data });
-    } catch (error: any) {
-        return NextResponse.json({ ok: false, message: error.message }, { status: 500 });
+    } catch (error) {
+        return NextResponse.json({ ok: false, message: error instanceof Error ? error.message : "Internal Server Error" }, { status: 500 });
     }
 }
 
@@ -194,7 +194,7 @@ export async function DELETE(req: NextRequest) {
         }
 
         return NextResponse.json({ ok: true });
-    } catch (error: any) {
-        return NextResponse.json({ ok: false, message: error.message }, { status: 500 });
+    } catch (error) {
+        return NextResponse.json({ ok: false, message: error instanceof Error ? error.message : "Internal Server Error" }, { status: 500 });
     }
 }

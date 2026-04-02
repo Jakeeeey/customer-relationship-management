@@ -9,6 +9,7 @@ import { TaskViewDialog } from "./components/TaskViewDialog";
 import { useTaskManagement } from "./hooks/useTaskManagement";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
+import { DailyActionPlan } from "./types";
 
 export default function TaskManagementModule() {
     const {
@@ -34,7 +35,7 @@ export default function TaskManagementModule() {
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
     const [selectedDate, setSelectedDate] = useState<Date | null>(null);
-    const [editingTask, setEditingTask] = useState<any>(null);
+    const [editingTask, setEditingTask] = useState<DailyActionPlan | null>(null);
 
     const handleDayClick = (day: Date) => {
         if (selectedEmployeeId === "all" || selectedSalesmanId === "all") {
@@ -53,7 +54,7 @@ export default function TaskManagementModule() {
         }
     };
 
-    const handleSubmit = async (payload: any) => {
+    const handleSubmit = async (payload: Partial<DailyActionPlan>) => {
         if (editingTask) {
             return await handleUpdateTask(editingTask.id, payload);
         } else {

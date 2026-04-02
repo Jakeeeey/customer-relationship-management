@@ -8,6 +8,7 @@ import {
     DialogHeader, 
     DialogTitle,
 } from "@/components/ui/dialog";
+import Image from "next/image";
 import { 
     DailyActionPlan, 
     Task, 
@@ -15,10 +16,8 @@ import {
     DailyActionPlanAttachment 
 } from "../types";
 import { TaskForm } from "./TaskForm";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
 import { Label } from "@/components/ui/label";
 import { 
     Plus, 
@@ -44,8 +43,8 @@ interface TaskViewDialogProps {
     selectedDate: Date | null;
     selectedEmployeeId: string;
     selectedSalesmanId: string;
-    onCreateTask: (data: any) => Promise<boolean>;
-    onUpdateTask: (id: number, data: any) => Promise<boolean>;
+    onCreateTask: (data: Partial<DailyActionPlan>) => Promise<boolean>;
+    onUpdateTask: (id: number, data: Partial<DailyActionPlan>) => Promise<boolean>;
     onDeleteTask: (id: number) => Promise<boolean>;
 }
 
@@ -66,10 +65,10 @@ export const TaskViewDialog: React.FC<TaskViewDialogProps> = ({
     const [selectedTaskId, setSelectedTaskId] = useState<number | "new" | null>(null);
 
     useEffect(() => {
-        if (isOpen) {
+        if (isOpen && selectedTaskId === null) {
             if (dayTasks.length === 0) {
                 setSelectedTaskId("new");
-            } else if (selectedTaskId === null) {
+            } else {
                 setSelectedTaskId(dayTasks[0].id);
             }
         }
@@ -249,7 +248,7 @@ export const TaskViewDialog: React.FC<TaskViewDialogProps> = ({
                                                 Reported Outcome
                                             </Label>
                                             <p className="text-xl leading-relaxed text-emerald-950/80 font-bold italic tracking-tight relative z-10">
-                                                "{selectedTask.additional_description || "The salesman completed this task successfully with no additional notes."}"
+                                                &quot;{selectedTask.additional_description || "The salesman completed this task successfully with no additional notes."}&quot;
                                             </p>
                                         </div>
 
@@ -272,13 +271,13 @@ export const TaskViewDialog: React.FC<TaskViewDialogProps> = ({
                                                     {taskAttachments.map(att => (
                                                         <div key={att.id} className="group relative rounded-[2.5rem] border border-primary/10 overflow-hidden bg-white shadow-2xl transition-all hover:shadow-primary/20 hover:-translate-y-2">
                                                             <div className="aspect-[4/3] relative bg-muted flex items-center justify-center overflow-hidden">
-                                                                <img 
+                                                                <Image 
                                                                     src={`${process.env.NEXT_PUBLIC_API_BASE_URL}/assets/${att.attachment_address}`} 
-                                                                    alt="Attachment"
+                                                                    alt="Visit Evidence"
+                                                                    width={600}
+                                                                    height={450}
+                                                                    unoptimized
                                                                     className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-110"
-                                                                    onError={(e) => {
-                                                                        (e.target as any).src = "https://placehold.co/600x400?text=Image+Unavailable";
-                                                                    }}
                                                                 />
                                                                 <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-all duration-500 p-8 flex flex-col justify-end">
                                                                     <Button variant="secondary" className="w-full h-12 font-black uppercase text-xs tracking-[0.2em] rounded-2xl shadow-2xl" asChild>
