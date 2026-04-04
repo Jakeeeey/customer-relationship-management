@@ -87,21 +87,27 @@ export async function GET(req: NextRequest) {
         const salesmenRaw = (await salesmenRes.json()).data || [];
 
         // 2b. Fetch real emails from 'user' table via employee_id -> user_id link
-        const employeeIds = salesmenRaw.map((s: { employee_id: number }) => s.employee_id).filter(Boolean);
-        
         const usersRes = await fetch(`${DIRECTUS_URL}/items/user?fields=user_id,user_email&limit=-1`, { headers: fetchHeaders });
         const users = (await usersRes.json()).data || [];
         
         const userMap: Record<string, string> = {};
 
-        users.forEach((u: { user_id: any, user_email: string }) => {
+        users.forEach((u: { user_id: number | string, user_email: string }) => {
             if (u.user_id && u.user_email) {
                 userMap[String(u.user_id)] = u.user_email;
             }
         });
 
         // Map real emails to salesmen
-        const salesmen = salesmenRaw.map((s: any) => {
+        interface RawSalesman {
+            id: number;
+            employee_id: number;
+            email?: string;
+            salesman_code: string;
+            [key: string]: unknown;
+        }
+
+        const salesmen = salesmenRaw.map((s: RawSalesman) => {
             let email = s.email;
             
             // Link by employee_id -> user_id
