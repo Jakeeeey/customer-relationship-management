@@ -1,0 +1,15 @@
+﻿
+C:\Users\Eulysis\Documents\customer-relationship-management\src\app\api\crm\target-settings\route.ts
+   14:14  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  117:29  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\Eulysis\Documents\customer-relationship-management\src\modules\customer-relationship-management\target-settings\TargetSettingsModule.tsx
+  67:54  error    Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  69:74  error    Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  77:18  warning  '_error' is defined but never used        @typescript-eslint/no-unused-vars
+
+C:\Users\Eulysis\Documents\customer-relationship-management\src\modules\customer-relationship-management\target-settings\components\TargetFormDialog.tsx
+  165:18  warning  '_error' is defined but never used  @typescript-eslint/no-unused-vars
+
+Γ£û 6 problems (4 errors, 2 warnings)
+

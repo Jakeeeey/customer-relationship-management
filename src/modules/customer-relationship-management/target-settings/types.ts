@@ -46,6 +46,7 @@ export interface ProductSummary {
     priceC?: number;
     priceD?: number;
     priceE?: number;
+    [key: string]: string | number | undefined;
 }
 
 export interface Salesman {

@@ -19,46 +19,24 @@ import {
     TabsTrigger 
 } from "@/components/ui/tabs";
 import { 
-    Table, 
-    TableBody, 
-    TableCell, 
-    TableHead, 
-    TableHeader, 
-    TableRow 
-} from "@/components/ui/table";
-import { 
     Plus, 
     Trash2, 
-    TrendingUp, 
-    Target, 
-    ShoppingCart, 
-    Users, 
-    MapPin, 
-    Layers, 
-    BarChart3, 
-    PackageSearch,
-    Calendar,
     Save,
     X,
     Info,
-    Package,
     Box
 } from "lucide-react";
-import { 
-    SearchableSelect 
-} from "@/components/ui/searchable-select";
-import { SalesmanWithTarget, TacticalSKU } from "@/modules/customer-relationship-management/target-settings/types";
+import { SearchableSelect } from "@/components/ui/searchable-select";
+import { SalesmanWithTarget, TacticalSKU, ProductSummary, ProductPricing } from "@/modules/customer-relationship-management/target-settings/types";
 import { targetSettingsProvider } from "@/modules/customer-relationship-management/target-settings/providers/fetchProvider";
 import { toast } from "sonner";
-import { Badge } from "@/components/ui/badge";
-import { Calendar as ShadcnCalendar } from "@/components/ui/calendar";
 
 interface TargetFormDialogProps {
     isOpen: boolean;
     onClose: () => void;
     salesman: SalesmanWithTarget;
-    allProducts: any[];
-    productPricing: any[];
+    allProducts: ProductSummary[];
+    productPricing: ProductPricing[];
     month: number;
     year: number;
     onSuccess: () => void;
@@ -151,14 +129,14 @@ export function TargetFormDialog({
         return 0;
     };
 
-    const handleSkuChange = (index: number, field: keyof TacticalSKU, value: any) => {
+    const handleSkuChange = (index: number, field: keyof TacticalSKU, value: string | number) => {
         const updated = [...tacticalSkus];
         const newSku = { ...updated[index], [field]: value };
         
         // Auto-calculate value if quantity or product changes
         if (field === "product_id" || field === "target_quantity") {
-            const price = getProductPrice(newSku.product_id || 0);
-            newSku.target_value = (newSku.target_quantity || 0) * price;
+            const price = getProductPrice(newSku.product_id as number || 0);
+            newSku.target_value = (newSku.target_quantity as number || 0) * price;
         }
         
         updated[index] = newSku;
@@ -184,7 +162,7 @@ export function TargetFormDialog({
             toast.success("Target settings saved successfully");
             onSuccess();
             onClose();
-        } catch (error) {
+        } catch {
             toast.error("Failed to save target settings");
         } finally {
             setLoading(false);

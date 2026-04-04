@@ -3,19 +3,8 @@
 import React, { useState, useEffect } from "react";
 import { 
     Card, 
-    CardContent, 
-    CardDescription, 
-    CardHeader, 
-    CardTitle 
+    CardContent
 } from "@/components/ui/card";
-import { 
-    Table, 
-    TableBody, 
-    TableCell, 
-    TableHead, 
-    TableHeader, 
-    TableRow 
-} from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { 
     Select, 
@@ -28,23 +17,15 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { 
     Search, 
-    Calendar, 
     TrendingUp,
-    User, 
-    Settings2,
-    Plus,
-    Edit3,
-    Eye,
     Target,
     Users,
-    Mail,
-    ArrowUpRight,
-    Milestone
+    Mail
 } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { Input } from "@/components/ui/input";
 import { targetSettingsProvider } from "@/modules/customer-relationship-management/target-settings/providers/fetchProvider";
-import { SalesmanWithTarget, TargetSetting, TacticalSKU } from "@/modules/customer-relationship-management/target-settings/types";
+import { SalesmanWithTarget, ProductSummary, ProductPricing, TacticalSKU } from "@/modules/customer-relationship-management/target-settings/types";
 import { TargetFormDialog } from "@/modules/customer-relationship-management/target-settings/components/TargetFormDialog";
 import { toast } from "sonner";
 
@@ -52,8 +33,8 @@ export function TargetSettingsModule() {
     const [month, setMonth] = useState<string>(String(new Date().getMonth() + 1));
     const [year, setYear] = useState<string>(String(new Date().getFullYear()));
     const [salesmen, setSalesmen] = useState<SalesmanWithTarget[]>([]);
-    const [allProducts, setAllProducts] = useState<any[]>([]);
-    const [productPricing, setProductPricing] = useState<any[]>([]);
+    const [allProducts, setAllProducts] = useState<ProductSummary[]>([]);
+    const [productPricing, setProductPricing] = useState<ProductPricing[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState("");
     const [selectedSalesman, setSelectedSalesman] = useState<SalesmanWithTarget | null>(null);
@@ -76,16 +57,16 @@ export function TargetSettingsModule() {
 
     const years = Array.from({ length: 5 }, (_, i) => String(new Date().getFullYear() - 2 + i));
 
-    const fetchData = async () => {
+    const fetchData = React.useCallback(async () => {
         setLoading(true);
         try {
             const data = await targetSettingsProvider.getTargets(Number(month), Number(year));
             
             // Map targets to salesmen
-            const mappedSalesmen = data.salesmen.map((s: any) => {
-                const target = data.targets.find((t: any) => t.salesman_id === s.id);
+            const mappedSalesmen = data.salesmen.map((s: SalesmanWithTarget) => {
+                const target = data.targets.find((t: { salesman_id: number; id: number; tactical_skus?: TacticalSKU[] }) => t.salesman_id === s.id);
                 if (target) {
-                    target.tactical_skus = data.tacticalSkus.filter((ts: any) => ts.salesman_target_setting_id === target.id);
+                    target.tactical_skus = data.tacticalSkus.filter((ts: { salesman_target_setting_id: number }) => ts.salesman_target_setting_id === target.id);
                 }
                 return { ...s, current_target: target };
             });
@@ -93,16 +74,16 @@ export function TargetSettingsModule() {
             setSalesmen(mappedSalesmen);
             setAllProducts(data.allProducts || []);
             setProductPricing(data.productPricing || []);
-        } catch (error) {
+        } catch {
             toast.error("Failed to fetch target settings");
         } finally {
             setLoading(false);
         }
-    };
+    }, [month, year]);
 
     useEffect(() => {
         fetchData();
-    }, [month, year]);
+    }, [fetchData]);
 
     const filteredSalesmen = salesmen.filter(s => 
         s.salesman_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -122,7 +103,7 @@ export function TargetSettingsModule() {
     const getOverallProgress = (salesman: SalesmanWithTarget) => {
         if (!salesman.current_target) return 0;
         
-        let metrics = [];
+        const metrics = [];
         if (salesman.operation === 1) { // Booking
             metrics.push(calculateProgress(salesman.current_volume || 0, salesman.current_target.volume));
             metrics.push(calculateProgress(salesman.current_frequency || 0, salesman.current_target.frequency));
@@ -131,7 +112,7 @@ export function TargetSettingsModule() {
             metrics.push(calculateProgress(salesman.current_new_accounts || 0, salesman.current_target.new_accounts));
         }
         
-        return Math.round(metrics.reduce((a, b) => a + b, 0) / metrics.length);
+        return Math.round(metrics.reduce((a, b) => a + b, 0) / metrics.length || 1);
     };
 
     const bookingSalesmen = filteredSalesmen.filter(s => s.operation === 1);
