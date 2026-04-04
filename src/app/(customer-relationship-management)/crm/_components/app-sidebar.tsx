@@ -149,6 +149,11 @@ const data = {
                 },
             ],
         },
+        {
+            title: "Target Settings",
+            url: "/crm/target-settings",
+            icon: Printer,
+        },
     ],
 };
 

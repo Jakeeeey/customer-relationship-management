@@ -1,0 +1,222 @@
+import { NextRequest, NextResponse } from "next/server";
+import { cookies } from "next/headers";
+
+const DIRECTUS_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
+const STATIC_TOKEN = process.env.DIRECTUS_STATIC_TOKEN;
+
+const fetchHeaders = {
+    Authorization: `Bearer ${STATIC_TOKEN}`,
+    "Content-Type": "application/json",
+};
+
+export const dynamic = "force-dynamic";
+
+function decodeUserIdFromJwt(token: string): number | null {
+    try {
+        const parts = token.split(".");
+        if (parts.length < 2) return null;
+        const payloadPart = parts[1];
+        const pad = "=".repeat((4 - (payloadPart.length % 4)) % 4);
+        const b64 = (payloadPart + pad).replace(/-/g, "+").replace(/_/g, "/");
+        const jsonStr = Buffer.from(b64, "base64").toString("utf8");
+        const payload = JSON.parse(jsonStr);
+        const userId = Number(payload.sub || payload.id); // Try both sub and id
+        return Number.isFinite(userId) ? userId : null;
+    } catch {
+        return null;
+    }
+}
+
+export async function GET(req: NextRequest) {
+    const cookieStore = await cookies();
+    const token = cookieStore.get("vos_access_token")?.value;
+
+    if (!token) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const supervisorId = decodeUserIdFromJwt(token);
+    if (!supervisorId) {
+        return NextResponse.json({ error: "Invalid session" }, { status: 401 });
+    }
+
+    const { searchParams } = new URL(req.url);
+    const month = searchParams.get("month") || new Date().getMonth() + 1;
+    const year = searchParams.get("year") || new Date().getFullYear();
+
+    const dateFrom = `${year}-${String(month).padStart(2, '0')}-01 00:00:00`;
+    const lastDay = new Date(Number(year), Number(month), 0).getDate();
+    const dateTo = `${year}-${String(month).padStart(2, '0')}-${lastDay} 23:59:59`;
+
+    try {
+        // 1. Get supervisor_per_division entries for this supervisor
+        // Note: supervisorId from JWT matches supervisor_id in this table
+        const supDivRes = await fetch(`${DIRECTUS_URL}/items/supervisor_per_division?filter[supervisor_id][_eq]=${supervisorId}&limit=-1`, { headers: fetchHeaders });
+        const supDivData = await supDivRes.json();
+        const supDivs = supDivData.data || [];
+        const supDivIds = supDivs.map((sd: any) => sd.id);
+
+        if (supDivIds.length === 0) {
+            return NextResponse.json({ salesmen: [], targets: [], message: "No supervisor divisions found" });
+        }
+
+        // 2. Get linked salesmen for these supervisor divisions
+        const mappingRes = await fetch(`${DIRECTUS_URL}/items/salesman_per_supervisor?filter[supervisor_per_division_id][_in]=${supDivIds.join(',')}&limit=-1`, { headers: fetchHeaders });
+        const mappingData = await mappingRes.json();
+        const mapping = mappingData.data || [];
+        const linkedSalesmanIds = [...new Set(mapping.map((m: any) => m.salesman_id))];
+
+        if (linkedSalesmanIds.length === 0) {
+            return NextResponse.json({ salesmen: [], targets: [], message: "No salesmen linked to supervisor" });
+        }
+
+        // 2. Fetch salesmen details
+        const salesmenRes = await fetch(`${DIRECTUS_URL}/items/salesman?filter[id][_in]=${linkedSalesmanIds.join(',')}&limit=-1`, { headers: fetchHeaders });
+        const salesmen = (await salesmenRes.json()).data || [];
+
+        // 3. Fetch targets for these salesmen in this month
+        const smIds = salesmen.map((s: { id: number }) => s.id).filter(Boolean);
+        if (smIds.length === 0) {
+            return NextResponse.json({ salesmen, targets: [] });
+        }
+
+        const targetsRes = await fetch(`${DIRECTUS_URL}/items/salesman_target_setting?filter[salesman_id][_in]=${smIds.join(',')}&filter[date_range_from][_eq]=${dateFrom}&limit=-1`, { headers: fetchHeaders });
+        const targets = (await targetsRes.json()).data || [];
+
+        // 4. Fetch tactical SKUs for these targets
+        const targetIds = targets.map((t: { id: number }) => t.id);
+        let tacticalSkus: any[] = [];
+        if (targetIds.length > 0) {
+            const skusRes = await fetch(`${DIRECTUS_URL}/items/salesman_tactical_sku?filter[salesman_target_setting_id][_in]=${targetIds.join(',')}&limit=-1`, { headers: fetchHeaders });
+            const rawSkus = (await skusRes.json()).data || [];
+            
+            // Map database fields to frontend names
+            tacticalSkus = rawSkus.map((ts: any) => ({
+                id: ts.id,
+                salesman_target_setting_id: ts.salesman_target_setting_id,
+                product_id: ts.product_id,
+                // These will be joined or filled from allProducts in the frontend
+                product_code: ts.product_id?.product_code, 
+                product_name: ts.product_id?.product_name,
+                target_quantity: ts.target_quantity,
+                target_value: ts.target_value
+            }));
+        }
+
+        // 5. Fetch all products with core prices (A, B, C, D, E)
+        // Filter by unit_of_measurement = 11 (Box) as requested by user
+        const productsRes = await fetch(`${DIRECTUS_URL}/items/products?filter[isActive][_eq]=1&filter[unit_of_measurement][_eq]=11&fields=product_id,product_name,product_code,priceA,priceB,priceC,priceD,priceE&limit=-1`, { headers: fetchHeaders });
+        const allProducts = (await productsRes.json()).data || [];
+
+        // 6. Fetch special pricing (product_per_price_type)
+        const pricingRes = await fetch(`${DIRECTUS_URL}/items/product_per_price_type?limit=-1`, { headers: fetchHeaders });
+        const productPricing = (await pricingRes.json()).data || [];
+
+        return NextResponse.json({
+            salesmen,
+            targets,
+            tacticalSkus,
+            allProducts,
+            productPricing,
+            supervisorId
+        });
+
+    } catch (error) {
+        console.error("Target Settings API GET Error:", error);
+        return NextResponse.json({ error: "Failed to fetch data" }, { status: 500 });
+    }
+}
+
+export async function POST(req: NextRequest) {
+    const cookieStore = await cookies();
+    const token = cookieStore.get("vos_access_token")?.value;
+
+    if (!token) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const supervisorId = decodeUserIdFromJwt(token);
+
+    try {
+        const body = await req.json();
+        const { target, tacticalSkus } = body;
+
+        // Restore field mapping for salesman_target_setting
+        const directusTarget = { 
+            ...target, 
+            created_by: supervisorId || target.created_by,
+            // Ensure all numeric fields have values to prevent validation failure
+            volume: Number(target.volume) || 0,
+            frequency: Number(target.frequency) || 0,
+            new_accounts: Number(target.new_accounts) || 0,
+            productive_outlets: Number(target.productive_outlets) || 0,
+            line_sales: Number(target.line_sales) || 0,
+            basket_count: Number(target.basket_count) || 0,
+            reach: Number(target.reach) || 0
+        };
+
+        // Check existing targets for this salesman and month
+        const checkRes = await fetch(`${DIRECTUS_URL}/items/salesman_target_setting?filter[salesman_id][_eq]=${target.salesman_id}&filter[date_range_from][_eq]=${target.date_range_from}&limit=1`, { headers: fetchHeaders });
+        const existingTargets = (await checkRes.json()).data || [];
+
+        let targetId;
+        if (existingTargets.length > 0) {
+            // Update
+            targetId = existingTargets[0].id;
+            await fetch(`${DIRECTUS_URL}/items/salesman_target_setting/${targetId}`, {
+                method: "PATCH",
+                headers: fetchHeaders,
+                body: JSON.stringify(directusTarget),
+            });
+        } else {
+            // Create
+            const createRes = await fetch(`${DIRECTUS_URL}/items/salesman_target_setting`, {
+                method: "POST",
+                headers: fetchHeaders,
+                body: JSON.stringify(directusTarget),
+            });
+            const created = await createRes.json();
+            if (created.errors) {
+                console.error("Directus Target Creation Error:", created.errors);
+                throw new Error("Failed to create target in database");
+            }
+            targetId = created.data.id;
+        }
+
+        // Handle Tactical SKUs
+        // Clear old ones first to ensure consistency with the current state in UI
+        if (existingTargets.length > 0) {
+             const oldSkusRes = await fetch(`${DIRECTUS_URL}/items/salesman_tactical_sku?filter[salesman_target_setting_id][_eq]=${targetId}&limit=-1`, { headers: fetchHeaders });
+             const oldSkus = (await oldSkusRes.json()).data || [];
+             if (oldSkus.length > 0) {
+                 const deletePromises = oldSkus.map((os: { id: number }) => 
+                     fetch(`${DIRECTUS_URL}/items/salesman_tactical_sku/${os.id}`, { method: "DELETE", headers: fetchHeaders })
+                 );
+                 await Promise.all(deletePromises);
+             }
+        }
+
+        // Create new ones
+        if (tacticalSkus && tacticalSkus.length > 0) {
+            const skusToCreate = tacticalSkus.map((sku: any) => ({
+                salesman_target_setting_id: targetId,
+                product_id: sku.product_id,
+                target_quantity: sku.target_quantity,
+                target_value: sku.target_value,
+                created_by: supervisorId
+            }));
+
+            await fetch(`${DIRECTUS_URL}/items/salesman_tactical_sku`, {
+                method: "POST",
+                headers: fetchHeaders,
+                body: JSON.stringify(skusToCreate),
+            });
+        }
+
+        return NextResponse.json({ success: true, targetId });
+
+    } catch (error) {
+        console.error("Target Settings API POST Error:", error);
+        return NextResponse.json({ error: "Failed to save target" }, { status: 500 });
+    }
+}
