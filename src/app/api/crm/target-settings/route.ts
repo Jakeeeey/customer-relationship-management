@@ -84,7 +84,38 @@ export async function GET(req: NextRequest) {
 
         // 2. Fetch salesmen details
         const salesmenRes = await fetch(`${DIRECTUS_URL}/items/salesman?filter[id][_in]=${linkedSalesmanIds.join(',')}&limit=-1`, { headers: fetchHeaders });
-        const salesmen = (await salesmenRes.json()).data || [];
+        const salesmenRaw = (await salesmenRes.json()).data || [];
+
+        // 2b. Fetch real emails from 'user' table via employee_id -> user_id link
+        const employeeIds = salesmenRaw.map((s: { employee_id: number }) => s.employee_id).filter(Boolean);
+        
+        const usersRes = await fetch(`${DIRECTUS_URL}/items/user?fields=user_id,user_email&limit=-1`, { headers: fetchHeaders });
+        const users = (await usersRes.json()).data || [];
+        
+        const userMap: Record<string, string> = {};
+
+        users.forEach((u: { user_id: any, user_email: string }) => {
+            if (u.user_id && u.user_email) {
+                userMap[String(u.user_id)] = u.user_email;
+            }
+        });
+
+        // Map real emails to salesmen
+        const salesmen = salesmenRaw.map((s: any) => {
+            let email = s.email;
+            
+            // Link by employee_id -> user_id
+            if (s.employee_id && userMap[String(s.employee_id)]) {
+                email = userMap[String(s.employee_id)];
+            } 
+            
+            // Last fallback to generated email if still missing
+            if (!email) {
+                email = `${s.salesman_code.toLowerCase()}@vos.com`;
+            }
+
+            return { ...s, email };
+        });
 
         // 3. Fetch targets for these salesmen in this month
         const smIds = salesmen.map((s: { id: number }) => s.id).filter(Boolean);
