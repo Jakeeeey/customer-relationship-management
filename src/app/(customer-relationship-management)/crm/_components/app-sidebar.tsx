@@ -34,7 +34,11 @@ import {NavMain} from "./nav-main";
 
 const data = {
     navMain: [
-        {title: "Dashboard", url: "/crm/", icon: LayoutDashboard},
+        {
+            title: "Dashboard",
+            url: "/crm/",
+            icon: LayoutDashboard
+        },
         {
             title: "Customer Management",
             url: "#",
@@ -131,6 +135,24 @@ const data = {
                     icon: Printer,
                 },
             ],
+        },
+        {
+            title: "Structure",
+            url: "#",
+            icon: Printer,
+            isActive: true,
+            items: [
+                {
+                    title: "Task Management",
+                    url: "/crm/structure/task-management",
+                    icon: Printer,
+                },
+            ],
+        },
+        {
+            title: "Target Settings",
+            url: "/crm/target-settings",
+            icon: Printer,
         },
     ],
 };
