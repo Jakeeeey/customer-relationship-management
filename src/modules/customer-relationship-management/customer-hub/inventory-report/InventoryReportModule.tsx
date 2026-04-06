@@ -100,17 +100,17 @@ export default function InventoryReportModule({ options }: { options: DropdownOp
         return new Intl.NumberFormat('en-US').format(num || 0);
     };
 
-    const handleSearch = async (isDebounced = false, pageToFetch = 1, currentItemsPerPage = itemsPerPage) => {
-        const cacheKey = `${branch}-${supplier}-${category}-${brand}-${pageToFetch}-${currentItemsPerPage}`;
+    const handleSearch = async (isDebounced = false) => {
+        const cacheKey = `${branch}-${supplier}-${category}-${brand}`;
         
-        // INSTANT RECALL: Use cached data if available for these specific params
+        // INSTANT RECALL: Use cached data if available for these filters
         if (cacheRef.current[cacheKey]) {
             const cachedValue = cacheRef.current[cacheKey];
             setData(cachedValue.data);
             setTotalItems(cachedValue.total);
             setHasSearched(true);
             setLoading(false);
-            setCurrentPage(pageToFetch);
+            setCurrentPage(1); // Reset to page 1 for new cached filter
             return;
         }
 
@@ -122,9 +122,7 @@ export default function InventoryReportModule({ options }: { options: DropdownOp
             if (category !== "all") params.append("category", category);
             if (brand !== "all") params.append("brand", brand);
             
-            // Server-side pagination (0-based for Spring Boot)
-            params.append("page", (pageToFetch - 1).toString());
-            params.append("size", currentItemsPerPage.toString());
+            // Fetch everything for these filters to enable instant local pagination
 
             const res = await fetch(`/api/crm/customer-hub/inventory-report?${params.toString()}`);
             if (!res.ok) throw new Error("Failed to fetch data");
@@ -147,11 +145,11 @@ export default function InventoryReportModule({ options }: { options: DropdownOp
                 total = result.meta?.total_count || result.total_count || extractedData.length;
             }
 
-            // Update Page and Search Status
+            // Update Data and Search Status
             setData(extractedData);
             setTotalItems(total);
             setHasSearched(true);
-            setCurrentPage(pageToFetch);
+            setCurrentPage(1); // Reset to first page on new fetch
 
             // STORE IN CACHE: Save for session instant recall
             cacheRef.current[cacheKey] = { data: extractedData, total };
@@ -173,7 +171,7 @@ export default function InventoryReportModule({ options }: { options: DropdownOp
 
         if (hasActiveFilter) {
             debounceRef.current = setTimeout(() => {
-                handleSearch(true, 1, itemsPerPage);
+                handleSearch(true);
             }, 300);
         }
 
@@ -196,13 +194,10 @@ export default function InventoryReportModule({ options }: { options: DropdownOp
         }, {} as Record<string, InventoryItem[]>);
     }, [data, groupByFamily]);
 
-    // Safety measure if backend ignores page/size
+    // Essential Local Pagination: Slice the full data set for instant page turning
     const paginatedData = useMemo(() => {
-        if (data.length > itemsPerPage) {
-            const start = (currentPage - 1) * itemsPerPage;
-            return data.slice(start, start + itemsPerPage);
-        }
-        return data;
+        const start = (currentPage - 1) * itemsPerPage;
+        return data.slice(start, start + itemsPerPage);
     }, [data, currentPage, itemsPerPage]);
 
     const filteredData = data;
@@ -471,9 +466,8 @@ export default function InventoryReportModule({ options }: { options: DropdownOp
                             <Select 
                                 value={itemsPerPage.toString()} 
                                 onValueChange={(v) => {
-                                    const nextSize = Number(v);
-                                    setItemsPerPage(nextSize);
-                                    handleSearch(false, 1, nextSize);
+                                    setItemsPerPage(Number(v));
+                                    setCurrentPage(1);
                                 }}
                             >
                                 <SelectTrigger className="w-[70px] h-8">
@@ -490,7 +484,7 @@ export default function InventoryReportModule({ options }: { options: DropdownOp
                                 variant="outline" 
                                 className="h-8 w-8" 
                                 disabled={currentPage === 1 || loading} 
-                                onClick={() => handleSearch(false, currentPage - 1, itemsPerPage)}
+                                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
                             >
                                 <ChevronLeft className="h-4 w-4" />
                             </Button>
@@ -500,7 +494,7 @@ export default function InventoryReportModule({ options }: { options: DropdownOp
                                 variant="outline" 
                                 className="h-8 w-8" 
                                 disabled={currentPage === totalPages || loading} 
-                                onClick={() => handleSearch(false, currentPage + 1, itemsPerPage)}
+                                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
                             >
                                 <ChevronRight className="h-4 w-4" />
                             </Button>
