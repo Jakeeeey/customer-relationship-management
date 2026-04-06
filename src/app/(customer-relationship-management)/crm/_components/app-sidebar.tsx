@@ -18,8 +18,8 @@ import Image from "next/image";
 import Link from "next/link";
 import * as React from "react";
 
-import {ScrollArea} from "@/components/ui/scroll-area";
-import {Separator} from "@/components/ui/separator";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Separator } from "@/components/ui/separator";
 import {
     Sidebar,
     SidebarContent,
@@ -29,8 +29,8 @@ import {
     SidebarMenuButton,
     SidebarMenuItem,
 } from "@/components/ui/sidebar";
-import {cn} from "@/lib/utils";
-import {NavMain} from "./nav-main";
+import { cn } from "@/lib/utils";
+import { NavMain } from "./nav-main";
 
 const data = {
     navMain: [
@@ -158,9 +158,9 @@ const data = {
 };
 
 export function AppSidebar({
-                               className,
-                               ...props
-                           }: React.ComponentProps<typeof Sidebar>) {
+    className,
+    ...props
+}: React.ComponentProps<typeof Sidebar>) {
     return (
         <Sidebar
             {...props}
@@ -198,7 +198,7 @@ export function AppSidebar({
                 </SidebarMenu>
             </SidebarHeader>
 
-            <Separator/>
+            <Separator />
 
             <SidebarContent>
                 <div className="px-4 pt-3 pb-2 text-xs font-medium text-muted-foreground">
@@ -214,13 +214,13 @@ export function AppSidebar({
                     )}
                 >
                     <div className="w-full min-w-0">
-                        <NavMain items={data.navMain}/>
+                        <NavMain items={data.navMain} />
                     </div>
                 </ScrollArea>
             </SidebarContent>
 
             <SidebarFooter className="p-0">
-                <Separator/>
+                <Separator />
                 <div className="py-3 text-center text-xs text-muted-foreground">
                     VOS Web v2.0
                 </div>
