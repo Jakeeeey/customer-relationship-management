@@ -19,6 +19,12 @@ export interface StoreType {
     store_type: string;
 }
 
+export interface PaymentTerm {
+    id: number;
+    payment_name: string;
+    payment_days: number;
+}
+
 export interface CustomerProspect {
     id: number;
     salesman_id?: number | null;

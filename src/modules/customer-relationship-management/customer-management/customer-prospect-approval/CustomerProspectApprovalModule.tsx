@@ -31,6 +31,7 @@ export default function CustomerProspectApprovalModule() {
         approveProspect,
         rejectProspect,
         storeTypes,
+        paymentTerms,
     } = useCustomerProspects();
 
     if (isError) {
@@ -108,6 +109,7 @@ export default function CustomerProspectApprovalModule() {
                     onSalesmanChange={setSalesmanFilter}
                     onApprove={approveProspect}
                     onReject={rejectProspect}
+                    paymentTerms={paymentTerms}
                 />
             </div>
         </div>

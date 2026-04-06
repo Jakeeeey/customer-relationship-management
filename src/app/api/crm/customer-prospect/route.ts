@@ -29,7 +29,10 @@ export async function GET(req: NextRequest) {
         params.append("fields", "*,salesman_id.salesman_name"); // Join salesman name
 
         if (searchQuery) {
-            params.append("search", searchQuery);
+            params.append("filter[_or][0][customer_name][_icontains]", searchQuery);
+            params.append("filter[_or][1][customer_code][_icontains]", searchQuery);
+            params.append("filter[_or][2][store_name][_icontains]", searchQuery);
+            params.append("filter[_or][3][salesman_id][salesman_name][_icontains]", searchQuery);
         }
 
         if (statusFilter !== "all") {
