@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 // ── Directus (All files and images now live here) ─────────
-const DIRECTUS_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://goatedcodoer:8056";
+const DIRECTUS_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
 const DIRECTUS_TOKEN = process.env.DIRECTUS_STATIC_TOKEN ?? "";
 
 export const dynamic = "force-dynamic";
