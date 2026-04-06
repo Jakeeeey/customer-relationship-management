@@ -207,6 +207,16 @@ export default function InventoryReportModule({ options }: { options: DropdownOp
 
     const filteredData = data;
 
+    const [previewPage, setPreviewPage] = useState(1);
+    const [previewRowsPerPage, setPreviewRowsPerPage] = useState(20);
+
+    const paginatedPreviewData = useMemo(() => {
+        const start = (previewPage - 1) * previewRowsPerPage;
+        return filteredData.slice(start, start + previewRowsPerPage);
+    }, [filteredData, previewPage, previewRowsPerPage]);
+
+    const previewTotalPages = Math.ceil(filteredData.length / previewRowsPerPage);
+
     const handleExport = () => {
         if (filteredData.length === 0) return alert("No data to export.");
         
@@ -249,7 +259,10 @@ export default function InventoryReportModule({ options }: { options: DropdownOp
                         variant="outline" 
                         size="sm" 
                         className="gap-2 border-primary/20 text-primary hover:bg-primary/5"
-                        onClick={() => setIsPreviewOpen(true)}
+                        onClick={() => {
+                            setPreviewPage(1); // Reset to page 1 when opening
+                            setIsPreviewOpen(true);
+                        }}
                         disabled={loading || data.length === 0}
                     >
                         <Download className="w-4 h-4" />
@@ -498,68 +511,117 @@ export default function InventoryReportModule({ options }: { options: DropdownOp
 
             {/* Export Preview Dialog */}
             <Dialog open={isPreviewOpen} onOpenChange={setIsPreviewOpen}>
-                <DialogContent className="max-w-[95vw] h-[80vh] flex flex-col p-0 overflow-hidden">
+                <DialogContent className="max-w-[98vw] sm:max-w-[95vw] w-full h-[85vh] flex flex-col p-0 overflow-hidden">
                     <DialogHeader className="p-6 border-b bg-muted/20">
-                        <DialogTitle className="flex items-center gap-2 text-xl">
-                            <Download className="w-5 h-5 text-primary" />
-                            Export Preview
-                            <Badge variant="secondary" className="ml-2 font-mono">
-                                {filteredData.length} rows to be exported
-                            </Badge>
+                        <DialogTitle className="flex items-center justify-between w-full pr-8">
+                            <div className="flex items-center gap-2 text-xl font-bold">
+                                <Download className="w-5 h-5 text-primary" />
+                                Export Preview
+                            </div>
+                            <div className="flex items-center gap-3">
+                                <Badge variant="outline" className="font-mono px-3 py-1 bg-primary/10 text-primary border-primary/20">
+                                    {filteredData.length} TOTAL ROWS
+                                </Badge>
+                            </div>
                         </DialogTitle>
                     </DialogHeader>
                     
-                    <div className="flex-1 overflow-hidden">
-                        <ScrollArea className="h-full">
-                            <div className="p-6">
-                                <Table>
-                                    <TableHeader className="bg-muted/50 sticky top-0 z-10">
-                                        <TableRow>
-                                            <TableHead className="font-bold">BRANCH</TableHead>
-                                            <TableHead className="font-bold">SUPPLIER</TableHead>
-                                            <TableHead className="font-bold">CATEGORY</TableHead>
-                                            <TableHead className="font-bold">BRAND</TableHead>
-                                            <TableHead className="font-bold">PRODUCT</TableHead>
-                                            <TableHead className="font-bold text-right">CURRENT</TableHead>
-                                            <TableHead className="font-bold text-right">ALLOCATED</TableHead>
-                                            <TableHead className="font-bold text-right">PROJECTED</TableHead>
+                    <div className="flex-1 p-6 overflow-hidden flex flex-col gap-4">
+                        <div className="rounded-md border border-border overflow-auto flex-1 relative bg-background">
+                            <Table className="relative border-collapse">
+                                <TableHeader className="bg-muted/50 border-b">
+                                    <TableRow className="hover:bg-transparent">
+                                        <TableHead className="font-bold whitespace-nowrap text-foreground">BRANCH</TableHead>
+                                        <TableHead className="font-bold whitespace-nowrap text-foreground">SUPPLIER</TableHead>
+                                        <TableHead className="font-bold whitespace-nowrap text-foreground">CATEGORY</TableHead>
+                                        <TableHead className="font-bold whitespace-nowrap text-foreground">BRAND</TableHead>
+                                        <TableHead className="font-bold min-w-[300px] text-foreground">PRODUCT DESCRIPTION</TableHead>
+                                        <TableHead className="font-bold text-right whitespace-nowrap text-foreground">CURRENT</TableHead>
+                                        <TableHead className="font-bold text-right whitespace-nowrap text-foreground">ALLOCATED</TableHead>
+                                        <TableHead className="font-bold text-right whitespace-nowrap text-foreground">PROJECTED</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {paginatedPreviewData.map((item, i) => (
+                                        <TableRow key={i} className="text-xs border-border hover:bg-muted/30">
+                                            <TableCell className="font-medium whitespace-nowrap">{item.branch}</TableCell>
+                                            <TableCell className="whitespace-nowrap">{item.supplier}</TableCell>
+                                            <TableCell className="whitespace-nowrap">{item.category}</TableCell>
+                                            <TableCell className="whitespace-nowrap">{item.brand}</TableCell>
+                                            <TableCell className="max-w-[300px] truncate">{item.productName || item.productDescription}</TableCell>
+                                            <TableCell className="text-right font-mono font-semibold">{item.current || 0}</TableCell>
+                                            <TableCell className="text-right font-mono text-muted-foreground">{item.allocated || 0}</TableCell>
+                                            <TableCell className="text-right font-mono font-bold text-primary">{item.projected || 0}</TableCell>
                                         </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
-                                        {filteredData.slice(0, 100).map((item, i) => (
-                                            <TableRow key={i} className="text-xs border-border">
-                                                <TableCell className="font-medium whitespace-nowrap">{item.branch}</TableCell>
-                                                <TableCell className="whitespace-nowrap">{item.supplier}</TableCell>
-                                                <TableCell className="whitespace-nowrap">{item.category}</TableCell>
-                                                <TableCell className="whitespace-nowrap">{item.brand}</TableCell>
-                                                <TableCell className="max-w-[300px] truncate">{item.productName || item.productDescription}</TableCell>
-                                                <TableCell className="text-right font-mono">{item.current || 0}</TableCell>
-                                                <TableCell className="text-right font-mono">{item.allocated || 0}</TableCell>
-                                                <TableCell className="text-right font-mono font-bold text-primary">{item.projected || 0}</TableCell>
-                                            </TableRow>
-                                        ))}
-                                        {filteredData.length > 100 && (
-                                            <TableRow>
-                                                <TableCell colSpan={6} className="text-center py-4 text-muted-foreground italic bg-muted/10">
-                                                    Showing first 100 of {filteredData.length} rows. The full dataset will be included in the CSV.
-                                                </TableCell>
-                                            </TableRow>
-                                        )}
-                                    </TableBody>
-                                </Table>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                        </div>
+
+                        {/* Preview Pagination Controls */}
+                        <div className="flex items-center justify-between py-2 px-4 bg-muted/20 border border-border rounded-lg">
+                            <div className="text-sm text-muted-foreground">
+                                Showing <span className="font-bold text-foreground">
+                                    {Math.min(filteredData.length, (previewPage - 1) * previewRowsPerPage + 1)} - {Math.min(filteredData.length, previewPage * previewRowsPerPage)}
+                                </span> of {filteredData.length} rows in preview
                             </div>
-                        </ScrollArea>
+                            
+                            <div className="flex items-center gap-6">
+                                <div className="flex items-center gap-2">
+                                    <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Preview Rows:</span>
+                                    <Select 
+                                        value={previewRowsPerPage.toString()} 
+                                        onValueChange={(v) => {
+                                            setPreviewRowsPerPage(Number(v));
+                                            setPreviewPage(1);
+                                        }}
+                                    >
+                                        <SelectTrigger className="w-[80px] h-9 bg-background border-primary/20">
+                                            <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {[20, 50, 100].map(v => <SelectItem key={v} value={v.toString()}>{v}</SelectItem>)}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+
+                                <div className="flex items-center gap-2">
+                                    <Button 
+                                        variant="outline" 
+                                        size="icon" 
+                                        className="h-9 w-9 border-primary/20"
+                                        disabled={previewPage === 1}
+                                        onClick={() => setPreviewPage(prev => Math.max(1, prev - 1))}
+                                    >
+                                        <ChevronLeft className="h-4 w-4" />
+                                    </Button>
+                                    <div className="w-[80px] text-center font-mono text-sm">
+                                        {previewPage} <span className="text-muted-foreground mx-1">/</span> {previewTotalPages}
+                                    </div>
+                                    <Button 
+                                        variant="outline" 
+                                        size="icon" 
+                                        className="h-9 w-9 border-primary/20"
+                                        disabled={previewPage >= previewTotalPages}
+                                        onClick={() => setPreviewPage(prev => Math.min(previewTotalPages, prev + 1))}
+                                    >
+                                        <ChevronRight className="h-4 w-4" />
+                                    </Button>
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
                     <DialogFooter className="p-4 border-t bg-muted/20 gap-2">
-                        <Button variant="ghost" onClick={() => setIsPreviewOpen(false)}>Cancel</Button>
+                        <Button variant="ghost" onClick={() => setIsPreviewOpen(false)} className="hover:bg-destructive/10 hover:text-destructive">Close</Button>
                         <Button 
                             onClick={() => {
                                 handleExport();
                                 setIsPreviewOpen(false);
                             }}
-                            className="bg-primary hover:opacity-90 min-w-[140px]"
+                            className="bg-primary hover:opacity-90 min-w-[160px] shadow-lg shadow-primary/20"
                         >
+                            <Download className="w-4 h-4 mr-2" />
                             Download Full CSV
                         </Button>
                     </DialogFooter>
