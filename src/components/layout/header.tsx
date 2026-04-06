@@ -37,6 +37,11 @@ const MOBILE_NAV = [...NAV, { href: "/login", label: "Login" }]
 
 export function Header() {
     const pathname = usePathname()
+    const [mounted, setMounted] = React.useState(false)
+
+    React.useEffect(() => {
+        setMounted(true)
+    }, [])
 
     return (
         <header className="sticky top-0 z-50 w-full border-b bg-background/90 backdrop-blur supports-[backdrop-filter]:bg-background/70">
@@ -87,43 +92,49 @@ export function Header() {
 
                 {/* Mobile nav */}
                 <div className="md:hidden">
-                    <Sheet>
-                        <SheetTrigger asChild>
-                            <Button variant="outline" size="icon" className="cursor-pointer">
-                                <Menu className="h-4 w-4" />
-                            </Button>
-                        </SheetTrigger>
-                        <SheetContent side="right" className="w-[320px]">
-                            <SheetHeader>
-                                <SheetTitle className="flex items-center gap-2">
-                                    <span>Menu</span>
-                                    <Badge variant="secondary">VOS</Badge>
-                                </SheetTitle>
-                            </SheetHeader>
+                    {!mounted ? (
+                        <Button variant="outline" size="icon" className="cursor-pointer">
+                            <Menu className="h-4 w-4" />
+                        </Button>
+                    ) : (
+                        <Sheet>
+                            <SheetTrigger asChild>
+                                <Button variant="outline" size="icon" className="cursor-pointer">
+                                    <Menu className="h-4 w-4" />
+                                </Button>
+                            </SheetTrigger>
+                            <SheetContent side="right" className="w-[320px]">
+                                <SheetHeader>
+                                    <SheetTitle className="flex items-center gap-2">
+                                        <span>Menu</span>
+                                        <Badge variant="secondary">VOS</Badge>
+                                    </SheetTitle>
+                                </SheetHeader>
 
-                            <div className="mt-6 flex flex-col gap-2">
-                                {MOBILE_NAV.map((item) => {
-                                    const active =
-                                        item.href === "/" ? pathname === "/" : pathname?.startsWith(item.href)
+                                <div className="mt-6 flex flex-col gap-2">
+                                    {MOBILE_NAV.map((item) => {
+                                        const active =
+                                            item.href === "/" ? pathname === "/" : pathname?.startsWith(item.href)
 
-                                    return (
-                                        <Button
-                                            key={item.href}
-                                            asChild
-                                            variant={active ? "default" : "ghost"}
-                                            className="w-full justify-start cursor-pointer"
-                                        >
-                                            <Link href={item.href}>{item.label}</Link>
-                                        </Button>
-                                    )
-                                })}
-                            </div>
+                                        return (
+                                            <Button
+                                                key={item.href}
+                                                asChild
+                                                variant={active ? "default" : "ghost"}
+                                                className="w-full justify-start cursor-pointer"
+                                            >
+                                                <Link href={item.href}>{item.label}</Link>
+                                            </Button>
+                                        )
+                                    })}
+                                </div>
 
-                            <Separator className="my-6" />
+                                <Separator className="my-6" />
 
-                            <div className="text-xs text-muted-foreground">Built with shadcn/ui • Next.js</div>
-                        </SheetContent>
-                    </Sheet>
+                                <div className="text-xs text-muted-foreground">Built with shadcn/ui • Next.js</div>
+                            </SheetContent>
+                        </Sheet>
+                    )}
                 </div>
             </div>
         </header>

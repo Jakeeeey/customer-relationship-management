@@ -21,7 +21,10 @@ export async function GET(req: NextRequest) {
         }
 
         // Construct external URL
-        const externalApiUrl = new URL(`${baseUrl}/api/view-inventory-current-allocated/filter`);
+        // Ensure SPRING_API_BASE_URL doesn't double up on /api if the user included it
+        const cleanBaseUrl = baseUrl.replace(/\/$/, "");
+        const path = process.env.SPRING_API_INVENTORY_PATH || "/api/view-inventory-current-allocated/filter";
+        const externalApiUrl = new URL(`${cleanBaseUrl}${path}`);
         
         // Helper to check if value is a valid filter (not "all", "N/A", etc.)
         const isValid = (val: string) => val && val.toLowerCase() !== "all" && val.toLowerCase() !== "n/a";
@@ -35,13 +38,27 @@ export async function GET(req: NextRequest) {
         const cookieStore = await cookies();
         const token = cookieStore.get("vos_access_token")?.value;
 
+        // --- DEBUG LOGGING ---
+        console.log(`[InventoryReport Debug] Token present: ${!!token}`);
+        if (token) {
+            console.log(`[InventoryReport Debug] Token Length: ${token.length}`);
+            console.log(`[InventoryReport Debug] Token Start: ${token.substring(0, 10)}...`);
+            console.log(`[InventoryReport Debug] Token End: ...${token.substring(token.length - 10)}`);
+        } else {
+            console.warn(`[InventoryReport Debug] NO TOKEN FOUND in "vos_access_token" cookie.`);
+        }
+        // ---------------------
+
         const headers: HeadersInit = {
-            "Content-Type": "application/json",
             "Accept": "application/json",
         };
 
         if (token) {
-            headers["Authorization"] = `Bearer ${token}`;
+            const sanitizedToken = token.trim();
+            headers["Authorization"] = `Bearer ${sanitizedToken}`;
+            console.log(`[InventoryReport Debug] Auth Header set: Bearer ${sanitizedToken.substring(0, 10)}...`);
+        } else {
+            console.warn("[InventoryReport Debug] Attaching NO Authorization header!");
         }
 
         // Bypassing Next.js payload limits by streaming directly to the client
@@ -61,7 +78,8 @@ export async function GET(req: NextRequest) {
 
         if (!res.ok) {
             const errorText = await res.text();
-            throw new Error(`Springboot API error: ${res.status} ${errorText}`);
+            console.error(`[InventoryReport Backend Error] Status: ${res.status}, Body: ${errorText}`);
+            throw new Error(`Springboot API error: ${res.status} ${errorText} (URL: ${externalApiUrl.toString()}, TokenPresent: ${!!token})`);
         }
 
         // Return a response that streams directly from the source to the client
@@ -87,7 +105,7 @@ export async function GET(req: NextRequest) {
                data: [], 
                isTimeout: isTimeout
             },
-            { status: 200 }
+            { status: e?.message?.includes("Springboot API error: 401") ? 401 : (isTimeout ? 504 : 500) }
         );
     }
 }
