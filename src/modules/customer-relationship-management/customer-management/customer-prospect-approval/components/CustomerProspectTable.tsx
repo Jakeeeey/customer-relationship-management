@@ -17,7 +17,7 @@ import {
     Search, Filter, Check, X, Loader2, ChevronLeft, ChevronRight, MoreHorizontal, User, Store, MapPin, Calendar,
     Phone, Building, Info, Briefcase, Landmark, ShieldCheck, FileText
 } from "lucide-react";
-import { CustomerProspect, CustomerProspectsAPIResponse, DiscountType, Salesman, StoreType } from "../types";
+import { CustomerProspect, CustomerProspectsAPIResponse, DiscountType, Salesman, StoreType, PaymentTerm } from "../types";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "./StatusBadge";
@@ -45,10 +45,11 @@ interface CustomerProspectTableProps {
     onApprove: (id: number) => Promise<void>;
     onReject: (id: number) => Promise<void>;
     storeTypes: StoreType[];
+    paymentTerms: PaymentTerm[];
 }
 
 export function CustomerProspectTable({
-    data, discountTypes, salesmen, storeTypes, isLoading, metadata, page, pageSize,
+    data, discountTypes, salesmen, storeTypes, paymentTerms, isLoading, metadata, page, pageSize,
     searchQuery: parentSearchQuery, statusFilter, salesmanFilter,
     onPageChange, onPageSizeChange: _onPageSizeChange, onSearchChange, onStatusChange, onSalesmanChange, // eslint-disable-line @typescript-eslint/no-unused-vars
     onApprove, onReject,
@@ -57,6 +58,7 @@ export function CustomerProspectTable({
     const [processingId, setProcessingId] = useState<number | null>(null);
     const [selectedProspect, setSelectedProspect] = useState<CustomerProspect | null>(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [isZoomOpen, setIsZoomOpen] = useState(false);
 
     useEffect(() => {
         const handler = setTimeout(() => {
@@ -77,8 +79,9 @@ export function CustomerProspectTable({
                 await onReject(id);
                 toast.error("Prospect Rejected", { description: "The prospect request has been denied." });
             }
-        } catch (_err) { // eslint-disable-line @typescript-eslint/no-unused-vars
-            toast.error("Operation Failed", { description: "Something went wrong. Please try again." });
+        } catch (err) {
+            const errorMessage = err instanceof Error ? err.message : "Something went wrong. Please try again.";
+            toast.error("Operation Failed", { description: errorMessage });
         } finally {
             setProcessingId(null);
             setIsModalOpen(false);
@@ -287,8 +290,35 @@ export function CustomerProspectTable({
                         </DialogDescription>
                     </DialogHeader>
                     {selectedProspect && (
-                        <ScrollArea className="max-h-[60vh] pr-4 py-4">
+                        <ScrollArea className="max-h-[70vh] pr-4 py-4">
                             <div className="space-y-6">
+                                {/* Character Profile / Image */}
+                                {selectedProspect.customer_image && (
+                                    <div className="flex justify-center mb-6">
+                                        <div 
+                                            className="relative group cursor-zoom-in"
+                                            onClick={() => setIsZoomOpen(true)}
+                                            title="Click to zoom"
+                                        >
+                                            <div className="absolute -inset-1 bg-gradient-to-r from-primary to-emerald-600 rounded-2xl blur opacity-25 group-hover:opacity-50 transition duration-1000 group-hover:duration-200"></div>
+                                            <div className="relative h-40 w-40 rounded-2xl border-4 border-background overflow-hidden shadow-2xl bg-muted flex items-center justify-center">
+                                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                                <img
+                                                    src={`${process.env.NEXT_PUBLIC_API_BASE_URL}/assets/${selectedProspect.customer_image}`}
+                                                    alt={selectedProspect.customer_name || "Prospect"}
+                                                    className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110"
+                                                    onError={(e) => {
+                                                        (e.target as HTMLImageElement).src = 'https://ui-avatars.com/api/?name=' + encodeURIComponent(selectedProspect.customer_name || "Prospect") + '&background=random&size=160';
+                                                    }}
+                                                />
+                                            </div>
+                                            <div className="absolute bottom-2 right-2 bg-black/60 text-white p-1 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity">
+                                                <Search className="h-3 w-3" />
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
                                 {/* General Information */}
                                 <section className="space-y-3">
                                     <h4 className="text-xs font-bold uppercase text-primary flex items-center gap-1.5 underline underline-offset-4">
@@ -298,7 +328,7 @@ export function CustomerProspectTable({
                                     <div className="grid grid-cols-2 gap-4 text-sm">
                                         <div className="flex flex-col">
                                             <span className="text-[10px] font-bold text-muted-foreground uppercase">Customer Name</span>
-                                            <span className="font-semibold">{selectedProspect.customer_name}</span>
+                                            <span className="font-semibold">{selectedProspect.customer_name || "None"}</span>
                                         </div>
                                         <div className="flex flex-col">
                                             <span className="text-[10px] font-bold text-muted-foreground uppercase">Customer Code</span>
@@ -307,14 +337,14 @@ export function CustomerProspectTable({
                                         <div className="flex flex-col">
                                             <span className="text-[10px] font-bold text-muted-foreground uppercase">Prospect Type</span>
                                             <Badge variant="outline" className="w-fit h-5 text-[10px] font-bold">
-                                                {selectedProspect.type}
+                                                {selectedProspect.type || "None"}
                                             </Badge>
                                         </div>
                                         <div className="flex flex-col">
                                             <span className="text-[10px] font-bold text-muted-foreground uppercase">Prospect Date</span>
                                             <span className="flex items-center gap-1">
                                                 <Calendar className="h-3 w-3 text-muted-foreground" />
-                                                {selectedProspect.prospect_date ? new Date(selectedProspect.prospect_date).toLocaleDateString() : "N/A"}
+                                                {selectedProspect.prospect_date ? new Date(selectedProspect.prospect_date).toLocaleDateString() : "None"}
                                             </span>
                                         </div>
                                     </div>
@@ -331,21 +361,21 @@ export function CustomerProspectTable({
                                     <div className="grid grid-cols-2 gap-4 text-sm">
                                         <div className="flex flex-col">
                                             <span className="text-[10px] font-bold text-muted-foreground uppercase">Contact Number</span>
-                                            <span className="text-blue-600 font-medium">{selectedProspect.contact_number || "N/A"}</span>
+                                            <span className="text-blue-600 font-medium">{selectedProspect.contact_number || "None"}</span>
                                         </div>
                                         <div className="flex flex-col">
                                             <span className="text-[10px] font-bold text-muted-foreground uppercase">Email Address</span>
-                                            <span className="text-blue-600 font-medium truncate">{selectedProspect.customer_email || "N/A"}</span>
+                                            <span className="text-blue-600 font-medium truncate">{selectedProspect.customer_email || "None"}</span>
                                         </div>
                                         <div className="flex flex-col">
                                             <span className="text-[10px] font-bold text-muted-foreground uppercase">Telephone</span>
-                                            <span>{selectedProspect.tel_number || "N/A"}</span>
+                                            <span>{selectedProspect.tel_number || "None"}</span>
                                         </div>
                                         <div className="flex flex-col">
                                             <span className="text-[10px] font-bold text-muted-foreground uppercase">Salesman</span>
                                             <span className="flex items-center gap-1 font-medium">
                                                 <Briefcase className="h-3 w-3 text-muted-foreground" />
-                                                {selectedProspect.salesman_name}
+                                                {selectedProspect.salesman_name || "None"}
                                             </span>
                                         </div>
                                     </div>
@@ -362,18 +392,18 @@ export function CustomerProspectTable({
                                     <div className="grid grid-cols-2 gap-4 text-sm">
                                         <div className="flex flex-col col-span-2 p-2 bg-muted/40 rounded-lg">
                                             <span className="text-[10px] font-bold text-muted-foreground uppercase">Store Info</span>
-                                            <span className="font-semibold text-base">{selectedProspect.store_name || "N/A"}</span>
-                                            <span className="text-xs text-muted-foreground italic">{selectedProspect.store_signage}</span>
+                                            <span className="font-semibold text-base">{selectedProspect.store_name || "None"}</span>
+                                            <span className="text-xs text-muted-foreground italic">{selectedProspect.store_signage || "No signage"}</span>
                                         </div>
                                         <div className="flex flex-col">
                                             <span className="text-[10px] font-bold text-muted-foreground uppercase">Full Address</span>
                                             <span className="text-xs leading-tight">
-                                                {selectedProspect.brgy}, {selectedProspect.city}, {selectedProspect.province}
+                                                {selectedProspect.brgy || "N/A"}, {selectedProspect.city || "N/A"}, {selectedProspect.province || "N/A"}
                                             </span>
                                         </div>
                                         <div className="flex flex-col">
                                             <span className="text-[10px] font-bold text-muted-foreground uppercase">Classification</span>
-                                            <span className="font-medium">{selectedProspect.classification || "N/A"}</span>
+                                            <span className="font-medium">{selectedProspect.classification || "None"}</span>
                                         </div>
                                     </div>
                                 </section>
@@ -389,7 +419,7 @@ export function CustomerProspectTable({
                                     <div className="grid grid-cols-2 gap-4 text-sm">
                                         <div className="flex flex-col">
                                             <span className="text-[10px] font-bold text-muted-foreground uppercase">TIN</span>
-                                            <span className="font-mono font-medium">{selectedProspect.customer_tin || "N/A"}</span>
+                                            <span className="font-mono font-medium">{selectedProspect.customer_tin || "None"}</span>
                                         </div>
                                         <div className="flex flex-col">
                                             <span className="text-[10px] font-bold text-muted-foreground uppercase">Tax Status</span>
@@ -401,12 +431,15 @@ export function CustomerProspectTable({
                                         </div>
                                         <div className="flex flex-col">
                                             <span className="text-[10px] font-bold text-muted-foreground uppercase">Payment Term</span>
-                                            <span className="font-medium">{selectedProspect.payment_term ? `${selectedProspect.payment_term} Days` : "COD / N/A"}</span>
+                                            <span className="font-medium">
+                                                {paymentTerms.find(pt => pt.id === Number(selectedProspect.payment_term))?.payment_name 
+                                                    || (selectedProspect.payment_term ? `Term ID: ${selectedProspect.payment_term}` : "None")}
+                                            </span>
                                         </div>
                                         <div className="flex flex-col">
                                             <span className="text-[10px] font-bold text-muted-foreground uppercase">Bank Details</span>
                                             <span className="text-xs text-muted-foreground line-clamp-1 truncate" title={selectedProspect.bank_details || ""}>
-                                                {selectedProspect.bank_details || "No details provided"}
+                                                {selectedProspect.bank_details || "None"}
                                             </span>
                                         </div>
                                     </div>
@@ -423,13 +456,13 @@ export function CustomerProspectTable({
                                     <div className="grid grid-cols-2 gap-4 text-sm">
                                         <div className="flex flex-col">
                                             <span className="text-[10px] font-bold text-muted-foreground uppercase">Price Type</span>
-                                            <span>{selectedProspect.price_type || "Standard"}</span>
+                                            <span>{selectedProspect.price_type || "None"}</span>
                                         </div>
                                         <div className="flex flex-col">
                                             <span className="text-[10px] font-bold text-muted-foreground uppercase">Discount Type</span>
                                             <span className="font-medium text-emerald-600">
                                                 {discountTypes.find(dt => dt.id === Number(selectedProspect.discount_type))?.discount_type 
-                                                    || (selectedProspect.discount_type ? `ID: ${selectedProspect.discount_type}` : "None / No Discount")}
+                                                    || (selectedProspect.discount_type ? `ID: ${selectedProspect.discount_type}` : "None")}
                                             </span>
                                         </div>
                                         <div className="flex flex-col">
@@ -440,7 +473,7 @@ export function CustomerProspectTable({
                                             <span className="text-[10px] font-bold text-muted-foreground uppercase">Store Type</span>
                                             <span className="font-medium text-emerald-600">
                                                 {storeTypes.find(st => st.id === Number(selectedProspect.store_type))?.store_type 
-                                                    || (selectedProspect.store_type ? `ID: ${selectedProspect.store_type}` : "None / General")}
+                                                    || (selectedProspect.store_type ? `ID: ${selectedProspect.store_type}` : "None")}
                                             </span>
                                         </div>
                                     </div>
@@ -479,6 +512,35 @@ export function CustomerProspectTable({
                             Approve & Create Customer
                         </Button>
                     </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* Zoom Dialog */}
+            <Dialog open={isZoomOpen} onOpenChange={setIsZoomOpen}>
+                <DialogContent showCloseButton={false} className="max-w-3xl p-0 overflow-hidden border-none bg-transparent shadow-none">
+                    <DialogHeader className="sr-only">
+                        <DialogTitle>Customer Image Zoom</DialogTitle>
+                        <DialogDescription>Full scale view of the customer profile image.</DialogDescription>
+                    </DialogHeader>
+                    <div className="relative w-full h-[80vh] flex items-center justify-center p-4">
+                        {selectedProspect?.customer_image && (
+                            /* eslint-disable-next-line @next/next/no-img-element */
+                            <img
+                                src={`${process.env.NEXT_PUBLIC_API_BASE_URL}/assets/${selectedProspect.customer_image}`}
+                                alt={selectedProspect.customer_name || "Zoomed Image"}
+                                className="max-w-full max-h-full object-contain rounded-xl shadow-2xl animate-in zoom-in-95 duration-300"
+                                onError={(e) => {
+                                    (e.target as HTMLImageElement).src = 'https://ui-avatars.com/api/?name=' + encodeURIComponent(selectedProspect.customer_name || "Prospect") + '&background=random&size=600';
+                                }}
+                            />
+                        )}
+                        <Button 
+                            className="absolute top-4 right-4 h-10 w-10 rounded-full bg-black/50 hover:bg-black/70 text-white border-none"
+                            onClick={() => setIsZoomOpen(false)}
+                        >
+                            <X className="h-6 w-6" />
+                        </Button>
+                    </div>
                 </DialogContent>
             </Dialog>
         </div>

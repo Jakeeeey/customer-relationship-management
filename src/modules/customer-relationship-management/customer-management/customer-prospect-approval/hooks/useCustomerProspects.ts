@@ -1,13 +1,14 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef } from "react";
-import type { CustomerProspect, CustomerProspectsAPIResponse, DiscountType, Salesman, StoreType } from "../types";
+import type { CustomerProspect, CustomerProspectsAPIResponse, DiscountType, Salesman, StoreType, PaymentTerm } from "../types";
 
 interface UseCustomerProspectsReturn {
     prospects: CustomerProspect[];
     discountTypes: DiscountType[];
     salesmen: Salesman[];
     storeTypes: StoreType[];
+    paymentTerms: PaymentTerm[];
     isLoading: boolean;
     isError: boolean;
     error: Error | null;
@@ -32,6 +33,7 @@ export function useCustomerProspects(): UseCustomerProspectsReturn {
     const [discountTypes, setDiscountTypes] = useState<DiscountType[]>([]);
     const [salesmen, setSalesmen] = useState<Salesman[]>([]);
     const [storeTypes, setStoreTypes] = useState<StoreType[]>([]);
+    const [paymentTerms, setPaymentTerms] = useState<PaymentTerm[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isError, setIsError] = useState(false);
     const [error, setError] = useState<Error | null>(null);
@@ -84,10 +86,11 @@ export function useCustomerProspects(): UseCustomerProspectsReturn {
 
             // Fetch References (Discount Types, Salesmen, Store Types) once or on manual refetch
             if (discountTypes.length === 0 || salesmen.length === 0 || storeTypes.length === 0) {
-                const [dtRes, slRes, stRes] = await Promise.all([
+                const [dtRes, slRes, stRes, ptRes] = await Promise.all([
                     fetch('/api/crm/customer/references?type=discount_type'),
                     fetch('/api/crm/customer/references?type=salesman'),
-                    fetch('/api/crm/customer/references?type=store_type')
+                    fetch('/api/crm/customer/references?type=store_type'),
+                    fetch('/api/crm/customer/references?type=payment_term')
                 ]);
 
                 if (dtRes.ok) {
@@ -101,6 +104,10 @@ export function useCustomerProspects(): UseCustomerProspectsReturn {
                 if (stRes.ok) {
                     const stData = await stRes.json();
                     setStoreTypes(stData.data || []);
+                }
+                if (ptRes.ok) {
+                    const ptData = await ptRes.json();
+                    setPaymentTerms(ptData.data || []);
                 }
             }
 
@@ -152,6 +159,7 @@ export function useCustomerProspects(): UseCustomerProspectsReturn {
         discountTypes,
         salesmen,
         storeTypes,
+        paymentTerms,
         isLoading,
         isError,
         error,
