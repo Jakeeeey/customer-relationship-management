@@ -35,6 +35,7 @@
     "qrcode.react": "^4.2.0",
     "radix-ui": "^1.4.3",
     "react": "19.2.3",
+    "react-barcode": "^1.6.1",
     "react-day-picker": "^9.13.2",
     "react-dom": "19.2.3",
     "react-hook-form": "^7.71.1",
@@ -44,6 +45,7 @@
     "recharts": "^2.15.4",
     "sonner": "^2.0.7",
     "tailwind-merge": "^3.5.0",
+    "use-debounce": "^10.1.0",
     "vaul": "^1.1.2",
     "xlsx": "^0.18.5",
     "zod": "^4.3.6"

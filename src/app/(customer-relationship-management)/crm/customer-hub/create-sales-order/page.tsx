@@ -70,12 +70,45 @@ function buildHeaderUserFromToken(token: string | null | undefined) {
     };
 }
 
-export default async function Page() {
+export default async function Page(props: {
+    searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+}) {
+    const searchParams = await props.searchParams;
+    const attachmentId = searchParams.attachment_id as string | undefined;
+
     // ✅ Next.js 16: cookies() is async
     const cookieStore = await cookies();
     const token = cookieStore.get(COOKIE_NAME)?.value ?? null;
 
     const headerUser = buildHeaderUserFromToken(token);
+
+    let fileUrl = null;
+
+    if (attachmentId) {
+        try {
+            const DIRECTUS_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
+            const DIRECTUS_TOKEN = process.env.DIRECTUS_STATIC_TOKEN;
+
+            const res = await fetch(`${DIRECTUS_URL}/items/sales_order_attachment/${attachmentId}?fields=file_id,attachment_name`, {
+                headers: {
+                    Authorization: `Bearer ${DIRECTUS_TOKEN}`,
+                    "Content-Type": "application/json"
+                },
+                cache: 'no-store'
+            });
+
+            if (res.ok) {
+                const json = await res.json();
+                const attachment = json.data;
+                if (attachment?.file_id) {
+                    const encodedName = encodeURIComponent(attachment.attachment_name);
+                    fileUrl = `/api/crm/customer-hub/callsheet/file?id=${attachment.file_id}&filename=${encodedName}`;
+                }
+            }
+        } catch (e) {
+            console.error("Failed to fetch attachment for header button:", e);
+        }
+    }
 
     return (
         // ✅ This fills the RIGHT column provided by SidebarInset (which is now fixed-height).
@@ -114,7 +147,7 @@ export default async function Page() {
 
             {/* ✅ Only content scrolls inside RIGHT column */}
             <main className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden p-6 sm:p-8">
-                <CreateSalesOrderModule />
+                <CreateSalesOrderModule fileUrl={fileUrl} />
             </main>
         </div>
     );

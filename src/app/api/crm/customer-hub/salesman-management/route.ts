@@ -75,11 +75,72 @@ export async function GET(req: NextRequest) {
         if (action === "customer-count") {
             const id = req.nextUrl.searchParams.get("id");
             if (!id) return NextResponse.json({ count: 0 });
-            // Directus calculation for customer assignments
             const res = await fetch(`${DIRECTUS_URL}/items/customer_salesmen?filter[salesman_id][_eq]=${id}&limit=1&aggregate[count]=*`, { headers: fetchHeaders });
             const data = await res.json();
             const count = data.data?.[0]?.count || 0;
             return NextResponse.json({ count });
+        }
+
+        if (action === "assigned-customers") {
+            const id = req.nextUrl.searchParams.get("id");
+            if (!id) return NextResponse.json({ data: [] });
+
+            // STEP 1: Fetch ALL columns from junction
+            const junctionUrl = `${DIRECTUS_URL}/items/customer_salesmen?filter[salesman_id][_eq]=${id}&limit=-1&fields=*`;
+            const junctionRes = await fetch(junctionUrl, { headers: fetchHeaders, cache: "no-store" });
+            const junctionData = await junctionRes.json();
+            const junctions = junctionData.data || [];
+
+            if (junctions.length === 0) return NextResponse.json({ data: [] });
+
+            // 🚀 FIX: Typed the map payload to stop linting errors
+            interface JunctionRecord { id: number; customer_id?: number; customer?: number }
+            const customerIds = junctions.map((j: JunctionRecord) => j.customer_id || j.customer).filter(Boolean);
+
+            if (customerIds.length === 0) return NextResponse.json({ data: [] });
+
+            // STEP 2: Fetch the actual customers
+            const customerFilter = { id: { _in: customerIds } };
+            const customerUrl = `${DIRECTUS_URL}/items/customer?limit=-1&fields=*,store_type.*,classification.*&filter=${encodeURIComponent(JSON.stringify(customerFilter))}`;
+
+            const customerRes = await fetch(customerUrl, { headers: fetchHeaders, cache: "no-store" });
+            const customerData = await customerRes.json();
+            const customers = customerData.data || [];
+
+            // STEP 3: Stitch them perfectly together
+            // 🚀 FIX: Typed the map payload to stop linting errors
+            interface BaseCustomer { id: number; [key: string]: unknown }
+            const formatted = junctions.map((j: JunctionRecord) => {
+                const cId = j.customer_id || j.customer;
+                const customerObj = customers.find((c: BaseCustomer) => c.id === cId) || {};
+
+                return {
+                    junction_id: j.id,
+                    ...customerObj
+                };
+            });
+
+            return NextResponse.json({ data: formatted });
+        }
+
+        if (action === "search-customers") {
+            const search = req.nextUrl.searchParams.get("search") || "";
+            let url = `${DIRECTUS_URL}/items/customer?limit=20&fields=*,store_type.*,classification.*`;
+
+            if (search) {
+                const filter = {
+                    _or: [
+                        { customer_name: { _icontains: search } },
+                        { customer_code: { _icontains: search } },
+                        { store_name: { _icontains: search } }
+                    ]
+                };
+                url += `&filter=${encodeURIComponent(JSON.stringify(filter))}`;
+            }
+
+            const res = await fetch(url, { headers: fetchHeaders, cache: "no-store" });
+            const data = await res.json();
+            return NextResponse.json({ data: data.data || [] });
         }
 
         return NextResponse.json({ error: "Invalid action" }, { status: 400 });
@@ -102,21 +163,17 @@ export async function PATCH(req: NextRequest) {
         if (action === "deactivate-reassign") {
             const { targetSalesmanId } = body;
 
-            // 1. Deactivate original salesman
             await fetch(`${DIRECTUS_URL}/items/salesman/${id}`, {
                 method: "PATCH",
                 headers: fetchHeaders,
                 body: JSON.stringify({ isActive: 0 })
             });
 
-            // 2. Fetch all customer assignments for the original salesman
             const assignmentsRes = await fetch(`${DIRECTUS_URL}/items/customer_salesmen?filter[salesman_id][_eq]=${id}&fields=id&limit=-1`, { headers: fetchHeaders });
             const assignments = (await assignmentsRes.json()).data || [];
 
-            // 3. Reassign them if there are any
             if (assignments.length > 0 && targetSalesmanId) {
                 const assignmentIds = assignments.map((a: { id: number }) => a.id);
-                // Directus Batch Update
                 await fetch(`${DIRECTUS_URL}/items/customer_salesmen`, {
                     method: "PATCH",
                     headers: fetchHeaders,
@@ -130,7 +187,6 @@ export async function PATCH(req: NextRequest) {
             return NextResponse.json({ success: true });
         }
 
-        // Standard update
         const res = await fetch(`${DIRECTUS_URL}/items/salesman/${id}`, {
             method: "PATCH",
             headers: fetchHeaders,
@@ -145,8 +201,22 @@ export async function PATCH(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+    const action = req.nextUrl.searchParams.get("action");
+
     try {
         const body = await req.json();
+
+        if (action === "assign-customer") {
+            const res = await fetch(`${DIRECTUS_URL}/items/customer_salesmen`, {
+                method: "POST",
+                headers: fetchHeaders,
+                body: JSON.stringify(body)
+            });
+            const data = await res.json();
+            if (data.errors) throw new Error(data.errors[0].message);
+            return NextResponse.json({ success: true, data: data.data });
+        }
+
         const res = await fetch(`${DIRECTUS_URL}/items/salesman`, {
             method: "POST",
             headers: fetchHeaders,
@@ -161,11 +231,24 @@ export async function POST(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
-    const id = req.nextUrl.searchParams.get("id");
-    if (!id) return NextResponse.json({ error: "ID required" }, { status: 400 });
+    const action = req.nextUrl.searchParams.get("action");
 
     try {
-        // 1. Delete all customer_salesmen assignments for this salesman
+        if (action === "unassign-customer") {
+            const junctionId = req.nextUrl.searchParams.get("junctionId");
+            if (!junctionId) throw new Error("Junction ID required");
+
+            const res = await fetch(`${DIRECTUS_URL}/items/customer_salesmen/${junctionId}`, {
+                method: "DELETE",
+                headers: fetchHeaders
+            });
+            if (!res.ok && res.status !== 204) throw new Error("Failed to delete junction record");
+            return NextResponse.json({ success: true });
+        }
+
+        const id = req.nextUrl.searchParams.get("id");
+        if (!id) return NextResponse.json({ error: "ID required" }, { status: 400 });
+
         const assignmentsRes = await fetch(
             `${DIRECTUS_URL}/items/customer_salesmen?filter[salesman_id][_eq]=${id}&fields=id&limit=-1`,
             { headers: fetchHeaders }
@@ -174,7 +257,6 @@ export async function DELETE(req: NextRequest) {
 
         if (assignments.length > 0) {
             const assignmentIds = assignments.map((a: { id: number }) => a.id);
-            // Directus batch delete
             await fetch(`${DIRECTUS_URL}/items/customer_salesmen`, {
                 method: "DELETE",
                 headers: fetchHeaders,
@@ -182,7 +264,6 @@ export async function DELETE(req: NextRequest) {
             });
         }
 
-        // 2. Delete the salesman record
         const delRes = await fetch(`${DIRECTUS_URL}/items/salesman/${id}`, {
             method: "DELETE",
             headers: fetchHeaders

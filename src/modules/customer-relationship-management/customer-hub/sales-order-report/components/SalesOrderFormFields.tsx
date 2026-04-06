@@ -2,15 +2,9 @@
 
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from "@/components/ui/select";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import { Card, CardContent } from "@/components/ui/card";
-import { Salesman, Branch } from "../types";
+import { Salesman, Branch, Supplier } from "../types";
 import { Search, Calendar } from "lucide-react";
 import { useEffect, useState, useRef } from "react";
 
@@ -24,6 +18,7 @@ interface AppliedFilters {
     endDate: string;
     salesmanId: string;
     branchId: string;
+    supplierId: string;
     status: string;
 }
 
@@ -32,9 +27,10 @@ interface SalesOrderFormFieldsProps {
     onSearch: (filters: AppliedFilters) => void;
     salesmen: Salesman[];
     branches: Branch[];
+    suppliers: Supplier[];
 }
 
-export function SalesOrderFormFields({ appliedFilters, onSearch, salesmen, branches }: SalesOrderFormFieldsProps) {
+export function SalesOrderFormFields({ appliedFilters, onSearch, salesmen, branches, suppliers }: SalesOrderFormFieldsProps) {
     const [draftFilters, setDraftFilters] = useState<AppliedFilters>(appliedFilters);
     const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -70,6 +66,7 @@ export function SalesOrderFormFields({ appliedFilters, onSearch, salesmen, branc
         draftFilters.endDate,
         draftFilters.salesmanId,
         draftFilters.branchId,
+        draftFilters.supplierId,
         draftFilters.status,
         draftFilters.dateCreated,
         draftFilters.orderDate,
@@ -101,66 +98,71 @@ export function SalesOrderFormFields({ appliedFilters, onSearch, salesmen, branc
                     {/* Salesman */}
                     <div className="flex flex-col gap-1.5">
                         <Label className="text-[10px] font-bold text-muted-foreground uppercase pl-1">Salesman</Label>
-                        <Select
+                        <SearchableSelect
+                            options={[
+                                { value: "none", label: "All Salesmen" },
+                                ...salesmen.map(sm => ({ value: sm.id.toString(), label: sm.salesman_name }))
+                            ]}
                             value={draftFilters.salesmanId}
                             onValueChange={(val) => handleInputChange("salesmanId", val)}
-                        >
-                            <SelectTrigger className="h-9 text-sm shadow-sm">
-                                <SelectValue placeholder="All Salesmen" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="none">All Salesmen</SelectItem>
-                                {salesmen.map(sm => (
-                                    <SelectItem key={sm.id} value={sm.id.toString()}>{sm.salesman_name}</SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
+                            placeholder="All Salesmen"
+                            className="h-9 text-sm shadow-sm"
+                        />
                     </div>
 
                     {/* Branch */}
                     <div className="flex flex-col gap-1.5">
                         <Label className="text-[10px] font-bold text-muted-foreground uppercase pl-1">Branch</Label>
-                        <Select
+                        <SearchableSelect
+                            options={[
+                                { value: "none", label: "All Branches" },
+                                ...branches.map(b => ({ value: b.id.toString(), label: b.branch_name }))
+                            ]}
                             value={draftFilters.branchId}
                             onValueChange={(val) => handleInputChange("branchId", val)}
-                        >
-                            <SelectTrigger className="h-9 text-sm shadow-sm">
-                                <SelectValue placeholder="All Branches" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="none">All Branches</SelectItem>
-                                {branches.map(b => (
-                                    <SelectItem key={b.id} value={b.id.toString()}>{b.branch_name}</SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
+                            placeholder="All Branches"
+                            className="h-9 text-sm shadow-sm"
+                        />
+                    </div>
+
+                    {/* Supplier */}
+                    <div className="flex flex-col gap-1.5">
+                        <Label className="text-[10px] font-bold text-muted-foreground uppercase pl-1">Supplier</Label>
+                        <SearchableSelect
+                            options={[
+                                { value: "none", label: "All Suppliers" },
+                                ...suppliers.map(s => ({ value: s.id.toString(), label: s.supplier_shortcut || `Supplier ${s.id}` }))
+                            ]}
+                            value={draftFilters.supplierId}
+                            onValueChange={(val) => handleInputChange("supplierId", val)}
+                            placeholder="All Suppliers"
+                            className="h-9 text-sm shadow-sm"
+                        />
                     </div>
 
                     {/* Status */}
                     <div className="flex flex-col gap-1.5">
                         <Label className="text-[10px] font-bold text-muted-foreground uppercase pl-1">Status</Label>
-                        <Select
+                        <SearchableSelect
+                            options={[
+                                { value: "none", label: "All Status" },
+                                { value: "For Approval", label: "For Approval" },
+                                { value: "For Consolidation", label: "For Consolidation" },
+                                { value: "For Picking", label: "For Picking" },
+                                { value: "For Invoicing", label: "For Invoicing" },
+                                { value: "For Loading", label: "For Loading" },
+                                { value: "For Shipping", label: "For Shipping" },
+                                { value: "En Route", label: "En Route" },
+                                { value: "Delivered", label: "Delivered" },
+                                { value: "On Hold", label: "On Hold" },
+                                { value: "Cancelled", label: "Cancelled" },
+                                { value: "Not Fulfilled", label: "Not Fulfilled" },
+                            ]}
                             value={draftFilters.status}
                             onValueChange={(val) => handleInputChange("status", val)}
-                        >
-                            <SelectTrigger className="h-9 text-sm shadow-sm">
-                                <SelectValue placeholder="All Status" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="none">All Status</SelectItem>
-                                <SelectItem value="For Approval">For Approval</SelectItem>
-                                <SelectItem value="For Consolidation">For Consolidation</SelectItem>
-                                <SelectItem value="For Picking">For Picking</SelectItem>
-                                <SelectItem value="For Invoicing">For Invoicing</SelectItem>
-                                <SelectItem value="For Loading">For Loading</SelectItem>
-                                <SelectItem value="For Shipping">For Shipping</SelectItem>
-                                <SelectItem value="En Route">En Route</SelectItem>
-                                <SelectItem value="Delivered">Delivered</SelectItem>
-                                <SelectItem value="On Hold">On Hold</SelectItem>
-                                <SelectItem value="Cancelled">Cancelled</SelectItem>
-                                <SelectItem value="Not Fulfilled">Not Fulfilled</SelectItem>
-                            </SelectContent>
-                        </Select>
+                            placeholder="All Status"
+                            className="h-9 text-sm shadow-sm"
+                        />
                     </div>
 
                     {/* Date Range */}
