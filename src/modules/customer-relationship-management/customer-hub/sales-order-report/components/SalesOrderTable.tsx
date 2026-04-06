@@ -12,8 +12,7 @@ import {
 } from "@/components/ui/table";
 import { SalesOrder, Customer, Salesman, Branch, Supplier } from "../types";
 
-import { Button } from "@/components/ui/button";
-import { Trash2, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 
 import { Skeleton } from "@/components/ui/skeleton";
@@ -27,7 +26,6 @@ interface SalesOrderTableProps {
     totalOrders: number;
     pageSize: number;
     onLoadMore: () => void;
-    onDelete?: (order: SalesOrder) => void;
     isLoading?: boolean;
     hasActiveDate?: boolean;
     selectedOrderId?: string | number;
@@ -43,7 +41,6 @@ export function SalesOrderTable({
     totalOrders,
     pageSize,
     onLoadMore,
-    onDelete,
     isLoading = false,
     hasActiveDate = false,
     selectedOrderId,
@@ -104,7 +101,6 @@ export function SalesOrderTable({
                             <TableHead rowSpan={2} className="align-middle text-right border-r text-[10px] font-bold uppercase py-1 px-2">Net Amt</TableHead>
                             <TableHead rowSpan={2} className="align-middle text-right border-r text-[10px] font-bold uppercase py-1 px-2">Alloc Amt</TableHead>
                             <TableHead rowSpan={2} className="align-middle border-r text-[10px] font-bold uppercase py-1 px-2">Status</TableHead>
-                            <TableHead rowSpan={2} className="align-middle text-center text-[10px] font-bold uppercase py-1 px-2">Actions</TableHead>
                         </TableRow>
                         <TableRow className="bg-muted/50 h-8">
                             <TableHead className="border-r text-[9px] font-bold py-1 px-2">SO NO</TableHead>
@@ -128,12 +124,11 @@ export function SalesOrderTable({
                                     <TableCell className="text-right border-r"><Skeleton className="h-4 w-20 ml-auto" /></TableCell>
                                     <TableCell className="text-right border-r"><Skeleton className="h-4 w-20 ml-auto" /></TableCell>
                                     <TableCell className="border-r"><Skeleton className="h-6 w-20 rounded-full" /></TableCell>
-                                    <TableCell><Skeleton className="h-4 w-8" /></TableCell>
                                 </TableRow>
                             ))
                         ) : orders.length === 0 ? (
                             <TableRow>
-                                <TableCell colSpan={14} className="h-24 text-center text-muted-foreground">
+                                <TableCell colSpan={13} className="h-24 text-center text-muted-foreground">
                                     {!hasActiveDate
                                         ? "Please select a date filter to view sales orders."
                                         : "No orders found for the selected filters."
@@ -178,7 +173,7 @@ export function SalesOrderTable({
                                     <TableCell className="text-right border-r py-1.5 px-2 text-[11px] font-mono font-bold text-primary">
                                         {formatCurrency(order.allocated_amount)}
                                     </TableCell>
-                                    <TableCell className="border-r py-1 px-2">
+                                    <TableCell className="border py-1 px-2">
                                         <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase ${order.order_status === "For Approval"
                                             ? "bg-yellow-100 text-yellow-800 border border-yellow-200"
                                             : order.order_status === "Posted"
@@ -189,19 +184,6 @@ export function SalesOrderTable({
                                             }`}>
                                             {order.order_status || "PENDING"}
                                         </span>
-                                    </TableCell>
-                                    <TableCell className="py-1 px-2 text-center">
-                                        <Button
-                                            variant="ghost"
-                                            size="icon"
-                                            className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                onDelete?.(order);
-                                            }}
-                                        >
-                                            <Trash2 className="h-4 w-4" />
-                                        </Button>
                                     </TableCell>
                                 </TableRow>
                             ))
@@ -223,7 +205,6 @@ export function SalesOrderTable({
                                     <TableCell className="border-r py-1.5 px-2"><Skeleton className="h-3.5 w-16" /></TableCell>
                                     <TableCell className="border-r py-1.5 px-2"><Skeleton className="h-3.5 w-16" /></TableCell>
                                     <TableCell className="border-r py-1.5 px-2"><Skeleton className="h-5 w-16 rounded-full" /></TableCell>
-                                    <TableCell className="py-1.5 px-2"><Skeleton className="h-3.5 w-6" /></TableCell>
                                 </TableRow>
                             ))
                         }

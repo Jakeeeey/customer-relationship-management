@@ -9,11 +9,39 @@ interface Product {
     product_name: string;
     description: string;
     product_code: string;
+    uom?: string;
 }
 
 interface SaleOrderDetail {
     product_id: number | Product;
     [key: string]: string | number | boolean | Product | null | undefined;
+}
+
+interface InvoiceItem {
+    invoice_id: number;
+    [key: string]: unknown;
+}
+
+interface InvoiceDetailItem {
+    invoice_no: string | number;
+    product_id: number;
+    discount_type?: number | string | null;
+    [key: string]: unknown;
+}
+
+interface ProductItem {
+    product_id: number;
+    product_name?: string;
+    description?: string;
+    product_code?: string;
+    unit_of_measurement?: number;
+    [key: string]: unknown;
+}
+
+interface UnitItem {
+    unit_id: number;
+    unit_shortcut?: string;
+    unit_name?: string;
 }
 
 export async function GET(req: NextRequest) {
@@ -33,6 +61,7 @@ export async function GET(req: NextRequest) {
     const endDate = searchParams.get("endDate");
     const salesmanId = searchParams.get("salesmanId");
     const branchId = searchParams.get("branchId");
+    const supplierId = searchParams.get("supplierId");
     const status = searchParams.get("status");
     const orderId = searchParams.get("orderId");
     const customerCode = searchParams.get("customerCode");
@@ -129,60 +158,228 @@ export async function GET(req: NextRequest) {
         }
     }
 
-    if (type === "invoice-details") {
+    if (type === "order-pdf") {
         try {
-            const orderId = searchParams.get("orderId");
+            const soId = searchParams.get("salesOrderId");
             const orderNo = searchParams.get("orderNo");
-            if (!orderId) return NextResponse.json({ error: "orderId required" }, { status: 400 });
+            const FOLDER_ID = "ba39f489-2388-4b7a-85aa-e01def0f484a";
 
-            // 1. Fetch Invoice
-            let invUrl = `${BASE_URL}/sales_invoice?fields=*&limit=1`;
-            const orFilters = [{ order_id: { _eq: orderId } }];
-            if (orderNo) orFilters.push({ order_id: { _eq: orderNo } });
-            invUrl += `&filter=${encodeURIComponent(JSON.stringify({ _or: orFilters }))}`;
+            if (!soId) return NextResponse.json({ error: "salesOrderId required" }, { status: 400 });
 
-            const invRes = await fetch(invUrl, { headers });
-            if (!invRes.ok) return NextResponse.json({ error: "Failed to fetch invoice" }, { status: 500 });
+            console.log(`[PDF-FINAL] Start search for SOID=${soId}, No=${orderNo}`);
 
+            // 1. Get Invoices for this SO first
+            const invUrl = `${BASE_URL}/sales_invoice?filter[order_id][_eq]=${soId}&fields=invoice_id,invoice_no&limit=-1`;
+            const invRes = await fetch(invUrl, { headers, cache: "no-store" });
             const invJson = await invRes.json();
-            const invoice = invJson.data?.[0];
+            const invoices = invJson.data || [];
 
-            if (!invoice) return NextResponse.json({ data: null, message: "No invoice found" });
+            let record: { pdf_file?: string; receipt_numbers?: string; width_mm?: number; height_mm?: number; [key: string]: unknown } | null = null;
 
-            // 2. Fetch Invoice Details using the numeric invoice_id as the FK (invoice_no field in schema)
-            const detUrl = `${BASE_URL}/sales_invoice_details?filter[invoice_no][_eq]=${invoice.invoice_id}&fields=*&limit=-1`;
-            const detRes = await fetch(detUrl, { headers });
-            if (!detRes.ok) return NextResponse.json({ error: "Failed to fetch invoice details" }, { status: 500 });
+            // CHAIN 1: Direct ID Match (Revised Schema)
+            if (invoices.length > 0) {
+                const invIds = invoices.map((i: Record<string, unknown>) => i.invoice_id);
+                const pdfUrl = `${BASE_URL}/sales_invoice_pdf?filter[sales_invoice_id][_in]=${invIds.join(",")}&fields=pdf_file,receipt_numbers,width_mm,height_mm&limit=1`;
+                const pdfRes = await fetch(pdfUrl, { headers, cache: "no-store" });
+                const pdfJson = await pdfRes.json();
+                record = pdfJson.data?.[0];
+            }
 
-            const detJson = await detRes.json();
-            const details = detJson.data || [];
+            // CHAIN 2: Invoice No string search in 'receipt_numbers'
+            if (!record && invoices.length > 0) {
+                for (const inv of invoices) {
+                    const pdfUrl = `${BASE_URL}/sales_invoice_pdf?filter[receipt_numbers][_icontains]=${inv.invoice_no}&fields=pdf_file,receipt_numbers,width_mm,height_mm&limit=1`;
+                    const pdfRes = await fetch(pdfUrl, { headers, cache: "no-store" });
+                    const pdfJson = await pdfRes.json();
+                    if (pdfJson.data?.[0]) { record = pdfJson.data[0]; break; }
+                }
+            }
 
-            // 3. Manual Product Join
-            if (details.length > 0) {
-                const productIds = Array.from(new Set(details.map((d: { product_id: number | string }) => d.product_id))).filter(Boolean);
-                if (productIds.length > 0) {
-                    const pUrl = `${BASE_URL}/products?filter[product_id][_in]=${productIds.join(',')}&fields=product_id,product_name,product_code,description&limit=-1`;
-                    const pRes = await fetch(pUrl, { headers });
-                    if (pRes.ok) {
-                        const pJson = await pRes.json();
-                        const pMap = new Map((pJson.data || []).map((p: { product_id: number | string, product_name: string, description: string, product_code: string }) => [Number(p.product_id), p]));
+            // CHAIN 3: Order No string search in 'receipt_numbers'
+            if (!record && orderNo) {
+                const pdfUrl = `${BASE_URL}/sales_invoice_pdf?filter[receipt_numbers][_icontains]=${orderNo}&fields=pdf_file,receipt_numbers,width_mm,height_mm&limit=1`;
+                const pdfRes = await fetch(pdfUrl, { headers, cache: "no-store" });
+                const pdfJson = await pdfRes.json();
+                record = pdfJson.data?.[0];
+            }
 
-                        details.forEach((d: { product_id: number | string | Record<string, unknown> }) => {
-                            const pid = Number(d.product_id);
-                            if (pMap.has(pid)) {
-                                d.product_id = pMap.get(pid) as Record<string, unknown>;
+            // CHAIN 4: Legacy sales_order_id field
+            if (!record) {
+                const pdfUrl = `${BASE_URL}/sales_invoice_pdf?filter[sales_order_id][_eq]=${soId}&fields=pdf_file,receipt_numbers,width_mm,height_mm&limit=1`;
+                const pdfRes = await fetch(pdfUrl, { headers, cache: "no-store" });
+                const pdfJson = await pdfRes.json();
+                record = pdfJson.data?.[0];
+            }
+
+            // CHAIN 5: THE "FALLSAFE" - Direct /files search in specific folder
+            if (!record) {
+                console.log(`[PDF-FINAL] Searching direct /files in folder ${FOLDER_ID}...`);
+                const queries = [orderNo, ...(invoices.map((i: Record<string, unknown>) => i.invoice_no))].filter(Boolean);
+
+                for (const query of queries) {
+                    // Search title OR filename for the keyword in the correct folder
+                    const filesUrl = `${process.env.NEXT_PUBLIC_API_BASE_URL}/files?filter[folder][_eq]=${FOLDER_ID}&filter[_or][0][title][_icontains]=${query}&filter[_or][1][filename_download][_icontains]=${query}&limit=1`;
+                    const filesRes = await fetch(filesUrl, { headers, cache: "no-store" });
+                    const filesJson = await filesRes.json();
+
+                    if (filesJson.data?.[0]?.id) {
+                        const file = filesJson.data[0];
+                        console.log(`[PDF-FINAL] FOUND IN /FILES! fileId=${file.id}, match=${query}`);
+                        return NextResponse.json({
+                            data: {
+                                fileId: file.id,
+                                receipts: file.title,
+                                url: `${process.env.NEXT_PUBLIC_API_BASE_URL}/assets/${file.id}`
                             }
                         });
                     }
                 }
             }
 
+            if (!record || !record.pdf_file) {
+                console.log(`[PDF-FINAL] No record found anywhere for SOID=${soId}`);
+                return NextResponse.json({ data: null });
+            }
+
+            console.log(`[PDF-FINAL] Success! asset=${record.pdf_file}`);
             return NextResponse.json({
                 data: {
-                    invoice,
-                    details
+                    fileId: record.pdf_file,
+                    receipts: record.receipt_numbers,
+                    width_mm: record.width_mm,
+                    height_mm: record.height_mm,
+                    url: `${process.env.NEXT_PUBLIC_API_BASE_URL}/assets/${record.pdf_file}`
                 }
             });
+
+        } catch (error: unknown) {
+            console.error("[PDF-FINAL] Fatal Error:", error);
+            return NextResponse.json({ error: String(error) }, { status: 500 });
+        }
+    }
+
+    if (type === "order-attachments") {
+        try {
+            const orderNo = searchParams.get("orderNo");
+            if (!orderNo) return NextResponse.json({ error: "orderNo required" }, { status: 400 });
+
+            const attUrl = `${BASE_URL}/sales_order_attachment?filter[sales_order_no][_eq]=${orderNo}&fields=*&limit=-1`;
+            const attRes = await fetch(attUrl, { headers });
+
+            if (!attRes.ok) return NextResponse.json({ error: "Failed to fetch attachments" }, { status: 500 });
+
+            const attJson = await attRes.json();
+            const attachments = attJson.data || [];
+
+            const enriched = attachments.map((att: Record<string, unknown>) => ({
+                id: att.id,
+                name: att.attachment_name,
+                url: att.file ? `${process.env.NEXT_PUBLIC_API_BASE_URL}/assets/${att.file}` : null
+            }));
+
+            return NextResponse.json({ data: enriched });
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : String(error);
+            return NextResponse.json({ error: message }, { status: 500 });
+        }
+    }
+
+    if (type === "invoice-details") {
+        try {
+            const orderId = searchParams.get("orderId");
+            const orderNo = searchParams.get("orderNo");
+            if (!orderId) return NextResponse.json({ error: "orderId required" }, { status: 400 });
+
+            // 1. Fetch All Invoices for the specific Order (multi-invoice support)
+            // Fields: *, and we'll manually fetch details to avoid deep join limits if any, 
+            // but Directus can handle nested fields like details.*, details.product_id.* if configured.
+            let invUrl = `${BASE_URL}/sales_invoice?fields=*&limit=-1`;
+            const orFilters = [{ order_id: { _eq: orderId } }];
+            if (orderNo) orFilters.push({ order_id: { _eq: orderNo } });
+            invUrl += `&filter=${encodeURIComponent(JSON.stringify({ _or: orFilters }))}`;
+
+            const invRes = await fetch(invUrl, { headers });
+            if (!invRes.ok) return NextResponse.json({ error: "Failed to fetch invoices" }, { status: 500 });
+
+            const invJson = await invRes.json();
+            const invoices = invJson.data || [];
+
+            if (invoices.length === 0) return NextResponse.json({ data: [], message: "No invoices found" });
+            const invoiceIds = invoices.map((inv: InvoiceItem) => inv.invoice_id);
+
+            // 2. Fetch All Details (Standard fetch, manual join later to avoid 500 deep-join errors)
+            const detRes = await fetch(
+                `${BASE_URL}/sales_invoice_details?filter[invoice_no][_in]=${invoiceIds.join(',')}&fields=*&limit=-1`,
+                { headers }
+            );
+            if (!detRes.ok) return NextResponse.json({ error: "Failed to fetch invoice details" }, { status: 500 });
+
+            const detJson = await detRes.json();
+            const allDetails = detJson.data || [];
+
+            // 3. Manual Join for Products and Units
+            let detailsWithProducts = allDetails;
+            if (allDetails.length > 0) {
+                const productIds = Array.from(new Set(allDetails.map((d: InvoiceDetailItem) => d.product_id).filter(Boolean)));
+                if (productIds.length > 0) {
+                    const productsUrl = `${BASE_URL}/products?filter[product_id][_in]=${productIds.join(',')}&fields=product_id,product_name,description,product_code,unit_of_measurement&limit=-1`;
+                    const pRes = await fetch(productsUrl, { headers });
+
+                    if (pRes.ok) {
+                        const pJson = await pRes.json();
+                        const pData = pJson.data || [];
+
+                        // Fetch Units for UOM
+                        const unitRes = await fetch(`${BASE_URL}/units?limit=-1`, { headers });
+                        const unitMap = new Map<number, string>();
+                        if (unitRes.ok) {
+                            const uJson = await unitRes.json();
+                            (uJson.data || []).forEach((u: UnitItem) => unitMap.set(Number(u.unit_id), u.unit_shortcut || u.unit_name || ""));
+                        }
+
+                        const pMap = new Map<number, ProductItem>();
+                        pData.forEach((p: ProductItem) => {
+                            pMap.set(Number(p.product_id), {
+                                ...p,
+                                uom: unitMap.get(Number(p.unit_of_measurement)) || "PCS"
+                            });
+                        });
+
+                        // Fetch Discount Types for Invoice Details mapping
+                        const dtRes = await fetch(`${BASE_URL}/discount_type?limit=-1&fields=id,discount_type`, { headers });
+                        const dtMap = new Map<number, string>();
+                        if (dtRes.ok) {
+                            const dtJson = await dtRes.json();
+                            (dtJson.data || []).forEach((dt: { id: number; discount_type: string }) => dtMap.set(Number(dt.id), dt.discount_type));
+                        }
+
+                        detailsWithProducts = allDetails.map((d: InvoiceDetailItem) => ({
+                            ...d,
+                            product_id: pMap.get(Number(d.product_id)) || d.product_id,
+                            discount_type: d.discount_type ? (dtMap.get(Number(d.discount_type)) || d.discount_type) : null
+                        }));
+                    }
+                }
+            }
+
+            // 4. Fetch PDFs for these invoices
+            const pdfRes = await fetch(`${BASE_URL}/sales_invoice_pdf?filter[sales_invoice_id][_in]=${invoiceIds.join(',')}&fields=pdf_file,sales_invoice_id,width_mm,height_mm&limit=-1`, { headers });
+            const pdfJson = await pdfRes.json();
+            const pdfsData = pdfJson.data || [];
+            const pdfMap = new Map();
+            pdfsData.forEach((p: Record<string, unknown>) => pdfMap.set(Number(p.sales_invoice_id), p));
+
+            // 5. Final Grouping by Invoice
+            const invoicesWithDetails = invoices.map((inv: InvoiceItem) => ({
+                invoice: inv,
+                details: detailsWithProducts.filter((d: InvoiceDetailItem) => Number(d.invoice_no) === Number(inv.invoice_id)),
+                pdf: pdfMap.get(Number(inv.invoice_id)) ? {
+                    ...pdfMap.get(Number(inv.invoice_id)),
+                    url: `${process.env.NEXT_PUBLIC_API_BASE_URL}/assets/${pdfMap.get(Number(inv.invoice_id)).pdf_file}`
+                } : null
+            }));
+
+            return NextResponse.json({ data: invoicesWithDetails });
         } catch (error: unknown) {
             const message = error instanceof Error ? error.message : String(error);
             return NextResponse.json({ error: message }, { status: 500 });
@@ -203,6 +400,17 @@ export async function GET(req: NextRequest) {
             const json = await res.json();
             const details: SaleOrderDetail[] = json.data || [];
 
+            // Fetch Discount Types for mapping
+            const dtUrl = `${BASE_URL}/discount_type?limit=-1&fields=id,discount_type`;
+            const dtRes = await fetch(dtUrl, { headers });
+            const dtMap = new Map<number, string>();
+            if (dtRes.ok) {
+                const dtJson = await dtRes.json();
+                (dtJson.data || []).forEach((dt: { id: number; discount_type: string }) => {
+                    dtMap.set(Number(dt.id), dt.discount_type);
+                });
+            }
+
             // Manual join for product descriptions
             if (details.length > 0) {
                 const productIds = Array.from(new Set(details.map((d: SaleOrderDetail) => {
@@ -211,21 +419,40 @@ export async function GET(req: NextRequest) {
                 }).filter(Boolean)));
 
                 if (productIds.length > 0) {
-                    const productsUrl = `${BASE_URL}/products?filter[product_id][_in]=${productIds.join(',')}&fields=product_id,product_name,description,product_code&limit=-1`;
+                    const productsUrl = `${BASE_URL}/products?filter[product_id][_in]=${productIds.join(',')}&fields=product_id,product_name,description,product_code,unit_of_measurement&limit=-1`;
                     console.log(`[DEBUG] Fetching products for join. URL: ${productsUrl}`);
                     const pRes = await fetch(productsUrl, { headers });
+
                     if (pRes.ok) {
                         const pJson = await pRes.json();
-                        const productMap = new Map<number, Product>();
-                        (pJson.data || []).forEach((p: Product) => {
+                        const pData = pJson.data || [];
+
+                        // Fetch Units for UOM
+                        const unitRes = await fetch(`${BASE_URL}/units?limit=-1`, { headers });
+                        const unitMap = new Map<number, string>();
+                        if (unitRes.ok) {
+                            const uJson = await unitRes.json();
+                            (uJson.data || []).forEach((u: UnitItem) => unitMap.set(Number(u.unit_id), u.unit_shortcut || u.unit_name || ""));
+                        }
+
+                        const productMap = new Map<number, ProductItem>();
+                        pData.forEach((p: ProductItem) => {
                             const pid = Number(p.product_id);
-                            if (pid) productMap.set(pid, p);
+                            if (pid) productMap.set(pid, {
+                                ...p,
+                                uom: unitMap.get(Number(p.unit_of_measurement)) || "PCS"
+                            });
                         });
 
                         details.forEach((d: SaleOrderDetail) => {
                             const pid = Number(d.product_id);
                             if (productMap.has(pid)) {
                                 d.product_id = productMap.get(pid) as Product; // Transform ID to Object
+                            }
+
+                            // Map discount type ID to name
+                            if (d.discount_type && dtMap.has(Number(d.discount_type))) {
+                                d.discount_type = dtMap.get(Number(d.discount_type));
                             }
                         });
                     } else {
@@ -295,6 +522,9 @@ export async function GET(req: NextRequest) {
         }
         if (branchId && branchId !== "none") {
             filters.push({ "branch_id": { "_eq": branchId } });
+        }
+        if (supplierId && supplierId !== "none") {
+            filters.push({ "supplier_id": { "_eq": supplierId } });
         }
         if (status && status !== "none") {
             filters.push({ "order_status": { "_eq": status } });

@@ -66,7 +66,11 @@ export async function GET(req: NextRequest) {
         const page = parseInt(searchParams.get("page") || "1");
         const pageSize = parseInt(searchParams.get("pageSize") || "10");
         const searchQuery = searchParams.get("q") || "";
+
+        // 🚀 Filter Parameters
         const statusFilter = searchParams.get("status") || "all";
+        const storeTypeFilter = searchParams.get("storeType") || "all";
+        const classificationFilter = searchParams.get("classification") || "all";
 
         const offset = (page - 1) * pageSize;
 
@@ -80,9 +84,20 @@ export async function GET(req: NextRequest) {
             params.append("search", searchQuery);
         }
 
+        // 🚀 Apply Status Filter
         if (statusFilter !== "all") {
             const isActive = statusFilter === "active" ? 1 : 0;
             params.append("filter[isActive][_eq]", isActive.toString());
+        }
+
+        // 🚀 Apply Store Type Filter
+        if (storeTypeFilter !== "all") {
+            params.append("filter[store_type][_eq]", storeTypeFilter);
+        }
+
+        // 🚀 Apply Classification Filter
+        if (classificationFilter !== "all") {
+            params.append("filter[classification][_eq]", classificationFilter);
         }
 
         // Fetch customers with pagination and filtering
@@ -95,8 +110,7 @@ export async function GET(req: NextRequest) {
         if (!customersRes.ok) throw new Error(`Directus error fetching customers: ${customersRes.statusText}`);
         const customersJson = await customersRes.json();
 
-        // Fetch all bank accounts for enrichment (mapping is done client-side for now)
-        // Note: For large datasets, this should be optimized to only fetch relevant accounts
+        // Fetch all bank accounts for enrichment
         const bankAccounts = await fetchAll<Record<string, unknown>>(COLLECTIONS.BANK_ACCOUNTS);
 
         return NextResponse.json({
@@ -134,7 +148,7 @@ export async function POST(req: NextRequest) {
 
         // Basic validation and sanitization
         const newCustomerData = { ...body };
-        delete newCustomerData.bank_accounts; // Don't send this to customer collection
+        delete newCustomerData.bank_accounts;
 
         const res = await fetch(`${DIRECTUS_URL}/items/${COLLECTIONS.CUSTOMER}`, {
             method: "POST",
