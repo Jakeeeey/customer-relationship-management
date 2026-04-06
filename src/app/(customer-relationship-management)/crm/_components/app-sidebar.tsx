@@ -101,6 +101,11 @@ const data = {
                     url: "/crm/customer-hub/sales-order-approval",
                     icon: ClipboardList,
                 },
+                {
+                    title: "Ops Dashboard",
+                    url: "/crm/customer-hub/ops-dashboard",
+                    icon: LayoutDashboard,
+                },
             ],
         },
         {

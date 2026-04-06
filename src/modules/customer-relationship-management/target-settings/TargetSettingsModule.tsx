@@ -123,7 +123,7 @@ export function TargetSettingsModule() {
             />
 
             <StatsCards
-                totalSalesmen={salesmen.length}
+                totalSalesmen={bookingSalesmen.length + siteSalesSalesmen.length}
                 targetsSet={salesmenWithTargets.length}
                 completionRate={averageProgress}
             />
