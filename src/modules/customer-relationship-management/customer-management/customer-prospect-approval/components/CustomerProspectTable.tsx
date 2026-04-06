@@ -6,7 +6,7 @@ import {
 } from "@/components/ui/table";
 import {
     DropdownMenu, DropdownMenuContent, DropdownMenuItem,
-    DropdownMenuTrigger, DropdownMenuRadioGroup, DropdownMenuRadioItem,
+    DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
     Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter
@@ -14,8 +14,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
-    Search, Filter, Check, X, Loader2, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, MoreHorizontal, User, Store, MapPin, Calendar,
-    Phone, Mail, CreditCard, Hash, FileText, Building, Tag, Info, Briefcase, Landmark, ShieldCheck
+    Search, Filter, Check, X, Loader2, ChevronLeft, ChevronRight, MoreHorizontal, User, Store, MapPin, Calendar,
+    Phone, Building, Info, Briefcase, Landmark, ShieldCheck, FileText
 } from "lucide-react";
 import { CustomerProspect, CustomerProspectsAPIResponse, DiscountType, Salesman, StoreType } from "../types";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -50,7 +50,7 @@ interface CustomerProspectTableProps {
 export function CustomerProspectTable({
     data, discountTypes, salesmen, storeTypes, isLoading, metadata, page, pageSize,
     searchQuery: parentSearchQuery, statusFilter, salesmanFilter,
-    onPageChange, onPageSizeChange, onSearchChange, onStatusChange, onSalesmanChange,
+    onPageChange, onPageSizeChange: _onPageSizeChange, onSearchChange, onStatusChange, onSalesmanChange, // eslint-disable-line @typescript-eslint/no-unused-vars
     onApprove, onReject,
 }: CustomerProspectTableProps) {
     const [localSearchQuery, setLocalSearchQuery] = useState(parentSearchQuery);
@@ -77,7 +77,7 @@ export function CustomerProspectTable({
                 await onReject(id);
                 toast.error("Prospect Rejected", { description: "The prospect request has been denied." });
             }
-        } catch (err) {
+        } catch (_err) { // eslint-disable-line @typescript-eslint/no-unused-vars
             toast.error("Operation Failed", { description: "Something went wrong. Please try again." });
         } finally {
             setProcessingId(null);
@@ -453,7 +453,7 @@ export function CustomerProspectTable({
                                             Notes / Other Details
                                         </h4>
                                         <p className="text-xs text-amber-900 leading-relaxed italic">
-                                            "{selectedProspect.otherDetails}"
+                                            &quot;{selectedProspect.otherDetails}&quot;
                                         </p>
                                     </section>
                                 )}

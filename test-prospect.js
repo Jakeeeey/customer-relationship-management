@@ -11,7 +11,8 @@ fetch(listUrl, { headers: { Authorization: `Bearer ${token}` } })
     const prospect = listData.data[0];
     console.log('Found prospect ID:', prospect.id);
     
-    const { id, prospect_status, prospect_date, salesman_id, salesman_name, user_id, ...customerData } = prospect;
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { id: _id, prospect_status: _pStatus, prospect_date: _pDate, salesman_id: _sId, salesman_name: _sName, user_id, ...customerData } = prospect;
     console.log('Customer Data:', customerData);
     
     return fetch('http://goatedcodoer:8056/items/customer', {

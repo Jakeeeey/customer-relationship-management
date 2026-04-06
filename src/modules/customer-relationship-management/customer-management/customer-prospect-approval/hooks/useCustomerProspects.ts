@@ -112,6 +112,7 @@ export function useCustomerProspects(): UseCustomerProspectsReturn {
         } finally {
             setIsLoading(false);
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [filterDeps]); // Fixed length of 1
 
     useEffect(() => {

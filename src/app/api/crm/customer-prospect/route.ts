@@ -50,7 +50,7 @@ export async function GET(req: NextRequest) {
         const json = await res.json();
 
         // Flatten salesman name for easier use in frontend
-        const prospects = (json.data || []).map((p: any) => ({
+        const prospects = (json.data || []).map((p: { salesman_id?: { salesman_name?: string } }) => ({
             ...p,
             salesman_name: p.salesman_id?.salesman_name || "Unknown Salesman"
         }));
@@ -65,7 +65,7 @@ export async function GET(req: NextRequest) {
                 lastUpdated: new Date().toISOString(),
             }
         });
-    } catch (e) {
+    } catch (_e) { // eslint-disable-line @typescript-eslint/no-unused-vars
         return NextResponse.json({ error: "Failed to fetch prospects" }, { status: 500 });
     }
 }
@@ -97,15 +97,17 @@ export async function POST(req: NextRequest) {
         if (action === "Approve") {
             // 2. Insert into Customer collection
             // Map fields from prospect to customer
+            /* eslint-disable @typescript-eslint/no-unused-vars */
             const {
-                id: _, // remove prospect id
-                prospect_status,
-                prospect_date,
-                salesman_id,
-                salesman_name,
+                id: _pId, // remove prospect id
+                prospect_status: _pStatus,
+                prospect_date: _pDate,
+                salesman_id: _pSalesmanId,
+                salesman_name: _pSalesmanName,
                 user_id,
                 ...customerData
             } = prospect;
+            /* eslint-enable @typescript-eslint/no-unused-vars */
 
             // CRITICAL FIX: Ensure mandatory fields are not null for the customer collection
             // Defaulting store_type to 1 (Department Store) if missing, as it's a mandatory field
