@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useState, useEffect, useMemo, useRef } from "react";
+import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { cn } from "@/lib/utils";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -100,7 +100,7 @@ export default function InventoryReportModule({ options }: { options: DropdownOp
         return new Intl.NumberFormat('en-US').format(num || 0);
     };
 
-    const handleSearch = async (isDebounced = false) => {
+    const handleSearch = useCallback(async () => {
         const cacheKey = `${branch}-${supplier}-${category}-${brand}`;
         
         // INSTANT RECALL: Use cached data if available for these filters
@@ -160,7 +160,7 @@ export default function InventoryReportModule({ options }: { options: DropdownOp
         } finally {
             setLoading(false);
         }
-    };
+    }, [branch, supplier, category, brand]);
 
     // Trigger fetch on any filter change (with 300ms Debounce)
     useEffect(() => {
@@ -171,14 +171,14 @@ export default function InventoryReportModule({ options }: { options: DropdownOp
 
         if (hasActiveFilter) {
             debounceRef.current = setTimeout(() => {
-                handleSearch(true);
+                handleSearch();
             }, 300);
         }
 
         return () => {
             if (debounceRef.current) clearTimeout(debounceRef.current);
         };
-    }, [branch, supplier, category, brand]);
+    }, [branch, supplier, category, brand, isMounted, handleSearch]);
 
     // Pagination computations
     const totalPages = Math.max(1, Math.ceil(totalItems / itemsPerPage));

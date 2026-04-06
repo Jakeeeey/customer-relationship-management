@@ -1,9 +1,11 @@
-// src/modules/financial-management/printables-management/product-printables/utils/printPdf.ts
-
 import type { MatrixRow, PriceType, Unit, Supplier } from "../types";
 import { PdfEngine } from "@/components/pdf-layout-design/PdfEngine";
 import { PdfTemplate } from "@/components/pdf-layout-design/services/pdf-template";
 import { PdfData } from "@/components/pdf-layout-design/types";
+// @ts-ignore - jspdf types can be problematic in some build environments
+import jsPDF from "jspdf";
+// @ts-ignore - jspdf-autotable types can be problematic in some build environments
+import autoTable from "jspdf-autotable";
 
 type MatrixOptions = {
     paper?: string;
@@ -61,8 +63,6 @@ function money(v: unknown): string {
 }
 
 export async function generateProductMatrixPdf(rows: MatrixRow[], options: MatrixOptions = {}) {
-    const { default: jsPDF } = await import("jspdf");
-    const { default: autoTable } = await import("jspdf-autotable");
     const { drawPageNumbers } = await import("@/components/pdf-layout-design/PdfGenerator");
     const {
         fontSize = 7,
@@ -255,7 +255,7 @@ export async function generateProductMatrixPdf(rows: MatrixRow[], options: Matri
                 ? (doc.internal.pageSize.getHeight() - bodyEnd)
                 : finalMargins.bottom
         },
-        didParseCell: (data) => {
+        didParseCell: (data: any) => {
             if (data.section === "body" && data.column.index >= 3) {
                 const tierIdx = Math.floor((data.column.index - 3) / uomCount);
                 const tier = activeTiers[tierIdx];
@@ -265,7 +265,7 @@ export async function generateProductMatrixPdf(rows: MatrixRow[], options: Matri
                 }
             }
         },
-        didDrawPage: (data) => {
+        didDrawPage: (data: any) => {
             // Draw page numbers from template if available
             if (selectedTemplate?.config?.pageNumber?.show) {
                 drawPageNumbers(doc, selectedTemplate.config);
