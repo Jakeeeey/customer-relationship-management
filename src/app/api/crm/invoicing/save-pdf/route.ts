@@ -81,26 +81,9 @@ export async function POST(req: NextRequest) {
         const fileId = uploadData.data.id;
 
         // 1.5 Dynamic Folder Resolution
-        let targetFolderId = process.env.DIRECTUS_INVOICE_PDF_FOLDER_ID;
-        let folderWarning = null;
-
-        try {
-            const folderRes = await fetch(`${DIRECTUS_BASE}/folders?filter[name][_eq]=sales_invoice_pdf`, {
-                headers: { Authorization: `Bearer ${DIRECTUS_TOKEN}` }
-            });
-            if (folderRes.ok) {
-                const folderData = await folderRes.json();
-                if (folderData.data && folderData.data.length > 0) {
-                    targetFolderId = folderData.data[0].id;
-                    console.log(`[Save PDF API] Found target folder ID: ${targetFolderId}`);
-                } else {
-                    console.warn("[Save PDF API] Folder 'sales_invoice_pdf' not found. Defaulting to root or env variable.");
-                    folderWarning = "Folder 'sales_invoice_pdf' not found. PDF stored in root.";
-                }
-            }
-        } catch (e) {
-            console.error("[Save PDF API] Error looking up folder:", e);
-        }
+        const folderName = process.env.DIRECTUS_INVOICE_PDF_FOLDER_NAME || "sales_invoice_pdf";
+        const targetFolderId = await getOrCreateFolderId(folderName);
+        const folderWarning = !targetFolderId ? `Folder '${folderName}' could not be resolved. PDF stored in root.` : null;
 
         // 2. PATCH the file to set the folder
         if (targetFolderId) {
@@ -153,3 +136,49 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: "Internal Server Error", details: err instanceof Error ? err.message : String(err) }, { status: 500 });
     }
 }
+
+/**
+ * Directus Folder Utility (Inlined)
+ */
+async function getOrCreateFolderId(folderName: string): Promise<string | null> {
+    const DIRECTUS_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
+    const DIRECTUS_TOKEN = process.env.DIRECTUS_STATIC_TOKEN;
+
+    if (!DIRECTUS_URL || !DIRECTUS_TOKEN) {
+        console.error("[Directus Folders] Missing API URL or Static Token.");
+        return null;
+    }
+
+    try {
+        const searchUrl = `${DIRECTUS_URL}/folders?filter[name][_eq]=${encodeURIComponent(folderName)}&fields=id`;
+        const searchRes = await fetch(searchUrl, {
+            headers: { Authorization: `Bearer ${DIRECTUS_TOKEN}` },
+            cache: "no-store",
+        });
+
+        if (!searchRes.ok) return null;
+
+        const searchResult = await searchRes.json();
+        if (searchResult.data && searchResult.data.length > 0) {
+            return searchResult.data[0].id;
+        }
+
+        const createRes = await fetch(`${DIRECTUS_URL}/folders`, {
+            method: "POST",
+            headers: {
+                Authorization: `Bearer ${DIRECTUS_TOKEN}`,
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ name: folderName }),
+        });
+
+        if (!createRes.ok) return null;
+
+        const createdResult = await createRes.json();
+        return createdResult.data?.id || null;
+    } catch (error) {
+        console.error(`[Directus Folders] Error for '${folderName}':`, error);
+        return null;
+    }
+}
+
