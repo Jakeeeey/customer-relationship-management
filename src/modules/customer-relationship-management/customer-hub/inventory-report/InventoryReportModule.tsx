@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useMemo, useRef } from "react";
+import { cn } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,10 +26,20 @@ import {
     HoverCardContent,
     HoverCardTrigger,
 } from "@/components/ui/hover-card";
-import { Box as BoxIcon, Download, Filter, ChevronLeft, ChevronRight, Search, Loader2, X } from "lucide-react";
+import { Download, Filter, ChevronLeft, ChevronRight, Loader2, X } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+    DialogTrigger,
+    DialogFooter,
+} from "@/components/ui/dialog";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 
 export interface InventoryItem {
     id: string;
@@ -59,6 +70,7 @@ export interface DropdownOptions {
 
 export default function InventoryReportModule({ options }: { options: DropdownOptions }) {
     const [data, setData] = useState<InventoryItem[]>([]);
+    const [totalItems, setTotalItems] = useState(0);
     const [loading, setLoading] = useState(false);
     const [isMounted, setIsMounted] = useState(false);
 
@@ -67,12 +79,13 @@ export default function InventoryReportModule({ options }: { options: DropdownOp
     const [supplier, setSupplier] = useState("all");
     const [category, setCategory] = useState("all");
     const [brand, setBrand] = useState("all");
-    const [searchQuery, setSearchQuery] = useState("");
     const [hasSearched, setHasSearched] = useState(false);
     const [groupByFamily, setGroupByFamily] = useState(false);
+    const [isPreviewOpen, setIsPreviewOpen] = useState(false);
     
-    // Performance: Simple in-memory cache to store results for 10 minutes
-    const cacheRef = useRef<Record<string, InventoryItem[]>>({});
+    // Performance: Simple in-memory cache to store results for the current session
+    // Uses a key based on filters + pagination params
+    const cacheRef = useRef<Record<string, { data: InventoryItem[], total: number }>>({});
     const debounceRef = useRef<NodeJS.Timeout | null>(null);
 
     // Pagination States
@@ -84,20 +97,20 @@ export default function InventoryReportModule({ options }: { options: DropdownOp
     }, []);
 
     const formatNumber = (num: number) => {
-        return new Intl.NumberFormat('en-US', {
-            maximumFractionDigits: 0
-        }).format(num || 0);
+        return new Intl.NumberFormat('en-US').format(num || 0);
     };
 
-    const handleSearch = async (isDebounced = false) => {
-        const cacheKey = `${branch}-${supplier}-${category}-${brand}`;
+    const handleSearch = async (isDebounced = false, pageToFetch = 1, currentItemsPerPage = itemsPerPage) => {
+        const cacheKey = `${branch}-${supplier}-${category}-${brand}-${pageToFetch}-${currentItemsPerPage}`;
         
-        // If we have cached data, use it instantly (unless it's a fresh manual search)
+        // INSTANT RECALL: Use cached data if available for these specific params
         if (cacheRef.current[cacheKey]) {
-            setData(cacheRef.current[cacheKey]);
+            const cachedValue = cacheRef.current[cacheKey];
+            setData(cachedValue.data);
+            setTotalItems(cachedValue.total);
             setHasSearched(true);
-            setCurrentPage(1);
             setLoading(false);
+            setCurrentPage(pageToFetch);
             return;
         }
 
@@ -108,27 +121,44 @@ export default function InventoryReportModule({ options }: { options: DropdownOp
             if (supplier !== "all") params.append("supplier", supplier);
             if (category !== "all") params.append("category", category);
             if (brand !== "all") params.append("brand", brand);
+            
+            // Server-side pagination (0-based for Spring Boot)
+            params.append("page", (pageToFetch - 1).toString());
+            params.append("size", currentItemsPerPage.toString());
 
             const res = await fetch(`/api/crm/customer-hub/inventory-report?${params.toString()}`);
             if (!res.ok) throw new Error("Failed to fetch data");
             const result = await res.json();
             
             let extractedData: any[] = [];
-            if (Array.isArray(result)) extractedData = result;
-            else if (result?.data?.content) extractedData = result.data.content;
-            else if (result?.data) extractedData = Array.isArray(result.data) ? result.data : [];
-            else if (result?.content) extractedData = result.content;
+            let total = 0;
 
-            // Store in cache
-            if (extractedData.length > 0) {
-                cacheRef.current[cacheKey] = extractedData;
+            if (Array.isArray(result)) {
+                extractedData = result;
+                total = result.length;
+            } else if (result?.data?.content) {
+                extractedData = result.data.content;
+                total = result.data.totalElements || result.data.total_count || 0;
+            } else if (result?.content) {
+                extractedData = result.content;
+                total = result.totalElements || 0;
+            } else if (result?.data) {
+                extractedData = Array.isArray(result.data) ? result.data : [];
+                total = result.meta?.total_count || result.total_count || extractedData.length;
             }
 
+            // Update Page and Search Status
             setData(extractedData);
+            setTotalItems(total);
             setHasSearched(true);
-            setCurrentPage(1);
+            setCurrentPage(pageToFetch);
+
+            // STORE IN CACHE: Save for session instant recall
+            cacheRef.current[cacheKey] = { data: extractedData, total };
+
         } catch (error) {
             console.error("Fetch error:", error);
+            setData([]); // Clear data on error to prevent showing stale results
         } finally {
             setLoading(false);
         }
@@ -143,7 +173,7 @@ export default function InventoryReportModule({ options }: { options: DropdownOp
 
         if (hasActiveFilter) {
             debounceRef.current = setTimeout(() => {
-                handleSearch(true);
+                handleSearch(true, 1, itemsPerPage);
             }, 300);
         }
 
@@ -152,37 +182,30 @@ export default function InventoryReportModule({ options }: { options: DropdownOp
         };
     }, [branch, supplier, category, brand]);
 
-    // Client-side search filtering
-    const filteredData = useMemo(() => {
-        const q = searchQuery.toLowerCase().trim();
-        if (!q) return data;
-        return data.filter((item) => 
-            (item.category?.toLowerCase().includes(q)) ||
-            (item.branch?.toLowerCase().includes(q)) ||
-            (item.brand?.toLowerCase().includes(q)) ||
-            (item.supplier?.toLowerCase().includes(q)) ||
-            (item.productDescription?.toLowerCase().includes(q))
-        );
-    }, [data, searchQuery]);
-
     // Pagination computations
-    const totalPages = Math.max(1, Math.ceil(filteredData.length / itemsPerPage));
-    
-    // Grouped Data Logic
+    const totalPages = Math.max(1, Math.ceil(totalItems / itemsPerPage));
+
     const groupedData = useMemo(() => {
-        if (!groupByFamily) return { "All Items": filteredData };
+        if (!groupByFamily) return { "All Items": data };
         
-        return filteredData.reduce((groups: Record<string, InventoryItem[]>, item) => {
-            const groupKey = item.category || "Uncategorized"; // Using Category as 'Family'
+        return data.reduce((groups: Record<string, InventoryItem[]>, item) => {
+            const groupKey = item.category || "Uncategorized";
             if (!groups[groupKey]) groups[groupKey] = [];
             groups[groupKey].push(item);
             return groups;
-        }, {});
-    }, [filteredData, groupByFamily]);
+        }, {} as Record<string, InventoryItem[]>);
+    }, [data, groupByFamily]);
 
+    // Safety measure if backend ignores page/size
     const paginatedData = useMemo(() => {
-        return filteredData.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
-    }, [filteredData, currentPage, itemsPerPage]);
+        if (data.length > itemsPerPage) {
+            const start = (currentPage - 1) * itemsPerPage;
+            return data.slice(start, start + itemsPerPage);
+        }
+        return data;
+    }, [data, currentPage, itemsPerPage]);
+
+    const filteredData = data;
 
     const handleExport = () => {
         if (filteredData.length === 0) return alert("No data to export.");
@@ -208,82 +231,92 @@ export default function InventoryReportModule({ options }: { options: DropdownOp
         link.click();
     };
 
-    if (!isMounted) return <div className="p-8"><TableSkeleton /></div>;
+    if (!isMounted) return <div className="p-8"><Skeleton className="h-60 w-full" /></div>;
 
     return (
-        <div className="flex flex-col gap-6 w-full p-4 sm:p-6 lg:p-8 mx-auto">
-            {/* Header Section */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border border-border bg-card p-6 rounded-xl shadow-sm">
-                <div className="flex items-center gap-4">
-                    <div className="p-3 bg-primary rounded-lg shadow-lg shadow-primary/20">
-                        <BoxIcon className="w-6 h-6 text-primary-foreground" />
-                    </div>
-                    <div>
-                        <h1 className="text-2xl font-bold tracking-tight">Inventory Report</h1>
-                        <p className="text-sm text-muted-foreground">Real-time stock monitoring and distribution</p>
-                    </div>
+        <div className="flex flex-col h-full gap-4 p-4 sm:p-6 lg:p-8">
+            {/* Action Bar */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="space-y-1">
+                    <h1 className="text-2xl font-bold tracking-tight text-foreground">Inventory Report</h1>
+                    <p className="text-sm text-muted-foreground flex items-center gap-2">
+                        Real-time warehouse stock overview 
+                        {loading && <Loader2 className="w-3 h-3 animate-spin text-primary" />}
+                    </p>
                 </div>
-                <Button onClick={handleExport} className="bg-primary hover:opacity-90 font-medium gap-2 self-start md:self-center">
-                    <Download className="w-4 h-4" />
-                    Export CSV
-                </Button>
+                <div className="flex items-center gap-2">
+                    <Button 
+                        variant="outline" 
+                        size="sm" 
+                        className="gap-2 border-primary/20 text-primary hover:bg-primary/5"
+                        onClick={() => setIsPreviewOpen(true)}
+                        disabled={loading || data.length === 0}
+                    >
+                        <Download className="w-4 h-4" />
+                        Preview Export
+                    </Button>
+                </div>
             </div>
 
             {/* Filters */}
             <Card className="shadow-sm border-border">
-                <CardContent className="p-4 flex flex-wrap items-center gap-3 bg-muted/30">
+                <CardContent className="p-4 flex flex-wrap items-center gap-4 bg-muted/30">
                     <div className="flex flex-wrap items-center gap-2">
-                        <Select value={branch} onValueChange={setBranch}>
-                            <SelectTrigger className="w-[150px] bg-background border-border text-xs">
-                                <SelectValue placeholder="Branch" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="all">All Branches</SelectItem>
-                                {options.branches?.filter(b => b.branch_name || b.name || b.branch_description).map((b, i) => {
-                                    const val = b.branch_name || b.name || b.branch_description || b.branch_code;
-                                    const label = b.branch_name || b.branch_description || b.name || b.branch_code;
-                                    return <SelectItem key={i} value={val}>{label}</SelectItem>
-                                })}
-                            </SelectContent>
-                        </Select>
+                        <SearchableSelect 
+                            options={[
+                                { value: "all", label: "All Branches" },
+                                ...(options.branches?.filter(b => b.branch_name || b.name || b.branch_description).map(b => ({
+                                    value: b.branch_name || b.name || b.branch_description || b.branch_code || "",
+                                    label: b.branch_name || b.branch_description || b.name || b.branch_code || ""
+                                })) || [])
+                            ]}
+                            value={branch}
+                            onValueChange={setBranch}
+                            placeholder="Branch"
+                            className="w-[180px] text-xs h-10"
+                        />
 
-                        <Select value={supplier} onValueChange={setSupplier}>
-                            <SelectTrigger className="w-[150px] bg-background border-border text-xs">
-                                <SelectValue placeholder="Supplier" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="all">All Suppliers</SelectItem>
-                                {options.suppliers?.filter(s => s.supplier_name || s.supplier_code).map((s, i) => {
-                                    const val = s.supplier_name || s.supplier_code;
-                                    const label = s.supplier_name || s.supplier_code;
-                                    return <SelectItem key={i} value={val}>{label}</SelectItem>
-                                })}
-                            </SelectContent>
-                        </Select>
+                        <SearchableSelect 
+                            options={[
+                                { value: "all", label: "All Suppliers" },
+                                ...(options.suppliers?.filter(s => s.supplier_name || s.supplier_code).map(s => ({
+                                    value: s.supplier_name || s.supplier_code || "",
+                                    label: s.supplier_name || s.supplier_code || ""
+                                })) || [])
+                            ]}
+                            value={supplier}
+                            onValueChange={setSupplier}
+                            placeholder="Supplier"
+                            className="w-[180px] text-xs h-10"
+                        />
 
-                        <Select value={brand} onValueChange={setBrand}>
-                            <SelectTrigger className="w-[150px] bg-background border-border text-xs">
-                                <SelectValue placeholder="Brand" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="all">All Brands</SelectItem>
-                                {options.brands?.filter(b => b.brand_name).map((b, i) => (
-                                    <SelectItem key={i} value={b.brand_name}>{b.brand_name}</SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
+                        <SearchableSelect 
+                            options={[
+                                { value: "all", label: "All Brands" },
+                                ...(options.brands?.filter(b => b.brand_name).map(b => ({
+                                    value: b.brand_name || "",
+                                    label: b.brand_name || ""
+                                })) || [])
+                            ]}
+                            value={brand}
+                            onValueChange={setBrand}
+                            placeholder="Brand"
+                            className="w-[180px] text-xs h-10"
+                        />
 
-                        <Select value={category} onValueChange={setCategory}>
-                            <SelectTrigger className="w-[150px] bg-background border-border text-xs">
-                                <SelectValue placeholder="Category" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="all">All Categories</SelectItem>
-                                {options.categories?.filter(c => c.category_name).map((c, i) => (
-                                    <SelectItem key={i} value={c.category_name}>{c.category_name}</SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
+                        <SearchableSelect 
+                            options={[
+                                { value: "all", label: "All Categories" },
+                                ...(options.categories?.filter(c => c.category_name).map(c => ({
+                                    value: c.category_name || "",
+                                    label: c.category_name || ""
+                                })) || [])
+                            ]}
+                            value={category}
+                            onValueChange={setCategory}
+                            placeholder="Category"
+                            className="w-[180px] text-xs h-10"
+                        />
 
                         <div className="flex items-center gap-2 px-3 h-10 bg-background border border-border rounded-md shadow-sm">
                             <Checkbox 
@@ -308,7 +341,6 @@ export default function InventoryReportModule({ options }: { options: DropdownOp
                                 setBranch("all");
                                 setBrand("all");
                                 setSupplier("all");
-                                setSearchQuery("");
                                 setData([]);
                                 setHasSearched(false);
                             }}
@@ -344,8 +376,8 @@ export default function InventoryReportModule({ options }: { options: DropdownOp
                         ) : (
                             <div className="overflow-x-auto">
                                 <Table>
-                                    <TableHeader className="bg-muted/50">
-                                        <TableRow>
+                                    <TableHeader className="bg-muted/50 border-b">
+                                        <TableRow className="hover:bg-transparent">
                                             <TableHead className="font-bold py-4">CATEGORY</TableHead>
                                             <TableHead className="font-bold">BRAND</TableHead>
                                             <TableHead className="font-bold min-w-[250px]">PRODUCT NAME</TableHead>
@@ -356,55 +388,81 @@ export default function InventoryReportModule({ options }: { options: DropdownOp
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
-                                        {Object.entries(groupedData).map(([groupName, items]) => (
-                                            <React.Fragment key={groupName}>
-                                                {groupByFamily && (
-                                                    <TableRow className="bg-muted/50 hover:bg-muted/50">
-                                                        <TableCell colSpan={7} className="py-2 px-4 font-bold text-xs tracking-widest text-primary uppercase">
-                                                            {groupName}
-                                                        </TableCell>
-                                                    </TableRow>
-                                                )}
-                                                {items.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((item, i) => (
-                                                    <TableRow key={item.id || i} className="hover:bg-muted/30 border-border">
-                                                        <TableCell>
-                                                            <Badge variant="outline" className="border-primary/20 bg-primary/5 text-primary">
-                                                                {item.category || "N/A"}
-                                                            </Badge>
-                                                        </TableCell>
-                                                        <TableCell className="font-medium">{item.brand || "-"}</TableCell>
-                                                        <TableCell className="max-w-[300px] truncate text-muted-foreground">
-                                                            {item.productName || item.productDescription}
-                                                        </TableCell>
-                                                        <TableCell className="text-xs uppercase font-semibold">{item.unit}</TableCell>
-                                                        <TableCell className="text-right">
-                                                            <StockBreakdownHover value={item.current} inboxValue={item.inboxCurrent} label="Current" />
-                                                        </TableCell>
-                                                        <TableCell className="text-right">
-                                                            <StockBreakdownHover value={item.allocated} inboxValue={item.inboxAllocated} label="Allocated" />
-                                                        </TableCell>
-                                                        <TableCell className="text-right font-bold text-primary">
-                                                            <StockBreakdownHover value={item.projected} inboxValue={item.inboxProjected} label="Projected" />
-                                                        </TableCell>
-                                                    </TableRow>
-                                                ))}
-                                            </React.Fragment>
-                                        ))}
+                                        {Object.entries(groupedData).map(([groupName, groupItems]) => {
+                                            // Handle pagination within groups if the server sent too much
+                                            const items = paginatedData.filter(p => groupItems.some(g => g.id === p.id));
+                                            if (items.length === 0) return null;
+
+                                            return (
+                                                <React.Fragment key={groupName}>
+                                                    {groupByFamily && (
+                                                        <TableRow className="bg-muted/50 hover:bg-muted/50">
+                                                            <TableCell colSpan={7} className="py-2 px-4 font-bold text-xs tracking-widest text-primary uppercase">
+                                                                {groupName}
+                                                            </TableCell>
+                                                        </TableRow>
+                                                    )}
+                                                    {items.map((item, i) => (
+                                                        <TableRow key={item.id || i} className="hover:bg-muted/30 border-border">
+                                                            <TableCell>
+                                                                <Badge variant="outline" className="border-primary/20 bg-primary/5 text-primary">
+                                                                    {item.category || "N/A"}
+                                                                </Badge>
+                                                            </TableCell>
+                                                            <TableCell className="font-medium">{item.brand || "-"}</TableCell>
+                                                            <TableCell className="max-w-[300px] truncate text-muted-foreground">
+                                                                {item.productName || item.productDescription}
+                                                            </TableCell>
+                                                            <TableCell className="text-xs uppercase font-semibold">{item.unit}</TableCell>
+                                                            <TableCell className="text-right">
+                                                                <div className={cn(
+                                                                    "inline-block rounded px-2 py-0.5",
+                                                                    item.current <= 0 ? "bg-destructive/10 text-destructive font-bold" :
+                                                                    item.current <= 100 ? "bg-amber-500/10 text-amber-600 font-semibold" :
+                                                                    "bg-green-500/10 text-green-600"
+                                                                )}>
+                                                                    <StockBreakdownHover value={item.current} inboxValue={item.inboxCurrent} label="Current" />
+                                                                </div>
+                                                            </TableCell>
+                                                            <TableCell className="text-right">
+                                                                <StockBreakdownHover value={item.allocated} inboxValue={item.inboxAllocated} label="Allocated" />
+                                                            </TableCell>
+                                                            <TableCell className="text-right font-bold text-primary">
+                                                                <div className={cn(
+                                                                    "inline-block rounded px-2 py-0.5",
+                                                                    (item.projected || 0) <= 0 ? "bg-destructive/20 text-destructive font-black underline" :
+                                                                    (item.projected || 0) <= 100 ? "bg-amber-500/20 text-amber-700" :
+                                                                    "bg-primary/10 text-primary"
+                                                                )}>
+                                                                    <StockBreakdownHover value={item.projected} inboxValue={item.inboxProjected} label="Projected" />
+                                                                </div>
+                                                            </TableCell>
+                                                        </TableRow>
+                                                    ))}
+                                                </React.Fragment>
+                                            );
+                                        })}
                                     </TableBody>
                                 </Table>
                             </div>
                         )}
                     </div>
 
-                {/* Pagination */}
                 <div className="p-4 border-t border-border flex flex-col sm:flex-row items-center justify-between gap-4 bg-muted/10">
                     <p className="text-sm text-muted-foreground">
-                        Showing <span className="text-foreground font-medium">{paginatedData.length}</span> of {filteredData.length} results
+                        Showing <span className="text-foreground font-medium">{paginatedData.length}</span> of {totalItems} results
                     </p>
                     <div className="flex items-center gap-6">
                         <div className="flex items-center gap-2">
                             <span className="text-sm text-muted-foreground">Rows:</span>
-                            <Select value={itemsPerPage.toString()} onValueChange={(v) => setItemsPerPage(Number(v))}>
+                            <Select 
+                                value={itemsPerPage.toString()} 
+                                onValueChange={(v) => {
+                                    const nextSize = Number(v);
+                                    setItemsPerPage(nextSize);
+                                    handleSearch(false, 1, nextSize);
+                                }}
+                            >
                                 <SelectTrigger className="w-[70px] h-8">
                                     <SelectValue />
                                 </SelectTrigger>
@@ -414,17 +472,99 @@ export default function InventoryReportModule({ options }: { options: DropdownOp
                             </Select>
                         </div>
                         <div className="flex items-center gap-2">
-                            <Button size="icon" variant="outline" className="h-8 w-8" disabled={currentPage === 1} onClick={() => setCurrentPage(p => p - 1)}>
+                            <Button 
+                                size="icon" 
+                                variant="outline" 
+                                className="h-8 w-8" 
+                                disabled={currentPage === 1 || loading} 
+                                onClick={() => handleSearch(false, currentPage - 1, itemsPerPage)}
+                            >
                                 <ChevronLeft className="h-4 w-4" />
                             </Button>
                             <span className="text-sm font-medium">{currentPage} / {totalPages}</span>
-                            <Button size="icon" variant="outline" className="h-8 w-8" disabled={currentPage === totalPages} onClick={() => setCurrentPage(p => p + 1)}>
+                            <Button 
+                                size="icon" 
+                                variant="outline" 
+                                className="h-8 w-8" 
+                                disabled={currentPage === totalPages || loading} 
+                                onClick={() => handleSearch(false, currentPage + 1, itemsPerPage)}
+                            >
                                 <ChevronRight className="h-4 w-4" />
                             </Button>
                         </div>
                     </div>
                 </div>
             </Card>
+
+            {/* Export Preview Dialog */}
+            <Dialog open={isPreviewOpen} onOpenChange={setIsPreviewOpen}>
+                <DialogContent className="max-w-[95vw] h-[80vh] flex flex-col p-0 overflow-hidden">
+                    <DialogHeader className="p-6 border-b bg-muted/20">
+                        <DialogTitle className="flex items-center gap-2 text-xl">
+                            <Download className="w-5 h-5 text-primary" />
+                            Export Preview
+                            <Badge variant="secondary" className="ml-2 font-mono">
+                                {filteredData.length} rows to be exported
+                            </Badge>
+                        </DialogTitle>
+                    </DialogHeader>
+                    
+                    <div className="flex-1 overflow-hidden">
+                        <ScrollArea className="h-full">
+                            <div className="p-6">
+                                <Table>
+                                    <TableHeader className="bg-muted/50 sticky top-0 z-10">
+                                        <TableRow>
+                                            <TableHead className="font-bold">BRANCH</TableHead>
+                                            <TableHead className="font-bold">SUPPLIER</TableHead>
+                                            <TableHead className="font-bold">CATEGORY</TableHead>
+                                            <TableHead className="font-bold">BRAND</TableHead>
+                                            <TableHead className="font-bold">PRODUCT</TableHead>
+                                            <TableHead className="font-bold text-right">CURRENT</TableHead>
+                                            <TableHead className="font-bold text-right">ALLOCATED</TableHead>
+                                            <TableHead className="font-bold text-right">PROJECTED</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {filteredData.slice(0, 100).map((item, i) => (
+                                            <TableRow key={i} className="text-xs border-border">
+                                                <TableCell className="font-medium whitespace-nowrap">{item.branch}</TableCell>
+                                                <TableCell className="whitespace-nowrap">{item.supplier}</TableCell>
+                                                <TableCell className="whitespace-nowrap">{item.category}</TableCell>
+                                                <TableCell className="whitespace-nowrap">{item.brand}</TableCell>
+                                                <TableCell className="max-w-[300px] truncate">{item.productName || item.productDescription}</TableCell>
+                                                <TableCell className="text-right font-mono">{item.current || 0}</TableCell>
+                                                <TableCell className="text-right font-mono">{item.allocated || 0}</TableCell>
+                                                <TableCell className="text-right font-mono font-bold text-primary">{item.projected || 0}</TableCell>
+                                            </TableRow>
+                                        ))}
+                                        {filteredData.length > 100 && (
+                                            <TableRow>
+                                                <TableCell colSpan={6} className="text-center py-4 text-muted-foreground italic bg-muted/10">
+                                                    Showing first 100 of {filteredData.length} rows. The full dataset will be included in the CSV.
+                                                </TableCell>
+                                            </TableRow>
+                                        )}
+                                    </TableBody>
+                                </Table>
+                            </div>
+                        </ScrollArea>
+                    </div>
+
+                    <DialogFooter className="p-4 border-t bg-muted/20 gap-2">
+                        <Button variant="ghost" onClick={() => setIsPreviewOpen(false)}>Cancel</Button>
+                        <Button 
+                            onClick={() => {
+                                handleExport();
+                                setIsPreviewOpen(false);
+                            }}
+                            className="bg-primary hover:opacity-90 min-w-[140px]"
+                        >
+                            Download Full CSV
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }

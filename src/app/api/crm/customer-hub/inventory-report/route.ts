@@ -14,6 +14,8 @@ export async function GET(req: NextRequest) {
         const category = searchParams.get("category") || "";
         const brand = searchParams.get("brand") || "";
         const current = searchParams.get("current");
+        const page = searchParams.get("page") || "0";
+        const size = searchParams.get("size") || "20";
 
         const baseUrl = process.env.SPRING_API_BASE_URL;
         if (!baseUrl) {
@@ -34,6 +36,8 @@ export async function GET(req: NextRequest) {
         if (isValid(category)) externalApiUrl.searchParams.append("category", category);
         if (isValid(brand)) externalApiUrl.searchParams.append("brand", brand);
         if (current) externalApiUrl.searchParams.append("current", current);
+        if (page) externalApiUrl.searchParams.append("page", page);
+        if (size) externalApiUrl.searchParams.append("size", size);
 
         const cookieStore = await cookies();
         const token = cookieStore.get("vos_access_token")?.value;

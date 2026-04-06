@@ -7,7 +7,7 @@ import {
     BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
 import { Separator } from "@/components/ui/separator";
-import { SidebarTrigger } from "@/components/ui/sidebar";
+import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { NavUser } from "../../_components/nav-user";
 
 import { cookies } from "next/headers";
@@ -109,48 +109,52 @@ export default async function Page() {
     ]);
 
     return (
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-            <header className="relative z-10 flex h-14 shrink-0 items-center justify-between border-b shadow-sm bg-background sm:h-16">
-                <div className="flex h-full min-w-0 items-center gap-2 px-3 sm:px-4">
-                    <SidebarTrigger className="-ml-1 shrink-0" />
+        <SidebarProvider>
+            <SidebarInset className="min-w-0 flex h-[100dvh] flex-col overflow-hidden bg-background p-0 m-0 rounded-none border-0 shadow-none">
+                <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+                    <header className="relative z-10 flex h-14 shrink-0 items-center justify-between border-b shadow-sm bg-background sm:h-16">
+                        <div className="flex h-full min-w-0 items-center gap-2 px-3 sm:px-4">
+                            <SidebarTrigger className="-ml-1 shrink-0" />
 
-                    <Separator
-                        orientation="vertical"
-                        className="hidden sm:block mr-2 h-4 shrink-0"
-                    />
+                            <Separator
+                                orientation="vertical"
+                                className="hidden sm:block mr-2 h-4 shrink-0"
+                            />
 
-                    <div className="min-w-0 overflow-hidden">
-                        <Breadcrumb>
-                            <BreadcrumbList>
-                                <BreadcrumbItem className="hidden md:block">
-                                    <BreadcrumbLink href="#">Customer Hub</BreadcrumbLink>
-                                </BreadcrumbItem>
-                                <BreadcrumbSeparator className="hidden md:block" />
-                                <BreadcrumbItem>
-                                    <BreadcrumbPage className="truncate">
-                                        Inventory Report
-                                    </BreadcrumbPage>
-                                </BreadcrumbItem>
-                            </BreadcrumbList>
-                        </Breadcrumb>
-                    </div>
+                            <div className="min-w-0 overflow-hidden">
+                                <Breadcrumb>
+                                    <BreadcrumbList>
+                                        <BreadcrumbItem className="hidden md:block">
+                                            <BreadcrumbLink href="#">Customer Hub</BreadcrumbLink>
+                                        </BreadcrumbItem>
+                                        <BreadcrumbSeparator className="hidden md:block" />
+                                        <BreadcrumbItem>
+                                            <BreadcrumbPage className="truncate">
+                                                Inventory Report
+                                            </BreadcrumbPage>
+                                        </BreadcrumbItem>
+                                    </BreadcrumbList>
+                                </Breadcrumb>
+                            </div>
+                        </div>
+
+                        <div className="flex h-full items-center px-2 sm:px-4">
+                            <NavUser user={headerUser} />
+                        </div>
+                    </header>
+
+                    <main className="min-h-0 min-w-0 flex-1 overflow-y-auto p-2 sm:p-4 bg-muted/20">
+                        <InventoryReportModule 
+                            options={{
+                                categories,
+                                brands,
+                                suppliers,
+                                branches
+                            }}
+                        />
+                    </main>
                 </div>
-
-                <div className="flex h-full items-center px-2 sm:px-4">
-                    <NavUser user={headerUser} />
-                </div>
-            </header>
-
-            <main className="min-h-0 min-w-0 flex-1 overflow-y-auto p-2 sm:p-4 bg-muted/20">
-                <InventoryReportModule 
-                    options={{
-                        categories,
-                        brands,
-                        suppliers,
-                        branches
-                    }}
-                />
-            </main>
-        </div>
+            </SidebarInset>
+        </SidebarProvider>
     );
 }
