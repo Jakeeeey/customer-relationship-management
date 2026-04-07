@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button";
 import { RefreshCcw, LayoutDashboard, Clock, AlertCircle, Play, Pause } from "lucide-react";
 import { format } from "date-fns";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { useEffect, useRef, useState } from "react";

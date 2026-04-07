@@ -29,7 +29,6 @@ import {
     Truck,
     AlertCircle,
     TrendingUp,
-    Target,
     Search,
     UserPlus,
     Store,
@@ -51,7 +50,6 @@ import {
 } from "@/modules/customer-relationship-management/target-settings/types";
 import { targetSettingsProvider } from "@/modules/customer-relationship-management/target-settings/providers/fetchProvider";
 import { toast } from "sonner";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 
 interface TargetFormDialogProps {

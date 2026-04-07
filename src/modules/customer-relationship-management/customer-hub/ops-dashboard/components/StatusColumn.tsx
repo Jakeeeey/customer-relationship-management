@@ -2,7 +2,6 @@
 
 import { STATUS_COLORS, StatusGroupedOrders } from "../types";
 import { CustomerGroup } from "./CustomerGroup";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 

@@ -5,7 +5,7 @@ const SPRING_API_BASE_URL = process.env.SPRING_API_BASE_URL;
 
 export const dynamic = "force-dynamic";
 
-export async function GET(req: NextRequest) {
+export async function GET() {
     const cookieStore = await cookies();
     const token = cookieStore.get("vos_access_token")?.value;
 
