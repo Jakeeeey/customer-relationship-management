@@ -1,6 +1,5 @@
 import { Card, CardContent } from "@/components/ui/card";
-import { STATUS_COLORS, OPSOrder, OPSStatus } from "../types";
-import { StatusBadge, StatusTone } from "@/components/ui/status-badge";
+import { STATUS_COLORS, OPSOrder } from "../types";
 import { format } from "date-fns";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
@@ -46,7 +45,6 @@ export function OrderCard({ order }: OrderCardProps) {
                 </div>
                 
                 <div className="flex flex-col gap-0.5">
-                    <span className="text-sm font-semibold leading-tight break-words min-w-0">{order.customerName}</span>
                     <span className="text-[11px] text-muted-foreground">
                         {format(new Date(order.poDate), "MMM dd, yyyy")}
                     </span>

@@ -15,6 +15,8 @@ export interface TargetSetting {
     created_by?: number;
     // Relationships
     tactical_skus?: TacticalSKU[];
+    customer_targets?: CustomerTarget[];
+    supplier_targets?: SupplierTarget[];
 }
 
 export interface TacticalSKU {
@@ -90,4 +92,44 @@ export interface TargetFormData {
         target_quantity: number;
         target_value: number;
     }[];
+    customer_targets: {
+        customer_id: number;
+        target_amount: number;
+    }[];
+    supplier_targets: {
+        supplier_id: number;
+        target_amount: number;
+    }[];
+}
+
+export interface CustomerTarget {
+    id?: number;
+    target_setting_id: number;
+    customer_id: number;
+    target_amount: number;
+    created_at?: string;
+    customer_name?: string;
+}
+
+export interface SupplierTarget {
+    id?: number;
+    target_setting_id: number;
+    supplier_id: number;
+    target_amount: number;
+    created_at?: string;
+    supplier_name?: string;
+}
+
+export interface CustomerRecord {
+    id: number;
+    customer_name: string;
+    province: string;
+    city: string;
+    brgy: string;
+}
+
+export interface SupplierRecord {
+    id: number;
+    supplier_name: string;
+    supplier_type: string;
 }
