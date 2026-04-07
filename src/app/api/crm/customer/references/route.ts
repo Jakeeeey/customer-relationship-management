@@ -29,6 +29,12 @@ export async function GET(req: NextRequest) {
             case "user":
                 collection = "user";
                 break;
+            case "salesman":
+                collection = "salesman";
+                break;
+            case "payment_term":
+                collection = "payment_terms";
+                break;
             default:
                 return NextResponse.json({ error: "Invalid reference type" }, { status: 400 });
         }
