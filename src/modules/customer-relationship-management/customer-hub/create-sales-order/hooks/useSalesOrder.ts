@@ -366,9 +366,8 @@ export function useSalesOrder() {
     const handleSalesmanChange = async (id: string) => {
         setSelectedSalesmanId(id);
         setSelectedAccountId("");
-        setSelectedCustomerId("");
+        // Do not clear customer selection or list
         setAccounts([]);
-        setCustomers([]);
 
         if (id) {
             setLoadingAccounts(true);
@@ -386,8 +385,7 @@ export function useSalesOrder() {
 
     const handleAccountChange = async (id: string) => {
         setSelectedAccountId(id);
-        setSelectedCustomerId("");
-        setCustomers([]);
+        // Do not clear customer selection
 
         const account = accounts.find(a => a.id.toString() === id);
         if (account) {
@@ -405,7 +403,16 @@ export function useSalesOrder() {
             setLoadingCustomers(true);
             try {
                 const data = await salesOrderProvider.getCustomers(Number(id));
-                setCustomers(data);
+                setCustomers(prev => {
+                    const dataSafe = Array.isArray(data) ? data : [];
+                    if (!selectedCustomerId) return dataSafe;
+                    const selected = prev.find(c => c.id.toString() === selectedCustomerId);
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    if (selected && !dataSafe.find((c: any) => c.id.toString() === selected.id.toString())) {
+                        return [selected, ...dataSafe];
+                    }
+                    return dataSafe;
+                });
             } catch (e) {
                 console.error(e);
             } finally {
@@ -421,34 +428,6 @@ export function useSalesOrder() {
             if (customer.price_type) setPriceType(customer.price_type);
             if (customer.price_type_id) setPriceTypeId(Number(customer.price_type_id));
             if (customer.payment_term !== undefined) setPaymentTerms(customer.payment_term);
-        }
-
-        if (id) {
-            try {
-                const s = await salesOrderProvider.getSalesmanByCustomer(Number(id));
-                if (s) {
-                    const sid = s.id.toString();
-                    const sUser_id = (s.employee_id || s.encoder_id || s.user_id)?.toString();
-                    if (sUser_id) {
-                        setSelectedSalesmanId(sUser_id);
-                        setLoadingAccounts(true);
-                        const accts = await fetch(`/api/crm/customer-hub/create-sales-order?action=accounts&user_id=${sUser_id}`).then(r => r.json());
-                        setAccounts(accts);
-                        setLoadingAccounts(false);
-                    }
-                    setSelectedAccountId(sid);
-                    setPriceType(s.price_type || "A");
-                    setPriceTypeId(s.price_type_id || null);
-                    if (s.branch_code) {
-                        const bId = typeof s.branch_code === "object"
-                            ? (s.branch_code as { id?: number | string }).id
-                            : s.branch_code;
-                        if (bId) setSelectedBranchId(bId.toString());
-                    }
-                }
-            } catch (e) {
-                console.error(e);
-            }
         }
     };
 
