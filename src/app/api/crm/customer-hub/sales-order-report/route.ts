@@ -162,7 +162,8 @@ export async function GET(req: NextRequest) {
         try {
             const soId = searchParams.get("salesOrderId");
             const orderNo = searchParams.get("orderNo");
-            const FOLDER_ID = "ba39f489-2388-4b7a-85aa-e01def0f484a";
+            const folderName = process.env.DIRECTUS_INVOICE_PDF_FOLDER_NAME || "sales_invoice_pdf";
+            const FOLDER_ID = await getOrCreateFolderId(folderName);
 
             if (!soId) return NextResponse.json({ error: "salesOrderId required" }, { status: 400 });
 
@@ -657,3 +658,49 @@ export async function DELETE(req: NextRequest) {
         return NextResponse.json({ error: err.message }, { status: 500 });
     }
 }
+
+/**
+ * Directus Folder Utility (Inlined)
+ */
+async function getOrCreateFolderId(folderName: string): Promise<string | null> {
+    const DIRECTUS_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
+    const DIRECTUS_TOKEN = process.env.DIRECTUS_STATIC_TOKEN;
+
+    if (!DIRECTUS_URL || !DIRECTUS_TOKEN) {
+        console.error("[Directus Folders] Missing API URL or Static Token.");
+        return null;
+    }
+
+    try {
+        const searchUrl = `${DIRECTUS_URL}/folders?filter[name][_eq]=${encodeURIComponent(folderName)}&fields=id`;
+        const searchRes = await fetch(searchUrl, {
+            headers: { Authorization: `Bearer ${DIRECTUS_TOKEN}` },
+            cache: "no-store",
+        });
+
+        if (!searchRes.ok) return null;
+
+        const searchResult = await searchRes.json();
+        if (searchResult.data && searchResult.data.length > 0) {
+            return searchResult.data[0].id;
+        }
+
+        const createRes = await fetch(`${DIRECTUS_URL}/folders`, {
+            method: "POST",
+            headers: {
+                Authorization: `Bearer ${DIRECTUS_TOKEN}`,
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ name: folderName }),
+        });
+
+        if (!createRes.ok) return null;
+
+        const createdResult = await createRes.json();
+        return createdResult.data?.id || null;
+    } catch (error) {
+        console.error(`[Directus Folders] Error for '${folderName}':`, error);
+        return null;
+    }
+}
+

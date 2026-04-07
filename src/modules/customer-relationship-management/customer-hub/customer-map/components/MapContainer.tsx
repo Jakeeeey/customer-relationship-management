@@ -157,19 +157,23 @@ export function MapContainer() {
 
         // Popup Content (Hover Utility)
         const popupContent = `
-          <div class="p-2 min-w-[200px] font-sans">
-            <h3 class="font-bold text-sm border-b pb-1 mb-2">${customer.customerName}</h3>
+          <div class="p-2 min-w-[200px] font-sans text-popover-foreground">
+            <h3 class="font-bold text-sm border-b border-border pb-1 mb-2">${customer.customerName}</h3>
             <div class="space-y-1 text-xs">
               <p><strong>Store:</strong> ${customer.storeName}</p>
               <p><strong>Signage:</strong> ${customer.storeSignage || "N/A"}</p>
               <p><strong>Location:</strong> ${[customer.brgy, customer.city, customer.province].filter(Boolean).join(", ")}</p>
-              <p><strong>Type:</strong> <span class="px-1.5 py-0.5 bg-secondary rounded text-[10px]">${customer.storeType || "Regular"}</span></p>
+              <p><strong>Type:</strong> <span class="px-1.5 py-0.5 bg-secondary text-secondary-foreground rounded text-[10px]">${customer.storeType || "Regular"}</span></p>
               <p><strong>Classification:</strong> ${customer.classification || "N/A"}</p>
             </div>
           </div>
         `;
 
-        marker.bindPopup(popupContent, { closeButton: false, offset: [0, -20] });
+        marker.bindPopup(popupContent, { 
+          closeButton: false, 
+          offset: [0, -20],
+          className: 'custom-map-popup'
+        });
 
         // Hover functionality
         marker.on('mouseover', () => {
@@ -235,7 +239,7 @@ export function MapContainer() {
         />
       )}
 
-      <div className="relative w-full h-full bg-muted/30">
+      <div className="relative w-full h-full bg-muted/30 custom-leaflet-map">
         {isLoading && (
           <div className="absolute inset-0 z-[1000] flex items-center justify-center bg-background/50 backdrop-blur-sm">
             <div className="flex flex-col items-center gap-2">
