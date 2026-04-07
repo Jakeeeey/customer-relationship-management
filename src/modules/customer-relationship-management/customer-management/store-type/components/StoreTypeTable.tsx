@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import {
     Table,
     TableBody,
@@ -40,24 +40,15 @@ export function StoreTypeTable({ data, isLoading, onView, onEdit }: StoreTypeTab
     const [pageSize, setPageSize] = useState(10);
 
     const totalPages = Math.max(1, Math.ceil(data.length / pageSize));
-
-    useEffect(() => {
-        if (page > totalPages) {
-            setPage(totalPages);
-        }
-    }, [page, totalPages]);
-
-    useEffect(() => {
-        setPage(1);
-    }, [pageSize, data.length]);
+    const currentPage = Math.min(page, totalPages);
 
     const paginatedData = useMemo(() => {
-        const start = (page - 1) * pageSize;
+        const start = (currentPage - 1) * pageSize;
         return data.slice(start, start + pageSize);
-    }, [data, page, pageSize]);
+    }, [currentPage, data, pageSize]);
 
-    const startEntry = data.length === 0 ? 0 : (page - 1) * pageSize + 1;
-    const endEntry = Math.min(page * pageSize, data.length);
+    const startEntry = data.length === 0 ? 0 : (currentPage - 1) * pageSize + 1;
+    const endEntry = Math.min(currentPage * pageSize, data.length);
 
     const getInitials = (name: string) => {
         const parts = name.split(" ").filter(Boolean);
@@ -96,7 +87,7 @@ export function StoreTypeTable({ data, isLoading, onView, onEdit }: StoreTypeTab
                         ) : (
                             paginatedData.map((item, index) => (
                                 <TableRow key={item.id} className="group transition-colors hover:bg-muted/20">
-                                    <TableCell className="font-medium text-foreground/90">{(page - 1) * pageSize + index + 1}</TableCell>
+                                    <TableCell className="font-medium text-foreground/90">{(currentPage - 1) * pageSize + index + 1}</TableCell>
                                     <TableCell>
                                         <div className="flex items-center gap-2">
                                             <div className="rounded-md bg-primary/10 p-1.5 text-primary">
@@ -151,7 +142,10 @@ export function StoreTypeTable({ data, isLoading, onView, onEdit }: StoreTypeTab
                         <span className="text-sm text-muted-foreground">Rows</span>
                         <Select
                             value={String(pageSize)}
-                            onValueChange={(value) => setPageSize(Number(value))}
+                            onValueChange={(value) => {
+                                setPageSize(Number(value));
+                                setPage(1);
+                            }}
                             disabled={isLoading}
                         >
                             <SelectTrigger className="h-8 w-[86px] rounded-lg">
@@ -167,14 +161,14 @@ export function StoreTypeTable({ data, isLoading, onView, onEdit }: StoreTypeTab
                     </div>
 
                     <div className="flex items-center justify-between gap-2 sm:justify-start">
-                        <span className="text-sm text-muted-foreground">Page {page} of {totalPages}</span>
+                        <span className="text-sm text-muted-foreground">Page {currentPage} of {totalPages}</span>
                         <div className="flex items-center gap-1">
                             <Button
                                 variant="outline"
                                 size="icon"
                                 className="h-8 w-8 rounded-lg"
-                                onClick={() => setPage((prev) => Math.max(1, prev - 1))}
-                                disabled={isLoading || page === 1}
+                                onClick={() => setPage(Math.max(1, currentPage - 1))}
+                                disabled={isLoading || currentPage === 1}
                             >
                                 <ChevronLeft className="h-4 w-4" />
                             </Button>
@@ -182,8 +176,8 @@ export function StoreTypeTable({ data, isLoading, onView, onEdit }: StoreTypeTab
                                 variant="outline"
                                 size="icon"
                                 className="h-8 w-8 rounded-lg"
-                                onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
-                                disabled={isLoading || page === totalPages}
+                                onClick={() => setPage(Math.min(totalPages, currentPage + 1))}
+                                disabled={isLoading || currentPage === totalPages}
                             >
                                 <ChevronRight className="h-4 w-4" />
                             </Button>

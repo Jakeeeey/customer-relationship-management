@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import {
     Dialog,
     DialogContent,
@@ -32,13 +32,9 @@ export function StoreTypeFormDialog({
     onOpenChange,
     onSubmit,
 }: StoreTypeFormDialogProps) {
-    const [typeValue, setTypeValue] = useState("");
-
-    useEffect(() => {
-        if (open) {
-            setTypeValue(selectedItem?.store_type ?? "");
-        }
-    }, [open, selectedItem]);
+    const initialTypeValue = selectedItem?.store_type ?? "";
+    const [typeValue, setTypeValue] = useState(initialTypeValue);
+    const dialogKey = `${mode}-${selectedItem?.id ?? "new"}-${open ? "open" : "closed"}`;
 
     const isView = mode === "view";
     const modeLabel = mode === "create" ? "New" : mode === "edit" ? "Editing" : "Read-only";
@@ -58,7 +54,10 @@ export function StoreTypeFormDialog({
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="overflow-hidden border-0 p-0 shadow-2xl sm:max-w-[560px]">
+            <DialogContent
+                key={dialogKey}
+                className="overflow-hidden border-0 p-0 shadow-2xl sm:max-w-[560px]"
+            >
                 <DialogHeader className="relative border-b bg-gradient-to-r from-sky-500/10 via-cyan-500/10 to-emerald-500/10 px-6 py-5">
                     <div className="absolute inset-y-0 left-0 w-1 bg-gradient-to-b from-sky-500 via-cyan-500 to-emerald-500" />
                     <div className="space-y-2 pl-2">
