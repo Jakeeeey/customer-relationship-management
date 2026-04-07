@@ -87,6 +87,7 @@ export default function ClassificationModule() {
 			/>
 
 			<ClassificationFormDialog
+				key={`${dialogMode}-${selectedItem?.id ?? "new"}-${dialogOpen ? "open" : "closed"}`}
 				open={dialogOpen}
 				mode={dialogMode}
 				selectedItem={selectedItem}

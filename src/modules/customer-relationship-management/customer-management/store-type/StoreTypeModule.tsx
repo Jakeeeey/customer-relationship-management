@@ -150,6 +150,7 @@ export default function StoreTypeModule() {
 			/>
 
 			<StoreTypeFormDialog
+				key={`${dialogMode}-${selectedItem?.id ?? "new"}-${open ? "open" : "closed"}`}
 				open={open}
 				mode={dialogMode}
 				selectedItem={selectedItem}
