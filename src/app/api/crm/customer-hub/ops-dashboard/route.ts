@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 
 const SPRING_API_BASE_URL = process.env.SPRING_API_BASE_URL;
