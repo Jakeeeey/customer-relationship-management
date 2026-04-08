@@ -68,10 +68,10 @@ export default function OPSDashboardModule() {
                         <h1 className="text-2xl font-black italic tracking-tighter uppercase leading-none">
                             Operations Dashboard
                         </h1>
-                        <div className="flex items-center gap-2 text-xs text-muted-foreground font-bold mt-1">
-                            <Clock className="h-3 w-3" />
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground font-bold mt-1">
+                            <Clock className="h-3.5 w-3.5" />
                             <span>LAST SYNC: {format(lastUpdated, "HH:mm:ss")}</span>
-                            <Badge variant="outline" className="text-[10px] h-4 font-black">2m Auto-Sync</Badge>
+                            <Badge variant="outline" className="text-[11px] h-4.5 font-black">2m Auto-Sync</Badge>
                         </div>
                     </div>
                 </div>

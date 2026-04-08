@@ -9,8 +9,6 @@ interface OrderCardProps {
 }
 
 const colorToBorderMap: Record<string, string> = {
-    gray: "border-l-gray-500",
-    orange: "border-l-orange-500",
     blue: "border-l-blue-500",
     cyan: "border-l-cyan-500",
     indigo: "border-l-indigo-500",
@@ -36,16 +34,16 @@ export function OrderCard({ order }: OrderCardProps) {
         <Card className={cn("mb-2 shadow-sm hover:shadow-md transition-shadow border-l-4", borderColorClass)}>
             <CardContent className="p-3 space-y-2">
                 <div className="flex justify-between items-start gap-2">
-                    <span className="text-[10px] font-bold text-muted-foreground break-all min-w-0" title={order.salesOrderNo}>
+                    <span className="text-xs font-bold text-muted-foreground break-all min-w-0" title={order.salesOrderNo}>
                         {order.salesOrderNo}
                     </span>
-                    <span className="text-[10px] bg-secondary px-1.5 py-0.5 rounded text-secondary-foreground font-medium shrink-0">
+                    <span className="text-xs bg-secondary px-1.5 py-0.5 rounded text-secondary-foreground font-bold shrink-0">
                         {order.poNo}
                     </span>
                 </div>
                 
                 <div className="flex flex-col gap-0.5">
-                    <span className="text-[11px] text-muted-foreground">
+                    <span className="text-xs font-bold text-muted-foreground">
                         {format(new Date(order.poDate), "MMM dd, yyyy")}
                     </span>
                 </div>
@@ -53,7 +51,7 @@ export function OrderCard({ order }: OrderCardProps) {
                 <Separator className="my-1 opacity-50" />
 
                 <div className="flex justify-between items-center">
-                    <span className="text-sm font-bold text-primary">{formattedAmount}</span>
+                    <span className="text-base font-black text-primary">{formattedAmount}</span>
                 </div>
             </CardContent>
         </Card>

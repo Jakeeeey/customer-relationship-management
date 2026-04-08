@@ -8,8 +8,6 @@ export interface OPSOrder {
 }
 
 export type OPSStatus =
-    | "Draft"
-    | "Pending"
     | "For Approval"
     | "For Consolidation"
     | "For Picking"
@@ -23,8 +21,6 @@ export type OPSStatus =
     | "Not Fulfilled";
 
 export const OPS_STATUSES: OPSStatus[] = [
-    "Draft",
-    "Pending",
     "For Approval",
     "For Consolidation",
     "For Picking",
@@ -39,8 +35,6 @@ export const OPS_STATUSES: OPSStatus[] = [
 ];
 
 export const STATUS_COLORS: Record<OPSStatus, string> = {
-    "Draft": "gray",
-    "Pending": "orange",
     "For Approval": "blue",
     "For Consolidation": "cyan",
     "For Picking": "indigo",

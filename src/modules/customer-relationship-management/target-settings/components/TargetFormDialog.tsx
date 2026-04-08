@@ -35,9 +35,16 @@ import {
     BarChart3,
     RefreshCw,
     ShoppingBag,
-    MapPin
+    MapPin,
+    Map
 } from "lucide-react";
 import { SearchableSelect } from "@/components/ui/searchable-select";
+import { 
+    Accordion,
+    AccordionContent,
+    AccordionItem,
+    AccordionTrigger
+} from "@/components/ui/accordion";
 import { 
     SalesmanWithTarget, 
     TacticalSKU, 
@@ -122,10 +129,6 @@ export function TargetFormDialog({
         })) || []
     );
 
-    const [psgcProvinces, setPsgcProvinces] = useState<{ code: string; name: string }[]>([]);
-    const [psgcCities, setPsgcCities] = useState<{ code: string; name: string }[]>([]);
-    const [selectedProvince, setSelectedProvince] = useState<string>("");
-    const [selectedCity, setSelectedCity] = useState<string>("");
     const [customerSearch, setCustomerSearch] = useState("");
     const [supplierSearch, setSupplierSearch] = useState("");
 
@@ -167,45 +170,11 @@ export function TargetFormDialog({
                 })) || []
             );
 
-            // Reset search and filters
-            setSelectedProvince("");
-            setSelectedCity("");
             setCustomerSearch("");
             setSupplierSearch("");
             setLoading(false);
         }
     }, [isOpen, salesman, month, year]);
-
-    // --- PSGC Logic ---
-    useEffect(() => {
-        const fetchProvinces = async () => {
-            try {
-                const res = await fetch("https://psgc.gitlab.io/api/provinces.json");
-                const data = await res.json();
-                setPsgcProvinces(data.sort((a: { name: string }, b: { name: string }) => a.name.localeCompare(b.name)));
-            } catch (error) {
-                console.error("Failed to fetch PSGC provinces:", error);
-            }
-        };
-        fetchProvinces();
-    }, []);
-
-    useEffect(() => {
-        if (!selectedProvince) {
-            setPsgcCities([]);
-            return;
-        }
-        const fetchCities = async () => {
-            try {
-                const res = await fetch(`https://psgc.gitlab.io/api/provinces/${selectedProvince}/cities-municipalities.json`);
-                const data = await res.json();
-                setPsgcCities(data.sort((a: { name: string }, b: { name: string }) => a.name.localeCompare(b.name)));
-            } catch (error) {
-                console.error("Failed to fetch PSGC cities:", error);
-            }
-        };
-        fetchCities();
-    }, [selectedProvince]);
 
     // --- Customer Filter Logic ---
     const salesmanCustomerIds = useMemo(() => {
@@ -214,24 +183,50 @@ export function TargetFormDialog({
             .map(m => m.customer_id);
     }, [customerMappings, salesman.id]);
 
-    const provinceName = useMemo(() => psgcProvinces.find(p => p.code === selectedProvince)?.name || "", [psgcProvinces, selectedProvince]);
-    const cityName = useMemo(() => psgcCities.find(c => c.code === selectedCity)?.name || "", [psgcCities, selectedCity]);
-
-    const filteredCustomersList = useMemo(() => {
+    const groupedCustomers = useMemo(() => {
         let list = allCustomers.filter(c => salesmanCustomerIds.includes(c.id));
         
-        if (provinceName) {
-            list = list.filter(c => c.province?.toLowerCase().includes(provinceName.toLowerCase()));
-        }
-        if (cityName) {
-            list = list.filter(c => c.city?.toLowerCase().includes(cityName.toLowerCase()));
-        }
         if (customerSearch) {
-            list = list.filter(c => c.customer_name.toLowerCase().includes(customerSearch.toLowerCase()));
+            const search = customerSearch.toLowerCase();
+            list = list.filter(c => 
+                c.customer_name.toLowerCase().includes(search) ||
+                c.province?.toLowerCase().includes(search) ||
+                c.city?.toLowerCase().includes(search)
+            );
         }
+
+        const groups: Record<string, { 
+            totalAllocation: number; 
+            cities: Record<string, { 
+                totalAllocation: number; 
+                customers: CustomerRecord[] 
+            }> 
+        }> = {};
         
-        return list;
-    }, [allCustomers, salesmanCustomerIds, provinceName, cityName, customerSearch]);
+        list.forEach(c => {
+            const prov = (c.province || "Unknown Province").toUpperCase();
+            const city = (c.city || "Unknown City").toUpperCase();
+            
+            if (!groups[prov]) {
+                groups[prov] = { totalAllocation: 0, cities: {} };
+            }
+            if (!groups[prov].cities[city]) {
+                groups[prov].cities[city] = { totalAllocation: 0, customers: [] };
+            }
+            
+            groups[prov].cities[city].customers.push(c);
+            
+            // Add to province and city totals
+            const target = customerTargets.find(ct => ct.customer_id === c.id);
+            if (target) {
+                const amount = Number(target.target_amount) || 0;
+                groups[prov].totalAllocation += amount;
+                groups[prov].cities[city].totalAllocation += amount;
+            }
+        });
+
+        return groups;
+    }, [allCustomers, salesmanCustomerIds, customerSearch, customerTargets]);
 
     const filteredSuppliersList = useMemo(() => {
         let list = allSuppliers;
@@ -244,18 +239,6 @@ export function TargetFormDialog({
     // --- Allocation Calculations ---
     const totalAllocatedCustomer = useMemo(() => customerTargets.reduce((sum, ct) => sum + (Number(ct.target_amount) || 0), 0), [customerTargets]);
     const totalAllocatedSupplier = useMemo(() => supplierTargets.reduce((sum, st) => sum + (Number(st.target_amount) || 0), 0), [supplierTargets]);
-
-    const getAreaAllocation = (prov?: string, city?: string) => {
-        const provinceCustomers = allCustomers.filter(c => 
-            prov ? c.province?.toLowerCase().includes(prov.toLowerCase()) : true
-        ).filter(c => 
-            city ? c.city?.toLowerCase().includes(city.toLowerCase()) : true
-        ).map(c => c.id);
-
-        return customerTargets
-            .filter(ct => provinceCustomers.includes(ct.customer_id as number))
-            .reduce((sum, ct) => sum + (Number(ct.target_amount) || 0), 0);
-    };
 
     const handleCustomerTargetChange = (customerId: number, amount: number) => {
         setCustomerTargets(prev => {
@@ -584,48 +567,12 @@ export function TargetFormDialog({
                                         <div className="p-4 bg-white border-b border-slate-100 space-y-4 flex-none">
                                             <div className="flex items-center gap-2 text-indigo-700 font-black text-xs uppercase tracking-widest">
                                                 <Users className="w-4 h-4" /> Customer Allocation
-                                                <Badge variant="outline" className="ml-auto bg-indigo-50 border-indigo-100 text-indigo-700 font-bold">
-                                                    ₱{getAreaAllocation(provinceName, cityName).toLocaleString()} set in area
-                                                </Badge>
                                             </div>
                                             
-                                            <div className="grid grid-cols-2 gap-2">
-                                                <div className="space-y-1">
-                                                    <Label className="text-[10px] font-bold text-slate-500">PROVINCE</Label>
-                                                    <select 
-                                                        className="w-full h-8 text-xs border rounded-lg px-2 bg-slate-50"
-                                                        value={selectedProvince}
-                                                        onChange={(e) => {
-                                                            setSelectedProvince(e.target.value);
-                                                            setSelectedCity("");
-                                                        }}
-                                                    >
-                                                        <option value="">All Provinces</option>
-                                                        {psgcProvinces.map(p => (
-                                                            <option key={p.code} value={p.code}>{p.name}</option>
-                                                        ))}
-                                                    </select>
-                                                </div>
-                                                <div className="space-y-1">
-                                                    <Label className="text-[10px] font-bold text-slate-500">CITY/MUNI</Label>
-                                                    <select 
-                                                        className="w-full h-8 text-xs border rounded-lg px-2 bg-slate-50"
-                                                        value={selectedCity}
-                                                        onChange={(e) => setSelectedCity(e.target.value)}
-                                                        disabled={!selectedProvince}
-                                                    >
-                                                        <option value="">All Cities</option>
-                                                        {psgcCities.map(c => (
-                                                            <option key={c.code} value={c.code}>{c.name}</option>
-                                                        ))}
-                                                    </select>
-                                                </div>
-                                            </div>
-
                                             <div className="relative">
                                                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
                                                 <Input 
-                                                    placeholder="Search customer name..." 
+                                                    placeholder="Search province, city, or customer..." 
                                                     className="h-9 pl-9 text-sm border-slate-100 bg-slate-50"
                                                     value={customerSearch}
                                                     onChange={(e) => setCustomerSearch(e.target.value)}
@@ -633,37 +580,75 @@ export function TargetFormDialog({
                                             </div>
                                         </div>
 
-                                        <div className="flex-1 overflow-y-auto p-2 min-h-0 scrollbar-thin scrollbar-thumb-slate-200">
-                                            <div className="space-y-2">
-                                                {filteredCustomersList.length > 0 ? (
-                                                    filteredCustomersList.map(customer => {
-                                                        const targetValue = customerTargets.find(ct => ct.customer_id === customer.id)?.target_amount || 0;
-                                                        return (
-                                                            <div key={customer.id} className="p-3 bg-white rounded-xl border border-slate-100 shadow-sm flex items-center justify-between group hover:border-indigo-200 transition-colors">
-                                                                <div className="flex-1 min-w-0 pr-4">
-                                                                    <p className="text-xs font-bold text-slate-900 truncate uppercase">{customer.customer_name}</p>
-                                                                    <p className="text-[10px] text-slate-400 font-medium truncate italic">{customer.city}, {customer.province}</p>
+                                        <div className="flex-1 overflow-y-auto min-h-0 scrollbar-thin scrollbar-thumb-slate-200">
+                                            <Accordion type="multiple" className="w-full">
+                                                {Object.entries(groupedCustomers).length > 0 ? (
+                                                    Object.entries(groupedCustomers).map(([province, data]) => (
+                                                        <AccordionItem key={province} value={province} className="border-b border-slate-100 px-4">
+                                                            <AccordionTrigger className="hover:no-underline py-3 group">
+                                                                <div className="flex items-center justify-between w-full pr-4">
+                                                                    <div className="flex items-center gap-2">
+                                                                        <span className="text-xs font-black text-slate-900 tracking-tight uppercase">{province}</span>
+                                                                    </div>
+                                                                    <Badge variant="outline" className="bg-indigo-50 border-indigo-100 text-indigo-700 font-bold text-[10px]">
+                                                                        ₱{data.totalAllocation.toLocaleString()}
+                                                                    </Badge>
                                                                 </div>
-                                                                <div className="relative w-32">
-                                                                    <Input 
-                                                                        type="number"
-                                                                        value={targetValue || ""}
-                                                                        onChange={(e) => handleCustomerTargetChange(customer.id, Number(e.target.value))}
-                                                                        className="h-8 pl-6 text-xs font-bold bg-slate-50 border-none rounded-lg focus:ring-indigo-500"
-                                                                        placeholder="0"
-                                                                    />
-                                                                    <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-400">₱</span>
-                                                                </div>
-                                                            </div>
-                                                        );
-                                                    })
+                                                            </AccordionTrigger>
+                                                            <AccordionContent className="pb-4 pt-1 px-2">
+                                                                <Accordion type="multiple" className="w-full space-y-1">
+                                                                    {Object.entries(data.cities).map(([city, cityData]) => (
+                                                                        <AccordionItem key={city} value={city} className="border-none">
+                                                                            <AccordionTrigger className="hover:no-underline py-2 px-2 rounded-lg hover:bg-slate-100/50 transition-colors group/city">
+                                                                                <div className="flex items-center justify-between w-full pr-4">
+                                                                                    <div className="flex items-center gap-2">
+                                                                                        <Map className="w-3.5 h-3.5 text-slate-400 group-hover/city:text-indigo-500 transition-colors" />
+                                                                                        <span className="text-[10px] font-bold text-slate-600 uppercase tracking-wider">{city}</span>
+                                                                                        <Badge variant="secondary" className="ml-2 h-4 px-1 text-[9px] font-black bg-slate-100 text-slate-500 border-none">
+                                                                                            {cityData.customers.length}
+                                                                                        </Badge>
+                                                                                    </div>
+                                                                                    <Badge variant="outline" className="bg-white border-slate-200 text-slate-500 font-bold text-[9px] h-5 shadow-sm">
+                                                                                        ₱{cityData.totalAllocation.toLocaleString()}
+                                                                                    </Badge>
+                                                                                </div>
+                                                                            </AccordionTrigger>
+                                                                            <AccordionContent className="pt-2 pb-1 pl-4 space-y-1.5">
+                                                                                {cityData.customers.map(customer => {
+                                                                                    const targetValue = customerTargets.find(ct => ct.customer_id === customer.id)?.target_amount || 0;
+                                                                                    return (
+                                                                                        <div key={customer.id} className="p-3 bg-white rounded-xl border border-slate-100 shadow-sm flex items-center justify-between group hover:border-indigo-200 transition-colors">
+                                                                                            <div className="flex-1 min-w-0 pr-4">
+                                                                                                <p className="text-[10px] font-bold text-slate-900 truncate uppercase">{customer.customer_name}</p>
+                                                                                                <p className="text-[9px] text-slate-400 font-medium truncate italic">{customer.brgy || 'N/A'}</p>
+                                                                                            </div>
+                                                                                            <div className="relative w-28">
+                                                                                                <Input 
+                                                                                                    type="number"
+                                                                                                    value={targetValue || ""}
+                                                                                                    onChange={(e) => handleCustomerTargetChange(customer.id, Number(e.target.value))}
+                                                                                                    className="h-7 pl-5 text-[10px] font-bold bg-slate-50 border-none rounded-lg focus:ring-indigo-500"
+                                                                                                    placeholder="0"
+                                                                                                />
+                                                                                                <span className="absolute left-1.5 top-1/2 -translate-y-1/2 text-[9px] font-bold text-slate-400">₱</span>
+                                                                                            </div>
+                                                                                        </div>
+                                                                                    );
+                                                                                })}
+                                                                            </AccordionContent>
+                                                                        </AccordionItem>
+                                                                    ))}
+                                                                </Accordion>
+                                                            </AccordionContent>
+                                                        </AccordionItem>
+                                                    ))
                                                 ) : (
-                                                    <div className="flex flex-col items-center justify-center py-20 text-slate-400 bg-white/50 rounded-2xl border-2 border-dashed border-slate-100">
+                                                    <div className="flex flex-col items-center justify-center py-20 text-slate-400 bg-white/50 rounded-2xl border-2 border-dashed border-slate-100 m-2">
                                                         <Users className="w-8 h-8 mb-2 opacity-20" />
-                                                        <p className="text-[10px] font-black uppercase tracking-widest">No customers found</p>
+                                                        <p className="text-[10px] font-black uppercase tracking-widest">No areas found</p>
                                                     </div>
                                                 )}
-                                            </div>
+                                            </Accordion>
                                         </div>
                                     </div>
 

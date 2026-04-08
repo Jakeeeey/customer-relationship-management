@@ -10,8 +10,6 @@ interface StatusColumnProps {
 }
 
 const colorToTailwindMap: Record<string, string> = {
-    gray: "border-b-gray-500",
-    orange: "border-b-orange-500",
     blue: "border-b-blue-500",
     cyan: "border-b-cyan-500",
     indigo: "border-b-indigo-500",
@@ -39,10 +37,10 @@ export function StatusColumn({ statusGroup }: StatusColumnProps) {
                 "flex items-center justify-between p-3 border-b-2 gap-2 sticky top-0 bg-background z-20",
                 borderColorClass
             )}>
-                <h3 className="text-sm font-bold truncate uppercase tracking-wider">
+                <h3 className="text-base font-black truncate uppercase tracking-widest">
                     {statusGroup.status}
                 </h3>
-                <Badge variant={totalOrders > 0 ? "default" : "secondary"} className="h-5 px-1.5 text-[10px] font-black">
+                <Badge variant={totalOrders > 0 ? "default" : "secondary"} className="h-6 px-2 text-xs font-black shadow-sm">
                     {totalOrders}
                 </Badge>
             </div>

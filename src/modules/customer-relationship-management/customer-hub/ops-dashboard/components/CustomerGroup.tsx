@@ -10,8 +10,6 @@ interface CustomerGroupProps {
 }
 
 const colorToGradientMap: Record<string, string> = {
-    gray: "bg-gradient-to-r from-gray-500 to-gray-600",
-    orange: "bg-gradient-to-r from-orange-500 to-orange-600",
     blue: "bg-gradient-to-r from-blue-500 to-blue-600",
     cyan: "bg-gradient-to-r from-cyan-500 to-cyan-600",
     indigo: "bg-gradient-to-r from-indigo-500 to-indigo-600",
@@ -35,10 +33,10 @@ export function CustomerGroup({ group, status }: CustomerGroupProps) {
                 gradientClass
             )}>
                 <User2 className="h-3.5 w-3.5 shrink-0 mt-0.5 text-white/90" />
-                <span className="text-xs font-bold tracking-tight py-0.5 break-words min-w-0 uppercase">
+                <span className="text-sm font-black tracking-tight py-0.5 break-words min-w-0 uppercase">
                     {group.customerName}
                 </span>
-                <Badge variant="secondary" className="ml-auto text-[10px] px-1.5 h-4.5 min-w-5 flex items-center justify-center font-black bg-white/20 text-white border-none shadow-inner">
+                <Badge variant="secondary" className="ml-auto text-[11px] px-1.5 h-5 min-w-6 flex items-center justify-center font-black bg-white/20 text-white border-none shadow-inner">
                     {group.orders.length}
                 </Badge>
             </div>
