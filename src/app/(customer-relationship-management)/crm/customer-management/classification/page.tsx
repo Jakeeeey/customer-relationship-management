@@ -11,7 +11,9 @@ import { SidebarTrigger } from "@/components/ui/sidebar";
 import { NavUser } from "./../../_components/nav-user";
 
 import { cookies } from "next/headers";
-import CustomerProspectApprovalModule from "@/modules/customer-relationship-management/customer-management/customer-prospect-approval/CustomerProspectApprovalModule";
+
+// ✅ Wire the module you asked for
+import { ClassificationModule } from "@/modules/customer-relationship-management/customer-management/classification";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -70,7 +72,6 @@ function buildHeaderUserFromToken(token: string | null | undefined) {
     };
 }
 
-
 export default async function Page() {
     // ✅ Next.js 16: cookies() is async
     const cookieStore = await cookies();
@@ -100,7 +101,13 @@ export default async function Page() {
                                 <BreadcrumbSeparator className="hidden md:block shrink-0" />
                                 <BreadcrumbItem className="min-w-0 overflow-hidden">
                                     <BreadcrumbPage className="truncate max-w-[56vw] sm:max-w-[60vw] md:max-w-none">
-                                        Prospect Approval
+                                        Customer Management
+                                    </BreadcrumbPage>
+                                </BreadcrumbItem>
+                                <BreadcrumbSeparator className="hidden md:block shrink-0" />
+                                <BreadcrumbItem className="min-w-0 overflow-hidden">
+                                    <BreadcrumbPage className="truncate max-w-[56vw] sm:max-w-[60vw] md:max-w-none">
+                                        Classification
                                     </BreadcrumbPage>
                                 </BreadcrumbItem>
                             </BreadcrumbList>
@@ -115,9 +122,8 @@ export default async function Page() {
 
             {/* ✅ Only content scrolls inside RIGHT column */}
             <main className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden p-2 sm:p-4">
-                <CustomerProspectApprovalModule />
+                <ClassificationModule />
             </main>
         </div>
     );
 }
-

@@ -6,7 +6,16 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Search } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { targetSettingsProvider } from "@/modules/customer-relationship-management/target-settings/providers/fetchProvider";
-import { SalesmanWithTarget, ProductSummary, ProductPricing, TacticalSKU } from "@/modules/customer-relationship-management/target-settings/types";
+import { 
+    SalesmanWithTarget, 
+    TacticalSKU, 
+    ProductSummary, 
+    ProductPricing,
+    CustomerRecord,
+    SupplierRecord,
+    CustomerTarget,
+    SupplierTarget
+} from "@/modules/customer-relationship-management/target-settings/types";
 import { TargetFormDialog } from "@/modules/customer-relationship-management/target-settings/components/TargetFormDialog";
 import { toast } from "sonner";
 import { StatsCards } from "./components/StatsCards";
@@ -23,6 +32,9 @@ export function TargetSettingsModule() {
     const [salesmen, setSalesmen] = useState<SalesmanWithTarget[]>([]);
     const [allProducts, setAllProducts] = useState<ProductSummary[]>([]);
     const [productPricing, setProductPricing] = useState<ProductPricing[]>([]);
+    const [allCustomers, setAllCustomers] = useState<CustomerRecord[]>([]);
+    const [allSuppliers, setAllSuppliers] = useState<SupplierRecord[]>([]);
+    const [customerMappings, setCustomerMappings] = useState<{ salesman_id: number; customer_id: number }[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState("");
     const [selectedSalesman, setSelectedSalesman] = useState<SalesmanWithTarget | null>(null);
@@ -44,9 +56,11 @@ export function TargetSettingsModule() {
 
             // Map targets to salesmen
             const mappedSalesmen = data.salesmen.map((s: SalesmanWithTarget) => {
-                const target = data.targets.find((t: { salesman_id: number; id: number; tactical_skus?: TacticalSKU[] }) => t.salesman_id === s.id);
+                const target = data.targets.find((t: { salesman_id: number; id: number }) => t.salesman_id === s.id);
                 if (target) {
-                    target.tactical_skus = data.tacticalSkus.filter((ts: { salesman_target_setting_id: number }) => ts.salesman_target_setting_id === target.id);
+                    target.tactical_skus = data.tacticalSkus.filter((ts: TacticalSKU) => ts.salesman_target_setting_id === target.id);
+                    target.customer_targets = data.customerTargets.filter((ct: CustomerTarget) => ct.target_setting_id === target.id);
+                    target.supplier_targets = data.supplierTargets.filter((st: SupplierTarget) => st.target_setting_id === target.id);
                 }
                 return { ...s, current_target: target };
             });
@@ -54,6 +68,9 @@ export function TargetSettingsModule() {
             setSalesmen(mappedSalesmen);
             setAllProducts(data.allProducts || []);
             setProductPricing(data.productPricing || []);
+            setAllCustomers(data.allCustomers || []);
+            setAllSuppliers(data.allSuppliers || []);
+            setCustomerMappings(data.customerMappings || []);
         } catch {
             toast.error("Failed to fetch target settings");
         } finally {
@@ -123,7 +140,7 @@ export function TargetSettingsModule() {
             />
 
             <StatsCards
-                totalSalesmen={salesmen.length}
+                totalSalesmen={bookingSalesmen.length + siteSalesSalesmen.length}
                 targetsSet={salesmenWithTargets.length}
                 completionRate={averageProgress}
             />
@@ -182,12 +199,14 @@ export function TargetSettingsModule() {
 
             {selectedSalesman && (
                 <TargetFormDialog
-                    key={`${selectedSalesman.id}-${month}-${year}`}
                     isOpen={isDialogOpen}
                     onClose={() => setIsDialogOpen(false)}
                     salesman={selectedSalesman}
                     allProducts={allProducts}
                     productPricing={productPricing}
+                    allCustomers={allCustomers}
+                    allSuppliers={allSuppliers}
+                    customerMappings={customerMappings}
                     month={Number(month)}
                     year={Number(year)}
                     onSuccess={fetchData}
