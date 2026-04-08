@@ -1,26 +1,26 @@
 "use client";
 
 import React, { useState, useEffect, useMemo } from "react";
-import { 
-    Dialog, 
-    DialogContent, 
-    DialogDescription, 
-    DialogHeader, 
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogHeader,
     DialogTitle,
     DialogFooter
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { 
-    Tabs, 
-    TabsContent, 
-    TabsList, 
-    TabsTrigger 
+import {
+    Tabs,
+    TabsContent,
+    TabsList,
+    TabsTrigger
 } from "@/components/ui/tabs";
-import { 
-    Plus, 
-    Trash2, 
+import {
+    Plus,
+    Trash2,
     Save,
     X,
     Info,
@@ -39,16 +39,16 @@ import {
     Map
 } from "lucide-react";
 import { SearchableSelect } from "@/components/ui/searchable-select";
-import { 
+import {
     Accordion,
     AccordionContent,
     AccordionItem,
     AccordionTrigger
 } from "@/components/ui/accordion";
-import { 
-    SalesmanWithTarget, 
-    TacticalSKU, 
-    ProductSummary, 
+import {
+    SalesmanWithTarget,
+    TacticalSKU,
+    ProductSummary,
     ProductPricing,
     CustomerTarget,
     SupplierTarget,
@@ -58,6 +58,7 @@ import {
 import { targetSettingsProvider } from "@/modules/customer-relationship-management/target-settings/providers/fetchProvider";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 
 interface TargetFormDialogProps {
     isOpen: boolean;
@@ -73,18 +74,18 @@ interface TargetFormDialogProps {
     onSuccess: () => void;
 }
 
-export function TargetFormDialog({ 
-    isOpen, 
-    onClose, 
-    salesman, 
-    allProducts, 
+export function TargetFormDialog({
+    isOpen,
+    onClose,
+    salesman,
+    allProducts,
     productPricing,
-    allCustomers, 
-    allSuppliers, 
+    allCustomers,
+    allSuppliers,
     customerMappings,
-    month, 
-    year, 
-    onSuccess 
+    month,
+    year,
+    onSuccess
 }: TargetFormDialogProps) {
     const [loading, setLoading] = useState(false);
     const [targetData, setTargetData] = useState({
@@ -103,6 +104,8 @@ export function TargetFormDialog({
             product_id: ts.product_id,
             target_quantity: ts.target_quantity,
             target_value: ts.target_value,
+            achieved_quantity: ts.achieved_quantity || 0,
+            achieved_volume: ts.achieved_volume || 0,
             product_name: ts.product_name,
             product_code: ts.product_code
         })) || []
@@ -151,6 +154,8 @@ export function TargetFormDialog({
                     product_id: ts.product_id,
                     target_quantity: ts.target_quantity,
                     target_value: ts.target_value,
+                    achieved_quantity: ts.achieved_quantity || 0,
+                    achieved_volume: ts.achieved_volume || 0,
                     product_name: ts.product_name,
                     product_code: ts.product_code
                 })) || []
@@ -185,37 +190,37 @@ export function TargetFormDialog({
 
     const groupedCustomers = useMemo(() => {
         let list = allCustomers.filter(c => salesmanCustomerIds.includes(c.id));
-        
+
         if (customerSearch) {
             const search = customerSearch.toLowerCase();
-            list = list.filter(c => 
+            list = list.filter(c =>
                 c.customer_name.toLowerCase().includes(search) ||
                 c.province?.toLowerCase().includes(search) ||
                 c.city?.toLowerCase().includes(search)
             );
         }
 
-        const groups: Record<string, { 
-            totalAllocation: number; 
-            cities: Record<string, { 
-                totalAllocation: number; 
-                customers: CustomerRecord[] 
-            }> 
+        const groups: Record<string, {
+            totalAllocation: number;
+            cities: Record<string, {
+                totalAllocation: number;
+                customers: CustomerRecord[]
+            }>
         }> = {};
-        
+
         list.forEach(c => {
             const prov = (c.province || "Unknown Province").toUpperCase();
             const city = (c.city || "Unknown City").toUpperCase();
-            
+
             if (!groups[prov]) {
                 groups[prov] = { totalAllocation: 0, cities: {} };
             }
             if (!groups[prov].cities[city]) {
                 groups[prov].cities[city] = { totalAllocation: 0, customers: [] };
             }
-            
+
             groups[prov].cities[city].customers.push(c);
-            
+
             // Add to province and city totals
             const target = customerTargets.find(ct => ct.customer_id === c.id);
             if (target) {
@@ -281,10 +286,10 @@ export function TargetFormDialog({
         const target_value = newItem.target_quantity * price;
 
         setTacticalSkus(prev => [
-            ...prev, 
-            { 
-                product_id: newItem.product_id, 
-                target_quantity: newItem.target_quantity, 
+            ...prev,
+            {
+                product_id: newItem.product_id,
+                target_quantity: newItem.target_quantity,
                 target_value: target_value,
                 product_name: product.product_name,
                 product_code: product.product_code
@@ -316,13 +321,13 @@ export function TargetFormDialog({
     const handleSkuChange = (index: number, field: keyof TacticalSKU, value: string | number) => {
         const updated = [...tacticalSkus];
         const newSku = { ...updated[index], [field]: value };
-        
+
         // Auto-calculate value if quantity or product changes
         if (field === "product_id" || field === "target_quantity") {
             const price = getProductPrice(newSku.product_id as number || 0);
             newSku.target_value = (newSku.target_quantity as number || 0) * price;
         }
-        
+
         updated[index] = newSku;
         setTacticalSkus(updated);
     };
@@ -403,9 +408,9 @@ export function TargetFormDialog({
                                             <TrendingUp className="w-5 h-5 text-indigo-500" /> Volume (Total Sales)
                                         </Label>
                                         <div className="relative group">
-                                            <Input 
-                                                type="number" 
-                                                value={targetData.volume || ""} 
+                                            <Input
+                                                type="number"
+                                                value={targetData.volume || ""}
                                                 onChange={(e) => handleInputChange('volume', e.target.value)}
                                                 className="bg-white border-slate-200 h-14 pl-12 font-bold text-2xl rounded-2xl focus:ring-slate-900 shadow-sm transition-all group-hover:border-slate-300"
                                                 placeholder="Enter volume target"
@@ -419,9 +424,9 @@ export function TargetFormDialog({
                                         <Label className="text-sm font-black text-slate-700 flex items-center gap-2">
                                             <RefreshCw className="w-5 h-5 text-blue-500" /> Frequency Target
                                         </Label>
-                                        <Input 
-                                            type="number" 
-                                            value={targetData.frequency || ""} 
+                                        <Input
+                                            type="number"
+                                            value={targetData.frequency || ""}
                                             onChange={(e) => handleInputChange('frequency', e.target.value)}
                                             className="bg-white border-slate-200 h-14 font-bold text-2xl rounded-2xl focus:ring-slate-900 shadow-sm hover:border-slate-300 transition-all"
                                             placeholder="Enter frequency"
@@ -438,9 +443,9 @@ export function TargetFormDialog({
                                             <TrendingUp className="w-4 h-4 text-indigo-500" /> Volume (Total Sales)
                                         </Label>
                                         <div className="relative group">
-                                            <Input 
-                                                type="number" 
-                                                value={targetData.volume || ""} 
+                                            <Input
+                                                type="number"
+                                                value={targetData.volume || ""}
                                                 onChange={(e) => handleInputChange('volume', e.target.value)}
                                                 className="bg-white border-slate-200 h-11 pl-10 font-bold text-lg rounded-xl focus:ring-slate-900 shadow-sm transition-all group-hover:border-slate-300"
                                                 placeholder="Enter volume target"
@@ -454,9 +459,9 @@ export function TargetFormDialog({
                                         <Label className="text-sm font-black text-slate-700 flex items-center gap-2">
                                             <UserPlus className="w-4 h-4 text-indigo-500" /> New Account
                                         </Label>
-                                        <Input 
-                                            type="number" 
-                                            value={targetData.new_accounts || ""} 
+                                        <Input
+                                            type="number"
+                                            value={targetData.new_accounts || ""}
                                             onChange={(e) => handleInputChange('new_accounts', e.target.value)}
                                             className="bg-white border-slate-200 h-11 font-bold text-lg rounded-xl focus:ring-slate-900 shadow-sm hover:border-slate-300 transition-all"
                                             placeholder="Enter new account target"
@@ -468,9 +473,9 @@ export function TargetFormDialog({
                                         <Label className="text-sm font-black text-slate-700 flex items-center gap-2">
                                             <Store className="w-4 h-4 text-amber-500" /> Productive Outlets
                                         </Label>
-                                        <Input 
-                                            type="number" 
-                                            value={targetData.productive_outlets || ""} 
+                                        <Input
+                                            type="number"
+                                            value={targetData.productive_outlets || ""}
                                             onChange={(e) => handleInputChange('productive_outlets', e.target.value)}
                                             className="bg-white border-slate-200 h-11 font-bold text-lg rounded-xl focus:ring-slate-900 shadow-sm hover:border-slate-300 transition-all"
                                             placeholder="Enter productive outlets"
@@ -482,9 +487,9 @@ export function TargetFormDialog({
                                         <Label className="text-sm font-black text-slate-700 flex items-center gap-2">
                                             <BarChart3 className="w-4 h-4 text-emerald-500" /> Line Sales
                                         </Label>
-                                        <Input 
-                                            type="number" 
-                                            value={targetData.line_sales || ""} 
+                                        <Input
+                                            type="number"
+                                            value={targetData.line_sales || ""}
                                             onChange={(e) => handleInputChange('line_sales', e.target.value)}
                                             className="bg-white border-slate-200 h-11 font-bold text-lg rounded-xl focus:ring-slate-900 shadow-sm hover:border-slate-300 transition-all"
                                             placeholder="Enter line sales target"
@@ -496,9 +501,9 @@ export function TargetFormDialog({
                                         <Label className="text-sm font-black text-slate-700 flex items-center gap-2">
                                             <RefreshCw className="w-4 h-4 text-blue-500" /> Frequency
                                         </Label>
-                                        <Input 
-                                            type="number" 
-                                            value={targetData.frequency || ""} 
+                                        <Input
+                                            type="number"
+                                            value={targetData.frequency || ""}
                                             onChange={(e) => handleInputChange('frequency', e.target.value)}
                                             className="bg-white border-slate-200 h-11 font-bold text-lg rounded-xl focus:ring-slate-900 shadow-sm hover:border-slate-300 transition-all"
                                             placeholder="Enter frequency target"
@@ -510,9 +515,9 @@ export function TargetFormDialog({
                                         <Label className="text-sm font-black text-slate-700 flex items-center gap-2">
                                             <ShoppingBag className="w-4 h-4 text-rose-500" /> Basket Count
                                         </Label>
-                                        <Input 
-                                            type="number" 
-                                            value={targetData.basket_count || ""} 
+                                        <Input
+                                            type="number"
+                                            value={targetData.basket_count || ""}
                                             onChange={(e) => handleInputChange('basket_count', e.target.value)}
                                             className="bg-white border-slate-200 h-11 font-bold text-lg rounded-xl focus:ring-slate-900 shadow-sm hover:border-slate-300 transition-all"
                                             placeholder="Enter basket count target"
@@ -524,9 +529,9 @@ export function TargetFormDialog({
                                         <Label className="text-sm font-black text-slate-700 flex items-center gap-2">
                                             <MapPin className="w-4 h-4 text-indigo-500" /> Reach
                                         </Label>
-                                        <Input 
-                                            type="number" 
-                                            value={targetData.reach || ""} 
+                                        <Input
+                                            type="number"
+                                            value={targetData.reach || ""}
                                             onChange={(e) => handleInputChange('reach', e.target.value)}
                                             className="bg-white border-slate-200 h-11 font-bold text-lg rounded-xl focus:ring-slate-900 shadow-sm hover:border-slate-300 transition-all"
                                             placeholder="Enter reach target"
@@ -544,7 +549,7 @@ export function TargetFormDialog({
                                         </h3>
                                         <p className="text-xs text-slate-500 font-medium italic">Distribute the total volume across customers and suppliers</p>
                                     </div>
-                                    
+
                                     <div className="flex gap-4">
                                         <div className="text-right">
                                             <p className="text-[10px] font-black text-slate-400 uppercase">Allocated (Customers)</p>
@@ -568,11 +573,11 @@ export function TargetFormDialog({
                                             <div className="flex items-center gap-2 text-indigo-700 font-black text-xs uppercase tracking-widest">
                                                 <Users className="w-4 h-4" /> Customer Allocation
                                             </div>
-                                            
+
                                             <div className="relative">
                                                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
-                                                <Input 
-                                                    placeholder="Search province, city, or customer..." 
+                                                <Input
+                                                    placeholder="Search province, city, or customer..."
                                                     className="h-9 pl-9 text-sm border-slate-100 bg-slate-50"
                                                     value={customerSearch}
                                                     onChange={(e) => setCustomerSearch(e.target.value)}
@@ -623,7 +628,7 @@ export function TargetFormDialog({
                                                                                                 <p className="text-[9px] text-slate-400 font-medium truncate italic">{customer.brgy || 'N/A'}</p>
                                                                                             </div>
                                                                                             <div className="relative w-28">
-                                                                                                <Input 
+                                                                                                <Input
                                                                                                     type="number"
                                                                                                     value={targetValue || ""}
                                                                                                     onChange={(e) => handleCustomerTargetChange(customer.id, Number(e.target.value))}
@@ -665,8 +670,8 @@ export function TargetFormDialog({
                                             </div>
                                             <div className="relative">
                                                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
-                                                <Input 
-                                                    placeholder="Search supplier name..." 
+                                                <Input
+                                                    placeholder="Search supplier name..."
                                                     className="h-9 pl-9 text-sm border-slate-100 bg-slate-50"
                                                     value={supplierSearch}
                                                     onChange={(e) => setSupplierSearch(e.target.value)}
@@ -686,7 +691,7 @@ export function TargetFormDialog({
                                                                     <p className="text-[10px] text-slate-400 font-black uppercase tracking-tight">Trade Partner</p>
                                                                 </div>
                                                                 <div className="relative w-32">
-                                                                      <Input 
+                                                                    <Input
                                                                         type="number"
                                                                         value={targetValue || ""}
                                                                         onChange={(e) => handleSupplierTargetChange(supplier.id, Number(e.target.value))}
@@ -708,7 +713,7 @@ export function TargetFormDialog({
                                         </div>
                                     </div>
                                 </div>
-                                
+
                                 <div className="p-4 rounded-2xl bg-slate-900 border-none text-white flex items-center justify-between shadow-lg">
                                     <div className="flex items-center gap-3">
                                         <div className="p-2 bg-white/10 rounded-lg">
@@ -740,23 +745,23 @@ export function TargetFormDialog({
                             <div className="grid grid-cols-1 md:grid-cols-12 gap-8 p-8 border-2 border-slate-100 rounded-3xl bg-slate-50/30">
                                 <div className="md:col-span-9 space-y-2.5">
                                     <Label className="text-xs font-black uppercase tracking-widest text-slate-500">Select Product</Label>
-                                    <SearchableSelect 
-                                        options={allProducts.map(p => ({ value: String(p.product_id), label: `${p.product_code || 'N/A'} - ${p.product_name}` }))} 
+                                    <SearchableSelect
+                                        options={allProducts.map(p => ({ value: String(p.product_id), label: `${p.product_code || 'N/A'} - ${p.product_name}` }))}
                                         value={String(newItem.product_id)}
                                         onValueChange={(val) => setNewItem(prev => ({ ...prev, product_id: Number(val) }))}
                                     />
                                 </div>
                                 <div className="md:col-span-3 space-y-2.5">
                                     <Label className="text-xs font-black uppercase tracking-widest text-slate-500 text-center block">Target Quantity</Label>
-                                    <Input 
-                                        type="number" 
-                                        value={newItem.target_quantity || ""} 
+                                    <Input
+                                        type="number"
+                                        value={newItem.target_quantity || ""}
                                         onChange={(e) => setNewItem(prev => ({ ...prev, target_quantity: Number(e.target.value) }))}
                                         placeholder="Enter qty"
                                         className="h-10 bg-white border-slate-200 rounded-xl focus:ring-slate-900"
                                     />
                                 </div>
-                                <Button 
+                                <Button
                                     className="col-span-12 bg-slate-900 hover:bg-slate-800 text-white flex gap-2 h-11 shadow-md rounded-xl font-bold transition-all active:scale-[0.98]"
                                     onClick={handleAddSku}
                                 >
@@ -774,35 +779,66 @@ export function TargetFormDialog({
                                                     <Box className="w-6 h-6 text-blue-500" />
                                                 </div>
                                                 <div className="flex-1 min-w-0">
-                                                    <h4 className="font-semibold truncate">{sku.product_name}</h4>
-                                                    <p className="text-xs text-muted-foreground uppercase">Product ID: {sku.product_code || `p${sku.product_id}`}</p>
-                                                    
-                                                    <div className="grid grid-cols-2 gap-4 mt-2">
-                                                        <div className="space-y-1">
-                                                            <Label className="text-[10px] font-bold text-muted-foreground uppercase">Target Quantity</Label>
-                                                            <Input 
-                                                                type="number" 
-                                                                value={sku.target_quantity} 
-                                                                onChange={(e) => handleSkuChange(index, "target_quantity", Number(e.target.value))}
-                                                                className="h-8 bg-muted/30 border-none"
-                                                            />
+                                                    <div className="flex justify-between items-start mb-1">
+                                                        <div>
+                                                            <h4 className="font-semibold truncate">{sku.product_name}</h4>
+                                                            <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">Product ID: {sku.product_code || `p${sku.product_id}`}</p>
                                                         </div>
-                                                        <div className="space-y-1">
-                                                            <Label className="text-[10px] font-bold text-muted-foreground uppercase">Target Volume</Label>
-                                                            <div className="h-8 flex items-center px-3 bg-muted/10 rounded-md text-muted-foreground font-medium text-sm">
+                                                        <Button
+                                                            size="icon"
+                                                            variant="ghost"
+                                                            onClick={() => handleRemoveSku(index)}
+                                                            className="h-8 w-8 text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+                                                        >
+                                                            <Trash2 className="w-4 h-4" />
+                                                        </Button>
+                                                    </div>
+
+                                                    <div className="grid grid-cols-2 gap-x-6 gap-y-2 mt-3">
+                                                        {/* Quantity Progress */}
+                                                        <div className="space-y-1.5">
+                                                            <div className="flex justify-between items-center px-0.5">
+                                                                <Label className="text-[10px] font-black text-slate-500 uppercase tracking-tight">Target Quantity</Label>
+                                                                <span className="text-[10px] font-black text-slate-900">{sku.achieved_quantity || 0} / {sku.target_quantity}</span>
+                                                            </div>
+                                                            <Input
+                                                                type="number"
+                                                                value={sku.target_quantity}
+                                                                onChange={(e) => handleSkuChange(index, "target_quantity", Number(e.target.value))}
+                                                                className="h-8 bg-slate-50 border-slate-100 text-xs font-bold rounded-lg mb-1"
+                                                            />
+                                                            <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden mb-1">
+                                                                <div 
+                                                                    className={cn(
+                                                                        "h-full transition-all duration-500",
+                                                                        (sku.achieved_quantity || 0) >= (sku.target_quantity || 0) ? "bg-emerald-500" : "bg-blue-500"
+                                                                    )}
+                                                                    style={{ width: `${Math.min(((sku.achieved_quantity || 0) / (sku.target_quantity || 1)) * 100, 100)}%` }}
+                                                                />
+                                                            </div>
+                                                        </div>
+
+                                                        {/* Volume Progress */}
+                                                        <div className="space-y-1.5">
+                                                            <div className="flex justify-between items-center px-0.5">
+                                                                <Label className="text-[10px] font-black text-slate-500 uppercase tracking-tight">Target Volume</Label>
+                                                                <span className="text-[10px] font-black text-slate-900">₱{(sku.achieved_volume || 0).toLocaleString()} / ₱{(Number(sku.target_value) || 0).toLocaleString()}</span>
+                                                            </div>
+                                                            <div className="h-8 flex items-center px-3 bg-slate-50 border border-slate-100 rounded-lg text-slate-900 font-bold text-xs mb-1">
                                                                 ₱{Number(sku.target_value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                            </div>
+                                                            <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden mb-1">
+                                                                <div 
+                                                                    className={cn(
+                                                                        "h-full transition-all duration-500",
+                                                                        (sku.achieved_volume || 0) >= (Number(sku.target_value) || 0) ? "bg-emerald-500" : "bg-blue-500"
+                                                                    )}
+                                                                    style={{ width: `${Math.min(((sku.achieved_volume || 0) / (Number(sku.target_value) || 1)) * 100, 100)}%` }}
+                                                                />
                                                             </div>
                                                         </div>
                                                     </div>
                                                 </div>
-                                                <Button 
-                                                    size="icon" 
-                                                    variant="ghost" 
-                                                    onClick={() => handleRemoveSku(index)}
-                                                    className="text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
-                                                >
-                                                    <Trash2 className="w-5 h-5" />
-                                                </Button>
                                             </div>
                                         ))}
                                     </div>

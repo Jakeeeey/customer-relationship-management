@@ -25,6 +25,8 @@ export interface TacticalSKU {
     product_id: number;
     target_quantity: number;
     target_value: number;
+    achieved_quantity?: number;
+    achieved_volume?: number;
     created_at?: string;
     created_by?: number;
     // Expanded data
