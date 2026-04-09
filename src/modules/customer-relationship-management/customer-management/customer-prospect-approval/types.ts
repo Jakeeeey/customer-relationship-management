@@ -25,6 +25,11 @@ export interface PaymentTerm {
     payment_days: number;
 }
 
+export interface CustomerClassification {
+    id: number;
+    classification_name: string;
+}
+
 export interface CustomerProspect {
     id: number;
     salesman_id?: number | null;

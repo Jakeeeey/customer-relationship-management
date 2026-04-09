@@ -53,7 +53,11 @@ export async function GET(req: NextRequest) {
         const json = await res.json();
 
         // Flatten salesman name for easier use in frontend
-        const prospects = (json.data || []).map((p: any) => ({
+        const prospects = (json.data || []).map((p: { 
+            salesman_id?: { salesman_name?: string }; 
+            user_updated?: { first_name?: string; last_name?: string };
+            [key: string]: unknown;
+        }) => ({
             ...p,
             salesman_name: p.salesman_id?.salesman_name || "Unknown Salesman",
             updated_by_name: p.user_updated ? `${p.user_updated.first_name || ''} ${p.user_updated.last_name || ''}`.trim() : null
@@ -109,9 +113,24 @@ export async function POST(req: NextRequest) {
                 salesman_id: _pSalesmanId,
                 salesman_name: _pSalesmanName,
                 user_id,
+                classification: prospectClassification,
                 ...customerData
             } = prospect;
             /* eslint-enable @typescript-eslint/no-unused-vars */
+
+            // 2b. Validate classification ID (Ensure it exists in customer_classification)
+            let finalClassification = prospectClassification;
+            if (prospectClassification) {
+                const checkRes = await fetch(`${DIRECTUS_URL}/items/customer_classification/${prospectClassification}`, {
+                    method: "GET",
+                    headers: { Authorization: `Bearer ${DIRECTUS_TOKEN}` }
+                });
+                
+                if (!checkRes.ok) {
+                    console.log(`DEBUG: Classification ID ${prospectClassification} not found. Setting to null.`);
+                    finalClassification = null;
+                }
+            }
 
             // CRITICAL FIX: Ensure mandatory fields are not null for the customer collection
             // Defaulting store_type to 1 (Department Store) if missing, as it's a mandatory field
@@ -123,7 +142,8 @@ export async function POST(req: NextRequest) {
                 ...customerData, 
                 store_type: finalStoreType,
                 price_type: finalPriceType,
-                payment_term: finalPaymentTerm
+                payment_term: finalPaymentTerm,
+                classification: finalClassification,
             }, null, 2));
 
             const createRes = await fetch(`${DIRECTUS_URL}/items/${COLLECTIONS.CUSTOMER}`, {
@@ -137,6 +157,7 @@ export async function POST(req: NextRequest) {
                     store_type: finalStoreType,
                     price_type: finalPriceType,
                     payment_term: finalPaymentTerm,
+                    classification: finalClassification,
                     isActive: 1, // Approved customers are active by default
                     user_id: user_id || null // Ensure user_id is handled
                 }),

@@ -17,7 +17,7 @@ import {
     Search, Filter, Check, X, Loader2, ChevronLeft, ChevronRight, MoreHorizontal, User, Store, MapPin, Calendar,
     Phone, Building, Info, Briefcase, Landmark, ShieldCheck, FileText
 } from "lucide-react";
-import { CustomerProspect, CustomerProspectsAPIResponse, DiscountType, Salesman, StoreType, PaymentTerm } from "../types";
+import { CustomerProspect, CustomerProspectsAPIResponse, DiscountType, Salesman, StoreType, PaymentTerm, CustomerClassification } from "../types";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "./StatusBadge";
@@ -47,10 +47,11 @@ interface CustomerProspectTableProps {
     onReject: (id: number) => Promise<void>;
     storeTypes: StoreType[];
     paymentTerms: PaymentTerm[];
+    classifications: CustomerClassification[];
 }
 
 export function CustomerProspectTable({
-    data, discountTypes, salesmen, storeTypes, paymentTerms, isLoading, metadata, page, pageSize,
+    data, discountTypes, salesmen, storeTypes, paymentTerms, classifications, isLoading, metadata, page, pageSize,
     searchQuery: parentSearchQuery, statusFilter, salesmanFilter,
     onPageChange, onPageSizeChange: _onPageSizeChange, onSearchChange, onStatusChange, onSalesmanChange, // eslint-disable-line @typescript-eslint/no-unused-vars
     onApprove, onReject,
@@ -413,7 +414,10 @@ export function CustomerProspectTable({
                                         </div>
                                         <div className="flex flex-col">
                                             <span className="text-[10px] font-bold text-muted-foreground uppercase">Classification</span>
-                                            <span className="font-medium">{selectedProspect.classification || "None"}</span>
+                                            <span className="font-medium">
+                                                {classifications.find(c => c.id === Number(selectedProspect.classification))?.classification_name 
+                                                    || "None"}
+                                            </span>
                                         </div>
                                     </div>
                                 </section>
