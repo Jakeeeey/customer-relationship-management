@@ -21,6 +21,19 @@ interface SupDiv {
 
 interface Mapping {
     salesman_id: number;
+    customer_id: number;
+}
+interface TargetSettingRecord {
+    id: number;
+    salesman_id: number;
+    [key: string]: unknown;
+}
+interface TacticalSkuRecord {
+    id: number;
+    salesman_target_setting_id: number;
+    product_id: { product_id: number; product_code: string; product_name: string } | number;
+    target_quantity: number;
+    target_value: number;
 }
 
 export const dynamic = "force-dynamic";
@@ -64,7 +77,7 @@ export async function GET(req: NextRequest) {
         // 1. Get supervisor_per_division entries for this supervisor
         // Note: supervisorId from JWT matches supervisor_id in this table
         const supDivRes = await fetch(`${DIRECTUS_URL}/items/supervisor_per_division?filter[supervisor_id][_eq]=${supervisorId}&limit=-1`, { headers: fetchHeaders });
-        const supDivData: DirectusResponse<SupDiv[]> = await supDivRes.json();
+        const supDivData = await supDivRes.json() as DirectusResponse<SupDiv[]>;
         const supDivs = supDivData.data || [];
         const supDivIds = supDivs.map((sd) => sd.id);
 
@@ -74,9 +87,9 @@ export async function GET(req: NextRequest) {
 
         // 2. Get linked salesmen for these supervisor divisions
         const mappingRes = await fetch(`${DIRECTUS_URL}/items/salesman_per_supervisor?filter[supervisor_per_division_id][_in]=${supDivIds.join(',')}&limit=-1`, { headers: fetchHeaders });
-        const mappingData: DirectusResponse<Mapping[]> = await mappingRes.json();
+        const mappingData = await mappingRes.json() as DirectusResponse<Mapping[]>;
         const mapping = mappingData.data || [];
-        const linkedSalesmanIds = [...new Set(mapping.map((m) => m.salesman_id))];
+        const linkedSalesmanIds = [...new Set(mapping.map((m: Mapping) => m.salesman_id))];
 
         if (linkedSalesmanIds.length === 0) {
             return NextResponse.json({ salesmen: [], targets: [], message: "No salesmen linked to supervisor" });
@@ -84,11 +97,13 @@ export async function GET(req: NextRequest) {
 
         // 2. Fetch salesmen details
         const salesmenRes = await fetch(`${DIRECTUS_URL}/items/salesman?filter[id][_in]=${linkedSalesmanIds.join(',')}&limit=-1`, { headers: fetchHeaders });
-        const salesmenRaw = (await salesmenRes.json()).data || [];
+        const smResData = await salesmenRes.json() as DirectusResponse<RawSalesman[]>;
+        const salesmenRaw = smResData.data || [];
 
         // 2b. Fetch real emails from 'user' table via employee_id -> user_id link
         const usersRes = await fetch(`${DIRECTUS_URL}/items/user?fields=user_id,user_email&limit=-1`, { headers: fetchHeaders });
-        const users = (await usersRes.json()).data || [];
+        const usersData = await usersRes.json() as DirectusResponse<{ user_id: number | string, user_email: string }[]>;
+        const users = usersData.data || [];
         
         const userMap: Record<string, string> = {};
 
@@ -130,7 +145,8 @@ export async function GET(req: NextRequest) {
         }
 
         const targetsRes = await fetch(`${DIRECTUS_URL}/items/salesman_target_setting?filter[salesman_id][_in]=${smIds.join(',')}&filter[date_range_from][_eq]=${dateFrom}&limit=-1`, { headers: fetchHeaders });
-        const targets = (await targetsRes.json()).data || [];
+        const targetsResData = await targetsRes.json() as DirectusResponse<TargetSettingRecord[]>;
+        const targets = targetsResData.data || [];
 
         // 4. Fetch tactical SKUs for these targets
         const targetIds = targets.map((t: { id: number }) => t.id);
@@ -145,16 +161,11 @@ export async function GET(req: NextRequest) {
         }[] = [];
         if (targetIds.length > 0) {
             const skusRes = await fetch(`${DIRECTUS_URL}/items/salesman_tactical_sku?filter[salesman_target_setting_id][_in]=${targetIds.join(',')}&limit=-1`, { headers: fetchHeaders });
-            const rawSkus = (await skusRes.json()).data || [];
+            const sResData = await skusRes.json() as DirectusResponse<TacticalSkuRecord[]>;
+            const rawSkus = sResData.data || [];
             
             // Map database fields to frontend names
-            tacticalSkus = rawSkus.map((ts: {
-                id: number;
-                salesman_target_setting_id: number;
-                product_id: { product_id: number; product_code: string; product_name: string } | number;
-                target_quantity: number;
-                target_value: number;
-            }) => ({
+            tacticalSkus = rawSkus.map((ts: TacticalSkuRecord) => ({
                 id: ts.id,
                 salesman_target_setting_id: ts.salesman_target_setting_id,
                 product_id: typeof ts.product_id === 'object' ? ts.product_id?.product_id : ts.product_id,
@@ -169,16 +180,68 @@ export async function GET(req: NextRequest) {
         // 5. Fetch all products with core prices (A, B, C, D, E)
         // Filter by unit_of_measurement = 11 (Box) as requested by user
         const productsRes = await fetch(`${DIRECTUS_URL}/items/products?filter[isActive][_eq]=1&filter[unit_of_measurement][_eq]=11&fields=product_id,product_name,product_code,priceA,priceB,priceC,priceD,priceE&limit=-1`, { headers: fetchHeaders });
-        const allProducts = (await productsRes.json()).data || [];
+        const productsData = await productsRes.json() as DirectusResponse<object[]>;
+        const allProducts = productsData.data || [];
 
         // 6. Fetch special pricing (product_per_price_type)
         const pricingRes = await fetch(`${DIRECTUS_URL}/items/product_per_price_type?limit=-1`, { headers: fetchHeaders });
-        const productPricing = (await pricingRes.json()).data || [];
+        const pData = await pricingRes.json() as DirectusResponse<object[]>;
+        const productPricing = pData.data || [];
+
+        // 7. Fetch Customer-Salesman mappings for these salesmen
+        const custSalesmenRes = await fetch(`${DIRECTUS_URL}/items/customer_salesmen?filter[salesman_id][_in]=${smIds.join(',')}&limit=-1`, { headers: fetchHeaders });
+        const custMappingsData = await custSalesmenRes.json() as DirectusResponse<Mapping[]>;
+        const customerMappings = custMappingsData.data || [];
+        const uniqueCustomerIds = [...new Set(customerMappings.map((m: Mapping) => m.customer_id))];
+
+        // 8. Fetch Customer master details
+        // 8. Fetch Customer master details
+        const allCustomers: object[] = [];
+        if (uniqueCustomerIds.length > 0) {
+            const chunkedIds = [];
+            for (let i = 0; i < uniqueCustomerIds.length; i += 100) {
+                chunkedIds.push(uniqueCustomerIds.slice(i, i + 100));
+            }
+            
+            const customerPromises = chunkedIds.map(ids => 
+                fetch(`${DIRECTUS_URL}/items/customer?filter[id][_in]=${ids.join(',')}&fields=id,customer_name,province,city,brgy&limit=-1`, { headers: fetchHeaders })
+            );
+            const customerResponses = await Promise.all(customerPromises);
+            for (const r of customerResponses) {
+                const resData = await r.json() as DirectusResponse<object[]>;
+                const data = resData.data || [];
+                allCustomers.push(...data);
+            }
+        }
+
+        // 9. Fetch Trade Suppliers
+        const suppliersRes = await fetch(`${DIRECTUS_URL}/items/suppliers?filter[supplier_type][_eq]=Trade&filter[isActive][_eq]=1&fields=id,supplier_name&limit=-1`, { headers: fetchHeaders });
+        const suppData = await suppliersRes.json() as DirectusResponse<object[]>;
+        const allSuppliers = suppData.data || [];
+
+        // 10. Fetch existing Customer and Supplier allocations for these targets
+        // 10. Fetch existing Customer and Supplier allocations for these targets
+        let customerTargets: object[] = [];
+        let supplierTargets: object[] = [];
+        if (targetIds.length > 0) {
+            const ctRes = await fetch(`${DIRECTUS_URL}/items/salesman_target_customer_sales?filter[target_setting_id][_in]=${targetIds.join(',')}&limit=-1`, { headers: fetchHeaders });
+            const ctData = await ctRes.json() as DirectusResponse<object[]>;
+            customerTargets = ctData.data || [];
+
+            const stRes = await fetch(`${DIRECTUS_URL}/items/salesman_target_supplier_sales?filter[target_setting_id][_in]=${targetIds.join(',')}&limit=-1`, { headers: fetchHeaders });
+            const stData = await stRes.json() as DirectusResponse<object[]>;
+            supplierTargets = stData.data || [];
+        }
 
         return NextResponse.json({
             salesmen,
             targets,
             tacticalSkus,
+            customerTargets,
+            supplierTargets,
+            allCustomers,
+            customerMappings,
+            allSuppliers,
             allProducts,
             productPricing,
             supervisorId
@@ -201,8 +264,13 @@ export async function POST(req: NextRequest) {
     const supervisorId = decodeUserIdFromJwt(token);
 
     try {
-        const body = await req.json();
-        const { target, tacticalSkus } = body;
+        const body: {
+            target: Record<string, unknown>;
+            tacticalSkus: { product_id: number; target_quantity: number; target_value: number }[];
+            customerTargets: { customer_id: number; target_amount: number }[];
+            supplierTargets: { supplier_id: number; target_amount: number }[];
+        } = await req.json();
+        const { target, tacticalSkus, customerTargets, supplierTargets } = body;
 
         // Restore field mapping for salesman_target_setting
         const directusTarget = { 
@@ -233,24 +301,29 @@ export async function POST(req: NextRequest) {
             });
         } else {
             // Create
+            const now = new Date().toISOString();
             const createRes = await fetch(`${DIRECTUS_URL}/items/salesman_target_setting`, {
                 method: "POST",
                 headers: fetchHeaders,
-                body: JSON.stringify(directusTarget),
+                body: JSON.stringify({
+                    ...directusTarget,
+                    created_at: now
+                }),
             });
-            const created = await createRes.json();
+            const created = await createRes.json() as DirectusResponse<{ id: number }>;
             if (created.errors) {
                 console.error("Directus Target Creation Error:", created.errors);
                 throw new Error("Failed to create target in database");
             }
-            targetId = created.data.id;
+            targetId = created.data?.id;
         }
 
         // Handle Tactical SKUs
         // Clear old ones first to ensure consistency with the current state in UI
         if (existingTargets.length > 0) {
              const oldSkusRes = await fetch(`${DIRECTUS_URL}/items/salesman_tactical_sku?filter[salesman_target_setting_id][_eq]=${targetId}&limit=-1`, { headers: fetchHeaders });
-             const oldSkus = (await oldSkusRes.json()).data || [];
+             const oldSkusData = await oldSkusRes.json() as DirectusResponse<{ id: number }[]>;
+             const oldSkus = oldSkusData.data || [];
              if (oldSkus.length > 0) {
                  const deletePromises = oldSkus.map((os: { id: number }) => 
                      fetch(`${DIRECTUS_URL}/items/salesman_tactical_sku/${os.id}`, { method: "DELETE", headers: fetchHeaders })
@@ -278,6 +351,46 @@ export async function POST(req: NextRequest) {
                 headers: fetchHeaders,
                 body: JSON.stringify(skusToCreate),
             });
+        }
+
+        // Handle Customer Targets
+        if (existingTargets.length > 0) {
+            const oldCustRes = await fetch(`${DIRECTUS_URL}/items/salesman_target_customer_sales?filter[target_setting_id][_eq]=${targetId}&limit=-1`, { headers: fetchHeaders });
+            const oldCustData = await oldCustRes.json() as DirectusResponse<{ id: number }[]>;
+            const oldCust = oldCustData.data || [];
+            if (oldCust.length > 0) {
+                await Promise.all(oldCust.map((oc: { id: number }) => 
+                    fetch(`${DIRECTUS_URL}/items/salesman_target_customer_sales/${oc.id}`, { method: "DELETE", headers: fetchHeaders })
+                ));
+            }
+        }
+        if (customerTargets && customerTargets.length > 0) {
+            const ctToCreate = customerTargets.map((ct: { customer_id: number, target_amount: number }) => ({
+                target_setting_id: targetId,
+                customer_id: ct.customer_id,
+                target_amount: ct.target_amount
+            }));
+            await fetch(`${DIRECTUS_URL}/items/salesman_target_customer_sales`, { method: "POST", headers: fetchHeaders, body: JSON.stringify(ctToCreate) });
+        }
+
+        // Handle Supplier Targets
+        if (existingTargets.length > 0) {
+            const oldSuppRes = await fetch(`${DIRECTUS_URL}/items/salesman_target_supplier_sales?filter[target_setting_id][_in]=${targetId}&limit=-1`, { headers: fetchHeaders });
+            const oldSuppData = await oldSuppRes.json() as DirectusResponse<{ id: number }[]>;
+            const oldSupp = oldSuppData.data || [];
+            if (oldSupp.length > 0) {
+                await Promise.all(oldSupp.map((os: { id: number }) => 
+                    fetch(`${DIRECTUS_URL}/items/salesman_target_supplier_sales/${os.id}`, { method: "DELETE", headers: fetchHeaders })
+                ));
+            }
+        }
+        if (supplierTargets && supplierTargets.length > 0) {
+            const stToCreate = supplierTargets.map((st: { supplier_id: number, target_amount: number }) => ({
+                target_setting_id: targetId,
+                supplier_id: st.supplier_id,
+                target_amount: st.target_amount
+            }));
+            await fetch(`${DIRECTUS_URL}/items/salesman_target_supplier_sales`, { method: "POST", headers: fetchHeaders, body: JSON.stringify(stToCreate) });
         }
 
         return NextResponse.json({ success: true, targetId });

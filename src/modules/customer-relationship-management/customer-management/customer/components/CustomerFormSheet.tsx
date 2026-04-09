@@ -22,7 +22,10 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { CustomerWithRelations } from "../types";
+import {
+    Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
+import { CustomerWithRelations, PaymentTerm } from "../types";
 import { BankAccountManager } from "./BankAccountManager";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -227,6 +230,7 @@ export function CustomerFormSheet({
     const [activeTab, setActiveTab] = useState(defaultTab);
     const [storeTypes, setStoreTypes] = useState<ReferenceOption[]>([]);
     const [classifications, setClassifications] = useState<ReferenceOption[]>([]);
+    const [paymentTerms, setPaymentTerms] = useState<PaymentTerm[]>([]);
 
     // 🚀 PSGC API States
     const [provincesList, setProvincesList] = useState<LocationOption[]>([]);
@@ -237,6 +241,7 @@ export function CustomerFormSheet({
     const [isLoadingProvinces, setIsLoadingProvinces] = useState(false);
     const [isLoadingCities, setIsLoadingCities] = useState(false);
     const [isLoadingBarangays, setIsLoadingBarangays] = useState(false);
+    const [isLoadingPaymentTerms, setIsLoadingPaymentTerms] = useState(false);
 
     const form = useForm<CustomerFormValues>({
         resolver: zodResolver(customerSchema) as Resolver<CustomerFormValues>,
@@ -372,6 +377,31 @@ export function CustomerFormSheet({
 
         if (open) fetchRefs();
 
+        return () => { isMounted = false; };
+    }, [open]);
+
+    // 4. Fetch Payment Terms from Directus
+    useEffect(() => {
+        if (!open) return;
+        let isMounted = true;
+
+        const fetchPaymentTerms = async () => {
+            setIsLoadingPaymentTerms(true);
+            try {
+                const res = await fetch("/api/crm/customer/references?type=payment_term");
+                if (!res.ok) throw new Error("Failed to fetch payment terms");
+                const json = await res.json();
+                if (isMounted) {
+                    setPaymentTerms(json.data || []);
+                }
+            } catch (err) {
+                console.error("Failed to fetch payment terms", err);
+            } finally {
+                if (isMounted) setIsLoadingPaymentTerms(false);
+            }
+        };
+
+        fetchPaymentTerms();
         return () => { isMounted = false; };
     }, [open]);
 
@@ -637,10 +667,30 @@ export function CustomerFormSheet({
                                              className="space-y-6 m-0 animate-in fade-in slide-in-from-bottom-2">
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                         <FormField control={form.control} name="payment_term" render={({ field }) => (
-                                            <FormItem><FormLabel
-                                                className="font-bold uppercase text-xs text-muted-foreground">Payment
-                                                Term (Days)</FormLabel><FormControl><Input className="h-11 bg-muted/30"
-                                                                                           type="number" {...field} /></FormControl><FormMessage /></FormItem>
+                                            <FormItem>
+                                                <FormLabel className="font-bold uppercase text-xs text-muted-foreground">
+                                                    Payment Term
+                                                </FormLabel>
+                                                <Select
+                                                    disabled={isLoadingPaymentTerms}
+                                                    onValueChange={(val) => field.onChange(Number(val))}
+                                                    value={field.value ? String(field.value) : ""}
+                                                >
+                                                    <FormControl>
+                                                        <SelectTrigger className="h-11 bg-muted/30">
+                                                            <SelectValue placeholder={isLoadingPaymentTerms ? "Loading terms..." : "Select payment term"} />
+                                                        </SelectTrigger>
+                                                    </FormControl>
+                                                    <SelectContent>
+                                                        {paymentTerms.map((term) => (
+                                                            <SelectItem key={term.id} value={String(term.id)}>
+                                                                {term.payment_name}
+                                                            </SelectItem>
+                                                        ))}
+                                                    </SelectContent>
+                                                </Select>
+                                                <FormMessage />
+                                            </FormItem>
                                         )} />
                                         <FormField control={form.control} name="price_type" render={({ field }) => (
                                             <FormItem><FormLabel
