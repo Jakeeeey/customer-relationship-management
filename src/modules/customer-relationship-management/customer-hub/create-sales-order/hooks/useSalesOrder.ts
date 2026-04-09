@@ -15,6 +15,7 @@ export function useSalesOrder() {
     const isAutoFilled = useRef(false);
 
     // Selection State (IDs for dropdowns)
+    const [allSalesmen, setAllSalesmen] = useState<Salesman[]>([]);
     const [salesmen, setSalesmen] = useState<Salesman[]>([]);
     const [selectedSalesmanId, setSelectedSalesmanId] = useState<string>("");
 
@@ -109,7 +110,9 @@ export function useSalesOrder() {
                 fetch("/api/crm/customer-hub/create-sales-order?action=operations").then(r => r.json())
             ]);
 
-            setSalesmen(Array.isArray(sm) ? sm : []);
+            const smArray = Array.isArray(sm) ? sm : [];
+            setAllSalesmen(smArray);
+            setSalesmen(smArray);
             setSuppliers(Array.isArray(sup) ? sup : []);
             setBranches(Array.isArray(br) ? br : []);
             setPriceTypeModels(Array.isArray(pt) ? pt : []);
@@ -139,14 +142,18 @@ export function useSalesOrder() {
                                     setSelectedCustomerId(custs[0].id.toString());
 
                                     // If we have a customer, we can resolve the salesman from the linkage
-                                    const sLink = await salesOrderProvider.getSalesmanByCustomer(Number(custs[0].id));
-                                    if (sLink) {
-                                        const uid = (sLink.employee_id || sLink.encoder_id || sLink.user_id)?.toString();
-                                        if (uid) {
-                                            setSelectedSalesmanId(uid);
-                                            const accts = await fetch(`${salesOrderProvider.API_BASE}?action=accounts&user_id=${uid}`).then(r => r.json());
+                                    const sLinks = await salesOrderProvider.getSalesmanByCustomer(Number(custs[0].id));
+                                    if (sLinks && sLinks.length > 0) {
+                                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                                        const uid = (sLinks[0] as any).employee_id || (sLinks[0] as any).encoder_id || (sLinks[0] as any).user_id;
+                                        if (uid && uid.toString()) {
+                                            const uidStr = uid.toString();
+                                            setSelectedSalesmanId(uidStr);
+                                            const accts = await fetch(`${salesOrderProvider.API_BASE}?action=accounts&user_id=${uidStr}`).then(r => r.json());
                                             setAccounts(accts);
-                                            setSelectedAccountId(sLink.id.toString());
+                                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                                            const sId = (sLinks[0] as any).id;
+                                            if (sId) setSelectedAccountId(sId.toString());
                                         }
                                     }
                                 }
@@ -428,6 +435,39 @@ export function useSalesOrder() {
             if (customer.price_type) setPriceType(customer.price_type);
             if (customer.price_type_id) setPriceTypeId(Number(customer.price_type_id));
             if (customer.payment_term !== undefined) setPaymentTerms(customer.payment_term);
+        }
+
+        if (id) {
+            try {
+                const linkedUsers = await salesOrderProvider.getSalesmanByCustomer(Number(id));
+                const activeSalesmen = Array.isArray(linkedUsers) && linkedUsers.length > 0 ? linkedUsers : allSalesmen;
+                setSalesmen(activeSalesmen);
+
+                // Check if current user is still valid, else reset
+                const isCurrentValid = activeSalesmen.some(s => (s.user_id || s.id)?.toString() === selectedSalesmanId);
+                
+                if (linkedUsers.length === 1) {
+                    const singleId = (linkedUsers[0].user_id || linkedUsers[0].id)?.toString();
+                    if (singleId && (!selectedSalesmanId || !isCurrentValid)) {
+                        handleSalesmanChange(singleId);
+                    }
+                } else if (!isCurrentValid) {
+                    setSelectedSalesmanId("");
+                    setSelectedAccountId("");
+                    setAccounts([]);
+                }
+            } catch (e) {
+                console.error("Failed to fetch customer salesmen:", e);
+                setSalesmen(allSalesmen);
+                setSelectedSalesmanId("");
+                setSelectedAccountId("");
+                setAccounts([]);
+            }
+        } else {
+            setSalesmen(allSalesmen);
+            setSelectedSalesmanId("");
+            setSelectedAccountId("");
+            setAccounts([]);
         }
     };
 
