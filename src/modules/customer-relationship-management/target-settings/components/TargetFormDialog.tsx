@@ -244,6 +244,11 @@ export function TargetFormDialog({
     // --- Allocation Calculations ---
     const totalAllocatedCustomer = useMemo(() => customerTargets.reduce((sum, ct) => sum + (Number(ct.target_amount) || 0), 0), [customerTargets]);
     const totalAllocatedSupplier = useMemo(() => supplierTargets.reduce((sum, st) => sum + (Number(st.target_amount) || 0), 0), [supplierTargets]);
+    
+    // Count only customers with a target > 0
+    const activeCustomerCount = useMemo(() => 
+        customerTargets.filter(ct => (Number(ct.target_amount) || 0) > 0).length,
+    [customerTargets]);
 
     const handleCustomerTargetChange = (customerId: number, amount: number) => {
         setCustomerTargets(prev => {
@@ -380,7 +385,7 @@ export function TargetFormDialog({
         <Dialog open={isOpen} onOpenChange={onClose}>
             <DialogContent className="sm:max-w-[1000px] w-[95vw] max-h-[90vh] p-0 flex flex-col bg-white border-none shadow-2xl rounded-3xl overflow-hidden">
                 <DialogHeader className="p-6 pb-4 bg-slate-50/50 border-b border-slate-100 shrink-0">
-                    <DialogTitle className="text-xl font-black flex justify-between items-center pr-10 text-slate-900">
+                    <DialogTitle className="text-xl font-black flex justify-between items-center pr-10 text-primary">
                         {salesman.current_target?.id ? "Update" : "Set"} Target for {salesman.salesman_name}
                     </DialogTitle>
                     <DialogDescription className="text-slate-500 font-medium text-xs mt-0.5">
@@ -570,8 +575,13 @@ export function TargetFormDialog({
                                     {/* Left: Customer Side */}
                                     <div className="flex flex-col border border-slate-200 rounded-2xl bg-slate-50/50 overflow-hidden shadow-sm min-h-0 max-h-full">
                                         <div className="p-4 bg-white border-b border-slate-100 space-y-4 flex-none">
-                                            <div className="flex items-center gap-2 text-indigo-700 font-black text-xs uppercase tracking-widest">
-                                                <Users className="w-4 h-4" /> Customer Allocation
+                                            <div className="flex items-center justify-between w-full">
+                                                <div className="flex items-center gap-2 text-primary font-black text-xs uppercase tracking-widest">
+                                                    <Users className="w-4 h-4" /> Customer Allocation
+                                                </div>
+                                                <Badge variant="secondary" className="bg-primary/10 text-primary border-none font-bold text-[10px] h-5">
+                                                    {activeCustomerCount} Customers Set
+                                                </Badge>
                                             </div>
 
                                             <div className="relative">
@@ -595,7 +605,7 @@ export function TargetFormDialog({
                                                                     <div className="flex items-center gap-2">
                                                                         <span className="text-xs font-black text-slate-900 tracking-tight uppercase">{province}</span>
                                                                     </div>
-                                                                    <Badge variant="outline" className="bg-indigo-50 border-indigo-100 text-indigo-700 font-bold text-[10px]">
+                                                                    <Badge variant="outline" className="bg-primary/5 border-primary/20 text-primary font-bold text-[10px]">
                                                                         ₱{data.totalAllocation.toLocaleString()}
                                                                     </Badge>
                                                                 </div>
@@ -607,7 +617,7 @@ export function TargetFormDialog({
                                                                             <AccordionTrigger className="hover:no-underline py-2 px-2 rounded-lg hover:bg-slate-100/50 transition-colors group/city">
                                                                                 <div className="flex items-center justify-between w-full pr-4">
                                                                                     <div className="flex items-center gap-2">
-                                                                                        <Map className="w-3.5 h-3.5 text-slate-400 group-hover/city:text-indigo-500 transition-colors" />
+                                                                                        <Map className="w-3.5 h-3.5 text-slate-400 group-hover/city:text-primary transition-colors" />
                                                                                         <span className="text-[10px] font-bold text-slate-600 uppercase tracking-wider">{city}</span>
                                                                                         <Badge variant="secondary" className="ml-2 h-4 px-1 text-[9px] font-black bg-slate-100 text-slate-500 border-none">
                                                                                             {cityData.customers.length}
@@ -622,7 +632,7 @@ export function TargetFormDialog({
                                                                                 {cityData.customers.map(customer => {
                                                                                     const targetValue = customerTargets.find(ct => ct.customer_id === customer.id)?.target_amount || 0;
                                                                                     return (
-                                                                                        <div key={customer.id} className="p-3 bg-white rounded-xl border border-slate-100 shadow-sm flex items-center justify-between group hover:border-indigo-200 transition-colors">
+                                                                                        <div key={customer.id} className="p-3 bg-white rounded-xl border border-slate-100 shadow-sm flex items-center justify-between group hover:border-primary/40 transition-colors">
                                                                                             <div className="flex-1 min-w-0 pr-4">
                                                                                                 <p className="text-[10px] font-bold text-slate-900 truncate uppercase">{customer.customer_name}</p>
                                                                                                 <p className="text-[9px] text-slate-400 font-medium truncate italic">{customer.brgy || 'N/A'}</p>
@@ -632,7 +642,7 @@ export function TargetFormDialog({
                                                                                                     type="number"
                                                                                                     value={targetValue || ""}
                                                                                                     onChange={(e) => handleCustomerTargetChange(customer.id, Number(e.target.value))}
-                                                                                                    className="h-7 pl-5 text-[10px] font-bold bg-slate-50 border-none rounded-lg focus:ring-indigo-500"
+                                                                                                    className="h-7 pl-5 text-[10px] font-bold bg-slate-50 border-none rounded-lg focus:ring-primary"
                                                                                                     placeholder="0"
                                                                                                 />
                                                                                                 <span className="absolute left-1.5 top-1/2 -translate-y-1/2 text-[9px] font-bold text-slate-400">₱</span>
@@ -714,18 +724,18 @@ export function TargetFormDialog({
                                     </div>
                                 </div>
 
-                                <div className="p-4 rounded-2xl bg-slate-900 border-none text-white flex items-center justify-between shadow-lg">
+                                <div className="p-4 rounded-2xl bg-primary border-none text-primary-foreground flex items-center justify-between shadow-lg">
                                     <div className="flex items-center gap-3">
-                                        <div className="p-2 bg-white/10 rounded-lg">
-                                            <AlertCircle className="w-5 h-5 text-indigo-300" />
+                                        <div className="p-2 bg-white/20 rounded-lg">
+                                            <AlertCircle className="w-5 h-5 text-white" />
                                         </div>
                                         <div>
-                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Allocation Status</p>
-                                            <p className="text-xs font-medium text-slate-200">Volume budget must cover both customers and suppliers.</p>
+                                            <p className="text-[10px] font-black text-primary-foreground/60 uppercase tracking-widest">Allocation Status</p>
+                                            <p className="text-xs font-medium text-primary-foreground/90">Volume budget must cover both customers and suppliers.</p>
                                         </div>
                                     </div>
                                     <div className="text-right">
-                                        <p className="text-[10px] font-black text-slate-400 uppercase">Available Budget</p>
+                                        <p className="text-[10px] font-black text-primary-foreground/60 uppercase">Available Budget</p>
                                         <p className="text-xl font-black text-white">₱{targetData.volume.toLocaleString()}</p>
                                     </div>
                                 </div>
@@ -762,7 +772,7 @@ export function TargetFormDialog({
                                     />
                                 </div>
                                 <Button
-                                    className="col-span-12 bg-slate-900 hover:bg-slate-800 text-white flex gap-2 h-11 shadow-md rounded-xl font-bold transition-all active:scale-[0.98]"
+                                    className="col-span-12 bg-primary hover:bg-primary/90 text-primary-foreground flex gap-2 h-11 shadow-md rounded-xl font-bold transition-all active:scale-[0.98]"
                                     onClick={handleAddSku}
                                 >
                                     <Plus className="w-5 h-5" /> Add Product to Target List
@@ -858,7 +868,7 @@ export function TargetFormDialog({
                     <Button variant="ghost" onClick={onClose} disabled={loading} className="px-6 h-10 gap-2 font-bold text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded-xl">
                         <X className="w-4 h-4" /> Cancel
                     </Button>
-                    <Button onClick={handleSave} disabled={loading} className="bg-slate-900 hover:bg-slate-800 text-white px-10 h-10 gap-2 font-bold shadow-xl rounded-xl transition-all active:scale-[0.98]">
+                    <Button onClick={handleSave} disabled={loading} className="bg-primary hover:bg-primary/90 text-primary-foreground px-10 h-10 gap-2 font-bold shadow-xl rounded-xl transition-all active:scale-[0.98]">
                         {loading ? (
                             <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                         ) : <Save className="w-4 h-4" />}

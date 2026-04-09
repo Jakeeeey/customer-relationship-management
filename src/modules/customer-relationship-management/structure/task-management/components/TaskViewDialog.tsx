@@ -86,7 +86,7 @@ export const TaskViewDialog: React.FC<TaskViewDialogProps> = ({
                     <div className="w-96 flex flex-col bg-muted/30 shrink-0 min-h-0 border-r border-primary/5 shadow-[20px_0_40px_-20px_rgba(0,0,0,0.05)] z-20">
                         <div className="p-8 border-b border-primary/5 space-y-5 bg-muted/40 shrink-0">
                             <div className="flex items-center justify-between">
-                                <h3 className="text-xs font-black uppercase tracking-[0.3em] text-primary/70">Daily Roster</h3>
+                                <h3 className="text-xs font-black uppercase tracking-[0.3em] text-primary/70">Daily Schedule</h3>
                                 <Badge variant="outline" className="bg-primary/10 text-[10px] px-2.5 py-0.5 border-primary/20 font-black">
                                     {dayTasks.length} {dayTasks.length === 1 ? 'Task' : 'Tasks'}
                                 </Badge>
