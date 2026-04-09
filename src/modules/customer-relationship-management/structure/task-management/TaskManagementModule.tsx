@@ -9,6 +9,7 @@ import { TaskViewDialog } from "./components/TaskViewDialog";
 import { useTaskManagement } from "./hooks/useTaskManagement";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Loader2 } from "lucide-react";
+import { toast } from "sonner";
 import { DailyActionPlan } from "./types";
 import { CalendarHeader } from "./components/CalendarHeader";
 
