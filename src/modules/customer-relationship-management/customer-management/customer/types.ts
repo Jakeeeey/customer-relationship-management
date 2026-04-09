@@ -76,6 +76,13 @@ export interface DiscountType {
     total_percent: number;
 }
 
+export interface PaymentTerm {
+    id: number;
+    payment_name: string;
+    payment_days: number;
+    payment_description?: string | null;
+}
+
 export interface ReferenceItem {
     id?: number;
     user_id?: number;
