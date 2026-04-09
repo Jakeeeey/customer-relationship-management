@@ -61,6 +61,7 @@ export interface CustomerProspect {
     prospect_status: 'Pending' | 'Approved' | 'Rejected';
     // Joined data
     salesman_name?: string;
+    updated_by_name?: string | null;
 }
 
 export interface CustomerProspectsAPIResponse {

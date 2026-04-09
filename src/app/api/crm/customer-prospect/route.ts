@@ -26,7 +26,7 @@ export async function GET(req: NextRequest) {
         params.append("limit", pageSize.toString());
         params.append("offset", offset.toString());
         params.append("meta", "*");
-        params.append("fields", "*,salesman_id.salesman_name"); // Join salesman name
+        params.append("fields", "*,salesman_id.salesman_name,user_updated.first_name,user_updated.last_name"); // Join salesman name & updated by
 
         if (searchQuery) {
             params.append("filter[_or][0][customer_name][_icontains]", searchQuery);
@@ -53,9 +53,10 @@ export async function GET(req: NextRequest) {
         const json = await res.json();
 
         // Flatten salesman name for easier use in frontend
-        const prospects = (json.data || []).map((p: { salesman_id?: { salesman_name?: string } }) => ({
+        const prospects = (json.data || []).map((p: any) => ({
             ...p,
-            salesman_name: p.salesman_id?.salesman_name || "Unknown Salesman"
+            salesman_name: p.salesman_id?.salesman_name || "Unknown Salesman",
+            updated_by_name: p.user_updated ? `${p.user_updated.first_name || ''} ${p.user_updated.last_name || ''}`.trim() : null
         }));
 
         return NextResponse.json({

@@ -21,6 +21,7 @@ import { CustomerProspect, CustomerProspectsAPIResponse, DiscountType, Salesman,
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "./StatusBadge";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
@@ -122,20 +123,18 @@ export function CustomerProspectTable({
                         </SelectContent>
                     </Select>
 
-                    <Select value={salesmanFilter} onValueChange={onSalesmanChange}>
-                        <SelectTrigger className="h-10 rounded-xl shadow-sm border-border/60 w-[180px] bg-background">
-                            <User className="mr-2 h-4 w-4 text-muted-foreground" />
-                            <SelectValue placeholder="All Salesmen" />
-                        </SelectTrigger>
-                        <SelectContent className="rounded-xl border-primary/10">
-                            <SelectItem value="all">All Salesmen</SelectItem>
-                            {salesmen.map((s) => (
-                                <SelectItem key={s.id} value={s.id.toString()}>
-                                    {s.salesman_name}
-                                </SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
+                    <div className="flex items-center w-full sm:w-[180px]">
+                        <SearchableSelect
+                            options={[
+                                { value: "all", label: "All Salesmen" },
+                                ...salesmen.map((s) => ({ value: s.id.toString(), label: s.salesman_name }))
+                            ]}
+                            value={salesmanFilter}
+                            onValueChange={onSalesmanChange}
+                            placeholder="All Salesmen"
+                            className="h-10 rounded-xl shadow-sm border-border/60 bg-background"
+                        />
+                    </div>
                 </div>
             </div>
 
@@ -243,7 +242,7 @@ export function CustomerProspectTable({
                                                     </Button>
                                                 </DropdownMenuTrigger>
                                                 <DropdownMenuContent align="end">
-                                                    <DropdownMenuItem className="text-xs">View Details</DropdownMenuItem>
+                                                    <DropdownMenuItem className="text-xs" onClick={() => handleView(prospect)}>View Details</DropdownMenuItem>
                                                 </DropdownMenuContent>
                                             </DropdownMenu>
                                         )}
@@ -346,6 +345,17 @@ export function CustomerProspectTable({
                                                 <Calendar className="h-3 w-3 text-muted-foreground" />
                                                 {selectedProspect.prospect_date ? new Date(selectedProspect.prospect_date).toLocaleDateString() : "None"}
                                             </span>
+                                        </div>
+                                        <div className="flex flex-col col-span-2 pt-2 border-t mt-1 border-dashed">
+                                            <span className="text-[10px] font-bold text-muted-foreground uppercase">Current Status</span>
+                                            <div className="flex items-center gap-2 mt-1.5">
+                                                <StatusBadge status={selectedProspect.prospect_status} />
+                                                {selectedProspect.prospect_status !== 'Pending' && selectedProspect.updated_by_name && (
+                                                    <span className="text-xs text-muted-foreground">
+                                                        (Processed by: <span className="font-medium text-foreground">{selectedProspect.updated_by_name}</span>)
+                                                    </span>
+                                                )}
+                                            </div>
                                         </div>
                                     </div>
                                 </section>
@@ -494,23 +504,35 @@ export function CustomerProspectTable({
                         </ScrollArea>
                     )}
                     <DialogFooter className="flex flex-col sm:flex-row gap-2 mt-4">
-                        <Button
-                            variant="outline"
-                            onClick={() => selectedProspect && handleAction(selectedProspect.id, 'Reject')}
-                            disabled={processingId !== null}
-                            className="w-full sm:w-auto border-rose-200 text-rose-600 hover:bg-rose-50"
-                        >
-                            {processingId === selectedProspect?.id ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <X className="h-4 w-4 mr-2" />}
-                            Reject Prospect
-                        </Button>
-                        <Button
-                            onClick={() => selectedProspect && handleAction(selectedProspect.id, 'Approve')}
-                            disabled={processingId !== null}
-                            className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white"
-                        >
-                            {processingId === selectedProspect?.id ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Check className="h-4 w-4 mr-2" />}
-                            Approve & Create Customer
-                        </Button>
+                        {selectedProspect?.prospect_status === 'Pending' ? (
+                            <>
+                                <Button
+                                    variant="outline"
+                                    onClick={() => selectedProspect && handleAction(selectedProspect.id, 'Reject')}
+                                    disabled={processingId !== null}
+                                    className="w-full sm:w-auto border-rose-200 text-rose-600 hover:bg-rose-50"
+                                >
+                                    {processingId === selectedProspect?.id ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <X className="h-4 w-4 mr-2" />}
+                                    Reject Prospect
+                                </Button>
+                                <Button
+                                    onClick={() => selectedProspect && handleAction(selectedProspect.id, 'Approve')}
+                                    disabled={processingId !== null}
+                                    className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white"
+                                >
+                                    {processingId === selectedProspect?.id ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Check className="h-4 w-4 mr-2" />}
+                                    Approve & Create Customer
+                                </Button>
+                            </>
+                        ) : (
+                            <Button
+                                variant="outline"
+                                onClick={() => setIsModalOpen(false)}
+                                className="w-full sm:w-auto"
+                            >
+                                Close Review
+                            </Button>
+                        )}
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
