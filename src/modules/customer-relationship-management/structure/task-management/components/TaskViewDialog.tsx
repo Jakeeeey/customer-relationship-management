@@ -27,8 +27,7 @@ import {
     ExternalLink, 
     ImageIcon, 
     Calendar,
-    Info,
-    Loader2
+    Info
 } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
