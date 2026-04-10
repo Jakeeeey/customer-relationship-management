@@ -282,7 +282,9 @@ export async function POST(req: NextRequest) {
             new_accounts: Number(target.new_accounts) || 0,
             productive_outlets: Number(target.productive_outlets) || 0,
             line_sales: Number(target.line_sales) || 0,
+            line_sales_target: Number(target.line_sales_target) || 0,
             basket_count: Number(target.basket_count) || 0,
+            basket_count_target: Number(target.basket_count_target) || 0,
             reach: Number(target.reach) || 0
         };
 
