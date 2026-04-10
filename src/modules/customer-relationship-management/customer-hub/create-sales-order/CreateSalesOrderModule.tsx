@@ -27,6 +27,7 @@ export default function CreateSalesOrderModule({ fileUrl }: { fileUrl?: string |
         isCheckout, setIsCheckout, orderNo, previewOrderNo, enterCheckout, allocatedQuantities, updateAllocatedQty,
         orderRemarks, setOrderRemarks,
         paymentTerms, setPaymentTerms,
+        handlePriceTypeIdChange,
         handleSubmitOrder, submitting,
         existingOrderId, existingOrderStatus
     } = useSalesOrder();
@@ -158,6 +159,7 @@ export default function CreateSalesOrderModule({ fileUrl }: { fileUrl?: string |
                         priceType={priceType}
                         priceTypeId={priceTypeId}
                         priceTypeModels={priceTypeModels}
+                        onPriceTypeChange={handlePriceTypeIdChange}
                         previewOrderNo={previewOrderNo}
                         paymentTerms={paymentTerms}
                         onPaymentTermsChange={setPaymentTerms}

@@ -470,6 +470,15 @@ export function useSalesOrder() {
             setAccounts([]);
         }
     };
+    
+    const handlePriceTypeIdChange = (id: string) => {
+        const nid = id ? Number(id) : null;
+        setPriceTypeId(nid);
+        if (nid) {
+            const model = priceTypeModels.find(p => p.price_type_id === nid);
+            if (model) setPriceType(model.price_type_name);
+        }
+    };
 
     const handleSupplierChange = (id: string) => {
         setSelectedSupplierId(id);
@@ -503,17 +512,51 @@ export function useSalesOrder() {
     // Sync cart items with freshly fetched products (especially 'available' stock info)
     useEffect(() => {
         if (supplierProducts.length > 0 && lineItems.length > 0) {
+            // Price Sync Logic: Only auto-update if it's a new order or still in Draft status
+            const isEditable = !existingOrderId || existingOrderStatus === "Draft";
+
             setLineItems(prev => {
                 let changed = false;
                 const next = prev.map(li => {
                     const match = supplierProducts.find(sp => Number(sp.product_id) === Number(li.product.product_id));
-                    if (match && (match.available_qty !== li.product.available_qty || match.display_name !== li.product.display_name)) {
+                    if (!match) return li;
+
+                    const newBasePrice = Number(match.base_price) || 0;
+                    const newDiscounts = match.discounts || [];
+                    
+                    const priceChanged = isEditable && (newBasePrice !== li.unitPrice || JSON.stringify(newDiscounts) !== JSON.stringify(li.discounts));
+                    const metaChanged = match.available_qty !== li.product.available_qty || match.display_name !== li.product.display_name;
+
+                    if (priceChanged || metaChanged) {
                         changed = true;
+                        
+                        let updatedUnitPrice = li.unitPrice;
+                        let updatedDiscounts = li.discounts;
+                        let updatedNetAmount = li.netAmount;
+                        let updatedTotalAmount = li.totalAmount;
+                        let updatedDiscountAmount = li.discountAmount;
+
+                        if (priceChanged) {
+                            updatedUnitPrice = newBasePrice;
+                            updatedDiscounts = newDiscounts;
+                            const netPrice = calculateChainNetPrice(newBasePrice, newDiscounts);
+                            updatedTotalAmount = newBasePrice * li.quantity;
+                            updatedNetAmount = netPrice * li.quantity;
+                            updatedDiscountAmount = updatedTotalAmount - updatedNetAmount;
+                        }
+
                         return {
                             ...li,
+                            unitPrice: updatedUnitPrice,
+                            discounts: updatedDiscounts,
+                            netAmount: updatedNetAmount,
+                            totalAmount: updatedTotalAmount,
+                            discountAmount: updatedDiscountAmount,
                             discountType: (match.discount_level || match.discount_type || li.discountType) as string | undefined,
                             product: {
                                 ...li.product,
+                                base_price: newBasePrice, // Keep catalog price in sync
+                                discounts: newDiscounts,
                                 available_qty: (match.available_qty ?? match.available ?? 0) as number,
                                 display_name: match.display_name || match.product_name || li.product.display_name,
                                 description: match.description || li.product.description,
@@ -858,6 +901,7 @@ export function useSalesOrder() {
         isCheckout, setIsCheckout, orderNo, previewOrderNo, enterCheckout, allocatedQuantities, updateAllocatedQty,
         orderRemarks, setOrderRemarks,
         paymentTerms, setPaymentTerms,
+        handlePriceTypeIdChange,
         handleSubmitOrder, submitting,
         existingOrderId, existingOrderStatus
     };
