@@ -172,10 +172,39 @@ const data = {
     ],
 };
 
+import { useSidebarCounts } from "@/hooks/useSidebarCounts";
+
 export function AppSidebar({
     className,
     ...props
 }: React.ComponentProps<typeof Sidebar>) {
+    const { counts } = useSidebarCounts(15000); // 15 seconds polling
+
+    const dynamicNavMain = React.useMemo(() => {
+        // Map the array to preserve React component icons
+        return data.navMain.map((l1) => {
+            if (l1.title === "Customer Hub" && l1.items) {
+                return {
+                    ...l1,
+                    items: l1.items.map((l2) => {
+                        const newL2 = { ...l2 };
+                        if (l2.title === "Sales Order Draft" && counts.draft > 0) {
+                            (newL2 as typeof newL2 & { badge?: number }).badge = counts.draft;
+                        }
+                        if (l2.title === "Sales Order Approval" && counts.approval > 0) {
+                            (newL2 as typeof newL2 & { badge?: number }).badge = counts.approval;
+                        }
+                        if (l2.title === "Callsheet" && counts.callsheet > 0) {
+                            (newL2 as typeof newL2 & { badge?: number }).badge = counts.callsheet;
+                        }
+                        return newL2;
+                    })
+                };
+            }
+            return l1;
+        });
+    }, [counts]);
+
     return (
         <Sidebar
             {...props}
@@ -229,7 +258,7 @@ export function AppSidebar({
                     )}
                 >
                     <div className="w-full min-w-0">
-                        <NavMain items={data.navMain} />
+                        <NavMain items={dynamicNavMain} />
                     </div>
                 </ScrollArea>
             </SidebarContent>
