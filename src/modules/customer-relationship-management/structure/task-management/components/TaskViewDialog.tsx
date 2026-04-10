@@ -27,8 +27,7 @@ import {
     ExternalLink, 
     ImageIcon, 
     Calendar,
-    Info,
-    Loader2
+    Info
 } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -338,12 +337,12 @@ export const TaskViewDialog: React.FC<TaskViewDialogProps> = ({
                                 ) : (
                                     <div className="h-full flex flex-col items-center justify-center space-y-6 text-muted-foreground py-32">
                                         <div className="relative">
-                                            <Loader2 className="w-16 h-16 animate-spin text-primary opacity-20" />
+                                            <Calendar className="w-16 h-16 text-primary opacity-20" />
                                             <div className="absolute inset-0 flex items-center justify-center">
                                                 <div className="w-3 h-3 bg-primary rounded-full shadow-[0_0_15px_rgba(var(--primary),1)]" />
                                             </div>
                                         </div>
-                                        <p className="text-[11px] font-black uppercase tracking-[0.5em] animate-pulse text-primary/60">Synchronizing Vault</p>
+                                        <p className="text-[11px] font-black uppercase tracking-[0.5em] text-primary/60">Select a task or create a new one</p>
                                     </div>
                                 )}
                             </div>
