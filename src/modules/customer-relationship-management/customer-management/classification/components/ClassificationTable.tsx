@@ -101,9 +101,7 @@ export function ClassificationTable({
 											</div>
 											<div className="flex flex-col">
 												<span className="font-semibold leading-none">{item.classification_name}</span>
-												<span className="mt-1 text-[10px] uppercase text-muted-foreground">
-													Type
-												</span>
+												
 											</div>
 										</div>
 									</TableCell>
