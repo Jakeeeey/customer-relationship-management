@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Button } from "@/components/ui/button";
@@ -60,12 +59,12 @@ interface SalesOrderHeaderProps {
     selectedBranchId: string;
     onBranchChange: (id: string) => void;
 
-    priceType: string;
     priceTypeId?: number | null;
     priceTypeModels?: PriceTypeModel[];
     previewOrderNo?: string;
     paymentTerms: number | null;
     onPaymentTermsChange: (val: number | null) => void;
+    onPriceTypeChange: (id: string) => void;
 }
 
 export function SalesOrderHeader({
@@ -80,7 +79,8 @@ export function SalesOrderHeader({
     deliveryDate, onDeliveryDateChange,
     poNo, onPoNoChange,
     branches, selectedBranchId, onBranchChange,
-    priceType, priceTypeId, priceTypeModels,
+    priceTypeId, priceTypeModels,
+    onPriceTypeChange,
     previewOrderNo,
     paymentTerms, onPaymentTermsChange
 }: SalesOrderHeaderProps) {
@@ -93,13 +93,21 @@ export function SalesOrderHeader({
     return (
         <Card className="shadow-sm border-muted-foreground/10 overflow-hidden">
             <CardHeader className="py-4 px-6 flex flex-row items-center justify-between border-b bg-slate-50/50">
-                <div className="flex items-center gap-2">
-                    <span className="text-[10px] uppercase font-black text-slate-400 tracking-widest">Price Type </span>
-                    <Badge variant="secondary" className="font-black text-primary bg-primary/10 border-primary/20">
-                        {priceTypeId && priceTypeModels?.find(p => p.price_type_id === priceTypeId)?.price_type_name
-                            ? priceTypeModels.find(p => p.price_type_id === priceTypeId)!.price_type_name
-                            : ` ${priceType}`}
-                    </Badge>
+                <div className="flex items-center gap-3">
+                    <span className="text-[10px] uppercase font-black text-slate-400 tracking-widest leading-none">Price Type</span>
+                    <Select value={priceTypeId?.toString() || ""} onValueChange={onPriceTypeChange}>
+                        <SelectTrigger className="h-7 min-w-[110px] bg-sky-50 border-sky-200 text-sky-700 text-[10px] font-black uppercase hover:bg-sky-100 transition-colors">
+                            <SelectValue placeholder="Price Type" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {priceTypeModels?.map(m => (
+                                <SelectItem key={m.price_type_id} value={m.price_type_id.toString()} className="text-[10px] font-bold uppercase">
+                                    {m.price_type_name}
+                                </SelectItem>
+                            ))}
+                            {!priceTypeModels?.length && <SelectItem value="0" disabled>Standard Price</SelectItem>}
+                        </SelectContent>
+                    </Select>
                 </div>
                 <div className="flex flex-col items-end gap-1">
                     <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest italic opacity-50">

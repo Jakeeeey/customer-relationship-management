@@ -20,13 +20,14 @@ export default function CreateSalesOrderModule({ fileUrl }: { fileUrl?: string |
         dueDate, setDueDate,
         deliveryDate, setDeliveryDate,
         poNo, setPoNo,
-        priceType, priceTypeId, priceTypeModels,
+        priceTypeId, priceTypeModels,
         supplierProducts, loadingProducts,
         lineItems, addProduct, removeLineItem, updateLineItemQty,
         summary,
         isCheckout, setIsCheckout, orderNo, previewOrderNo, enterCheckout, allocatedQuantities, updateAllocatedQty,
         orderRemarks, setOrderRemarks,
         paymentTerms, setPaymentTerms,
+        handlePriceTypeIdChange,
         handleSubmitOrder, submitting,
         existingOrderId, existingOrderStatus
     } = useSalesOrder();
@@ -155,9 +156,9 @@ export default function CreateSalesOrderModule({ fileUrl }: { fileUrl?: string |
                         poNo={poNo}
                         onPoNoChange={setPoNo}
 
-                        priceType={priceType}
                         priceTypeId={priceTypeId}
                         priceTypeModels={priceTypeModels}
+                        onPriceTypeChange={handlePriceTypeIdChange}
                         previewOrderNo={previewOrderNo}
                         paymentTerms={paymentTerms}
                         onPaymentTermsChange={setPaymentTerms}

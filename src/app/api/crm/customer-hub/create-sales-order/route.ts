@@ -458,7 +458,6 @@ export async function GET(req: NextRequest) {
                 const allIds = Array.from(allProductsMap.keys());
                 const l1Items = await fetchInChunks<DiscountItem>(`${DIRECTUS_URL}/items/product_per_customer?filter[customer_code][_eq]=${customerCode}&fields=product_id,unit_price,discount_type`, allIds, "product_id");
                 const l2Items: DiscountItem[] = (await (await fetch(`${DIRECTUS_URL}/items/supplier_category_discount_per_customer?filter[customer_code][_eq]=${customerCode}&filter[supplier_id][_eq]=${supplierId}&limit=-1`, { headers: fetchHeaders })).json()).data || [];
-                const l3Items = await fetchInChunks<DiscountItem>(`${DIRECTUS_URL}/items/product_per_supplier?filter[supplier_id][_eq]=${supplierId}&fields=product_id,discount_type`, allIds, "product_id");
 
                 let l4Items: DiscountItem[] = [];
                 if (customerId) {
@@ -481,7 +480,6 @@ export async function GET(req: NextRequest) {
                 const typeIds = new Set(
                     l1Items.map((i: DiscountItem) => i.discount_type)
                         .concat(l2Items.map((i: DiscountItem) => i.discount_type))
-                        .concat(l3Items.map((i: DiscountItem) => i.discount_type))
                         .concat(l4Items.map((i: DiscountItem) => i.discount_type_id))
                         .concat([customerData?.discount_type])
                         .filter(Boolean)
@@ -515,11 +513,6 @@ export async function GET(req: NextRequest) {
                     if (!winId) {
                         const l2 = l2Items.find((item: DiscountItem) => item.category_id === p.product_category || !item.category_id || item.category_id === 0);
                         if (l2) { winId = l2.discount_type; level = "Supplier Category Discount"; }
-                    }
-
-                    if (!winId) {
-                        const l3 = l3Items.find((item: DiscountItem) => item.product_id === p.product_id) || l3Items.find((item: DiscountItem) => p.parent_id && item.product_id === p.parent_id);
-                        if (l3) { winId = l3.discount_type; level = "none"; }
                     }
 
                     if (!winId) {
