@@ -29,20 +29,24 @@ import {
 export const useTaskManagement = () => {
     const [data, setData] = useState<TaskManagementData & { currentUserId?: number } | null>(null);
     const [isLoading, setIsLoading] = useState(true);
+    const [isRefreshing, setIsRefreshing] = useState(false);
     
     const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>("all");
     const [selectedSalesmanId, setSelectedSalesmanId] = useState<string>("all");
     const [currentDate, setCurrentDate] = useState(new Date());
 
-    const fetchTasks = useCallback(async () => {
-        setIsLoading(true);
+    const fetchTasks = useCallback(async (isBackground = false) => {
+        if (!isBackground) setIsLoading(true);
+        else setIsRefreshing(true);
+
         try {
             const result = await fetchTaskManagementData();
             setData(result);
         } catch (error) {
             toast.error(error instanceof Error ? error.message : "Failed to load tasks");
         } finally {
-            setIsLoading(false);
+            if (!isBackground) setIsLoading(false);
+            else setIsRefreshing(false);
         }
     }, []);
 
@@ -132,30 +136,46 @@ export const useTaskManagement = () => {
     }, [data, selectedEmployeeId, selectedSalesmanId]);
 
     const handleCreateTask = async (taskData: Partial<DailyActionPlan>) => {
+        const employeeId = taskData.employee_id || parseInt(selectedEmployeeId);
+        const employee = data?.users.find(u => u.user_id === employeeId);
+        const employeeName = employee ? `${employee.user_fname} ${employee.user_lname}` : null;
+        const employeeEmail = employee?.user_email || null;
+
+        const payload = {
+            ...taskData,
+            employee_name: employeeName,
+            employee_email: employeeEmail,
+            date: taskData.date || format(new Date(), "yyyy-MM-dd"),
+            created_at: new Date().toISOString().slice(0, 19).replace('T', ' '),
+            created_by: data?.currentUserId,
+            is_completed: 0,
+            mcp_id: 1 // Default
+        };
+
+        // Optimistic Update
+        const optimisticId = Math.floor(Math.random() * -1000000); // Temporary ID
+        const optimisticPlan = { ...payload, id: optimisticId } as DailyActionPlan;
+        
+        if (data) {
+            setData({
+                ...data,
+                actionPlans: [...data.actionPlans, optimisticPlan]
+            });
+        }
+
         try {
-            const employeeId = taskData.employee_id || parseInt(selectedEmployeeId);
-            const employee = data?.users.find(u => u.user_id === employeeId);
-            const employeeName = employee ? `${employee.user_fname} ${employee.user_lname}` : null;
-            const employeeEmail = employee?.user_email || null;
-
-            const payload = {
-                ...taskData,
-                employee_name: employeeName,
-                employee_email: employeeEmail,
-                date: taskData.date || format(new Date(), "yyyy-MM-dd"),
-                created_at: new Date().toISOString().slice(0, 19).replace('T', ' '),
-                created_by: data?.currentUserId,
-                is_completed: 0,
-                mcp_id: 1 // Default
-            };
-
             const success = await createDailyActionPlan(payload as Partial<DailyActionPlan>);
             if (success) {
                 toast.success("Task created successfully");
-                fetchTasks(); // Refresh
+                fetchTasks(true); // Refresh in background
+            } else {
+                // Rollback optimistic update
+                if (data) setData({ ...data, actionPlans: data.actionPlans.filter(ap => ap.id !== optimisticId) });
             }
             return success;
         } catch (error) {
+            // Rollback optimistic update
+            if (data) setData({ ...data, actionPlans: data.actionPlans.filter(ap => ap.id !== optimisticId) });
             toast.error(error instanceof Error ? error.message : "Failed to create task");
             return false;
         }
@@ -177,7 +197,7 @@ export const useTaskManagement = () => {
             const success = await updateDailyActionPlan(id, payload);
             if (success) {
                 toast.success("Task updated successfully");
-                fetchTasks(); // Refresh
+                fetchTasks(true); // Refresh in background
             }
             return success;
         } catch (error) {
@@ -187,22 +207,36 @@ export const useTaskManagement = () => {
     };
 
     const handleDeleteTask = async (id: number) => {
-        try {
-            const success = await deleteDailyActionPlan(id);
-            if (success) {
-                toast.success("Task deleted successfully");
-                fetchTasks(); // Refresh
+        // Optimistic Delete
+        if (data) {
+            const previousPlans = [...data.actionPlans];
+            setData({
+                ...data,
+                actionPlans: data.actionPlans.filter(ap => ap.id !== id)
+            });
+
+            try {
+                const success = await deleteDailyActionPlan(id);
+                if (success) {
+                    toast.success("Task deleted successfully");
+                    fetchTasks(true); // Refresh in background
+                } else {
+                    setData({ ...data, actionPlans: previousPlans });
+                }
+                return success;
+            } catch (error) {
+                setData({ ...data, actionPlans: previousPlans });
+                toast.error(error instanceof Error ? error.message : "Failed to delete task");
+                return false;
             }
-            return success;
-        } catch (error) {
-            toast.error(error instanceof Error ? error.message : "Failed to delete task");
-            return false;
         }
+        return false;
     };
 
     return {
         data,
         isLoading,
+        isRefreshing,
         filteredEmployees,
         filteredSalesmen,
         selectedEmployeeId,
