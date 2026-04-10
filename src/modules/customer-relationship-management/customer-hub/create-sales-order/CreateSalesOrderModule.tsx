@@ -20,7 +20,7 @@ export default function CreateSalesOrderModule({ fileUrl }: { fileUrl?: string |
         dueDate, setDueDate,
         deliveryDate, setDeliveryDate,
         poNo, setPoNo,
-        priceType, priceTypeId, priceTypeModels,
+        priceTypeId, priceTypeModels,
         supplierProducts, loadingProducts,
         lineItems, addProduct, removeLineItem, updateLineItemQty,
         summary,
