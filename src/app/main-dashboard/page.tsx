@@ -1,4 +1,3 @@
-// src/app/main-dashboard/page.tsx
 "use client";
 
 import * as React from "react";

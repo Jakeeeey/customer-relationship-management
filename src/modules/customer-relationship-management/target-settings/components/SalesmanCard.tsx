@@ -59,7 +59,7 @@ export function SalesmanCard({ salesman, onEditTarget }: SalesmanCardProps) {
                             <Mail className="w-3 h-3" /> {salesman.email}
                         </div>
                     </div>
-                    <Badge variant="secondary" className="px-3 py-0.5 rounded-full bg-slate-900 text-white text-[10px] font-bold tracking-wide uppercase">
+                    <Badge variant="secondary" className="px-3 py-0.5 rounded-full bg-primary text-primary-foreground text-[10px] font-bold tracking-wide uppercase">
                         {salesman.operation === 1 ? "Booking" : "Sites Sales"}
                     </Badge>
                 </div>
@@ -121,7 +121,7 @@ export function SalesmanCard({ salesman, onEditTarget }: SalesmanCardProps) {
                         </Button>
                     ) : (
                         <Button
-                            className="w-full rounded-lg h-9 gap-2 text-xs font-bold bg-slate-900 hover:bg-slate-800 text-white shadow-sm"
+                            className="w-full rounded-lg h-9 gap-2 text-xs font-bold bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm"
                             onClick={() => onEditTarget(salesman)}
                         >
                             <Target className="w-3.5 h-3.5" /> Set Target

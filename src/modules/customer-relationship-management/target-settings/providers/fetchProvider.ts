@@ -7,7 +7,12 @@ export const targetSettingsProvider = {
         return await res.json();
     },
 
-    async saveTarget(data: { target: Partial<TargetSetting>; tacticalSkus: Partial<TacticalSKU>[] }) {
+    async saveTarget(data: { 
+        target: Partial<TargetSetting>; 
+        tacticalSkus: Partial<TacticalSKU>[];
+        customerTargets: { customer_id: number; target_amount: number }[];
+        supplierTargets: { supplier_id: number; target_amount: number }[];
+    }) {
         const res = await fetch(`/api/crm/target-settings`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
