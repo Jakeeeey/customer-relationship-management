@@ -23,7 +23,7 @@ export const salesOrderProvider = {
         return res.json();
     },
 
-    getSalesmanByCustomer: async (customerId: number): Promise<Salesman | null> => {
+    getSalesmanByCustomer: async (customerId: number): Promise<Salesman[]> => {
         const res = await fetch(`${API_BASE}?action=salesman_by_customer&customer_id=${customerId}`);
         return res.json();
     },

@@ -214,13 +214,30 @@ export async function GET(req: NextRequest) {
         if (action === "salesman_by_customer") {
             const customerId = req.nextUrl.searchParams.get("customer_id");
             if (!customerId) return NextResponse.json({ error: "customer_id required" }, { status: 400 });
-            const csRes = await fetch(`${DIRECTUS_URL}/items/customer_salesmen?filter[customer_id][_eq]=${customerId}&limit=1`, { headers: fetchHeaders });
+            
+            // 1. Get all customer_salesman links for this customer
+            const csRes = await fetch(`${DIRECTUS_URL}/items/customer_salesmen?filter[customer_id][_eq]=${customerId}&limit=-1`, { headers: fetchHeaders });
             const csData = (await csRes.json()).data || [];
-            if (csData.length === 0) return NextResponse.json(null);
+            if (csData.length === 0) return NextResponse.json([]);
 
-            const salesmanId = csData[0].salesman_id;
-            const sRes = await fetch(`${DIRECTUS_URL}/items/salesman/${salesmanId}`, { headers: fetchHeaders });
-            return NextResponse.json((await sRes.json()).data || null);
+            const salesmanIds = csData.map((cs: { salesman_id?: number | string }) => cs.salesman_id).filter(Boolean);
+            if (salesmanIds.length === 0) return NextResponse.json([]);
+
+            // 2. Resolve Salesman records to find employee_id / encoder_id
+            const sRes = await fetch(`${DIRECTUS_URL}/items/salesman?filter[id][_in]=${salesmanIds.join(',')}&limit=-1`, { headers: fetchHeaders });
+            const sData = (await sRes.json()).data || [];
+            if (sData.length === 0) return NextResponse.json([]);
+            
+            const userIds = new Set<string>();
+            sData.forEach((s: { employee_id?: number | string; encoder_id?: number | string; user_id?: number | string }) => {
+                const uid = s.employee_id || s.encoder_id || s.user_id;
+                if (uid) userIds.add(uid.toString());
+            });
+            if (userIds.size === 0) return NextResponse.json([]);
+
+            // 3. Fetch full User records for the distinct user IDs
+            const uRes = await fetch(`${DIRECTUS_URL}/items/user?filter[user_id][_in]=${Array.from(userIds).join(',')}&limit=-1`, { headers: fetchHeaders });
+            return NextResponse.json((await uRes.json()).data || []);
         }
 
         if (action === "salesman_by_id") {
