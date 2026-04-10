@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Button } from "@/components/ui/button";
@@ -60,7 +59,6 @@ interface SalesOrderHeaderProps {
     selectedBranchId: string;
     onBranchChange: (id: string) => void;
 
-    priceType: string;
     priceTypeId?: number | null;
     priceTypeModels?: PriceTypeModel[];
     previewOrderNo?: string;
@@ -81,7 +79,7 @@ export function SalesOrderHeader({
     deliveryDate, onDeliveryDateChange,
     poNo, onPoNoChange,
     branches, selectedBranchId, onBranchChange,
-    priceType, priceTypeId, priceTypeModels,
+    priceTypeId, priceTypeModels,
     onPriceTypeChange,
     previewOrderNo,
     paymentTerms, onPaymentTermsChange

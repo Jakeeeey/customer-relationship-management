@@ -156,7 +156,6 @@ export default function CreateSalesOrderModule({ fileUrl }: { fileUrl?: string |
                         poNo={poNo}
                         onPoNoChange={setPoNo}
 
-                        priceType={priceType}
                         priceTypeId={priceTypeId}
                         priceTypeModels={priceTypeModels}
                         onPriceTypeChange={handlePriceTypeIdChange}
