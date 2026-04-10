@@ -25,6 +25,11 @@ export interface PaymentTerm {
     payment_days: number;
 }
 
+export interface CustomerClassification {
+    id: number;
+    classification_name: string;
+}
+
 export interface CustomerProspect {
     id: number;
     salesman_id?: number | null;
@@ -61,6 +66,7 @@ export interface CustomerProspect {
     prospect_status: 'Pending' | 'Approved' | 'Rejected';
     // Joined data
     salesman_name?: string;
+    updated_by_name?: string | null;
 }
 
 export interface CustomerProspectsAPIResponse {

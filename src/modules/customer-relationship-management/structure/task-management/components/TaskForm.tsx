@@ -18,15 +18,100 @@ import {
     SelectValue 
 } from "@/components/ui/select";
 import { Task, Customer, DailyActionPlan } from "../types";
-import { Loader2, Trash2, Save } from "lucide-react";
+import { Loader2, Trash2, Save, AlertCircle, Check, ChevronsUpDown } from "lucide-react";
+import { toast } from "sonner";
+import { cn } from "@/lib/utils";
+import {
+    Command,
+    CommandEmpty,
+    CommandGroup,
+    CommandInput,
+    CommandItem,
+    CommandList,
+} from "@/components/ui/command";
+import {
+    Popover,
+    PopoverContent,
+    PopoverTrigger,
+} from "@/components/ui/popover";
 
 const taskSchema = z.object({
     task_id: z.string().min(1, "Task is required"),
-    name: z.string().min(1, "Description is required"),
+    name: z.string().min(1, "Brief description is required"),
     customer_id: z.string().min(1, "Customer is required"),
     priority_level: z.string().min(1, "Priority is required"),
     remarks: z.string().optional(),
 });
+
+interface LocalSearchableSelectProps {
+    options: { value: string; label: string }[];
+    value?: string;
+    onValueChange: (value: string) => void;
+    placeholder?: string;
+}
+
+const LocalSearchableSelect: React.FC<LocalSearchableSelectProps> = ({
+    options,
+    value,
+    onValueChange,
+    placeholder = "Select option..."
+}) => {
+    const [open, setOpen] = React.useState(false);
+    const selectedLabel = options.find((opt) => opt.value === value)?.label;
+
+    return (
+        <Popover open={open} onOpenChange={setOpen}>
+            <PopoverTrigger asChild>
+                <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={open}
+                    className={cn(
+                        "w-full justify-between h-auto min-h-12 whitespace-normal py-2.5 text-left bg-muted/30 border-primary/10 hover:border-primary/30 font-medium transition-all focus:ring-2 focus:ring-primary/20",
+                        !value && "text-muted-foreground"
+                    )}
+                >
+                    <span className="flex-1">{selectedLabel || placeholder}</span>
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                </Button>
+            </PopoverTrigger>
+            <PopoverContent 
+                className="w-[--radix-popover-trigger-width] p-0 shadow-xl border-primary/10" 
+                align="start"
+                onWheel={(e) => e.stopPropagation()}
+                onTouchStart={(e) => e.stopPropagation()}
+            >
+                <Command className="w-full">
+                    <CommandInput placeholder={`Search ${placeholder.toLowerCase()}...`} className="h-11" />
+                    <CommandList className="max-h-[300px] overflow-y-auto custom-scrollbar">
+                        <CommandEmpty>No results found.</CommandEmpty>
+                        <CommandGroup>
+                            {options.map((opt) => (
+                                <CommandItem
+                                    key={opt.value}
+                                    value={opt.label + " " + opt.value}
+                                    onSelect={() => {
+                                        onValueChange(opt.value);
+                                        setOpen(false);
+                                    }}
+                                    className="py-3 px-4 cursor-pointer data-[selected=true]:bg-primary/5"
+                                >
+                                    <Check
+                                        className={cn(
+                                            "mr-2 h-4 w-4 text-primary",
+                                            value === opt.value ? "opacity-100" : "opacity-0"
+                                        )}
+                                    />
+                                    {opt.label}
+                                </CommandItem>
+                            ))}
+                        </CommandGroup>
+                    </CommandList>
+                </Command>
+            </PopoverContent>
+        </Popover>
+    );
+};
 
 type TaskFormValues = z.infer<typeof taskSchema>;
 
@@ -58,7 +143,7 @@ export const TaskForm: React.FC<TaskFormProps> = ({
             task_id: "",
             name: "",
             customer_id: "",
-            priority_level: "mid",
+            priority_level: "",
             remarks: "",
         }
     });
@@ -78,7 +163,7 @@ export const TaskForm: React.FC<TaskFormProps> = ({
                 task_id: "",
                 name: "",
                 customer_id: "",
-                priority_level: "mid",
+                priority_level: "",
                 remarks: "",
             });
         }
@@ -99,31 +184,71 @@ export const TaskForm: React.FC<TaskFormProps> = ({
         await onSubmit(payload as Partial<DailyActionPlan>);
     };
 
+    const onValidationError = () => {
+        toast.error("Please complete all required fields (*)", {
+            description: "Task Type, Brief Description, Target Customer, and Priority Level are required.",
+            duration: 4000,
+        });
+    };
+
     return (
-        <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-6">
+        <>
+            <style jsx global>{`
+                .custom-scrollbar::-webkit-scrollbar {
+                    width: 6px;
+                }
+                .custom-scrollbar::-webkit-scrollbar-track {
+                    background: transparent;
+                }
+                .custom-scrollbar::-webkit-scrollbar-thumb {
+                    background: rgba(var(--primary-rgb), 0.1);
+                    border-radius: 10px;
+                }
+                .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+                    background: rgba(var(--primary-rgb), 0.2);
+                }
+                .custom-scrollbar {
+                    scrollbar-width: thin;
+                    scrollbar-color: rgba(var(--primary-rgb), 0.1) transparent;
+                }
+            `}</style>
+            <form onSubmit={handleSubmit(handleFormSubmit, onValidationError)} className="space-y-6">
+            <div className="bg-orange-500/10 border border-orange-500/20 rounded-xl p-4 flex items-start gap-3 mb-6">
+                <AlertCircle className="w-5 h-5 text-orange-500 mt-0.5 shrink-0" />
+                <div className="space-y-1">
+                    <p className="text-xs font-bold text-orange-700 dark:text-orange-400 uppercase tracking-wider">Required Fields Notice</p>
+                    <p className="text-[11px] text-orange-600/80 dark:text-orange-400/60 font-medium">Please ensure all fields marked with an asterisk (<span className="text-red-500">*</span>) are completed before submission.</p>
+                </div>
+            </div>
+
             <div className="space-y-6">
                 <div className="space-y-2.5">
-                    <Label className="text-[11px] uppercase font-black tracking-[0.15em] text-primary/70">1. Select Task Type</Label>
+                    <Label className="text-[11px] uppercase font-black tracking-[0.15em] text-primary/70 flex items-center gap-1.5">
+                        1. Select Task Type
+                        <span className="text-red-500 text-lg leading-none">*</span>
+                    </Label>
                     <Controller
                         name="task_id"
                         control={control}
                         render={({ field }) => (
-                            <Select onValueChange={field.onChange} value={field.value}>
-                                <SelectTrigger className="bg-muted/30 border-primary/10 h-12 text-base">
-                                    <SelectValue placeholder="Select Task Type" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {tasks.map((t) => (
-                                        <SelectItem key={t.id} value={String(t.id)}>{t.name}</SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
+                            <LocalSearchableSelect
+                                options={tasks.map(t => ({ 
+                                    value: String(t.id), 
+                                    label: t.name 
+                                }))}
+                                value={field.value}
+                                onValueChange={field.onChange}
+                                placeholder="Select Task Type"
+                            />
                         )}
                     />
                 </div>
 
                 <div className="space-y-2.5">
-                    <Label className="text-[11px] uppercase font-black tracking-[0.15em] text-primary/70">2. Brief Description</Label>
+                    <Label className="text-[11px] uppercase font-black tracking-[0.15em] text-primary/70 flex items-center gap-1.5">
+                        2. Brief Description
+                        <span className="text-red-500 text-lg leading-none">*</span>
+                    </Label>
                     <Controller
                         name="name"
                         control={control}
@@ -131,45 +256,52 @@ export const TaskForm: React.FC<TaskFormProps> = ({
                             <Input 
                                 {...field} 
                                 placeholder="e.g., Client Visit or Store Audit" 
-                                className="bg-muted/30 border-primary/10 h-12 text-base"
+                                className="bg-muted/30 border-primary/10 h-12 text-base focus:ring-primary/20"
                             />
                         )}
                     />
                 </div>
 
                 <div className="space-y-2.5">
-                    <Label className="text-[11px] uppercase font-black tracking-[0.15em] text-primary/70">3. Target Customer</Label>
+                    <Label className="text-[11px] uppercase font-black tracking-[0.15em] text-primary/70 flex items-center gap-1.5">
+                        3. Target Customer
+                        <span className="text-red-500 text-lg leading-none">*</span>
+                    </Label>
                     <Controller
                         name="customer_id"
                         control={control}
                         render={({ field }) => (
-                            <Select onValueChange={field.onChange} value={field.value}>
-                                <SelectTrigger className="bg-muted/30 border-primary/10 h-12 text-base">
-                                    <SelectValue placeholder="Select Customer" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {customers.map((c) => (
-                                        <SelectItem key={c.id} value={String(c.id)}>
-                                            {c.store_name}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
+                            <LocalSearchableSelect
+                                options={customers.map(c => ({ 
+                                    value: String(c.id), 
+                                    label: `${c.store_name} (${c.customer_name})`
+                                }))}
+                                value={field.value}
+                                onValueChange={field.onChange}
+                                placeholder="Select Customer"
+                            />
                         )}
                     />
                 </div>
 
                 <div className="space-y-2.5">
-                    <Label className="text-[11px] uppercase font-black tracking-[0.15em] text-primary/70">4. Priority Level</Label>
+                    <Label className="text-[11px] uppercase font-black tracking-[0.15em] text-primary/70 flex items-center gap-1.5">
+                        4. Priority Level
+                        <span className="text-red-500 text-lg leading-none">*</span>
+                    </Label>
                     <Controller
                         name="priority_level"
                         control={control}
                         render={({ field }) => (
-                            <Select onValueChange={field.onChange} value={field.value}>
+                            <Select onValueChange={field.onChange} value={field.value || ""}>
                                 <SelectTrigger className="bg-muted/30 border-primary/10 h-12 text-base">
                                     <SelectValue placeholder="Set priority" />
                                 </SelectTrigger>
-                                <SelectContent>
+                                <SelectContent 
+                                    className="max-h-[300px] overflow-y-auto shadow-xl custom-scrollbar"
+                                    onWheel={(e) => e.stopPropagation()}
+                                    onTouchStart={(e) => e.stopPropagation()}
+                                >
                                     <SelectItem value="low">
                                         <div className="flex items-center gap-2">
                                             <div className="w-2 h-2 rounded-full bg-blue-500" />
@@ -238,5 +370,6 @@ export const TaskForm: React.FC<TaskFormProps> = ({
                 </div>
             </div>
         </form>
+    </>
     );
 };

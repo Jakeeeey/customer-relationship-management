@@ -39,8 +39,8 @@ export const TaskDialog: React.FC<TaskDialogProps> = ({
 }) => {
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
-            <DialogContent className="max-w-xl p-0 overflow-hidden border-none shadow-2xl bg-gradient-to-br from-card to-card/95">
-                <div className="bg-primary/5 p-6 border-b border-primary/10">
+            <DialogContent className="sm:max-w-xl w-[95dvw] max-h-[90dvh] p-0 flex flex-col overflow-hidden border-none shadow-2xl bg-gradient-to-br from-card to-card/95">
+                <div className="bg-primary/5 p-6 border-b border-primary/10 shrink-0">
                     <DialogTitle className="text-2xl font-bold tracking-tight text-primary">
                         {initialData ? "Update Task Assignment" : "New Task Assignment"}
                     </DialogTitle>
@@ -50,17 +50,19 @@ export const TaskDialog: React.FC<TaskDialogProps> = ({
                     </p>
                 </div>
 
-                <div className="p-6">
-                    <TaskForm
-                        initialData={initialData}
-                        tasks={tasks}
-                        customers={customers}
-                        selectedSalesmanId={selectedSalesmanId}
-                        selectedEmployeeId={selectedEmployeeId}
-                        selectedDate={selectedDate}
-                        onSubmit={onSubmit}
-                        onDelete={onDelete}
-                    />
+                <div className="flex-1 overflow-y-auto min-h-0 custom-scrollbar overscroll-contain">
+                    <div className="p-6">
+                        <TaskForm
+                            initialData={initialData}
+                            tasks={tasks}
+                            customers={customers}
+                            selectedSalesmanId={selectedSalesmanId}
+                            selectedEmployeeId={selectedEmployeeId}
+                            selectedDate={selectedDate}
+                            onSubmit={onSubmit}
+                            onDelete={onDelete}
+                        />
+                    </div>
                 </div>
             </DialogContent>
         </Dialog>
