@@ -425,7 +425,8 @@ export function SalesOrderDetailsModal({
                                                 <TableHead className="text-right uppercase text-[9px] font-black text-[#94A3B8] tracking-widest">Unit Price</TableHead>
                                                 <TableHead className="text-right uppercase text-[9px] font-black text-[#94A3B8] tracking-widest">Gross Total</TableHead>
                                                 <TableHead className="text-center uppercase text-[9px] font-black text-[#94A3B8] tracking-widest">Discounts</TableHead>
-                                                <TableHead className="text-right pr-4 sm:pr-8 uppercase text-[9px] font-black text-[#0EA5E9] tracking-widest">Net Total</TableHead>
+                                                <TableHead className="text-right uppercase text-[9px] font-black text-emerald-500 tracking-widest">Alloc. Amt</TableHead>
+                                                <TableHead className="text-right pr-4 sm:pr-8 uppercase text-[9px] font-black text-[#0EA5E9] tracking-widest text-[#0EA5E9]">Net Total</TableHead>
                                             </TableRow>
                                         </TableHeader>
                                         <TableBody>
@@ -452,14 +453,11 @@ export function SalesOrderDetailsModal({
                                                 </TableRow>
                                             ) : (
                                                 details.map((li, idx) => {
-                                                    // PRIORITIZE Database gross_amount (which should be allocated) fallback to UnitPrice * AllocQty
+                                                    // Direct DB Fetches for accuracy (Ordered vs Allocated)
                                                     const isAllocated = Number(li.allocated_quantity || 0) > 0;
-                                                    const itemGross = isAllocated
-                                                        ? (Number(li.gross_amount) || (Number(li.unit_price) * Number(li.allocated_quantity) || 0))
-                                                        : 0;
-                                                    const itemNet = isAllocated
-                                                        ? (Number(li.net_amount) || (itemGross - Number(li.discount_amount || 0)))
-                                                        : 0;
+                                                    const itemGross = Number(li.gross_amount) || (Number(li.unit_price) * Number(li.ordered_quantity) || 0);
+                                                    const itemNet = Number(li.net_amount) || (itemGross - Number(li.discount_amount || 0));
+                                                    const itemAllocAmount = Number(li.allocated_amount) || 0;
 
                                                     return (
                                                         <TableRow key={li.detail_id || idx} className="hover:bg-slate-50/50 transition-colors border-slate-50 group">
@@ -492,6 +490,9 @@ export function SalesOrderDetailsModal({
                                                                 <span className="inline-flex px-1.5 py-0.5 rounded bg-rose-50 text-rose-500 font-black text-[9px] border border-rose-100">
                                                                     {isAllocated ? (li.discount_type || "none") : "none"}
                                                                 </span>
+                                                            </TableCell>
+                                                            <TableCell className="text-right font-black text-emerald-600 font-mono text-[11px] sm:text-xs tabular-nums">
+                                                                {formatCurrency(itemAllocAmount)}
                                                             </TableCell>
                                                             <TableCell className="text-right pr-4 sm:pr-8 font-black text-[#0EA5E9] font-mono text-[13px] sm:text-base tabular-nums">
                                                                 {formatCurrency(itemNet)}
@@ -545,6 +546,16 @@ export function SalesOrderDetailsModal({
                                                     <div className="flex items-baseline gap-1 leading-none">
                                                         <span className="text-[10px] sm:text-[14px] font-black text-[#0EA5E9] tabular-nums tracking-tighter">
                                                             {formatCurrency(totalNet)}
+                                                        </span>
+                                                    </div>
+                                                </div>
+
+                                                {/* New: Allocated Total */}
+                                                <div className="flex flex-col gap-0.5 min-w-0 bg-emerald-50 px-3 py-1 rounded-lg border border-emerald-100">
+                                                    <p className="text-[8px] sm:text-[9px] text-emerald-500 uppercase font-black tracking-widest leading-none">Allocated Total</p>
+                                                    <div className="flex items-baseline gap-1 leading-none">
+                                                        <span className="text-[10px] sm:text-[14px] font-black text-emerald-600 tabular-nums tracking-tighter">
+                                                            {formatCurrency(details.reduce((sum, li) => sum + (Number(li.allocated_amount) || 0), 0))}
                                                         </span>
                                                     </div>
                                                 </div>

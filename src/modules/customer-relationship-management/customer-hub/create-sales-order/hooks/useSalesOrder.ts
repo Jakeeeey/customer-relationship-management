@@ -584,8 +584,6 @@ export function useSalesOrder() {
             return;
         }
 
-
-
         const id = Math.random().toString(36).substr(2, 9);
         const basePrice = Number(product.base_price) || 0;
         const discounts = product.discounts || [];
@@ -670,15 +668,15 @@ export function useSalesOrder() {
     }, [lineItems]);
 
     const summary = useMemo(() => {
-        // Ordered totals (Base sa buong order na kinuha)
+        // --- ORDERED TOTALS (The Customer's Request) ---
         const orderedGross = lineItems.reduce((sum, item) => sum + (item.unitPrice * item.quantity), 0);
         const orderedNet = lineItems.reduce((sum, item) => {
-            const netPrice = calculateChainNetPrice(item.unitPrice, item.discounts);
-            return sum + (netPrice * item.quantity);
+            const netPricePerUnit = calculateChainNetPrice(item.unitPrice, item.discounts);
+            return sum + (netPricePerUnit * item.quantity);
         }, 0);
-        // const orderedDiscount = orderedGross - orderedNet;
+        const orderedDiscount = Math.max(0, orderedGross - orderedNet);
 
-        // Allocated totals (Base lang sa kung ano ang ibibigay o "allocated")
+        // --- ALLOCATED TOTALS (The Fulfillment Reality) ---
         const allocatedGross = lineItems.reduce((sum, item) => {
             const qty = allocatedQuantities[item.id] !== undefined ? allocatedQuantities[item.id] : item.quantity;
             return sum + (item.unitPrice * qty);
@@ -686,38 +684,33 @@ export function useSalesOrder() {
 
         const allocatedNet = lineItems.reduce((sum, item) => {
             const qty = allocatedQuantities[item.id] !== undefined ? allocatedQuantities[item.id] : item.quantity;
-            // Exact Mapping: If qty matches saved allocation, use saved net amount
-            if (item.savedAllocatedQty !== undefined && qty === item.savedAllocatedQty && item.savedNetAmount !== undefined) {
+            
+            // Priority: If this is an existing order and we have saved DB values that match current allocation, preserve them
+            if (item.savedAllocatedQty !== undefined && qty === item.savedAllocatedQty && item.savedNetAmount !== undefined && item.savedNetAmount > 0) {
                 return sum + item.savedNetAmount;
             }
-            const netPrice = calculateChainNetPrice(item.unitPrice, item.discounts);
-            return sum + (netPrice * qty);
+            
+            const netPricePerUnit = calculateChainNetPrice(item.unitPrice, item.discounts);
+            return sum + (netPricePerUnit * qty);
         }, 0);
 
-        const allocatedDiscount = lineItems.reduce((sum, item) => {
-            const qty = allocatedQuantities[item.id] !== undefined ? allocatedQuantities[item.id] : item.quantity;
-            // Exact Mapping: If qty matches saved allocation, use saved discount amount
-            if (item.savedAllocatedQty !== undefined && qty === item.savedAllocatedQty && item.savedDiscountAmount !== undefined) {
-                return sum + item.savedDiscountAmount;
-            }
-            const gross = item.unitPrice * qty;
-            const net = calculateChainNetPrice(item.unitPrice, item.discounts) * qty;
-            return sum + (gross - net);
-        }, 0);
+        const allocatedDiscount = Math.max(0, allocatedGross - allocatedNet);
 
+        // Financial Ratios for display (VAT)
         const vattableSales = allocatedNet / 1.12;
         const vatAmount = allocatedNet - vattableSales;
 
         return {
-            totalAmount: orderedNet, // Ito ang ipapasa sa total_amount sa API (Ordered Net)
-            netAmount: orderedNet,
+            totalAmount: orderedGross, // Total Gross requested
+            netAmount: orderedNet,    // Total Net requested
+            discountAmount: orderedDiscount, // Total Discount requested
             orderedGross,
             orderedNet,
+            orderedDiscount,
             allocatedGross,
             allocatedNet,
             allocatedDiscount,
-            allocatedAmount: allocatedNet,
-            discountAmount: allocatedDiscount, // Ito ang ipapasa sa discount_amount sa API (Allocated Discount)
+            allocatedAmount: allocatedNet, // Total Net allocated (to be billed)
             vattableSales,
             vatAmount
         };
@@ -814,9 +807,9 @@ export function useSalesOrder() {
                 po_no: poNo,
                 due_date: dueDate,
                 delivery_date: deliveryDate,
-                total_amount: summary.orderedNet,
-                discount_amount: summary.allocatedDiscount,
-                net_amount: summary.allocatedNet,
+                total_amount: summary.orderedGross,
+                discount_amount: summary.orderedDiscount,
+                net_amount: summary.orderedNet,
                 allocated_amount: summary.allocatedNet,
                 order_no: orderNo,
                 order_status: finalStatus,

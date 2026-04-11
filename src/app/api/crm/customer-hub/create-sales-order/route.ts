@@ -740,27 +740,25 @@ export async function POST(req: NextRequest) {
         const lineItemsPayload = items.map((item: IncomingLineItem, idx: number) => {
             const unitPrice = Number(item.unitPrice) || 0;
             const orderedQty = Number(item.quantity) || 0;
-            
-            // Direct read from payload -- no guessing
             const allocatedQty = Number(item.allocated_quantity) || 0;
 
-            console.log(`[CreateSalesOrder] INCOMING item[${idx}]: PID=${item.product?.product_id}, unitPrice=${unitPrice}, orderedQty=${orderedQty}, allocated_quantity=${item.allocated_quantity}, parsed=${allocatedQty}, discountType=${item.discountType || item.product?.discount_type}`);
-
+            // Ordered Metrics (The "Intent")
             const orderedGross = unitPrice * orderedQty;
             const orderedNetAmount = Number(item.netAmount) || orderedGross;
             const totalDiscountOrdered = Math.max(0, orderedGross - orderedNetAmount);
+            
+            // Per-Unit Discount (for proportional allocation calculation)
             const unitDiscount = orderedQty > 0 ? totalDiscountOrdered / orderedQty : 0;
 
-            const allocatedDiscount = Math.max(0, unitDiscount * allocatedQty);
-            const allocatedGross = Math.max(0, unitPrice * allocatedQty);
-            const netAmountLine = Math.max(0, allocatedGross - allocatedDiscount);
-            const allocatedAmountLine = netAmountLine;
+            // Allocated Metrics (The "Reality")
+            const allocatedGross = unitPrice * allocatedQty;
+            const allocatedDiscount = unitDiscount * allocatedQty;
+            const allocatedAmountLine = Math.max(0, allocatedGross - allocatedDiscount);
 
-            // Resolve discount_type: prefer numeric ID from product, fallback to discountType string if numeric
             const resolvedDiscountType = item.product?.discount_type
                 || (typeof item.discountType === 'string' && !isNaN(Number(item.discountType)) ? Number(item.discountType) : null);
 
-            console.log(`[CreateSalesOrder] SAVING item[${idx}]: PID=${item.product?.product_id}, allocQty=${allocatedQty}, disc=${allocatedDiscount}, net=${netAmountLine}, discType=${resolvedDiscountType}`);
+            console.log(`[CreateSalesOrder] SAVING item[${idx}]: PID=${item.product?.product_id}, ordQty=${orderedQty}, allocQty=${allocatedQty}, ordGross=${orderedGross}, ordNet=${orderedNetAmount}, allocAmt=${allocatedAmountLine.toFixed(2)}`);
 
             return {
                 detail_id: item.detail_id,
@@ -772,21 +770,19 @@ export async function POST(req: NextRequest) {
                 allocated_quantity: allocatedQty,
                 served_quantity: 0,
                 discount_type: resolvedDiscountType,
-                discount_amount: allocatedDiscount,
-                gross_amount: allocatedGross,
-                net_amount: netAmountLine,
-                allocated_amount: allocatedAmountLine,
+                discount_amount: totalDiscountOrdered, // Base sa ordered
+                gross_amount: orderedGross,           // Base sa ordered
+                net_amount: orderedNetAmount,         // Base sa ordered
+                allocated_amount: allocatedAmountLine, // Base sa allocated
                 uom: item.uom || null,
-                remarks: item.remarks || "",
-                _ordered_gross: orderedGross,
-                _ordered_discount: totalDiscountOrdered
+                remarks: item.remarks || ""
             };
         });
 
-        const computedTotalAmount = lineItemsPayload.reduce((sum: number, li: { _ordered_gross: number; _ordered_discount: number }) => sum + (li._ordered_gross - li._ordered_discount), 0);
-        const computedDiscountAmount = Math.max(0, lineItemsPayload.reduce((sum: number, li: { discount_amount: number }) => sum + li.discount_amount, 0));
-        const computedNetAmount = Math.max(0, lineItemsPayload.reduce((sum: number, li: { net_amount: number }) => sum + li.net_amount, 0));
-        const computedAllocatedAmount = Math.max(0, lineItemsPayload.reduce((sum: number, li: { allocated_amount: number }) => sum + li.allocated_amount, 0));
+        const computedTotalAmount = lineItemsPayload.reduce((sum: number, li: { gross_amount: number }) => sum + li.gross_amount, 0);
+        const computedDiscountAmount = lineItemsPayload.reduce((sum: number, li: { discount_amount: number }) => sum + li.discount_amount, 0);
+        const computedNetAmount = lineItemsPayload.reduce((sum: number, li: { net_amount: number }) => sum + li.net_amount, 0);
+        const computedAllocatedAmount = lineItemsPayload.reduce((sum: number, li: { allocated_amount: number }) => sum + li.allocated_amount, 0);
 
         const hasZeroAllocation = lineItemsPayload.some((item: { allocated_quantity: number }) => item.allocated_quantity === 0);
         // Prioritize manual choice from modal if available

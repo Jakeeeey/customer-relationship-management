@@ -19,15 +19,16 @@ interface SalesOrderCheckoutProps {
     allocatedQuantities: Record<string, number>;
     updateAllocatedQty: (id: string, qty: number) => void;
     summary: {
-        totalAmount: number;
-        netAmount: number;
-        discountAmount: number;
-        allocatedAmount: number;
+        totalAmount: number;     // Ordered Gross
+        netAmount: number;       // Ordered Net
+        discountAmount: number;  // Ordered Discount
         orderedGross: number;
         orderedNet: number;
+        orderedDiscount: number;
         allocatedGross: number;
         allocatedNet: number;
         allocatedDiscount: number;
+        allocatedAmount: number; // Allocated Net
         vattableSales: number;
         vatAmount: number;
     };
@@ -287,13 +288,13 @@ export function SalesOrderCheckout({
                                     </div>
                                     <div className="flex flex-col md:flex-row md:items-center gap-10">
                                         <div className="flex flex-col">
-                                            <span className="text-xs text-slate-400 font-bold uppercase tracking-wider">Gross Amount</span>
-                                            <span className="text-xl font-bold tabular-nums">{formatCurrency(summary.orderedGross)}</span>
+                                            <span className="text-xs text-slate-400 font-bold uppercase tracking-wider">Gross Total</span>
+                                            <span className="text-xl font-bold tabular-nums text-slate-300">{formatCurrency(summary.orderedNet)}</span>
                                         </div>
                                         <div className="flex flex-col">
                                             <div className="flex flex-col">
-                                                <span className="text-xs text-amber-500 font-bold uppercase tracking-wider">Total</span>
-                                                <span className="text-[10px] text-slate-500 font-bold uppercase">Discount</span>
+                                                <span className="text-xs text-amber-500 font-bold uppercase tracking-wider">Discount</span>
+                                                {/* <span className="text-[10px] text-slate-500 font-bold uppercase">Discount</span> */}
                                             </div>
                                             <span className="text-xl font-bold tabular-nums text-amber-500">-{formatCurrency(summary.allocatedDiscount)}</span>
                                         </div>
@@ -302,7 +303,7 @@ export function SalesOrderCheckout({
                                             <span className="text-lg font-bold tabular-nums opacity-60">{formatCurrency(summary.vatAmount)}</span>
                                         </div>
                                         <div className="flex flex-col ml-auto bg-primary/10 p-5 rounded-2xl border border-primary/20 backdrop-blur-xl">
-                                            <span className="text-[10px] text-primary font-black uppercase tracking-[0.2em] mb-1">Net Amount</span>
+                                            <span className="text-[10px] text-primary font-black uppercase tracking-[0.2em] mb-1">Allocated Amount</span>
                                             <span className="text-4xl font-black text-emerald-400 tabular-nums tracking-tighter tabular-nums underline underline-offset-[12px] decoration-emerald-500/30">
                                                 {formatCurrency(summary.allocatedNet)}
                                             </span>

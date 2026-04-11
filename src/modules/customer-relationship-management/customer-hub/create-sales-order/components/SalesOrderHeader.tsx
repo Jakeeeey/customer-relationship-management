@@ -376,7 +376,8 @@ export function SalesOrderHeader({
                             placeholder="Days" 
                             value={paymentTerms ?? ""} 
                             onChange={(e) => onPaymentTermsChange(e.target.value ? parseInt(e.target.value) : null)} 
-                            className="pl-9 h-9 text-xs border-sky-100 bg-sky-50/20 focus-visible:ring-sky-500" 
+                            className="pl-9 h-9 text-xs border-sky-100 bg-sky-50/20 focus-visible:ring-sky-500 opacity-80 cursor-not-allowed" 
+                            disabled
                         />
                     </div>
                 </div>
