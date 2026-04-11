@@ -1001,7 +1001,7 @@ export async function POST(req: NextRequest) {
                 const attachInfoRes = await fetch(`${DIRECTUS_URL}/items/sales_order_attachment/${header.attachment_id}?fields=sales_order_id,sales_order_no`, {
                     headers: fetchHeaders
                 });
-                
+
                 let targetKeys: (string | number)[] = [header.attachment_id];
 
                 if (attachInfoRes.ok) {
@@ -1013,13 +1013,13 @@ export async function POST(req: NextRequest) {
                     } else if (attachInfo?.sales_order_no) {
                         filterOptions.sales_order_no = { _eq: attachInfo.sales_order_no };
                     }
-                    
+
                     if (Object.keys(filterOptions).length > 0) {
                         const filterValues = JSON.stringify(filterOptions);
                         const groupRes = await fetch(`${DIRECTUS_URL}/items/sales_order_attachment?filter=${filterValues}&fields=id&limit=-1`, {
                             headers: fetchHeaders
                         });
-                        
+
                         if (groupRes.ok) {
                             const groupJson = await groupRes.json();
                             if (groupJson.data && groupJson.data.length > 0) {
@@ -1049,7 +1049,7 @@ export async function POST(req: NextRequest) {
                 } else {
                     const attachErr = await attachRes.text();
                     console.error(`[CreateSalesOrder] Attachment Update FAILED for keys [${targetKeys.join(", ")}]:`, attachErr);
-                    
+
                     // Fallback to updating just the single one if BULK fails
                     await fetch(`${DIRECTUS_URL}/items/sales_order_attachment/${header.attachment_id}`, {
                         method: "PATCH",

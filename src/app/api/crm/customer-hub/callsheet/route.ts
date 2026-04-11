@@ -135,7 +135,7 @@ export async function GET(req: NextRequest) {
         }));
 
         // Grouping logic based on sales_order_id or sales_order_no
-        const groupedMap = new Map<string, any>();
+        const groupedMap = new Map<string, Record<string, unknown>>();
 
         for (const item of enriched) {
             const groupKey = item.sales_order_id ? `id_${item.sales_order_id}` : `no_${item.sales_order_no}`;
@@ -149,11 +149,13 @@ export async function GET(req: NextRequest) {
                 });
             } else {
                 const existing = groupedMap.get(groupKey);
-                if (item.file_id) {
-                    existing.related_attachments.push({
-                        file_id: item.file_id,
-                        attachment_name: item.attachment_name
+                if (existing && item.file_id) {
+                    const related = (existing.related_attachments as { file_id: number; attachment_name: string }[]) || [];
+                    related.push({
+                        file_id: item.file_id as number,
+                        attachment_name: item.attachment_name as string
                     });
+                    existing.related_attachments = related;
                 }
             }
         }

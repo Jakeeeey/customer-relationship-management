@@ -44,7 +44,6 @@ export function ApprovalModal({
     onHold,
     onCancel,
     onSubmitForApproval,
-    onSaveDetails
 }: ApprovalModalProps) {
     const [details, setDetails] = useState<OrderDetail[]>([]);
     const [freshOrder, setFreshOrder] = useState<SalesOrder | null>(null);

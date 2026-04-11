@@ -159,7 +159,7 @@ export function useSalesOrder() {
 
                     if (attachmentId) {
                         const attachment = await fetch(`/api/crm/customer-hub/create-sales-order?action=get_attachment&id=${attachmentId}`).then(r => r.json());
-                        
+
                         if (attachment) {
                             if (attachment.sales_order_id) {
                                 finalSalesOrderId = attachment.sales_order_id.toString();
@@ -177,7 +177,7 @@ export function useSalesOrder() {
                         // PRE-FILL METADATA (Only if no existing order was resolved)
                         if (!finalSalesOrderId && attachment) {
                             console.log(`[useSalesOrder] New attachment detected. Initializing with: ${attachment.customer_code} | Ref: ${attachment.sales_order_no}`);
-                            
+
                             // Initialize the Order Reference so it matches the group
                             if (attachment.sales_order_no) setExistingOrderNo(attachment.sales_order_no);
 
@@ -189,7 +189,7 @@ export function useSalesOrder() {
                                     const targetCustId = custs[0].id.toString();
                                     setSelectedCustomerId(targetCustId);
                                     if (custs[0].payment_term !== undefined) setPaymentTerms(custs[0].payment_term);
-                                    
+
                                     console.log(`[useSalesOrder] Auto-selected Customer: ${custs[0].customer_name} (ID: ${targetCustId})`);
 
                                     // Resolve salesman/account from customer linkage
@@ -208,9 +208,9 @@ export function useSalesOrder() {
                                                 const sIdStr = sId.toString();
                                                 setSelectedAccountId(sIdStr);
                                                 console.log(`[useSalesOrder] Auto-selected Account ID: ${sIdStr}`);
-                                                
+
                                                 // Trigger price type from account
-                                                const account = accts.find((a: any) => a.id.toString() === sIdStr);
+                                                const account = accts.find((a: Salesman) => a.id.toString() === sIdStr);
                                                 if (account) {
                                                     setPriceType(account.price_type || "A");
                                                     setPriceTypeId(account.price_type_id || null);

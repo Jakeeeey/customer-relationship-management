@@ -36,7 +36,7 @@ export default async function DocumentViewerPage(props: {
             if (res.ok) {
                 const json = await res.json();
                 if (json.data && json.data.length > 0) {
-                    attachmentsList = json.data.filter((a: any) => a.file_id).map((a: any) => ({
+                    attachmentsList = json.data.filter((a: { id: number; file_id: number; attachment_name: string }) => a.file_id).map((a: { id: number; file_id: number; attachment_name: string }) => ({
                         name: a.attachment_name || "Attachment",
                         url: `/api/crm/customer-hub/callsheet/file?id=${a.file_id}&filename=${encodeURIComponent(a.attachment_name || "Attachment")}`
                     }));
