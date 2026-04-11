@@ -134,6 +134,32 @@ export async function GET(req: NextRequest) {
             customer_name: customerMap.get(row.customer_code as string) ?? row.customer_code,
         }));
 
+        // Grouping logic based on sales_order_id or sales_order_no
+        const groupedMap = new Map<string, any>();
+
+        for (const item of enriched) {
+            const groupKey = item.sales_order_id ? `id_${item.sales_order_id}` : `no_${item.sales_order_no}`;
+            if (!groupedMap.has(groupKey)) {
+                groupedMap.set(groupKey, {
+                    ...item,
+                    related_attachments: item.file_id ? [{
+                        file_id: item.file_id,
+                        attachment_name: item.attachment_name
+                    }] : []
+                });
+            } else {
+                const existing = groupedMap.get(groupKey);
+                if (item.file_id) {
+                    existing.related_attachments.push({
+                        file_id: item.file_id,
+                        attachment_name: item.attachment_name
+                    });
+                }
+            }
+        }
+
+        const groupedCallsheets = Array.from(groupedMap.values());
+
         // Sort filter options safely
         const sortedSalesmen = [...salesmen].sort((a, b) => 
             (a.salesman_name || "").localeCompare(b.salesman_name || "")
@@ -143,7 +169,7 @@ export async function GET(req: NextRequest) {
         );
 
         return NextResponse.json({
-            callsheets: enriched,
+            callsheets: groupedCallsheets,
             metadata: {
                 total_count: attachmentJson.meta?.total_count || 0,
                 filter_count: attachmentJson.meta?.filter_count ?? attachmentJson.meta?.total_count ?? 0,

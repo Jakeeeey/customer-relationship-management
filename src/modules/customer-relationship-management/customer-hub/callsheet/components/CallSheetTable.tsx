@@ -205,7 +205,22 @@ export function CallSheetTable({
                                                             </Tooltip>
                                                         )}
                                                     </div>
-                                                    {row.file_id ? (
+                                                    {(row.related_attachments && row.related_attachments.length > 0) ? (
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="sm"
+                                                            className="h-auto w-fit px-0 py-0 font-bold text-[11px] text-muted-foreground hover:text-primary hover:bg-transparent group/file"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                handleViewDocument(row.related_attachments![0].file_id || "", row.related_attachments![0].attachment_name || "");
+                                                            }}
+                                                        >
+                                                            <FileText className="h-3 w-3 mr-1.5 transition-transform group-hover/file:scale-110" />
+                                                            <span className="truncate max-w-[150px] group-hover/file:underline decoration-primary underline-offset-4">
+                                                                {row.related_attachments.length} Attachment{row.related_attachments.length > 1 ? "s" : ""}
+                                                            </span>
+                                                        </Button>
+                                                    ) : row.file_id ? (
                                                         <Button
                                                             variant="ghost"
                                                             size="sm"

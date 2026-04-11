@@ -189,13 +189,13 @@ export function AppSidebar({
                     items: l1.items.map((l2) => {
                         const newL2 = { ...l2 };
                         if (l2.title === "Sales Order Draft" && counts.draft > 0) {
-                            (newL2 as typeof newL2 & { badge?: number }).badge = counts.draft;
+                            // (newL2 as typeof newL2 & { badge?: number }).badge = counts.draft;
                         }
                         if (l2.title === "Sales Order Approval" && counts.approval > 0) {
-                            (newL2 as typeof newL2 & { badge?: number }).badge = counts.approval;
+                            // (newL2 as typeof newL2 & { badge?: number }).badge = counts.approval;
                         }
                         if (l2.title === "Callsheet" && counts.callsheet > 0) {
-                            (newL2 as typeof newL2 & { badge?: number }).badge = counts.callsheet;
+                            // (newL2 as typeof newL2 & { badge?: number }).badge = counts.callsheet;
                         }
                         return newL2;
                     })

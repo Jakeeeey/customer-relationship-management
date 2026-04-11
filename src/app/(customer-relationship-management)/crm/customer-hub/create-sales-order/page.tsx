@@ -82,14 +82,14 @@ export default async function Page(props: {
 
     const headerUser = buildHeaderUserFromToken(token);
 
-    let fileUrl = null;
+    let documentViewerUrl: string | null = null;
 
     if (attachmentId) {
         try {
             const DIRECTUS_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
             const DIRECTUS_TOKEN = process.env.DIRECTUS_STATIC_TOKEN;
 
-            const res = await fetch(`${DIRECTUS_URL}/items/sales_order_attachment/${attachmentId}?fields=file_id,attachment_name`, {
+            const res = await fetch(`${DIRECTUS_URL}/items/sales_order_attachment/${attachmentId}?fields=sales_order_id,sales_order_no`, {
                 headers: {
                     Authorization: `Bearer ${DIRECTUS_TOKEN}`,
                     "Content-Type": "application/json"
@@ -100,9 +100,13 @@ export default async function Page(props: {
             if (res.ok) {
                 const json = await res.json();
                 const attachment = json.data;
-                if (attachment?.file_id) {
-                    const encodedName = encodeURIComponent(attachment.attachment_name);
-                    fileUrl = `/api/crm/customer-hub/callsheet/file?id=${attachment.file_id}&filename=${encodedName}`;
+                
+                if (attachment?.sales_order_id) {
+                    documentViewerUrl = `/crm/document-viewer?sales_order_id=${attachment.sales_order_id}`;
+                } else if (attachment?.sales_order_no) {
+                    documentViewerUrl = `/crm/document-viewer?sales_order_no=${encodeURIComponent(attachment.sales_order_no)}`;
+                } else {
+                    documentViewerUrl = `/crm/document-viewer?attachment_id=${attachmentId}`;
                 }
             }
         } catch (e) {
@@ -147,7 +151,7 @@ export default async function Page(props: {
 
             {/* ✅ Only content scrolls inside RIGHT column */}
             <main className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden p-6 sm:p-8">
-                <CreateSalesOrderModule fileUrl={fileUrl} />
+                <CreateSalesOrderModule documentViewerUrl={documentViewerUrl} />
             </main>
         </div>
     );
