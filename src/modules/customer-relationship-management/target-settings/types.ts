@@ -5,8 +5,10 @@ export interface TargetSetting {
     new_accounts: number;
     productive_outlets: number;
     line_sales: number;
+    line_sales_target?: number;
     frequency: number;
     basket_count: number;
+    basket_count_target?: number;
     tactica_sku?: number; // Total count of tactical SKUs
     reach: number;
     date_range_from: string;
@@ -86,8 +88,10 @@ export interface TargetFormData {
     new_accounts: number;
     productive_outlets: number;
     line_sales: number;
+    line_sales_target: number;
     frequency: number;
     basket_count: number;
+    basket_count_target: number;
     reach: number;
     tactical_skus: {
         product_id: number;
