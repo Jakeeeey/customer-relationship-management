@@ -138,11 +138,11 @@ export default function SalesOrderDraftModule() {
                     <Table>
                         <TableHeader className="bg-muted/40 border-b border-border">
                             <TableRow className="hover:bg-transparent">
-                                <TableHead className="h-11 uppercase text-[10px] font-black text-muted-foreground tracking-widest pl-6">Order Entry</TableHead>
-                                <TableHead className="h-11 uppercase text-[10px] font-black text-muted-foreground tracking-widest whitespace-nowrap">PO Reference</TableHead>
-                                <TableHead className="h-11 uppercase text-[10px] font-black text-muted-foreground tracking-widest">Customer Entity</TableHead>
+                                <TableHead className="h-11 uppercase text-[10px] font-black text-muted-foreground tracking-widest pl-6">Order No</TableHead>
+                                <TableHead className="h-11 uppercase text-[10px] font-black text-muted-foreground tracking-widest whitespace-nowrap">PO No</TableHead>
+                                <TableHead className="h-11 uppercase text-[10px] font-black text-muted-foreground tracking-widest">Customer</TableHead>
                                 <TableHead className="h-11 uppercase text-[10px] font-black text-muted-foreground tracking-widest">Draft Date</TableHead>
-                                <TableHead className="text-right h-11 uppercase text-[10px] font-black text-muted-foreground tracking-widest">Gross Total</TableHead>
+                                <TableHead className="text-right h-11 uppercase text-[10px] font-black text-muted-foreground tracking-widest">Total Amount</TableHead>
                                 <TableHead className="text-right h-11 uppercase text-[10px] font-black text-muted-foreground tracking-widest w-[120px]">Allocation</TableHead>
                                 <TableHead className="text-right h-11 uppercase text-[10px] font-black text-muted-foreground tracking-widest pr-6 w-[100px]">Action</TableHead>
                             </TableRow>
@@ -194,7 +194,7 @@ export default function SalesOrderDraftModule() {
                                         </TableCell>
                                         <TableCell className="text-right">
                                             <div className="flex flex-col items-end">
-                                                <span className="text-primary font-black text-base tabular-nums leading-none">{formatCurrency(order.net_amount)}</span>
+                                                <span className="text-primary font-black text-base tabular-nums leading-none">{formatCurrency(order.allocated_amount || 0)}</span>
                                                 <Badge variant="outline" className="text-[8px] h-4 mt-1 bg-primary/5 text-primary border-primary/10 uppercase font-black">Partial Draft</Badge>
                                             </div>
                                         </TableCell>
