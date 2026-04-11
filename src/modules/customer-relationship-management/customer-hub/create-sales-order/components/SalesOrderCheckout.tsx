@@ -288,24 +288,23 @@ export function SalesOrderCheckout({
                                     </div>
                                     <div className="flex flex-col md:flex-row md:items-center gap-10">
                                         <div className="flex flex-col">
-                                            <span className="text-xs text-slate-400 font-bold uppercase tracking-wider">Gross Total</span>
-                                            <span className="text-xl font-bold tabular-nums text-slate-300">{formatCurrency(summary.orderedNet)}</span>
+                                            <span className="text-[10px] text-slate-400 font-black uppercase tracking-widest mb-1 opacity-60">Ordered Net</span>
+                                            <span className="text-xl font-black tabular-nums text-slate-400 tracking-tight">{formatCurrency(summary.orderedNet)}</span>
                                         </div>
                                         <div className="flex flex-col">
                                             <div className="flex flex-col">
-                                                <span className="text-xs text-amber-500 font-bold uppercase tracking-wider">Discount</span>
-                                                {/* <span className="text-[10px] text-slate-500 font-bold uppercase">Discount</span> */}
+                                                <span className="text-[10px] text-amber-500 font-black uppercase tracking-widest mb-1">Discount</span>
                                             </div>
-                                            <span className="text-xl font-bold tabular-nums text-amber-500">-{formatCurrency(summary.allocatedDiscount)}</span>
+                                            <span className="text-xl font-black tabular-nums text-amber-500 tracking-tight">-{formatCurrency(summary.allocatedDiscount)}</span>
                                         </div>
                                         <div className="flex flex-col">
-                                            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider opacity-60">VAT</span>
-                                            <span className="text-lg font-bold tabular-nums opacity-60">{formatCurrency(summary.vatAmount)}</span>
+                                            <span className="text-[10px] text-slate-400 font-black uppercase tracking-widest mb-1 opacity-60">VAT</span>
+                                            <span className="text-lg font-black tabular-nums opacity-60 tracking-tight">{formatCurrency(summary.vatAmount)}</span>
                                         </div>
-                                        <div className="flex flex-col ml-auto bg-primary/10 p-5 rounded-2xl border border-primary/20 backdrop-blur-xl">
-                                            <span className="text-[10px] text-primary font-black uppercase tracking-[0.2em] mb-1">Allocated Amount</span>
+                                        <div className="flex flex-col ml-auto bg-emerald-500/10 p-5 rounded-2xl border border-emerald-500/20 backdrop-blur-xl">
+                                            <span className="text-[10px] text-emerald-400 font-black uppercase tracking-[0.2em] mb-1">Allocated Amount</span>
                                             <span className="text-4xl font-black text-emerald-400 tabular-nums tracking-tighter tabular-nums underline underline-offset-[12px] decoration-emerald-500/30">
-                                                {formatCurrency(summary.allocatedNet)}
+                                                {formatCurrency(summary.allocatedAmount)}
                                             </span>
                                         </div>
                                     </div>

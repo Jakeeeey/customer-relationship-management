@@ -994,7 +994,7 @@ export async function POST(req: NextRequest) {
                     method: "PATCH",
                     headers: fetchHeaders,
                     body: JSON.stringify({
-                        order_id: targetId, // Ensure it's a number
+                        sales_order_id: targetId, // Ensure it aligns with Directus schema
                         status: "Approved"
                     })
                 });

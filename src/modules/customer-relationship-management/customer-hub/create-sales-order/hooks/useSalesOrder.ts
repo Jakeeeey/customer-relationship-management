@@ -225,7 +225,7 @@ export function useSalesOrder() {
 
                             if (items && Array.isArray(items)) {
                                 console.log("[useSalesOrder] Mapping Items with Enrichment:", items.length);
-                                
+
                                 // 1. Fetch full product metadata for enriched information (discounts, categories)
                                 // We use the current header context to get the same discount logic as the catalog
                                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -262,7 +262,7 @@ export function useSalesOrder() {
                                     const discounts = (enrichedP?.discounts && enrichedP.discounts.length > 0)
                                         ? enrichedP.discounts
                                         : (p.discounts || []);
-                                    
+
                                     let netUnitPrice: number;
                                     if (discounts.length > 0) {
                                         // Best case: recalculate from actual discount percentages
@@ -445,7 +445,7 @@ export function useSalesOrder() {
 
                 // Check if current user is still valid, else reset
                 const isCurrentValid = activeSalesmen.some(s => (s.user_id || s.id)?.toString() === selectedSalesmanId);
-                
+
                 if (linkedUsers.length === 1) {
                     const singleId = (linkedUsers[0].user_id || linkedUsers[0].id)?.toString();
                     if (singleId && (!selectedSalesmanId || !isCurrentValid)) {
@@ -470,7 +470,7 @@ export function useSalesOrder() {
             setAccounts([]);
         }
     };
-    
+
     const handlePriceTypeIdChange = (id: string) => {
         const nid = id ? Number(id) : null;
         setPriceTypeId(nid);
@@ -523,13 +523,13 @@ export function useSalesOrder() {
 
                     const newBasePrice = Number(match.base_price) || 0;
                     const newDiscounts = match.discounts || [];
-                    
+
                     const priceChanged = isEditable && (newBasePrice !== li.unitPrice || JSON.stringify(newDiscounts) !== JSON.stringify(li.discounts));
                     const metaChanged = match.available_qty !== li.product.available_qty || match.display_name !== li.product.display_name;
 
                     if (priceChanged || metaChanged) {
                         changed = true;
-                        
+
                         let updatedUnitPrice = li.unitPrice;
                         let updatedDiscounts = li.discounts;
                         let updatedNetAmount = li.netAmount;
@@ -612,7 +612,7 @@ export function useSalesOrder() {
 
     const removeLineItem = async (id: string) => {
         const item = lineItems.find(i => i.id === id);
-        
+
         // --- REAL-TIME DELETION ---
         // If the item exists in the DB (has detail_id), force delete it now
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -684,12 +684,6 @@ export function useSalesOrder() {
 
         const allocatedNet = lineItems.reduce((sum, item) => {
             const qty = allocatedQuantities[item.id] !== undefined ? allocatedQuantities[item.id] : item.quantity;
-            
-            // Priority: If this is an existing order and we have saved DB values that match current allocation, preserve them
-            if (item.savedAllocatedQty !== undefined && qty === item.savedAllocatedQty && item.savedNetAmount !== undefined && item.savedNetAmount > 0) {
-                return sum + item.savedNetAmount;
-            }
-            
             const netPricePerUnit = calculateChainNetPrice(item.unitPrice, item.discounts);
             return sum + (netPricePerUnit * qty);
         }, 0);
@@ -768,7 +762,7 @@ export function useSalesOrder() {
 
         const available = Number(item.product.available_qty) || 0;
         const maxAllowed = Math.max(0, Math.min(item.quantity, available));
-        
+
         let finalQty = qty;
         if (finalQty > maxAllowed) finalQty = maxAllowed;
         if (finalQty < 0) finalQty = 0;
