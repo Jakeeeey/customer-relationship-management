@@ -59,8 +59,8 @@ interface IncomingLineItem {
     allocated_quantity?: number;
     netAmount: number;
     uom?: string;
-    product: { 
-        product_id: number; 
+    product: {
+        product_id: number;
         discount_type?: number;
         display_name?: string;
         product_name?: string;
@@ -214,7 +214,7 @@ export async function GET(req: NextRequest) {
         if (action === "salesman_by_customer") {
             const customerId = req.nextUrl.searchParams.get("customer_id");
             if (!customerId) return NextResponse.json({ error: "customer_id required" }, { status: 400 });
-            
+
             // 1. Get all customer_salesman links for this customer
             const csRes = await fetch(`${DIRECTUS_URL}/items/customer_salesmen?filter[customer_id][_eq]=${customerId}&limit=-1`, { headers: fetchHeaders });
             const csData = (await csRes.json()).data || [];
@@ -227,7 +227,7 @@ export async function GET(req: NextRequest) {
             const sRes = await fetch(`${DIRECTUS_URL}/items/salesman?filter[id][_in]=${salesmanIds.join(',')}&limit=-1`, { headers: fetchHeaders });
             const sData = (await sRes.json()).data || [];
             if (sData.length === 0) return NextResponse.json([]);
-            
+
             const userIds = new Set<string>();
             sData.forEach((s: { employee_id?: number | string; encoder_id?: number | string; user_id?: number | string }) => {
                 const uid = s.employee_id || s.encoder_id || s.user_id;
@@ -262,21 +262,7 @@ export async function GET(req: NextRequest) {
             return NextResponse.json((await res.json()).data || []);
         }
 
-        if (action === "get_order") {
-            const orderId = req.nextUrl.searchParams.get("order_id");
-            if (!orderId) return NextResponse.json({ error: "order_id required" }, { status: 400 });
 
-            // Fetch Header
-            const hRes = await fetch(`${DIRECTUS_URL}/items/sales_order/${orderId}?fields=*`, { headers: fetchHeaders });
-            const hData = (await hRes.json()).data;
-            if (!hData) return NextResponse.json({ error: "Order not found" }, { status: 404 });
-
-            // Fetch Details
-            const dRes = await fetch(`${DIRECTUS_URL}/items/sales_order_details?filter[order_id][_eq]=${orderId}&fields=*,product_id.*&limit=-1`, { headers: fetchHeaders });
-            const dData = (await dRes.json()).data || [];
-
-            return NextResponse.json({ header: hData, items: dData });
-        }
 
         if (action === "products") {
             try {
@@ -591,8 +577,31 @@ export async function GET(req: NextRequest) {
         }
 
         if (action === "get_order") {
-            const orderId = req.nextUrl.searchParams.get("order_id") || req.nextUrl.searchParams.get("id");
-            if (!orderId) return NextResponse.json({ error: "order_id required" }, { status: 400 });
+            let orderId = req.nextUrl.searchParams.get("order_id") || req.nextUrl.searchParams.get("id");
+            const orderNo = req.nextUrl.searchParams.get("order_no");
+
+            if (!orderId && orderNo) {
+                // Find ID by Order No
+                const checkRes = await fetch(`${DIRECTUS_URL}/items/sales_order?filter[order_no][_eq]=${encodeURIComponent(orderNo)}&fields=order_id&limit=1`, { headers: fetchHeaders });
+                const checkData = (await checkRes.json()).data;
+                if (checkData && checkData.length > 0) {
+                    orderId = checkData[0].order_id;
+                    console.log(`[API] Resolved order_no ${orderNo} to ID ${orderId} via direct match.`);
+                }
+            }
+
+            // SMART LOOKUP: If still no orderId but we have orderNo, check other attachments in the group
+            if (!orderId && orderNo) {
+                console.log(`[API] Attempting smart lookup for group reference: ${orderNo}`);
+                const groupRes = await fetch(`${DIRECTUS_URL}/items/sales_order_attachment?filter[sales_order_no][_eq]=${encodeURIComponent(orderNo)}&filter[sales_order_id][_is_not_null]=true&fields=sales_order_id&limit=1`, { headers: fetchHeaders });
+                const groupData = (await groupRes.json()).data;
+                if (groupData && groupData.length > 0) {
+                    orderId = groupData[0].sales_order_id;
+                    console.log(`[API] Smart Resolved group ${orderNo} to existing Order ID: ${orderId}`);
+                }
+            }
+
+            if (!orderId) return NextResponse.json({ error: "order_id or order_no required" }, { status: 400 });
 
             // 1. Fetch Header
             const hRes = await fetch(`${DIRECTUS_URL}/items/sales_order/${orderId}?fields=*`, { headers: fetchHeaders });
@@ -621,7 +630,7 @@ export async function GET(req: NextRequest) {
                     });
                 }
 
-                items.forEach((item: { product_id: number; discount_type?: string | number; product?: unknown; discountType?: string | number; [key: string]: unknown }) => {
+                items.forEach((item: { product_id: number; discount_type?: string | number; product?: unknown; discountType?: string | number;[key: string]: unknown }) => {
                     const pid = Number(item.product_id);
                     if (pMap.has(pid)) {
                         const pData = pMap.get(pid)!;
@@ -643,7 +652,7 @@ export async function GET(req: NextRequest) {
                             discount_level: resolvedDtName, // UI expects discount_level
                             unit_count: pData.unit_of_measurement_count || 1 // Support UC column
                         };
-                        
+
                         // Set it on the item directly too for consistency with cart
                         if (resolvedDtName) {
                             item.discountType = resolvedDtName;
@@ -769,10 +778,10 @@ export async function POST(req: NextRequest) {
                 allocated_quantity: allocatedQty,
                 served_quantity: 0,
                 discount_type: resolvedDiscountType,
-                discount_amount: totalDiscountOrdered, 
-                gross_amount: orderedGross,           
-                net_amount: orderedNet,               
-                allocated_amount: allocatedAmountLine, 
+                discount_amount: totalDiscountOrdered,
+                gross_amount: orderedGross,
+                net_amount: orderedNet,
+                allocated_amount: allocatedAmountLine,
                 uom: item.uom || null,
                 remarks: item.remarks || ""
             };
@@ -897,7 +906,7 @@ export async function POST(req: NextRequest) {
         }
 
         const targetId = Number(finalOrderId || hJson.data?.order_id || hJson.data?.id || header.order_id);
-        
+
         // --- SMART UPSERT (SYNC) LOGIC ---
         try {
             // 1. Fetch current items in DB to see what to delete
@@ -906,7 +915,7 @@ export async function POST(req: NextRequest) {
                 cache: 'no-store'
             });
             const currentItems = currentRes.ok ? (await currentRes.json()).data || [] : [];
-            
+
             // Map IDs robustly from DB (using detail_id primarily)
             const currentIds = currentItems.map((it: { detail_id?: number | string; id?: number | string }) => Number(it.detail_id || it.id)).filter((n: number) => !isNaN(n) && n > 0);
 
@@ -973,7 +982,7 @@ export async function POST(req: NextRequest) {
                     headers: fetchHeaders,
                     body: JSON.stringify(inserts)
                 });
-                
+
                 if (!itemsRes.ok) {
                     console.error("Lines Insert Error:", await itemsRes.text());
                 }
@@ -986,23 +995,67 @@ export async function POST(req: NextRequest) {
         // --- END SMART SYNC ---
 
         if (header.attachment_id) {
-            console.log(`[CreateSalesOrder] Processing attachment linkage for ID: ${header.attachment_id}, Target SO ID: ${targetId}`);
+            console.log(`[CreateSalesOrder] Processing grouped attachment linkage for ID: ${header.attachment_id}, Target SO ID: ${targetId}`);
             try {
-                // Link the attachment and mark as Approved to indicate it's been processed
-                const attachRes = await fetch(`${DIRECTUS_URL}/items/sales_order_attachment/${header.attachment_id}`, {
+                // 1. Fetch info for this source attachment
+                const attachInfoRes = await fetch(`${DIRECTUS_URL}/items/sales_order_attachment/${header.attachment_id}?fields=sales_order_id,sales_order_no`, {
+                    headers: fetchHeaders
+                });
+                
+                let targetKeys: (string | number)[] = [header.attachment_id];
+
+                if (attachInfoRes.ok) {
+                    const attachInfo = (await attachInfoRes.json()).data;
+                    const filterOptions: Record<string, unknown> = {};
+
+                    if (attachInfo?.sales_order_id) {
+                        filterOptions.sales_order_id = { _eq: attachInfo.sales_order_id };
+                    } else if (attachInfo?.sales_order_no) {
+                        filterOptions.sales_order_no = { _eq: attachInfo.sales_order_no };
+                    }
+                    
+                    if (Object.keys(filterOptions).length > 0) {
+                        const filterValues = JSON.stringify(filterOptions);
+                        const groupRes = await fetch(`${DIRECTUS_URL}/items/sales_order_attachment?filter=${filterValues}&fields=id&limit=-1`, {
+                            headers: fetchHeaders
+                        });
+                        
+                        if (groupRes.ok) {
+                            const groupJson = await groupRes.json();
+                            if (groupJson.data && groupJson.data.length > 0) {
+                                targetKeys = groupJson.data.map((a: { id: string | number }) => a.id);
+                            }
+                        }
+                    }
+                }
+
+                console.log(`[CreateSalesOrder] Bulk updating ${targetKeys.length} attachments: [${targetKeys.join(", ")}]`);
+
+                // 2. Bulk PATCH using Directus /items/{collection} JSON schema
+                const attachRes = await fetch(`${DIRECTUS_URL}/items/sales_order_attachment`, {
                     method: "PATCH",
                     headers: fetchHeaders,
                     body: JSON.stringify({
-                        sales_order_id: targetId, // Ensure it aligns with Directus schema
-                        status: "Approved"
+                        keys: targetKeys,
+                        data: {
+                            sales_order_id: targetId,
+                            status: "Approved"
+                        }
                     })
                 });
 
                 if (attachRes.ok) {
-                    console.log(`[CreateSalesOrder] SUCCESSFULLY linked attachment ${header.attachment_id} to SO ${targetId}`);
+                    console.log(`[CreateSalesOrder] SUCCESSFULLY linked attachments [${targetKeys.join(", ")}] to SO ${targetId}`);
                 } else {
                     const attachErr = await attachRes.text();
-                    console.error(`[CreateSalesOrder] Attachment Update FAILED for ${header.attachment_id}:`, attachErr);
+                    console.error(`[CreateSalesOrder] Attachment Update FAILED for keys [${targetKeys.join(", ")}]:`, attachErr);
+                    
+                    // Fallback to updating just the single one if BULK fails
+                    await fetch(`${DIRECTUS_URL}/items/sales_order_attachment/${header.attachment_id}`, {
+                        method: "PATCH",
+                        headers: fetchHeaders,
+                        body: JSON.stringify({ sales_order_id: targetId, status: "Approved" })
+                    });
                 }
             } catch (e) {
                 console.error("[CreateSalesOrder] Back-linking attachment exception:", e);

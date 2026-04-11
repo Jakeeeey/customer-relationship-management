@@ -159,19 +159,41 @@ export function useSalesOrder() {
 
                     if (attachmentId) {
                         const attachment = await fetch(`/api/crm/customer-hub/create-sales-order?action=get_attachment&id=${attachmentId}`).then(r => r.json());
-                        if (attachment && attachment.sales_order_id) {
-                            finalSalesOrderId = attachment.sales_order_id.toString();
-                        } else if (attachment) {
-                            // Pre-fill header metadata from attachment if no order linked yet
+                        
+                        if (attachment) {
+                            if (attachment.sales_order_id) {
+                                finalSalesOrderId = attachment.sales_order_id.toString();
+                            } else if (attachment.sales_order_no) {
+                                // Fallback: Resolve by Sales Order Number (Grouping Logic)
+                                console.log(`[useSalesOrder] Found order_no ${attachment.sales_order_no} on attachment, looking up existing order...`);
+                                const lookup = await fetch(`/api/crm/customer-hub/create-sales-order?action=get_order&order_no=${encodeURIComponent(attachment.sales_order_no)}`).then(r => r.json());
+                                if (lookup && lookup.header && !lookup.error) {
+                                    finalSalesOrderId = (lookup.header.order_id || lookup.header.id).toString();
+                                    console.log(`[useSalesOrder] Resolved ${attachment.sales_order_no} to existing Order ID: ${finalSalesOrderId}`);
+                                }
+                            }
+                        }
+
+                        // PRE-FILL METADATA (Only if no existing order was resolved)
+                        if (!finalSalesOrderId && attachment) {
+                            console.log(`[useSalesOrder] New attachment detected. Initializing with: ${attachment.customer_code} | Ref: ${attachment.sales_order_no}`);
+                            
+                            // Initialize the Order Reference so it matches the group
+                            if (attachment.sales_order_no) setExistingOrderNo(attachment.sales_order_no);
+
                             if (attachment.customer_code) {
                                 setCustomerSearch(attachment.customer_code);
                                 const custs = await salesOrderProvider.getAllCustomers(attachment.customer_code, 0);
                                 if (custs.length > 0) {
                                     setCustomers(custs);
-                                    setSelectedCustomerId(custs[0].id.toString());
+                                    const targetCustId = custs[0].id.toString();
+                                    setSelectedCustomerId(targetCustId);
+                                    if (custs[0].payment_term !== undefined) setPaymentTerms(custs[0].payment_term);
+                                    
+                                    console.log(`[useSalesOrder] Auto-selected Customer: ${custs[0].customer_name} (ID: ${targetCustId})`);
 
-                                    // If we have a customer, we can resolve the salesman from the linkage
-                                    const sLinks = await salesOrderProvider.getSalesmanByCustomer(Number(custs[0].id));
+                                    // Resolve salesman/account from customer linkage
+                                    const sLinks = await salesOrderProvider.getSalesmanByCustomer(Number(targetCustId));
                                     if (sLinks && sLinks.length > 0) {
                                         // eslint-disable-next-line @typescript-eslint/no-explicit-any
                                         const uid = (sLinks[0] as any).employee_id || (sLinks[0] as any).encoder_id || (sLinks[0] as any).user_id;
@@ -182,7 +204,18 @@ export function useSalesOrder() {
                                             setAccounts(accts);
                                             // eslint-disable-next-line @typescript-eslint/no-explicit-any
                                             const sId = (sLinks[0] as any).id;
-                                            if (sId) setSelectedAccountId(sId.toString());
+                                            if (sId) {
+                                                const sIdStr = sId.toString();
+                                                setSelectedAccountId(sIdStr);
+                                                console.log(`[useSalesOrder] Auto-selected Account ID: ${sIdStr}`);
+                                                
+                                                // Trigger price type from account
+                                                const account = accts.find((a: any) => a.id.toString() === sIdStr);
+                                                if (account) {
+                                                    setPriceType(account.price_type || "A");
+                                                    setPriceTypeId(account.price_type_id || null);
+                                                }
+                                            }
                                         }
                                     }
                                 }
@@ -194,7 +227,7 @@ export function useSalesOrder() {
                         setExistingOrderId(Number(finalSalesOrderId));
                         const orderData = await fetch(`/api/crm/customer-hub/create-sales-order?action=get_order&order_id=${finalSalesOrderId}`).then(r => r.json());
                         const { header, items } = orderData;
-                        console.log("[useSalesOrder] Fetched Order Data:", { header, items });
+                        console.log("[useSalesOrder] Loading Existing Order Data:", { header, items });
 
                         if (header) {
                             setExistingOrderStatus(header.order_status || "");
@@ -209,14 +242,12 @@ export function useSalesOrder() {
 
                             const dDate = parseDate(header.due_date);
                             const delDate = parseDate(header.delivery_date);
-                            console.log("[useSalesOrder] Setting Dates:", { dDate, delDate });
 
                             setDueDate(dDate);
                             setDeliveryDate(delDate);
                             setOrderRemarks(header.remarks || "");
 
                             if (header.salesman_id) {
-                                console.log("[useSalesOrder] Resolving Salesman:", header.salesman_id);
                                 const smUser = await fetch(`${salesOrderProvider.API_BASE}?action=salesman_by_id&id=${header.salesman_id}`).then(r => r.json());
                                 if (smUser) {
                                     const uid = (smUser.employee_id || smUser.encoder_id || smUser.user_id)?.toString();
@@ -230,23 +261,21 @@ export function useSalesOrder() {
                             }
 
                             if (header.customer_code) {
-                                console.log("[useSalesOrder] Resolving Customer:", header.customer_code);
                                 const custs = await salesOrderProvider.getAllCustomers(header.customer_code, 0);
                                 if (custs.length > 0) {
                                     setCustomers(custs);
                                     setSelectedCustomerId(custs[0].id.toString());
-                                    if (custs[0].payment_term !== undefined) setPaymentTerms(custs[0].payment_term);
                                 }
                             }
 
                             if (header.payment_terms !== undefined) setPaymentTerms(header.payment_terms);
+                            if (header.price_type_id) {
+                                setPriceTypeId(Number(header.price_type_id));
+                                // Resolve price type name for labels
+                                const ptModel = priceTypeModels.find(m => m.price_type_id === Number(header.price_type_id));
+                                if (ptModel) setPriceType(ptModel.price_type_name);
+                            }
 
-                            console.log("[useSalesOrder] Setting Other IDs:", {
-                                supplier: header.supplier_id,
-                                branch: header.branch_id,
-                                receipt: header.receipt_type,
-                                sales: header.sales_type
-                            });
                             if (header.supplier_id) setSelectedSupplierId(header.supplier_id.toString());
                             if (header.branch_id) setSelectedBranchId(header.branch_id.toString());
                             if (header.receipt_type) setSelectedReceiptTypeId(header.receipt_type.toString());
