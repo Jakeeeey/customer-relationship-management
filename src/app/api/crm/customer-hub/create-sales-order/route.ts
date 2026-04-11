@@ -742,23 +742,22 @@ export async function POST(req: NextRequest) {
             const orderedQty = Number(item.quantity) || 0;
             const allocatedQty = Number(item.allocated_quantity) || 0;
 
-            // Ordered Metrics (The "Intent")
+            // Financial Context:
+            // 1. gross_amount: ordered_qty * unitPrice (PRE-DISCOUNT)
+            // 2. net_amount: ordered_qty * (unitPrice - unitDiscount) (POST-DISCOUNT)
+            // 3. allocated_amount: allocated_qty * (unitPrice - unitDiscount) (BILLABLE)
+
             const orderedGross = unitPrice * orderedQty;
-            const orderedNetAmount = Number(item.netAmount) || orderedGross;
-            const totalDiscountOrdered = Math.max(0, orderedGross - orderedNetAmount);
-            
-            // Per-Unit Discount (for proportional allocation calculation)
+            const orderedNet = Number(item.netAmount) || orderedGross;
+            const totalDiscountOrdered = Math.max(0, orderedGross - orderedNet);
             const unitDiscount = orderedQty > 0 ? totalDiscountOrdered / orderedQty : 0;
 
-            // Allocated Metrics (The "Reality")
-            const allocatedGross = unitPrice * allocatedQty;
-            const allocatedDiscount = unitDiscount * allocatedQty;
-            const allocatedAmountLine = Math.max(0, allocatedGross - allocatedDiscount);
+            const allocatedAmountLine = Math.max(0, (unitPrice - unitDiscount) * allocatedQty);
 
             const resolvedDiscountType = item.product?.discount_type
                 || (typeof item.discountType === 'string' && !isNaN(Number(item.discountType)) ? Number(item.discountType) : null);
 
-            console.log(`[CreateSalesOrder] SAVING item[${idx}]: PID=${item.product?.product_id}, ordQty=${orderedQty}, allocQty=${allocatedQty}, ordGross=${orderedGross}, ordNet=${orderedNetAmount}, allocAmt=${allocatedAmountLine.toFixed(2)}`);
+            console.log(`[CreateSalesOrder] Detail[${idx}]: PID=${item.product?.product_id}, ordQty=${orderedQty}, allocQty=${allocatedQty}, ordGross=${orderedGross.toFixed(2)}, ordNet=${orderedNet.toFixed(2)}, allocAmt=${allocatedAmountLine.toFixed(2)}`);
 
             return {
                 detail_id: item.detail_id,
@@ -770,10 +769,10 @@ export async function POST(req: NextRequest) {
                 allocated_quantity: allocatedQty,
                 served_quantity: 0,
                 discount_type: resolvedDiscountType,
-                discount_amount: totalDiscountOrdered, // Base sa ordered
-                gross_amount: orderedGross,           // Base sa ordered
-                net_amount: orderedNetAmount,         // Base sa ordered
-                allocated_amount: allocatedAmountLine, // Base sa allocated
+                discount_amount: totalDiscountOrdered, 
+                gross_amount: orderedGross,           
+                net_amount: orderedNet,               
+                allocated_amount: allocatedAmountLine, 
                 uom: item.uom || null,
                 remarks: item.remarks || ""
             };

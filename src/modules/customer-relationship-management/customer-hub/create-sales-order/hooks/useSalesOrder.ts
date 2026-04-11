@@ -13,6 +13,7 @@ export function useSalesOrder() {
     const attachmentId = searchParams.get("attachment_id");
     const externalSalesOrderId = searchParams.get("orderId") || searchParams.get("sales_order_id");
     const isAutoFilled = useRef(false);
+    const lastId = useRef<string | null>(null);
 
     // Selection State (IDs for dropdowns)
     const [allSalesmen, setAllSalesmen] = useState<Salesman[]>([]);
@@ -123,8 +124,36 @@ export function useSalesOrder() {
             if (Array.isArray(ops) && ops.length > 0) setSelectedSalesTypeId(ops[0].id.toString());
 
             // Check for Auto-fill from URL
-            if ((attachmentId || externalSalesOrderId) && !isAutoFilled.current) {
+            const currentId = attachmentId || externalSalesOrderId;
+
+            // IF NO ID: Reset to blank state if we previously had one to prevent data carry-over
+            if (!currentId && lastId.current) {
+                console.log("[useSalesOrder] ID cleared. Resetting to blank state.");
+                isAutoFilled.current = false;
+                lastId.current = null;
+                setLineItems([]);
+                setAllocatedQuantities({});
+                setExistingOrderId(null);
+                setExistingOrderNo("");
+                setExistingOrderStatus("");
+                setOrderRemarks("");
+                setCustomerSearch("");
+                setSelectedCustomerId("");
+                setPaymentTerms(null);
+            }
+
+            if (currentId && (currentId !== lastId.current || !isAutoFilled.current)) {
+                console.log(`[useSalesOrder] Auto-filling for ${currentId}. Last was ${lastId.current}`);
                 isAutoFilled.current = true;
+                lastId.current = currentId;
+
+                // Reset order-specific state to prevent data leakage from previous order session
+                setLineItems([]);
+                setAllocatedQuantities({});
+                setExistingOrderId(null);
+                setExistingOrderNo("");
+                setOrderRemarks("");
+
                 try {
                     let finalSalesOrderId = externalSalesOrderId;
 
@@ -326,7 +355,7 @@ export function useSalesOrder() {
         };
         init();
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
+    }, [attachmentId, externalSalesOrderId]);
 
     // Debounced Customer Search
     useEffect(() => {

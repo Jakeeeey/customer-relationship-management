@@ -1,6 +1,7 @@
 "use client";
 
-import { FileText, PlusCircle, ExternalLink, Hash, Clock, CheckCircle2, XCircle, Download } from "lucide-react";
+import React from "react";
+import { FileText, PlusCircle, ExternalLink, Hash, Clock, CheckCircle2, XCircle, Download, RefreshCw } from "lucide-react";
 import {
     Table,
     TableBody,
@@ -43,6 +44,7 @@ export function CallSheetTable({
     onPageChange,
     onCreateSalesOrder,
 }: CallSheetTableProps) {
+    const [processingId, setProcessingId] = React.useState<string | null>(null);
     const totalPages = Math.ceil((metadata.total_count || 0) / pageSize);
 
     const getPageNumbers = () => {
@@ -256,14 +258,27 @@ export function CallSheetTable({
                                                         <Button
                                                             variant="outline"
                                                             size="sm"
-                                                            className="gap-2 h-9 px-4 text-xs font-bold bg-background shadow-sm hover:shadow-md hover:bg-primary hover:text-primary-foreground border-primary/20 transition-all hover:-translate-y-0.5 z-10"
+                                                            disabled={processingId === String(row.id)}
+                                                            className={cn(
+                                                                "gap-2 h-9 px-4 text-xs font-bold bg-background shadow-sm transition-all z-10",
+                                                                processingId === String(row.id) 
+                                                                    ? "opacity-50 cursor-not-allowed" 
+                                                                    : "hover:shadow-md hover:bg-primary hover:text-primary-foreground border-primary/20 hover:-translate-y-0.5"
+                                                            )}
                                                             onClick={(e) => {
                                                                 e.stopPropagation();
+                                                                setProcessingId(String(row.id));
                                                                 onCreateSalesOrder(row);
+                                                                // Clear loading state after a delay if navigation takes time
+                                                                setTimeout(() => setProcessingId(null), 3000);
                                                             }}
                                                         >
-                                                            <PlusCircle className="h-3.5 w-3.5 mr-0.5" />
-                                                            Process Order
+                                                            {processingId === String(row.id) ? (
+                                                                <RefreshCw className="h-3.5 w-3.5 mr-0.5 animate-spin" />
+                                                            ) : (
+                                                                <PlusCircle className="h-3.5 w-3.5 mr-0.5" />
+                                                            )}
+                                                            {processingId === String(row.id) ? "Processing..." : "Process Order"}
                                                             <ExternalLink className="h-3 w-3 ml-0.5 opacity-40" />
                                                         </Button>
                                                     ) : (
