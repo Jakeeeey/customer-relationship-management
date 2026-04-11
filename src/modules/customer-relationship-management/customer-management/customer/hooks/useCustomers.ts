@@ -127,17 +127,32 @@ export function useCustomers(): UseCustomersReturn {
         return () => window.removeEventListener("focus", handleFocus);
     }, [fetchData]);
 
-    const createCustomer = useCallback(async (data: Partial<Customer>) => {
+    const createCustomer = useCallback(async (data: Partial<CustomerWithRelations>) => {
         try {
+            const { bank_accounts, ...customerData } = data;
             const res = await fetch("/api/crm/customer", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(data),
+                body: JSON.stringify(customerData),
             });
 
             if (!res.ok) {
                 const errorData = await res.json().catch(() => ({}));
                 throw new Error(errorData.message || `Server error: ${res.status}`);
+            }
+
+            const newCustomer = await res.json();
+            const customerId = newCustomer.id;
+
+            // Save bank accounts if any
+            if (bank_accounts && bank_accounts.length > 0) {
+                await Promise.all(bank_accounts.map(account => 
+                    fetch("/api/crm/customer/bank-account", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ ...account, customer_id: customerId })
+                    })
+                ));
             }
 
             await fetchData(true);
@@ -147,17 +162,50 @@ export function useCustomers(): UseCustomersReturn {
         }
     }, [fetchData]);
 
-    const updateCustomer = useCallback(async (id: number, data: Partial<Customer>) => {
+    const updateCustomer = useCallback(async (id: number, data: Partial<CustomerWithRelations>) => {
         try {
+            const { bank_accounts: newAccounts, ...customerData } = data;
+            
+            // 1. Update primary customer data
             const res = await fetch("/api/crm/customer", {
                 method: "PATCH",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ id, ...data }),
+                body: JSON.stringify({ id, ...customerData }),
             });
 
             if (!res.ok) {
                 const errorData = await res.json().catch(() => ({}));
                 throw new Error(errorData.message || `Server error: ${res.status}`);
+            }
+
+            // 2. Sync bank accounts if provided
+            if (newAccounts) {
+                // Get current accounts for this customer to find deletions
+                const currentRes = await fetch(`/api/crm/customer/bank-account?customer_id=${id}`);
+                const oldAccounts: BankAccount[] = currentRes.ok ? await currentRes.json() : [];
+
+                // Identify Deletions
+                const toDelete = oldAccounts.filter(old => !newAccounts.some(n => n.id === old.id));
+                
+                // Identify POST (new) and PATCH (existing)
+                const toPost = newAccounts.filter(n => !n.id || n.id === 0);
+                const toPatch = newAccounts.filter(n => n.id && n.id !== 0);
+
+                const syncPromises = [
+                    ...toDelete.map(acc => fetch(`/api/crm/customer/bank-account?id=${acc.id}`, { method: "DELETE" })),
+                    ...toPost.map(acc => fetch("/api/crm/customer/bank-account", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ ...acc, customer_id: id })
+                    })),
+                    ...toPatch.map(acc => fetch("/api/crm/customer/bank-account", {
+                        method: "PATCH",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify(acc)
+                    }))
+                ];
+
+                await Promise.all(syncPromises);
             }
 
             await fetchData(true);

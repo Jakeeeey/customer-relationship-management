@@ -32,6 +32,19 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
+import {
+    Command,
+    CommandEmpty,
+    CommandGroup,
+    CommandInput,
+    CommandItem,
+    CommandList,
+} from "@/components/ui/command";
+import {
+    Popover,
+    PopoverContent,
+    PopoverTrigger,
+} from "@/components/ui/popover";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -40,16 +53,19 @@ import { Badge } from "@/components/ui/badge";
 import {
     Plus,
     Pencil,
-    Loader2,
+    Trash2,
     CreditCard,
     Building2,
     CheckCircle2,
+    Check,
+    ChevronsUpDown,
 } from "lucide-react";
 import { useForm, Resolver, SubmitHandler } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { BankAccount } from "../types";
+import { BankAccount, ReferenceOption } from "../types";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 
 const bankAccountSchema = z.object({
     bank_name: z.coerce.number().min(1, "Bank selection is required"),
@@ -63,16 +79,23 @@ const bankAccountSchema = z.object({
 
 type BankAccountFormValues = z.infer<typeof bankAccountSchema>;
 
+
 interface BankAccountManagerProps {
-    customerId: number;
+    accounts: BankAccount[];
+    banks: ReferenceOption[];
+    onAccountsChange: (accounts: BankAccount[]) => void;
+    isLoading?: boolean;
 }
 
-export function BankAccountManager({ customerId }: BankAccountManagerProps) {
-    const [accounts, setAccounts] = useState<BankAccount[]>([]);
-    const [isLoading, setIsLoading] = useState(false);
+export function BankAccountManager({ 
+    accounts, 
+    banks, 
+    onAccountsChange, 
+    isLoading = false 
+}: BankAccountManagerProps) {
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [selectedAccount, setSelectedAccount] = useState<BankAccount | null>(null);
-    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isBankPickerOpen, setIsBankPickerOpen] = useState(false);
 
     const form = useForm<BankAccountFormValues>({
         resolver: zodResolver(bankAccountSchema) as Resolver<BankAccountFormValues>,
@@ -86,25 +109,6 @@ export function BankAccountManager({ customerId }: BankAccountManagerProps) {
             notes: "",
         },
     });
-
-    const fetchAccounts = React.useCallback(async () => {
-        setIsLoading(true);
-        try {
-            const res = await fetch(`/api/crm/customer/bank-account?customer_id=${customerId}`);
-            if (res.ok) {
-                const data = await res.json();
-                setAccounts(data || []);
-            }
-        } catch (err) {
-            console.error("Failed to fetch bank accounts", err);
-        } finally {
-            setIsLoading(false);
-        }
-    }, [customerId]);
-
-    useEffect(() => {
-        if (customerId) fetchAccounts();
-    }, [customerId, fetchAccounts]);
 
     useEffect(() => {
         if (isDialogOpen) {
@@ -142,38 +146,63 @@ export function BankAccountManager({ customerId }: BankAccountManagerProps) {
         setIsDialogOpen(true);
     };
 
-    const onSubmit: SubmitHandler<BankAccountFormValues> = async (values) => {
-        setIsSubmitting(true);
-        try {
-            const method = selectedAccount ? "PATCH" : "POST";
-            const body = {
-                ...values,
-                customer_id: customerId,
-                id: selectedAccount?.id,
-            };
+    const handleDeleteAccount = (accountToDelete: BankAccount) => {
+        const updated = accounts.filter(acc => 
+            acc.id ? acc.id !== accountToDelete.id : acc.account_number !== accountToDelete.account_number
+        );
+        onAccountsChange(updated);
+        toast.success("Account removed from list");
+    };
 
-            const res = await fetch("/api/crm/customer/bank-account", {
-                method,
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(body),
+    const onSubmit: SubmitHandler<BankAccountFormValues> = (values) => {
+        let updatedAccounts: BankAccount[];
+
+        if (selectedAccount) {
+            // Edit existing (might be in DB or just in local list)
+            updatedAccounts = accounts.map(acc => {
+                const isMatch = selectedAccount.id 
+                    ? acc.id === selectedAccount.id 
+                    : acc.account_number === selectedAccount.account_number;
+                
+                if (isMatch) {
+                    return { ...acc, ...values };
+                }
+                return acc;
             });
-
-            if (res.ok) {
-                toast.success(`Bank account ${selectedAccount ? "updated" : "added"} successfully`);
-                setIsDialogOpen(false);
-                setSelectedAccount(null);
-                fetchAccounts();
-            } else {
-                throw new Error("Failed to save bank account");
-            }
-        } catch (err: unknown) {
-            toast.error("Failed to save bank account detail.");
-            if (err instanceof Error) {
-                console.error(err.message);
-            }
-        } finally {
-            setIsSubmitting(false);
+        } else {
+            // Add new
+            const newAccount: BankAccount = {
+                ...values,
+                id: 0, // 0 indicates it's new and doesn't have a DB ID yet
+                customer_id: 0,
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+            };
+            updatedAccounts = [...accounts, newAccount];
         }
+
+        // If this one is primary, unset other primaries
+        if (values.is_primary === 1) {
+            updatedAccounts = updatedAccounts.map(acc => {
+                const isCurrent = selectedAccount 
+                    ? (selectedAccount.id ? acc.id === selectedAccount.id : acc.account_number === selectedAccount.account_number)
+                    : (acc.account_number === values.account_number);
+                
+                if (!isCurrent) {
+                    return { ...acc, is_primary: 0 };
+                }
+                return acc;
+            });
+        }
+
+        onAccountsChange(updatedAccounts);
+        setIsDialogOpen(false);
+        setSelectedAccount(null);
+        toast.success(`Bank account ${selectedAccount ? "updated" : "added"} in list`);
+    };
+
+    const getBankName = (id: number) => {
+        return banks.find(b => b.id === id)?.name || `Bank #${id}`;
     };
 
     return (
@@ -181,15 +210,15 @@ export function BankAccountManager({ customerId }: BankAccountManagerProps) {
             <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2 text-foreground">
                     <CreditCard className="h-5 w-5 text-muted-foreground" />
-                    <h3 className="text-base font-semibold">Saved Accounts</h3>
+                    <h3 className="text-base font-semibold">Bank Accounts</h3>
                 </div>
-                <Button size="sm" onClick={handleAddAccount} className="h-8 shadow-sm">
+                <Button type="button" size="sm" onClick={handleAddAccount} className="h-8 shadow-sm">
                     <Plus className="mr-1.5 h-4 w-4" />
                     Add Account
                 </Button>
             </div>
 
-            <div className="border rounded-lg bg-card shadow-sm overflow-hidden">
+            <div className="border rounded-lg bg-card shadow-sm overflow-hidden text-card-foreground">
                 <Table>
                     <TableHeader className="bg-muted/50">
                         <TableRow>
@@ -205,24 +234,24 @@ export function BankAccountManager({ customerId }: BankAccountManagerProps) {
                             <TableRow>
                                 <TableCell colSpan={5} className="h-24 text-center">
                                     <div className="flex items-center justify-center space-x-2 text-muted-foreground">
-                                        <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                                        <Plus className="h-4 w-4 animate-spin text-primary" />
                                         <span className="text-sm">Loading accounts...</span>
                                     </div>
                                 </TableCell>
                             </TableRow>
                         ) : accounts.length === 0 ? (
                             <TableRow>
-                                <TableCell colSpan={5} className="h-24 text-center text-sm text-muted-foreground">
-                                    No bank accounts found for this customer.
+                                <TableCell colSpan={5} className="h-24 text-center text-sm text-muted-foreground italic">
+                                    No bank accounts added yet. These will be saved when you save the customer.
                                 </TableCell>
                             </TableRow>
                         ) : (
-                            accounts.map((account) => (
-                                <TableRow key={account.id} className="hover:bg-muted/40 transition-colors">
+                            accounts.map((account, idx) => (
+                                <TableRow key={account.id || `local-${idx}`} className="hover:bg-muted/40 transition-colors">
                                     <TableCell className="px-4 py-2 font-medium text-sm">
                                         <div className="flex items-center gap-2 text-foreground">
                                             <Building2 className="h-4 w-4 text-muted-foreground shrink-0" />
-                                            <span>Bank {account.bank_name}</span>
+                                            <span>{getBankName(account.bank_name)}</span>
                                         </div>
                                     </TableCell>
                                     <TableCell className="px-4 py-2">
@@ -247,14 +276,26 @@ export function BankAccountManager({ customerId }: BankAccountManagerProps) {
                                         )}
                                     </TableCell>
                                     <TableCell className="text-right px-4 py-2">
-                                        <Button
-                                            variant="ghost"
-                                            size="sm"
-                                            className="h-8 px-2 text-muted-foreground hover:text-foreground"
-                                            onClick={() => handleEditAccount(account)}
-                                        >
-                                            <Pencil className="h-4 w-4" />
-                                        </Button>
+                                        <div className="flex items-center justify-end gap-1">
+                                            <Button
+                                                type="button"
+                                                variant="ghost"
+                                                size="sm"
+                                                className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
+                                                onClick={() => handleEditAccount(account)}
+                                            >
+                                                <Pencil className="h-4 w-4" />
+                                            </Button>
+                                            <Button
+                                                type="button"
+                                                variant="ghost"
+                                                size="sm"
+                                                className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
+                                                onClick={() => handleDeleteAccount(account)}
+                                            >
+                                                <Trash2 className="h-4 w-4" />
+                                            </Button>
+                                        </div>
                                     </TableCell>
                                 </TableRow>
                             ))
@@ -264,7 +305,7 @@ export function BankAccountManager({ customerId }: BankAccountManagerProps) {
             </div>
 
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-                <DialogContent className="sm:max-w-[500px]">
+                <DialogContent className="sm:max-w-[700px] rounded-2xl max-h-[90vh] overflow-y-auto custom-scrollbar">
                     <DialogHeader>
                         <DialogTitle>{selectedAccount ? "Edit Bank Account" : "Add Bank Account"}</DialogTitle>
                         <DialogDescription>
@@ -272,17 +313,96 @@ export function BankAccountManager({ customerId }: BankAccountManagerProps) {
                         </DialogDescription>
                     </DialogHeader>
                     <Form {...form}>
-                        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 pt-2">
-                            <div className="grid grid-cols-2 gap-4">
+                        <form 
+                            onSubmit={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                form.handleSubmit(onSubmit)(e);
+                            }} 
+                            className="space-y-4 pt-2"
+                        >
+                            <div className="grid grid-cols-1 sm:grid-cols-12 gap-4">
                                 <FormField control={form.control} name="bank_name" render={({ field }) => (
-                                    <FormItem><FormLabel>Bank Name (ID)</FormLabel><FormControl><Input type="number" {...field} value={field.value ?? ""} onChange={(e) => field.onChange(e.target.value === "" ? 0 : parseInt(e.target.value))} /></FormControl><FormMessage /></FormItem>
+                                    <FormItem className="flex flex-col sm:col-span-9">
+                                        <FormLabel className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2">Bank Name</FormLabel>
+                                        <Popover open={isBankPickerOpen} onOpenChange={setIsBankPickerOpen} modal={false}>
+                                            <PopoverTrigger asChild>
+                                                <FormControl>
+                                                    <Button
+                                                        variant="outline"
+                                                        role="combobox"
+                                                        className={cn(
+                                                            "w-full h-11 justify-between bg-muted/30 border-border/50 rounded-xl px-4 transition-all hover:bg-muted/50",
+                                                            !field.value && "text-muted-foreground"
+                                                        )}
+                                                    >
+                                                        <span className="truncate mr-2 text-left text-sm">
+                                                            {field.value
+                                                                ? banks.find((b) => b.id === field.value)?.name
+                                                                : "Select bank..."}
+                                                        </span>
+                                                        <ChevronsUpDown className="ml-auto h-4 w-4 shrink-0 opacity-50" />
+                                                    </Button>
+                                                </FormControl>
+                                            </PopoverTrigger>
+                                            <PopoverContent 
+                                                className="w-[var(--radix-popover-trigger-width)] p-0 shadow-2xl rounded-xl border-border/50 bg-background/95 backdrop-blur-md z-[100]" 
+                                                align="start"
+                                                onWheel={(e) => e.stopPropagation()}
+                                                onWheelCapture={(e) => e.stopPropagation()}
+                                            >
+                                                <div onWheel={(e) => e.stopPropagation()} className="overflow-hidden rounded-xl">
+                                                    <Command className="bg-transparent" onWheel={(e) => e.stopPropagation()}>
+                                                        <CommandInput placeholder="Search bank..." className="h-11 border-none focus:ring-0" />
+                                                        <CommandList 
+                                                            className="max-h-[300px] overflow-y-auto custom-scrollbar p-1"
+                                                            onWheel={(e) => e.stopPropagation()}
+                                                            onWheelCapture={(e) => e.stopPropagation()}
+                                                        >
+                                                            <CommandEmpty className="py-6 text-center text-xs font-medium text-muted-foreground">No bank found.</CommandEmpty>
+                                                            <CommandGroup>
+                                                                {banks.map((bank) => (
+                                                                    <CommandItem
+                                                                        key={bank.id}
+                                                                        value={bank.name}
+                                                                        onSelect={() => {
+                                                                            field.onChange(bank.id);
+                                                                            setIsBankPickerOpen(false);
+                                                                        }}
+                                                                        className="rounded-lg h-10 px-3 cursor-pointer aria-selected:bg-primary aria-selected:text-primary-foreground"
+                                                                    >
+                                                                        <Check
+                                                                            className={cn(
+                                                                                "mr-2 h-4 w-4",
+                                                                                bank.id === field.value ? "opacity-100" : "opacity-0"
+                                                                            )}
+                                                                        />
+                                                                        <span className="font-medium text-sm">{bank.name}</span>
+                                                                    </CommandItem>
+                                                                ))}
+                                                            </CommandGroup>
+                                                        </CommandList>
+                                                    </Command>
+                                                </div>
+                                            </PopoverContent>
+                                        </Popover>
+                                        <FormMessage />
+                                    </FormItem>
                                 )} />
                                 <FormField control={form.control} name="account_type" render={({ field }) => (
-                                    <FormItem>
-                                        <FormLabel>Account Type</FormLabel>
+                                    <FormItem className="sm:col-span-3">
+                                        <FormLabel className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2">Account Type</FormLabel>
                                         <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                            <FormControl><SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger></FormControl>
-                                            <SelectContent><SelectItem value="Savings">Savings</SelectItem><SelectItem value="Checking">Checking</SelectItem><SelectItem value="Other">Other</SelectItem></SelectContent>
+                                            <FormControl>
+                                                <SelectTrigger className="h-11 bg-muted/30 border-border/50 rounded-xl px-4 transition-all hover:bg-muted/50">
+                                                    <SelectValue placeholder="Select type" />
+                                                </SelectTrigger>
+                                            </FormControl>
+                                            <SelectContent className="rounded-xl border-border/50 shadow-xl">
+                                                <SelectItem value="Savings" className="rounded-lg">Savings</SelectItem>
+                                                <SelectItem value="Checking" className="rounded-lg">Checking</SelectItem>
+                                                <SelectItem value="Other" className="rounded-lg">Other</SelectItem>
+                                            </SelectContent>
                                         </Select>
                                         <FormMessage />
                                     </FormItem>
@@ -290,42 +410,57 @@ export function BankAccountManager({ customerId }: BankAccountManagerProps) {
                             </div>
 
                             <FormField control={form.control} name="account_name" render={({ field }) => (
-                                <FormItem><FormLabel>Account Name</FormLabel><FormControl><Input placeholder="E.g., John Doe" {...field} /></FormControl><FormMessage /></FormItem>
+                                <FormItem>
+                                    <FormLabel className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2">Account Name</FormLabel>
+                                    <FormControl><Input className="h-11 bg-muted/30 border-border/50 rounded-xl px-4" placeholder="E.g., John Doe" {...field} /></FormControl>
+                                    <FormMessage />
+                                </FormItem>
                             )} />
 
                             <FormField control={form.control} name="account_number" render={({ field }) => (
-                                <FormItem><FormLabel>Account Number</FormLabel><FormControl><Input placeholder="000-000-000" className="font-mono" {...field} /></FormControl><FormMessage /></FormItem>
+                                <FormItem>
+                                    <FormLabel className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2">Account Number</FormLabel>
+                                    <FormControl><Input className="h-11 bg-muted/30 border-border/50 rounded-xl px-4 font-mono" placeholder="000-000-000" {...field} /></FormControl>
+                                    <FormMessage />
+                                </FormItem>
                             )} />
 
                             <FormField control={form.control} name="branch_of_account" render={({ field }) => (
-                                <FormItem><FormLabel>Branch (Optional)</FormLabel><FormControl><Input placeholder="Ayala Ave. Branch" {...field} value={field.value ?? ""} /></FormControl><FormMessage /></FormItem>
+                                <FormItem>
+                                    <FormLabel className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2">Branch (Optional)</FormLabel>
+                                    <FormControl><Input className="h-11 bg-muted/30 border-border/50 rounded-xl px-4" placeholder="Ayala Ave. Branch" {...field} value={field.value ?? ""} /></FormControl>
+                                    <FormMessage />
+                                </FormItem>
                             )} />
 
                             <FormField control={form.control} name="notes" render={({ field }) => (
-                                <FormItem><FormLabel>Notes (Optional)</FormLabel><FormControl><Textarea placeholder="Additional instructions..." className="resize-none" {...field} value={field.value ?? ""} /></FormControl><FormMessage /></FormItem>
+                                <FormItem>
+                                    <FormLabel className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2">Notes (Optional)</FormLabel>
+                                    <FormControl><Textarea placeholder="Additional instructions..." className="resize-none min-h-[100px] bg-muted/30 border-border/50 rounded-xl p-4 text-sm" {...field} value={field.value ?? ""} /></FormControl>
+                                    <FormMessage />
+                                </FormItem>
                             )} />
 
                             <FormField control={form.control} name="is_primary" render={({ field }) => (
-                                <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border border-border/50 bg-muted/30 p-4 mt-2">
+                                <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-xl border border-border/50 bg-muted/20 p-4 mt-2 transition-colors hover:bg-muted/30">
                                     <FormControl>
                                         <Checkbox checked={field.value === 1} onCheckedChange={(checked) => field.onChange(checked ? 1 : 0)} />
                                     </FormControl>
                                     <div className="space-y-1 leading-none">
-                                        <FormLabel className="cursor-pointer">Primary Account</FormLabel>
-                                        <p className="text-xs text-muted-foreground">
+                                        <FormLabel className="cursor-pointer text-xs font-bold uppercase tracking-widest text-foreground">Primary Account</FormLabel>
+                                        <p className="text-[10px] text-muted-foreground uppercase font-medium">
                                             Set this as the default billing account for this customer.
                                         </p>
                                     </div>
                                 </FormItem>
                             )} />
 
-                            <DialogFooter className="pt-4">
-                                <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)} disabled={isSubmitting}>
+                            <DialogFooter className="pt-4 gap-2 sm:gap-0">
+                                <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)} className="h-11 px-8 rounded-xl font-bold uppercase tracking-widest text-xs">
                                     Cancel
                                 </Button>
-                                <Button type="submit" disabled={isSubmitting}>
-                                    {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                                    {selectedAccount ? "Save Changes" : "Save Account"}
+                                <Button type="submit" className="h-11 px-8 rounded-xl font-black uppercase tracking-widest text-xs shadow-lg bg-primary hover:bg-primary/90 transition-all active:scale-95">
+                                    {selectedAccount ? "Update in List" : "Add to List"}
                                 </Button>
                             </DialogFooter>
                         </form>
@@ -334,4 +469,4 @@ export function BankAccountManager({ customerId }: BankAccountManagerProps) {
             </Dialog>
         </div>
     );
-}
+}
