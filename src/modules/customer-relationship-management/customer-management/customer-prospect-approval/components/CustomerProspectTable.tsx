@@ -13,10 +13,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-    Search, Filter, Check, X, Loader2, ChevronLeft, ChevronRight, MoreHorizontal, User, Store, MapPin, Calendar,
-    Phone, Building, Info, Briefcase, Landmark, ShieldCheck, FileText
-} from "lucide-react";
+import { Search, Filter, Check, X, ChevronLeft, ChevronRight, MoreHorizontal, User, Store, MapPin, Calendar, Phone, Building, Info, Briefcase, Landmark, ShieldCheck, FileText, Edit2, Loader2, Map as MapIcon } from "lucide-react";
 import { CustomerProspect, CustomerProspectsAPIResponse, DiscountType, Salesman, StoreType, PaymentTerm, CustomerClassification } from "../types";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
@@ -25,7 +22,9 @@ import { SearchableSelect } from "@/components/ui/searchable-select";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
+import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
+import { ProspectMapViewer } from "./ProspectMapViewer";
 
 interface CustomerProspectTableProps {
     data: CustomerProspect[];
@@ -45,6 +44,7 @@ interface CustomerProspectTableProps {
     onSalesmanChange: (salesmanId: string) => void;
     onApprove: (id: number) => Promise<void>;
     onReject: (id: number) => Promise<void>;
+    onUpdate: (id: number, data: Partial<CustomerProspect>) => Promise<void>;
     storeTypes: StoreType[];
     paymentTerms: PaymentTerm[];
     classifications: CustomerClassification[];
@@ -53,14 +53,29 @@ interface CustomerProspectTableProps {
 export function CustomerProspectTable({
     data, discountTypes, salesmen, storeTypes, paymentTerms, classifications, isLoading, metadata, page, pageSize,
     searchQuery: parentSearchQuery, statusFilter, salesmanFilter,
-    onPageChange, onPageSizeChange: _onPageSizeChange, onSearchChange, onStatusChange, onSalesmanChange, // eslint-disable-line @typescript-eslint/no-unused-vars
-    onApprove, onReject,
+    onPageChange, onPageSizeChange: _onPageSizeChange, onSearchChange, onStatusChange, onSalesmanChange, 
+    onApprove, onReject, onUpdate,
 }: CustomerProspectTableProps) {
     const [localSearchQuery, setLocalSearchQuery] = useState(parentSearchQuery);
     const [processingId, setProcessingId] = useState<number | null>(null);
     const [selectedProspect, setSelectedProspect] = useState<CustomerProspect | null>(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isZoomOpen, setIsZoomOpen] = useState(false);
+
+    // Edit State
+    const [isEditing, setIsEditing] = useState(false);
+    const [editForm, setEditForm] = useState<Partial<CustomerProspect>>({});
+    const [isUpdating, setIsUpdating] = useState(false);
+
+    // PSGC Location States
+    const [provincesList, setProvincesList] = useState<{code: string, name: string}[]>([]);
+    const [citiesList, setCitiesList] = useState<{code: string, name: string}[]>([]);
+    const [barangaysList, setBarangaysList] = useState<{code: string, name: string}[]>([]);
+    
+    // Loading States
+    const [isLoadingProvinces, setIsLoadingProvinces] = useState(false);
+    const [isLoadingCities, setIsLoadingCities] = useState(false);
+    const [isLoadingBarangays, setIsLoadingBarangays] = useState(false);
 
     useEffect(() => {
         const handler = setTimeout(() => {
@@ -92,8 +107,165 @@ export function CustomerProspectTable({
 
     const handleView = (prospect: CustomerProspect) => {
         setSelectedProspect(prospect);
+        setIsEditing(false);
+        setEditForm({});
         setIsModalOpen(true);
     };
+
+    const handleStartEdit = () => {
+        if (!selectedProspect) return;
+        setIsEditing(true);
+        setEditForm({
+            customer_name: selectedProspect.customer_name,
+            store_name: selectedProspect.store_name,
+            store_type: selectedProspect.store_type,
+            brgy: selectedProspect.brgy,
+            city: selectedProspect.city,
+            province: selectedProspect.province,
+            customer_tin: selectedProspect.customer_tin,
+            classification: selectedProspect.classification,
+        });
+    };
+
+    const handleCancelEdit = () => {
+        setIsEditing(false);
+        setEditForm({});
+    };
+
+    // --- PSGC FETCHING LOGIC ---
+    useEffect(() => {
+        if (!isEditing || !isModalOpen) return;
+        const fetchProvinces = async () => {
+            if (provincesList.length > 0) return;
+            setIsLoadingProvinces(true);
+            try {
+                const res = await fetch("https://psgc.gitlab.io/api/provinces/");
+                if (!res.ok) throw new Error("Failed to fetch provinces");
+                const data = await res.json();
+                setProvincesList(data.map((p: any) => ({ code: p.code, name: p.name })));
+            } catch (err) {
+                console.error("PSGC Error:", err);
+            } finally {
+                setIsLoadingProvinces(false);
+            }
+        };
+        fetchProvinces();
+    }, [isEditing, isModalOpen, provincesList.length]);
+
+    // Utility for fuzzy matching geographic names
+    const fuzzyMatch = (stored: string, apiName: string) => {
+        if (!stored || !apiName) return false;
+        
+        const normalize = (s: string) => s.toLowerCase().trim()
+            .replace(/\s+/g, ' ')      // Normalize spaces
+            .replace(/-/g, ' ')        // Treat hyphens as spaces
+            .replace(/^city of\s+/i, '') // Remove "City of " prefix for comparison
+            .trim();
+
+        const sNormalized = normalize(stored);
+        const aNormalized = normalize(apiName);
+        
+        return sNormalized === aNormalized || sNormalized.includes(aNormalized) || aNormalized.includes(sNormalized);
+    };
+
+    useEffect(() => {
+        if (!isEditing || !editForm.province || provincesList.length === 0) {
+            setCitiesList([]);
+            return;
+        }
+
+        // Fuzzy match for the province
+        const provObj = provincesList.find(p => fuzzyMatch(editForm.province || "", p.name));
+        if (!provObj) return;
+
+        // Standardize the casing in editForm so SearchableSelect highlights the correct option
+        if (provObj.name !== editForm.province) {
+            setEditForm(prev => ({ ...prev, province: provObj.name }));
+        }
+
+        const fetchCities = async () => {
+            setIsLoadingCities(true);
+            try {
+                const res = await fetch(`https://psgc.gitlab.io/api/provinces/${provObj.code}/cities-municipalities/`);
+                if (!res.ok) throw new Error("Failed to fetch cities");
+                const data = await res.json();
+                setCitiesList(data.map((c: any) => ({ code: c.code, name: c.name })));
+            } catch (err) {
+                console.error("PSGC Error:", err);
+            } finally {
+                setIsLoadingCities(false);
+            }
+        };
+        fetchCities();
+    }, [isEditing, editForm.province, provincesList]);
+
+    useEffect(() => {
+        if (!isEditing || !editForm.city || citiesList.length === 0) {
+            setBarangaysList([]);
+            return;
+        }
+
+        // Fuzzy match for the city
+        const cityObj = citiesList.find(c => fuzzyMatch(editForm.city || "", c.name));
+        if (!cityObj) return;
+
+        // Standardize the casing in editForm
+        if (cityObj.name !== editForm.city) {
+            setEditForm(prev => ({ ...prev, city: cityObj.name }));
+        }
+
+        const fetchBarangays = async () => {
+            setIsLoadingBarangays(true);
+            try {
+                const res = await fetch(`https://psgc.gitlab.io/api/cities-municipalities/${cityObj.code}/barangays/`);
+                if (!res.ok) throw new Error("Failed to fetch barangays");
+                const data = await res.json();
+                setBarangaysList(data.map((b: any) => ({ code: b.code, name: b.name })));
+            } catch (err) {
+                console.error("PSGC Error:", err);
+            } finally {
+                setIsLoadingBarangays(false);
+            }
+        };
+        fetchBarangays();
+    }, [isEditing, editForm.city, citiesList]);
+
+    useEffect(() => {
+        if (!isEditing || !editForm.brgy || barangaysList.length === 0) return;
+
+        // Fuzzy match for the barangay object to standardize casing
+        const brgyObj = barangaysList.find(b => fuzzyMatch(editForm.brgy || "", b.name));
+        if (brgyObj && brgyObj.name !== editForm.brgy) {
+            setEditForm(prev => ({ ...prev, brgy: brgyObj.name }));
+        }
+    }, [isEditing, editForm.brgy, barangaysList]);
+    // ----------------------------
+
+    const handleSaveChanges = async () => {
+        if (!selectedProspect) return;
+        setIsUpdating(true);
+        try {
+            await onUpdate(selectedProspect.id, editForm);
+            
+            // Update selected prospect locally to reflect changes in modal
+            setSelectedProspect({
+                ...selectedProspect,
+                ...editForm,
+                // Ensure number types are correctly handled if they came from strings in select
+                store_type: editForm.store_type ? Number(editForm.store_type) : selectedProspect.store_type,
+                classification: editForm.classification ? Number(editForm.classification) : selectedProspect.classification,
+            });
+
+            toast.success("Prospect updated", { description: "Information has been successfully updated." });
+            setIsEditing(false);
+        } catch (err) {
+            toast.error("Update failed", { description: err instanceof Error ? err.message : "Could not save changes." });
+        } finally {
+            setIsUpdating(false);
+        }
+    };
+
+    // (Map is now managed entirely by <ProspectMapViewer>)
 
     const totalPages = Math.ceil(metadata.total_count / pageSize) || 1;
 
@@ -326,9 +498,17 @@ export function CustomerProspectTable({
                                         General Information
                                     </h4>
                                     <div className="grid grid-cols-2 gap-4 text-sm">
-                                        <div className="flex flex-col">
-                                            <span className="text-[10px] font-bold text-muted-foreground uppercase">Customer Name</span>
-                                            <span className="font-semibold">{selectedProspect.customer_name || "None"}</span>
+                                        <div className="flex flex-col col-span-2">
+                                            <Label className="text-[10px] font-bold text-muted-foreground uppercase mb-1">Customer Name</Label>
+                                            {isEditing ? (
+                                                <Input 
+                                                    value={editForm.customer_name || ""} 
+                                                    onChange={(e) => setEditForm({...editForm, customer_name: e.target.value})}
+                                                    className="h-8 text-sm"
+                                                />
+                                            ) : (
+                                                <span className="font-semibold">{selectedProspect.customer_name || "None"}</span>
+                                            )}
                                         </div>
                                         <div className="flex flex-col">
                                             <span className="text-[10px] font-bold text-muted-foreground uppercase">Customer Code</span>
@@ -340,13 +520,15 @@ export function CustomerProspectTable({
                                                 {selectedProspect.type || "None"}
                                             </Badge>
                                         </div>
-                                        <div className="flex flex-col">
-                                            <span className="text-[10px] font-bold text-muted-foreground uppercase">Prospect Date</span>
-                                            <span className="flex items-center gap-1">
-                                                <Calendar className="h-3 w-3 text-muted-foreground" />
-                                                {selectedProspect.prospect_date ? new Date(selectedProspect.prospect_date).toLocaleDateString() : "None"}
-                                            </span>
-                                        </div>
+                                        {!isEditing && (
+                                            <div className="flex flex-col">
+                                                <span className="text-[10px] font-bold text-muted-foreground uppercase">Prospect Date</span>
+                                                <span className="flex items-center gap-1">
+                                                    <Calendar className="h-3 w-3 text-muted-foreground" />
+                                                    {selectedProspect.prospect_date ? new Date(selectedProspect.prospect_date).toLocaleDateString() : "None"}
+                                                </span>
+                                            </div>
+                                        )}
                                         <div className="flex flex-col col-span-2 pt-2 border-t mt-1 border-dashed">
                                             <span className="text-[10px] font-bold text-muted-foreground uppercase">Current Status</span>
                                             <div className="flex items-center gap-2 mt-1.5">
@@ -359,6 +541,26 @@ export function CustomerProspectTable({
                                             </div>
                                         </div>
                                     </div>
+                                </section>
+
+                                {/* Geo Tag Location Map */}
+                                <section className="space-y-2">
+                                    <h4 className="text-xs font-bold uppercase text-primary flex items-center gap-1.5 underline underline-offset-4">
+                                        <MapIcon className="h-3.5 w-3.5" />
+                                        Geo Tag Location
+                                    </h4>
+                                    <ProspectMapViewer
+                                        location={(selectedProspect as any).location}
+                                        storeName={selectedProspect.store_name}
+                                        customerName={selectedProspect.customer_name}
+                                        address={[selectedProspect.brgy, selectedProspect.city, selectedProspect.province].filter(Boolean).join(', ')}
+                                    />
+                                    <p className="text-[10px] text-muted-foreground italic flex items-center gap-1 px-1">
+                                        <Info className="h-2.5 w-2.5" />
+                                        {(selectedProspect as any).location
+                                            ? "Precise location captured at time of registration."
+                                            : "Location was not captured during registration."}
+                                    </p>
                                 </section>
 
                                 <Separator className="opacity-50" />
@@ -402,22 +604,130 @@ export function CustomerProspectTable({
                                     </h4>
                                     <div className="grid grid-cols-2 gap-4 text-sm">
                                         <div className="flex flex-col col-span-2 p-2 bg-muted/40 rounded-lg">
-                                            <span className="text-[10px] font-bold text-muted-foreground uppercase">Store Info</span>
-                                            <span className="font-semibold text-base">{selectedProspect.store_name || "None"}</span>
-                                            <span className="text-xs text-muted-foreground italic">{selectedProspect.store_signage || "No signage"}</span>
+                                            <Label className="text-[10px] font-bold text-muted-foreground uppercase mb-1">Store Name</Label>
+                                            {isEditing ? (
+                                                <Input 
+                                                    value={editForm.store_name || ""} 
+                                                    onChange={(e) => setEditForm({...editForm, store_name: e.target.value})}
+                                                    className="h-8 text-sm"
+                                                />
+                                            ) : (
+                                                <>
+                                                    <span className="font-semibold text-base">{selectedProspect.store_name || "None"}</span>
+                                                    <span className="text-xs text-muted-foreground italic">{selectedProspect.store_signage || "No signage"}</span>
+                                                </>
+                                            )}
+                                        </div>
+                                        <div className="flex flex-col col-span-2">
+                                            <Label className="text-[10px] font-bold text-muted-foreground uppercase mb-1">Full Address (Province, City, Brgy)</Label>
+                                            {isEditing ? (
+                                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-1">
+                                                    <div className="flex flex-col gap-1">
+                                                        <span className="text-[8px] font-bold uppercase text-muted-foreground">Province</span>
+                                                        <SearchableSelect 
+                                                            options={[
+                                                                // Always include the stored DB value so it shows up even if not in PSGC
+                                                                ...(editForm.province && !provincesList.some(p => p.name === editForm.province)
+                                                                    ? [{ value: editForm.province, label: editForm.province }]
+                                                                    : []),
+                                                                ...provincesList.map(p => ({ value: p.name, label: p.name }))
+                                                            ]}
+                                                            value={editForm.province || ""}
+                                                            onValueChange={(val) => {
+                                                                setEditForm({ ...editForm, province: val, city: "", brgy: "" });
+                                                            }}
+                                                            placeholder={isLoadingProvinces ? "Loading..." : "Select Province"}
+                                                            className="h-9"
+                                                        />
+                                                    </div>
+                                                    <div className="flex flex-col gap-1">
+                                                        <span className="text-[8px] font-bold uppercase text-muted-foreground">City/Municipality</span>
+                                                        <SearchableSelect 
+                                                            options={[
+                                                                // Always include the stored DB value so it shows up even if not in PSGC
+                                                                ...(editForm.city && !citiesList.some(c => c.name === editForm.city)
+                                                                    ? [{ value: editForm.city, label: editForm.city }]
+                                                                    : []),
+                                                                ...citiesList.map(c => ({ value: c.name, label: c.name }))
+                                                            ]}
+                                                            value={editForm.city || ""}
+                                                            onValueChange={(val) => {
+                                                                setEditForm({ ...editForm, city: val, brgy: "" });
+                                                            }}
+                                                            placeholder={isLoadingCities ? "Loading..." : (!editForm.province ? "Select Province first" : "Select City")}
+                                                            className="h-9"
+                                                            disabled={!editForm.province || isLoadingCities}
+                                                        />
+                                                    </div>
+                                                    <div className="flex flex-col gap-1">
+                                                        <span className="text-[8px] font-bold uppercase text-muted-foreground">Barangay</span>
+                                                        <SearchableSelect 
+                                                            options={[
+                                                                // Always include the stored DB value so it shows up even if not in PSGC
+                                                                ...(editForm.brgy && !barangaysList.some(b => b.name === editForm.brgy)
+                                                                    ? [{ value: editForm.brgy, label: editForm.brgy }]
+                                                                    : []),
+                                                                ...barangaysList.map(b => ({ value: b.name, label: b.name }))
+                                                            ]}
+                                                            value={editForm.brgy || ""}
+                                                            onValueChange={(val) => {
+                                                                setEditForm({ ...editForm, brgy: val });
+                                                            }}
+                                                            placeholder={isLoadingBarangays ? "Loading..." : (!editForm.city ? "Select City first" : "Select Brgy")}
+                                                            className="h-9"
+                                                            disabled={!editForm.city || isLoadingBarangays}
+                                                        />
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                <span className="text-xs leading-tight">
+                                                    {selectedProspect.province || "N/A"}, {selectedProspect.city || "N/A"}, {selectedProspect.brgy || "N/A"}
+                                                </span>
+                                            )}
                                         </div>
                                         <div className="flex flex-col">
-                                            <span className="text-[10px] font-bold text-muted-foreground uppercase">Full Address</span>
-                                            <span className="text-xs leading-tight">
-                                                {selectedProspect.brgy || "N/A"}, {selectedProspect.city || "N/A"}, {selectedProspect.province || "N/A"}
-                                            </span>
+                                            <Label className="text-[10px] font-bold text-muted-foreground uppercase mb-1">Store Type</Label>
+                                            {isEditing ? (
+                                                <Select 
+                                                    value={editForm.store_type?.toString()} 
+                                                    onValueChange={(v) => setEditForm({...editForm, store_type: Number(v)})}
+                                                >
+                                                    <SelectTrigger className="h-8 text-[10px]">
+                                                        <SelectValue placeholder="Select type" />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        {storeTypes.map(st => (
+                                                            <SelectItem key={st.id} value={st.id.toString()}>{st.store_type}</SelectItem>
+                                                        ))}
+                                                    </SelectContent>
+                                                </Select>
+                                            ) : (
+                                                <span className="font-medium">
+                                                    {storeTypes.find(st => st.id === Number(selectedProspect.store_type))?.store_type || "None"}
+                                                </span>
+                                            )}
                                         </div>
                                         <div className="flex flex-col">
-                                            <span className="text-[10px] font-bold text-muted-foreground uppercase">Classification</span>
-                                            <span className="font-medium">
-                                                {classifications.find(c => c.id === Number(selectedProspect.classification))?.classification_name 
-                                                    || "None"}
-                                            </span>
+                                            <Label className="text-[10px] font-bold text-muted-foreground uppercase mb-1">Classification</Label>
+                                            {isEditing ? (
+                                                <Select 
+                                                    value={editForm.classification?.toString()} 
+                                                    onValueChange={(v) => setEditForm({...editForm, classification: Number(v)})}
+                                                >
+                                                    <SelectTrigger className="h-8 text-[10px]">
+                                                        <SelectValue placeholder="Select classification" />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        {classifications.map(cl => (
+                                                            <SelectItem key={cl.id} value={cl.id.toString()}>{cl.classification_name}</SelectItem>
+                                                        ))}
+                                                    </SelectContent>
+                                                </Select>
+                                            ) : (
+                                                <span className="font-medium">
+                                                    {classifications.find(c => c.id === Number(selectedProspect.classification))?.classification_name || "None"}
+                                                </span>
+                                            )}
                                         </div>
                                     </div>
                                 </section>
@@ -432,11 +742,19 @@ export function CustomerProspectTable({
                                     </h4>
                                     <div className="grid grid-cols-2 gap-4 text-sm">
                                         <div className="flex flex-col">
-                                            <span className="text-[10px] font-bold text-muted-foreground uppercase">TIN</span>
-                                            <span className="font-mono font-medium">{selectedProspect.customer_tin || "None"}</span>
+                                            <Label className="text-[10px] font-bold text-muted-foreground uppercase mb-1">TIN</Label>
+                                            {isEditing ? (
+                                                <Input 
+                                                    value={editForm.customer_tin || ""} 
+                                                    onChange={(e) => setEditForm({...editForm, customer_tin: e.target.value})}
+                                                    className="h-8 text-sm font-mono"
+                                                />
+                                            ) : (
+                                                <span className="font-mono font-medium">{selectedProspect.customer_tin || "None"}</span>
+                                            )}
                                         </div>
                                         <div className="flex flex-col">
-                                            <span className="text-[10px] font-bold text-muted-foreground uppercase">Tax Status</span>
+                                            <span className="text-[10px] font-bold text-muted-foreground uppercase mb-1">Tax Status</span>
                                             <div className="flex items-center gap-2 mt-1">
                                                 {selectedProspect.isVAT === 1 && <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100 border-emerald-200 text-[9px] h-4">VAT</Badge>}
                                                 {selectedProspect.isEWT === 1 && <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100 border-amber-200 text-[9px] h-4">EWT</Badge>}
@@ -508,25 +826,56 @@ export function CustomerProspectTable({
                         </ScrollArea>
                     )}
                     <DialogFooter className="flex flex-col sm:flex-row gap-2 mt-4">
-                        {selectedProspect?.prospect_status === 'Pending' ? (
+                        {isEditing ? (
                             <>
                                 <Button
                                     variant="outline"
-                                    onClick={() => selectedProspect && handleAction(selectedProspect.id, 'Reject')}
-                                    disabled={processingId !== null}
-                                    className="w-full sm:w-auto border-rose-200 text-rose-600 hover:bg-rose-50"
+                                    onClick={handleCancelEdit}
+                                    disabled={isUpdating}
+                                    className="w-full sm:w-auto"
                                 >
-                                    {processingId === selectedProspect?.id ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <X className="h-4 w-4 mr-2" />}
-                                    Reject Prospect
+                                    Cancel
                                 </Button>
                                 <Button
-                                    onClick={() => selectedProspect && handleAction(selectedProspect.id, 'Approve')}
-                                    disabled={processingId !== null}
-                                    className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white"
+                                    onClick={handleSaveChanges}
+                                    disabled={isUpdating}
+                                    className="w-full sm:w-auto bg-primary text-primary-foreground"
                                 >
-                                    {processingId === selectedProspect?.id ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Check className="h-4 w-4 mr-2" />}
-                                    Approve & Create Customer
+                                    {isUpdating ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Check className="h-4 w-4 mr-2" />}
+                                    Save Changes
                                 </Button>
+                            </>
+                        ) : selectedProspect?.prospect_status === 'Pending' || selectedProspect?.prospect_status === 'Rejected' ? (
+                            <>
+                                <Button
+                                    variant="outline"
+                                    onClick={handleStartEdit}
+                                    className="w-full sm:w-auto border-primary/20 text-primary hover:bg-primary/5"
+                                >
+                                    <Edit2 className="h-3.5 w-3.5 mr-2" />
+                                    Edit Details
+                                </Button>
+                                {selectedProspect.prospect_status === 'Pending' && (
+                                    <>
+                                        <Button
+                                            variant="outline"
+                                            onClick={() => selectedProspect && handleAction(selectedProspect.id, 'Reject')}
+                                            disabled={processingId !== null}
+                                            className="w-full sm:w-auto border-rose-200 text-rose-600 hover:bg-rose-50"
+                                        >
+                                            {processingId === selectedProspect?.id ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <X className="h-4 w-4 mr-2" />}
+                                            Reject
+                                        </Button>
+                                        <Button
+                                            onClick={() => selectedProspect && handleAction(selectedProspect.id, 'Approve')}
+                                            disabled={processingId !== null}
+                                            className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white"
+                                        >
+                                            {processingId === selectedProspect?.id ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Check className="h-4 w-4 mr-2" />}
+                                            Approve
+                                        </Button>
+                                    </>
+                                )}
                             </>
                         ) : (
                             <Button
@@ -569,6 +918,8 @@ export function CustomerProspectTable({
                     </div>
                 </DialogContent>
             </Dialog>
+
+
         </div>
     );
 }
