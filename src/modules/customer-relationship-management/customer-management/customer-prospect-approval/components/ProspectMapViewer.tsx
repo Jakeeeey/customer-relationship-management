@@ -38,10 +38,13 @@ function parseLocation(loc: unknown): [number, number] | null {
     if (
       typeof loc === "object" &&
       loc !== null &&
-      (loc as any).type === "Point" &&
-      Array.isArray((loc as any).coordinates)
+      "type" in loc &&
+      (loc as Record<string, unknown>).type === "Point" &&
+      "coordinates" in loc &&
+      Array.isArray((loc as Record<string, unknown>).coordinates)
     ) {
-      const [lng, lat] = (loc as any).coordinates as [number, number];
+      const coords = (loc as Record<string, unknown>).coordinates as unknown[];
+      const [lng, lat] = coords as [number, number];
       if (
         typeof lat === "number" &&
         typeof lng === "number" &&
@@ -56,9 +59,9 @@ function parseLocation(loc: unknown): [number, number] | null {
 
     // Generic object { lat/latitude/y, lng/longitude/x }
     if (typeof loc === "object" && loc !== null) {
-      const o = loc as any;
-      const lat = o.lat ?? o.latitude ?? o.y;
-      const lng = o.lng ?? o.longitude ?? o.x;
+      const o = loc as Record<string, unknown>;
+      const lat = (o.lat ?? o.latitude ?? o.y) as number | undefined;
+      const lng = (o.lng ?? o.longitude ?? o.x) as number | undefined;
       if (typeof lat === "number" && typeof lng === "number") {
         if (Math.abs(lat) > 90 && Math.abs(lng) <= 90) return [lng, lat];
         return [lat, lng];
@@ -92,7 +95,7 @@ export function ProspectMapViewer({
   address,
 }: ProspectMapViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const mapInstance = useRef<any>(null);
+  const mapInstance = useRef<{ remove: () => void; invalidateSize: () => void } | null>(null);
   const [scriptReady, setScriptReady] = useState(false);
 
   const coords = parseLocation(location);
@@ -106,7 +109,7 @@ export function ProspectMapViewer({
 
   // Check if Leaflet is already available (e.g. loaded by another module on the same page)
   useEffect(() => {
-    if (typeof window !== "undefined" && (window as any).L) {
+    if (typeof window !== "undefined" && (window as unknown as Record<string, { L?: unknown }>).L) {
       setScriptReady(true);
     }
   }, []);
@@ -115,7 +118,11 @@ export function ProspectMapViewer({
   useEffect(() => {
     if (!scriptReady || !containerRef.current || !coords) return;
 
-    const L = (window as any).L;
+    const L = (window as unknown as Record<string, {
+      map: (el: HTMLElement, options: unknown) => { setView: (coords: [number, number], zoom: number) => { remove: () => void; invalidateSize: () => void } };
+      tileLayer: (url: string, options: unknown) => { addTo: (map: unknown) => void };
+      marker: (coords: [number, number]) => { bindPopup: (content: string, options: unknown) => { addTo: (map: unknown) => { openPopup: () => void } } };
+    }>).L;
     if (!L) return;
 
     // Clean up any previous instance
@@ -125,7 +132,7 @@ export function ProspectMapViewer({
     }
 
     // Clear Leaflet's internal container flag in case the DOM element was reused
-    const el = containerRef.current as any;
+    const el = containerRef.current as HTMLDivElement & { _leaflet_id?: number };
     if (el._leaflet_id) delete el._leaflet_id;
 
     const map = L.map(el, {

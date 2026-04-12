@@ -53,7 +53,7 @@ interface CustomerProspectTableProps {
 export function CustomerProspectTable({
     data, discountTypes, salesmen, storeTypes, paymentTerms, classifications, isLoading, metadata, page, pageSize,
     searchQuery: parentSearchQuery, statusFilter, salesmanFilter,
-    onPageChange, onPageSizeChange: _onPageSizeChange, onSearchChange, onStatusChange, onSalesmanChange, 
+    onPageChange, onSearchChange, onStatusChange, onSalesmanChange, 
     onApprove, onReject, onUpdate,
 }: CustomerProspectTableProps) {
     const [localSearchQuery, setLocalSearchQuery] = useState(parentSearchQuery);
@@ -142,7 +142,7 @@ export function CustomerProspectTable({
                 const res = await fetch("https://psgc.gitlab.io/api/provinces/");
                 if (!res.ok) throw new Error("Failed to fetch provinces");
                 const data = await res.json();
-                setProvincesList(data.map((p: any) => ({ code: p.code, name: p.name })));
+                setProvincesList(data.map((p: { code: string; name: string }) => ({ code: p.code, name: p.name })));
             } catch (err) {
                 console.error("PSGC Error:", err);
             } finally {
@@ -189,7 +189,7 @@ export function CustomerProspectTable({
                 const res = await fetch(`https://psgc.gitlab.io/api/provinces/${provObj.code}/cities-municipalities/`);
                 if (!res.ok) throw new Error("Failed to fetch cities");
                 const data = await res.json();
-                setCitiesList(data.map((c: any) => ({ code: c.code, name: c.name })));
+                setCitiesList(data.map((c: { code: string; name: string }) => ({ code: c.code, name: c.name })));
             } catch (err) {
                 console.error("PSGC Error:", err);
             } finally {
@@ -220,7 +220,7 @@ export function CustomerProspectTable({
                 const res = await fetch(`https://psgc.gitlab.io/api/cities-municipalities/${cityObj.code}/barangays/`);
                 if (!res.ok) throw new Error("Failed to fetch barangays");
                 const data = await res.json();
-                setBarangaysList(data.map((b: any) => ({ code: b.code, name: b.name })));
+                setBarangaysList(data.map((b: { code: string; name: string }) => ({ code: b.code, name: b.name })));
             } catch (err) {
                 console.error("PSGC Error:", err);
             } finally {
@@ -550,14 +550,14 @@ export function CustomerProspectTable({
                                         Geo Tag Location
                                     </h4>
                                     <ProspectMapViewer
-                                        location={(selectedProspect as any).location}
+                                        location={selectedProspect.location}
                                         storeName={selectedProspect.store_name}
                                         customerName={selectedProspect.customer_name}
                                         address={[selectedProspect.brgy, selectedProspect.city, selectedProspect.province].filter(Boolean).join(', ')}
                                     />
                                     <p className="text-[10px] text-muted-foreground italic flex items-center gap-1 px-1">
                                         <Info className="h-2.5 w-2.5" />
-                                        {(selectedProspect as any).location
+                                        {selectedProspect.location
                                             ? "Precise location captured at time of registration."
                                             : "Location was not captured during registration."}
                                     </p>
