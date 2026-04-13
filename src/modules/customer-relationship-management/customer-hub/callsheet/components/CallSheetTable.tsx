@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { FileText, PlusCircle, ExternalLink, Hash, Clock, CheckCircle2, XCircle, Download, RefreshCw } from "lucide-react";
+import { FileText, PlusCircle, ExternalLink, Clock, CheckCircle2, XCircle, Download, RefreshCw } from "lucide-react";
 import {
     Table,
     TableBody,

@@ -409,7 +409,6 @@ export function useSalesOrder() {
             }
         };
         init();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [attachmentId, externalSalesOrderId]);
 
     // Debounced Customer Search

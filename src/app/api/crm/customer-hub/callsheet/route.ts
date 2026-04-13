@@ -152,10 +152,11 @@ export async function GET(req: NextRequest) {
                     parent_order_status: soMeta?.order_status ?? null
                 };
             })
-            .filter((item: any) => {
+            .filter((item: Record<string, unknown>) => {
                 // EXCLUDE any attachment if it has a sales order AND its status is NO LONGER strictly "Pending"
                 if (item.sales_order_id) {
-                     if (!item.parent_order_status || item.parent_order_status.trim().toLowerCase() !== "pending") {
+                     const status = item.parent_order_status as string | null;
+                     if (!status || status.trim().toLowerCase() !== "pending") {
                          return false; 
                      }
                 }
