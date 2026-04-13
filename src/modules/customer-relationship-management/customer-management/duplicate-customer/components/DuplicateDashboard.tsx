@@ -71,34 +71,34 @@ export const DuplicateDashboard: React.FC = () => {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <Card className="bg-muted/40 border-border shadow-sm flex items-center p-4">
-                    <div className="p-3 bg-primary/10 rounded-xl mr-4">
+                <Card className="bg-muted/40 border-border shadow-sm flex flex-col items-center justify-center p-6 text-center">
+                    <div className="p-3 bg-primary/10 rounded-xl mb-3">
                         <Layers className="h-6 w-6 text-primary" />
                     </div>
                     <div>
-                        <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Potential Groups</p>
+                        <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-1">Potential Groups</p>
                         <div className="text-3xl font-black text-foreground tabular-nums">
                             {isLoading ? <Skeleton className="h-9 w-16" /> : duplicateGroups.length}
                         </div>
                     </div>
                 </Card>
-                <Card className="bg-muted/40 border-border shadow-sm flex items-center p-4">
-                    <div className="p-3 bg-warning/10 rounded-xl mr-4">
+                <Card className="bg-muted/40 border-border shadow-sm flex flex-col items-center justify-center p-6 text-center">
+                    <div className="p-3 bg-warning/10 rounded-xl mb-3">
                         <AlertCircle className="h-6 w-6 text-warning" />
                     </div>
                     <div>
-                        <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Affected Records</p>
+                        <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-1">Affected Records</p>
                         <div className="text-3xl font-black text-foreground tabular-nums">
                             {isLoading ? <Skeleton className="h-9 w-16" /> : duplicateGroups.reduce((acc, g) => acc + g.customers.length, 0)}
                         </div>
                     </div>
                 </Card>
-                <Card className="bg-muted/40 border-border shadow-sm flex items-center p-4">
-                    <div className="p-3 bg-success/10 rounded-xl mr-4">
+                <Card className="bg-muted/40 border-border shadow-sm flex flex-col items-center justify-center p-6 text-center">
+                    <div className="p-3 bg-success/10 rounded-xl mb-3">
                         <RefreshCw className="h-6 w-6 text-success" />
                     </div>
                     <div>
-                        <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Avg. Confidence</p>
+                        <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-1">Avg. Confidence</p>
                         <div className="text-3xl font-black text-foreground tabular-nums">
                             {isLoading ? <Skeleton className="h-9 w-16" /> : "92%"}
                         </div>

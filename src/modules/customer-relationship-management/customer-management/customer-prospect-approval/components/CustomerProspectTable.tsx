@@ -26,7 +26,7 @@ import { toast } from "sonner";
 import { ProspectMapViewer } from "./ProspectMapViewer";
 import { SimilarCustomerWarning } from "./SimilarCustomerWarning";
 import { CustomerComparisonModal } from "./CustomerComparisonModal";
-import { findPotentialMatches, SimilarityGroup } from "../utils/similarity";
+import { findPotentialMatches, SimilarityGroup, Customer } from "../utils/similarity";
 import { parseApiError } from "../utils/error-parser";
 
 
@@ -955,7 +955,7 @@ export function CustomerProspectTable({
                     isOpen={isComparisonOpen}
                     onClose={() => setIsComparisonOpen(false)}
                     prospect={selectedProspect}
-                    existingCustomer={activeComparisonGroup.customers[1]}
+                    existingCustomer={activeComparisonGroup.customers[1] as Customer}
                     reasons={activeComparisonGroup.reasons}
                 />
             )}

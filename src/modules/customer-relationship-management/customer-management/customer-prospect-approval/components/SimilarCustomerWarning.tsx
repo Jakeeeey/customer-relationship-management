@@ -47,7 +47,7 @@ export function SimilarCustomerWarning({ similarGroups, onCompare }: SimilarCust
                         >
                             <div className="flex items-center gap-2 overflow-hidden mr-2">
                                 <Copy className="h-3 w-3 text-warning/50 shrink-0" />
-                                <span className="text-[11px] font-semibold text-foreground/90 truncate" title={existingCustomer.customer_name}>
+                                <span className="text-[11px] font-semibold text-foreground/90 truncate" title={existingCustomer.customer_name ?? undefined}>
                                     {existingCustomer.customer_name}
                                 </span>
                             </div>

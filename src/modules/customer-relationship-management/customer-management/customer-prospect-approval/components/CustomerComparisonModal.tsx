@@ -41,7 +41,7 @@ export function CustomerComparisonModal({
 
     const isMatch = (field: string) => {
         const val1 = String(prospect[field as keyof CustomerProspect] || "").toLowerCase().trim();
-        const val2 = String(existingCustomer[field] || "").toLowerCase().trim();
+        const val2 = String(existingCustomer[field as keyof Customer] || "").toLowerCase().trim();
         return val1 === val2 && val1 !== "";
     };
 
@@ -79,7 +79,7 @@ export function CustomerComparisonModal({
                         {compareFields.map((field) => {
                             const matched = isMatch(field.key);
                             const val1 = String(prospect[field.key as keyof CustomerProspect] || "N/A");
-                            const val2 = String(existingCustomer[field.key] || "N/A");
+                            const val2 = String(existingCustomer[field.key as keyof Customer] || "N/A");
 
                             return (
                                 <React.Fragment key={field.key}>
