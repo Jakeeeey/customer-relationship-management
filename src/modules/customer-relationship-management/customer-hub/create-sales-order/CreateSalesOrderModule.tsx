@@ -1,5 +1,6 @@
 "use client";
 
+import React from "react";
 import { useSalesOrder } from "./hooks/useSalesOrder";
 import { SalesOrderHeader } from "./components/SalesOrderHeader";
 import { SalesOrderEncoding } from "./components/SalesOrderEncoding";
@@ -7,7 +8,7 @@ import { SalesOrderCheckout } from "./components/SalesOrderCheckout";
 import { Loader2, PackagePlus, FileText, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-export default function CreateSalesOrderModule({ fileUrl }: { fileUrl?: string | null }) {
+export default function CreateSalesOrderModule({ documentViewerUrl }: { documentViewerUrl?: string | null }) {
     const {
         salesmen, selectedSalesmanId, handleSalesmanChange, selectedSalesman,
         accounts, handleAccountChange, selectedAccount, loadingAccounts,
@@ -41,8 +42,8 @@ export default function CreateSalesOrderModule({ fileUrl }: { fileUrl?: string |
     }
 
     const openSourceDoc = () => {
-        if (!fileUrl) return;
-        window.open(fileUrl, "SourceDoc", "width=1000,height=800,menubar=no,toolbar=no,location=no,status=no,resizable=yes,scrollbars=yes");
+        if (!documentViewerUrl) return;
+        window.open(documentViewerUrl, "DocumentViewer", "width=1200,height=900,menubar=no,toolbar=no,location=no,status=no,resizable=yes,scrollbars=yes");
     };
 
     return (
@@ -64,7 +65,7 @@ export default function CreateSalesOrderModule({ fileUrl }: { fileUrl?: string |
                         </div>
                     </div>
 
-                    {fileUrl && (
+                    {documentViewerUrl && (
                         <Button
                             variant="outline"
                             size="sm"

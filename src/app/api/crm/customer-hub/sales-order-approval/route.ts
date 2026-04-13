@@ -508,15 +508,14 @@ export async function POST(req: NextRequest) {
                 const patchRes = await fetch(`${DIRECTUS_URL}/items/sales_order_details`, {
                     method: "PATCH",
                     headers: fetchHeaders,
-                    body: JSON.stringify(lineItems.map((li: { detail_id?: number | string; order_detail_id?: number | string; id?: number | string; allocated_quantity: number; net_amount: number; discount_amount?: number; gross_amount?: number }) => {
+                    body: JSON.stringify(lineItems.map((li: { detail_id?: number | string; order_detail_id?: number | string; id?: number | string; allocated_quantity: number; allocated_amount: number; discount_amount?: number; gross_amount?: number }) => {
                         const pkValue = li.detail_id || li.order_detail_id || li.id;
                         return {
                             id: pkValue,
                             detail_id: pkValue,
                             order_detail_id: pkValue,
                             allocated_quantity: li.allocated_quantity,
-                            net_amount: li.net_amount,
-                            allocated_amount: li.net_amount,
+                            allocated_amount: li.allocated_amount,
                             discount_amount: li.discount_amount ?? 0,
                             gross_amount: li.gross_amount ?? 0
                         };

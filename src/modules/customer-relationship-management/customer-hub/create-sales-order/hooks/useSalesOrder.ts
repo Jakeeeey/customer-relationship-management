@@ -13,6 +13,7 @@ export function useSalesOrder() {
     const attachmentId = searchParams.get("attachment_id");
     const externalSalesOrderId = searchParams.get("orderId") || searchParams.get("sales_order_id");
     const isAutoFilled = useRef(false);
+    const lastId = useRef<string | null>(null);
 
     // Selection State (IDs for dropdowns)
     const [allSalesmen, setAllSalesmen] = useState<Salesman[]>([]);
@@ -123,39 +124,115 @@ export function useSalesOrder() {
             if (Array.isArray(ops) && ops.length > 0) setSelectedSalesTypeId(ops[0].id.toString());
 
             // Check for Auto-fill from URL
-            if ((attachmentId || externalSalesOrderId) && !isAutoFilled.current) {
+            const currentId = attachmentId || externalSalesOrderId;
+
+            // IF NO ID: Reset to blank state if we previously had one to prevent data carry-over
+            if (!currentId && lastId.current) {
+                console.log("[useSalesOrder] ID cleared. Resetting to blank state.");
+                isAutoFilled.current = false;
+                lastId.current = null;
+                setLineItems([]);
+                setAllocatedQuantities({});
+                setExistingOrderId(null);
+                setExistingOrderNo("");
+                setExistingOrderStatus("");
+                setOrderRemarks("");
+                setCustomerSearch("");
+                setSelectedCustomerId("");
+                setPaymentTerms(null);
+            }
+
+            if (currentId && (currentId !== lastId.current || !isAutoFilled.current)) {
+                console.log(`[useSalesOrder] Auto-filling for ${currentId}. Last was ${lastId.current}`);
                 isAutoFilled.current = true;
+                lastId.current = currentId;
+
+                // Reset order-specific state to prevent data leakage from previous order session
+                setLineItems([]);
+                setAllocatedQuantities({});
+                setExistingOrderId(null);
+                setExistingOrderNo("");
+                setOrderRemarks("");
+
                 try {
                     let finalSalesOrderId = externalSalesOrderId;
 
                     if (attachmentId) {
                         const attachment = await fetch(`/api/crm/customer-hub/create-sales-order?action=get_attachment&id=${attachmentId}`).then(r => r.json());
-                        if (attachment && attachment.sales_order_id) {
-                            finalSalesOrderId = attachment.sales_order_id.toString();
-                        } else if (attachment) {
-                            // Pre-fill header metadata from attachment if no order linked yet
+
+                        if (attachment) {
+                            if (attachment.sales_order_id) {
+                                finalSalesOrderId = attachment.sales_order_id.toString();
+                            } else if (attachment.sales_order_no) {
+                                // Fallback: Resolve by Sales Order Number (Grouping Logic)
+                                console.log(`[useSalesOrder] Found order_no ${attachment.sales_order_no} on attachment, looking up existing order...`);
+                                const lookup = await fetch(`/api/crm/customer-hub/create-sales-order?action=get_order&order_no=${encodeURIComponent(attachment.sales_order_no)}`).then(r => r.json());
+                                if (lookup && lookup.header && !lookup.error) {
+                                    finalSalesOrderId = (lookup.header.order_id || lookup.header.id).toString();
+                                    console.log(`[useSalesOrder] Resolved ${attachment.sales_order_no} to existing Order ID: ${finalSalesOrderId}`);
+                                }
+                            }
+                        }
+
+                        // PRE-FILL METADATA (Only if no existing order was resolved)
+                        if (!finalSalesOrderId && attachment) {
+                            console.log(`[useSalesOrder] New attachment detected. Initializing with: ${attachment.customer_code} | Ref: ${attachment.sales_order_no}`);
+
+                            // Initialize the Order Reference so it matches the group
+                            if (attachment.sales_order_no) setExistingOrderNo(attachment.sales_order_no);
+
+                            // EXACT SALESMAN MATCH (Extract Price Type & ID correctly based on literal callsheet assignment)
+                            if (attachment.salesman_id) {
+                                const smData = await fetch(`${salesOrderProvider.API_BASE}?action=salesman_by_id&id=${attachment.salesman_id}`).then(r => r.json());
+                                if (smData) {
+                                    const uidStr = (smData.employee_id || smData.encoder_id || smData.user_id)?.toString();
+                                    const sIdStr = smData.id?.toString();
+
+                                    if (uidStr) {
+                                        setSelectedSalesmanId(uidStr);
+                                        const accts = await fetch(`${salesOrderProvider.API_BASE}?action=accounts&user_id=${uidStr}`).then(r => r.json());
+                                        setAccounts(accts);
+                                        
+                                        if (sIdStr) {
+                                            setSelectedAccountId(sIdStr);
+                                            console.log(`[useSalesOrder] Auto-selected Account ID from attachment: ${sIdStr}`);
+
+                                            // Trigger accurate price type calculation based on Salesman details
+                                            let finalPriceTypeId: number | null = null;
+                                            if (smData.price_type_id !== null && smData.price_type_id !== undefined) {
+                                                finalPriceTypeId = Number(smData.price_type_id);
+                                            }
+
+                                            setPriceTypeId(finalPriceTypeId);
+
+                                            if (finalPriceTypeId && Array.isArray(pt)) {
+                                                const ptModel = pt.find(m => m.price_type_id === finalPriceTypeId);
+                                                if (ptModel) {
+                                                    setPriceType(ptModel.price_type_name);
+                                                    console.log(`[useSalesOrder] Extracted Price Type: ${ptModel.price_type_name} (ID: ${finalPriceTypeId})`);
+                                                } else if (smData.price_type) {
+                                                    setPriceType(smData.price_type);
+                                                } else {
+                                                    setPriceType("A");
+                                                }
+                                            } else if (smData.price_type) {
+                                                setPriceType(smData.price_type);
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
                             if (attachment.customer_code) {
                                 setCustomerSearch(attachment.customer_code);
                                 const custs = await salesOrderProvider.getAllCustomers(attachment.customer_code, 0);
                                 if (custs.length > 0) {
                                     setCustomers(custs);
-                                    setSelectedCustomerId(custs[0].id.toString());
+                                    const targetCustId = custs[0].id.toString();
+                                    setSelectedCustomerId(targetCustId);
+                                    if (custs[0].payment_term !== undefined) setPaymentTerms(custs[0].payment_term);
 
-                                    // If we have a customer, we can resolve the salesman from the linkage
-                                    const sLinks = await salesOrderProvider.getSalesmanByCustomer(Number(custs[0].id));
-                                    if (sLinks && sLinks.length > 0) {
-                                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                                        const uid = (sLinks[0] as any).employee_id || (sLinks[0] as any).encoder_id || (sLinks[0] as any).user_id;
-                                        if (uid && uid.toString()) {
-                                            const uidStr = uid.toString();
-                                            setSelectedSalesmanId(uidStr);
-                                            const accts = await fetch(`${salesOrderProvider.API_BASE}?action=accounts&user_id=${uidStr}`).then(r => r.json());
-                                            setAccounts(accts);
-                                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                                            const sId = (sLinks[0] as any).id;
-                                            if (sId) setSelectedAccountId(sId.toString());
-                                        }
-                                    }
+                                    console.log(`[useSalesOrder] Auto-selected Customer: ${custs[0].customer_name} (ID: ${targetCustId})`);
                                 }
                             }
                         }
@@ -165,7 +242,7 @@ export function useSalesOrder() {
                         setExistingOrderId(Number(finalSalesOrderId));
                         const orderData = await fetch(`/api/crm/customer-hub/create-sales-order?action=get_order&order_id=${finalSalesOrderId}`).then(r => r.json());
                         const { header, items } = orderData;
-                        console.log("[useSalesOrder] Fetched Order Data:", { header, items });
+                        console.log("[useSalesOrder] Loading Existing Order Data:", { header, items });
 
                         if (header) {
                             setExistingOrderStatus(header.order_status || "");
@@ -180,14 +257,12 @@ export function useSalesOrder() {
 
                             const dDate = parseDate(header.due_date);
                             const delDate = parseDate(header.delivery_date);
-                            console.log("[useSalesOrder] Setting Dates:", { dDate, delDate });
 
                             setDueDate(dDate);
                             setDeliveryDate(delDate);
                             setOrderRemarks(header.remarks || "");
 
                             if (header.salesman_id) {
-                                console.log("[useSalesOrder] Resolving Salesman:", header.salesman_id);
                                 const smUser = await fetch(`${salesOrderProvider.API_BASE}?action=salesman_by_id&id=${header.salesman_id}`).then(r => r.json());
                                 if (smUser) {
                                     const uid = (smUser.employee_id || smUser.encoder_id || smUser.user_id)?.toString();
@@ -197,27 +272,36 @@ export function useSalesOrder() {
                                         setAccounts(accts);
                                         setSelectedAccountId(header.salesman_id.toString());
                                     }
+                                    
+                                    // If the order header lacks a price_type_id, fallback to the salesman's assigned price type
+                                    if (!header.price_type_id && smUser.price_type_id) {
+                                        header.price_type_id = smUser.price_type_id;
+                                    }
                                 }
                             }
 
                             if (header.customer_code) {
-                                console.log("[useSalesOrder] Resolving Customer:", header.customer_code);
                                 const custs = await salesOrderProvider.getAllCustomers(header.customer_code, 0);
                                 if (custs.length > 0) {
                                     setCustomers(custs);
                                     setSelectedCustomerId(custs[0].id.toString());
-                                    if (custs[0].payment_term !== undefined) setPaymentTerms(custs[0].payment_term);
                                 }
                             }
 
                             if (header.payment_terms !== undefined) setPaymentTerms(header.payment_terms);
+                            
+                            if (header.price_type_id) {
+                                const pTIdNum = Number(header.price_type_id);
+                                setPriceTypeId(pTIdNum);
+                                // Resolve price type name using the locally fetched `pt` array to bypass React state stale closures
+                                if (Array.isArray(pt)) {
+                                    const ptModel = pt.find((m: PriceTypeModel) => m.price_type_id === pTIdNum);
+                                    if (ptModel) {
+                                        setPriceType(ptModel.price_type_name);
+                                    }
+                                }
+                            }
 
-                            console.log("[useSalesOrder] Setting Other IDs:", {
-                                supplier: header.supplier_id,
-                                branch: header.branch_id,
-                                receipt: header.receipt_type,
-                                sales: header.sales_type
-                            });
                             if (header.supplier_id) setSelectedSupplierId(header.supplier_id.toString());
                             if (header.branch_id) setSelectedBranchId(header.branch_id.toString());
                             if (header.receipt_type) setSelectedReceiptTypeId(header.receipt_type.toString());
@@ -225,7 +309,7 @@ export function useSalesOrder() {
 
                             if (items && Array.isArray(items)) {
                                 console.log("[useSalesOrder] Mapping Items with Enrichment:", items.length);
-                                
+
                                 // 1. Fetch full product metadata for enriched information (discounts, categories)
                                 // We use the current header context to get the same discount logic as the catalog
                                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -262,7 +346,7 @@ export function useSalesOrder() {
                                     const discounts = (enrichedP?.discounts && enrichedP.discounts.length > 0)
                                         ? enrichedP.discounts
                                         : (p.discounts || []);
-                                    
+
                                     let netUnitPrice: number;
                                     if (discounts.length > 0) {
                                         // Best case: recalculate from actual discount percentages
@@ -325,8 +409,7 @@ export function useSalesOrder() {
             }
         };
         init();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
+    }, [attachmentId, externalSalesOrderId]);
 
     // Debounced Customer Search
     useEffect(() => {
@@ -445,7 +528,7 @@ export function useSalesOrder() {
 
                 // Check if current user is still valid, else reset
                 const isCurrentValid = activeSalesmen.some(s => (s.user_id || s.id)?.toString() === selectedSalesmanId);
-                
+
                 if (linkedUsers.length === 1) {
                     const singleId = (linkedUsers[0].user_id || linkedUsers[0].id)?.toString();
                     if (singleId && (!selectedSalesmanId || !isCurrentValid)) {
@@ -523,13 +606,13 @@ export function useSalesOrder() {
 
                     const newBasePrice = Number(match.base_price) || 0;
                     const newDiscounts = match.discounts || [];
-                    
+
                     const priceChanged = isEditable && (newBasePrice !== li.unitPrice || JSON.stringify(newDiscounts) !== JSON.stringify(li.discounts));
                     const metaChanged = match.available_qty !== li.product.available_qty || match.display_name !== li.product.display_name;
 
                     if (priceChanged || metaChanged) {
                         changed = true;
-                        
+
                         let updatedUnitPrice = li.unitPrice;
                         let updatedDiscounts = li.discounts;
                         let updatedNetAmount = li.netAmount;
@@ -584,8 +667,6 @@ export function useSalesOrder() {
             return;
         }
 
-
-
         const id = Math.random().toString(36).substr(2, 9);
         const basePrice = Number(product.base_price) || 0;
         const discounts = product.discounts || [];
@@ -614,7 +695,7 @@ export function useSalesOrder() {
 
     const removeLineItem = async (id: string) => {
         const item = lineItems.find(i => i.id === id);
-        
+
         // --- REAL-TIME DELETION ---
         // If the item exists in the DB (has detail_id), force delete it now
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -670,15 +751,15 @@ export function useSalesOrder() {
     }, [lineItems]);
 
     const summary = useMemo(() => {
-        // Ordered totals (Base sa buong order na kinuha)
+        // --- ORDERED TOTALS (The Customer's Request) ---
         const orderedGross = lineItems.reduce((sum, item) => sum + (item.unitPrice * item.quantity), 0);
         const orderedNet = lineItems.reduce((sum, item) => {
-            const netPrice = calculateChainNetPrice(item.unitPrice, item.discounts);
-            return sum + (netPrice * item.quantity);
+            const netPricePerUnit = calculateChainNetPrice(item.unitPrice, item.discounts);
+            return sum + (netPricePerUnit * item.quantity);
         }, 0);
-        // const orderedDiscount = orderedGross - orderedNet;
+        const orderedDiscount = Math.max(0, orderedGross - orderedNet);
 
-        // Allocated totals (Base lang sa kung ano ang ibibigay o "allocated")
+        // --- ALLOCATED TOTALS (The Fulfillment Reality) ---
         const allocatedGross = lineItems.reduce((sum, item) => {
             const qty = allocatedQuantities[item.id] !== undefined ? allocatedQuantities[item.id] : item.quantity;
             return sum + (item.unitPrice * qty);
@@ -686,38 +767,27 @@ export function useSalesOrder() {
 
         const allocatedNet = lineItems.reduce((sum, item) => {
             const qty = allocatedQuantities[item.id] !== undefined ? allocatedQuantities[item.id] : item.quantity;
-            // Exact Mapping: If qty matches saved allocation, use saved net amount
-            if (item.savedAllocatedQty !== undefined && qty === item.savedAllocatedQty && item.savedNetAmount !== undefined) {
-                return sum + item.savedNetAmount;
-            }
-            const netPrice = calculateChainNetPrice(item.unitPrice, item.discounts);
-            return sum + (netPrice * qty);
+            const netPricePerUnit = calculateChainNetPrice(item.unitPrice, item.discounts);
+            return sum + (netPricePerUnit * qty);
         }, 0);
 
-        const allocatedDiscount = lineItems.reduce((sum, item) => {
-            const qty = allocatedQuantities[item.id] !== undefined ? allocatedQuantities[item.id] : item.quantity;
-            // Exact Mapping: If qty matches saved allocation, use saved discount amount
-            if (item.savedAllocatedQty !== undefined && qty === item.savedAllocatedQty && item.savedDiscountAmount !== undefined) {
-                return sum + item.savedDiscountAmount;
-            }
-            const gross = item.unitPrice * qty;
-            const net = calculateChainNetPrice(item.unitPrice, item.discounts) * qty;
-            return sum + (gross - net);
-        }, 0);
+        const allocatedDiscount = Math.max(0, allocatedGross - allocatedNet);
 
-        const vattableSales = allocatedNet / 1.12;
-        const vatAmount = allocatedNet - vattableSales;
+        // Financial Ratios for display (VAT)
+        const vattableSales = orderedNet / 1.12;
+        const vatAmount = orderedNet - vattableSales;
 
         return {
-            totalAmount: orderedNet, // Ito ang ipapasa sa total_amount sa API (Ordered Net)
-            netAmount: orderedNet,
+            totalAmount: orderedGross, // Total Gross requested
+            netAmount: orderedNet,    // Total Net requested
+            discountAmount: orderedDiscount, // Total Discount requested
             orderedGross,
             orderedNet,
+            orderedDiscount,
             allocatedGross,
             allocatedNet,
             allocatedDiscount,
-            allocatedAmount: allocatedNet,
-            discountAmount: allocatedDiscount, // Ito ang ipapasa sa discount_amount sa API (Allocated Discount)
+            allocatedAmount: allocatedNet, // Total Net allocated (to be billed)
             vattableSales,
             vatAmount
         };
@@ -775,7 +845,7 @@ export function useSalesOrder() {
 
         const available = Number(item.product.available_qty) || 0;
         const maxAllowed = Math.max(0, Math.min(item.quantity, available));
-        
+
         let finalQty = qty;
         if (finalQty > maxAllowed) finalQty = maxAllowed;
         if (finalQty < 0) finalQty = 0;
@@ -814,9 +884,9 @@ export function useSalesOrder() {
                 po_no: poNo,
                 due_date: dueDate,
                 delivery_date: deliveryDate,
-                total_amount: summary.orderedNet,
-                discount_amount: summary.allocatedDiscount,
-                net_amount: summary.allocatedNet,
+                total_amount: summary.orderedGross,
+                discount_amount: summary.orderedDiscount,
+                net_amount: summary.orderedNet,
                 allocated_amount: summary.allocatedNet,
                 order_no: orderNo,
                 order_status: finalStatus,
