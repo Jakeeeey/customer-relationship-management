@@ -564,15 +564,6 @@ export function useSalesOrder() {
         }
     };
 
-    const handlePriceTypeIdChange = (id: string) => {
-        const nid = id ? Number(id) : null;
-        setPriceTypeId(nid);
-        if (nid) {
-            const model = priceTypeModels.find(p => p.price_type_id === nid);
-            if (model) setPriceType(model.price_type_name);
-        }
-    };
-
     const handleSupplierChange = (id: string) => {
         setSelectedSupplierId(id);
         setLineItems([]);
@@ -784,8 +775,8 @@ export function useSalesOrder() {
         const allocatedDiscount = Math.max(0, allocatedGross - allocatedNet);
 
         // Financial Ratios for display (VAT)
-        const vattableSales = allocatedNet / 1.12;
-        const vatAmount = allocatedNet - vattableSales;
+        const vattableSales = orderedNet / 1.12;
+        const vatAmount = orderedNet - vattableSales;
 
         return {
             totalAmount: orderedGross, // Total Gross requested

@@ -180,9 +180,16 @@ export function CallSheetTable({
                                                     <span className="font-bold text-sm text-foreground/90 group-hover:text-foreground transition-colors leading-tight">
                                                         {row.customer_name}
                                                     </span>
-                                                    <span className="text-[10px] font-mono text-primary/70 font-bold uppercase tracking-tighter mt-0.5">
-                                                        {row.customer_code}
-                                                    </span>
+                                                    <div className="flex flex-wrap items-center gap-2 mt-0.5">
+                                                        <span className="text-[10px] font-mono text-primary/70 font-bold uppercase tracking-tighter">
+                                                            {row.customer_code}
+                                                        </span>
+                                                        {row.po_no && (
+                                                            <Badge variant="outline" className="text-[8px] py-0 px-1.5 border-emerald-500/30 bg-emerald-500/5 text-emerald-600 uppercase tracking-widest leading-none">
+                                                                PO: {row.po_no}
+                                                            </Badge>
+                                                        )}
+                                                    </div>
                                                 </div>
                                             </TableCell>
                                             <TableCell>
@@ -191,19 +198,6 @@ export function CallSheetTable({
                                                         <span className="font-mono text-xs font-bold text-foreground/80 group-hover:text-primary transition-colors">
                                                             {row.sales_order_no}
                                                         </span>
-                                                        {row.sales_order_id && (
-                                                            <Tooltip>
-                                                                <TooltipTrigger asChild>
-                                                                    <div className="px-1.5 py-px border border-border rounded bg-muted/30 text-[9px] font-mono flex items-center gap-1 opacity-70 group-hover:opacity-100 transition-opacity">
-                                                                        <Hash className="h-2 w-2" />
-                                                                        {row.sales_order_id}
-                                                                    </div>
-                                                                </TooltipTrigger>
-                                                                <TooltipContent side="top">
-                                                                    Internal Sales Order Reference
-                                                                </TooltipContent>
-                                                            </Tooltip>
-                                                        )}
                                                     </div>
                                                     {(row.related_attachments && row.related_attachments.length > 0) ? (
                                                         <Button

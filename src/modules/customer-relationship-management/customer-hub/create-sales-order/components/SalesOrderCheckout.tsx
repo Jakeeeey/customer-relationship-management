@@ -286,16 +286,20 @@ export function SalesOrderCheckout({
                                         <Calculator className="w-4 h-4" />
                                         Payment Summary
                                     </div>
-                                    <div className="flex flex-col md:flex-row md:items-center gap-10">
+                                    <div className="flex flex-col md:flex-row md:items-center gap-8">
                                         <div className="flex flex-col">
-                                            <span className="text-[10px] text-slate-400 font-black uppercase tracking-widest mb-1 opacity-60">Ordered Net</span>
-                                            <span className="text-xl font-black tabular-nums text-slate-400 tracking-tight">{formatCurrency(summary.orderedNet)}</span>
+                                            <span className="text-[10px] text-slate-400 font-black uppercase tracking-widest mb-1 opacity-60">Ordered Gross</span>
+                                            <span className="text-xl font-black tabular-nums text-slate-400 tracking-tight">{formatCurrency(summary.orderedGross)}</span>
                                         </div>
                                         <div className="flex flex-col">
                                             <div className="flex flex-col">
                                                 <span className="text-[10px] text-amber-500 font-black uppercase tracking-widest mb-1">Discount</span>
                                             </div>
-                                            <span className="text-xl font-black tabular-nums text-amber-500 tracking-tight">-{formatCurrency(summary.allocatedDiscount)}</span>
+                                            <span className="text-xl font-black tabular-nums text-amber-500 tracking-tight">-{formatCurrency(summary.orderedDiscount)}</span>
+                                        </div>
+                                        <div className="flex flex-col">
+                                            <span className="text-[10px] text-slate-300 font-black uppercase tracking-widest mb-1 opacity-90">Net Amount</span>
+                                            <span className="text-xl font-black tabular-nums text-slate-300 tracking-tight">{formatCurrency(summary.orderedNet)}</span>
                                         </div>
                                         <div className="flex flex-col">
                                             <span className="text-[10px] text-slate-400 font-black uppercase tracking-widest mb-1 opacity-60">VAT</span>

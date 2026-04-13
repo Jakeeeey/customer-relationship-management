@@ -119,6 +119,20 @@ export async function GET(req: NextRequest) {
 
         const attachmentJson = await attachmentRes.json();
 
+        // Prepare IDs for resolving PO Numbers mapped to existing Sales Orders
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const validSalesOrderIds = Array.from(new Set((attachmentJson.data || []).map((r: any) => r.sales_order_id).filter(Boolean)));
+        let poNoMap = new Map<number, string>();
+        if (validSalesOrderIds.length > 0) {
+            try {
+                const soFilter = `?filter[order_id][_in]=${validSalesOrderIds.join(",")}&fields=order_id,po_no&limit=-1`;
+                const soData = await fetchAll<{ order_id: number; po_no: string }>(`/items/sales_order${soFilter}`);
+                poNoMap = new Map(soData.map(so => [so.order_id, so.po_no]));
+            } catch (e) {
+                console.error("[Callsheet API] Failed to fetch sales orders for PO Number resolution", e);
+            }
+        }
+
         // Build lookup maps for O(1) enrichment
         const salesmanMap = new Map<number, string>(
             salesmen.map((s) => [s.id, s.salesman_name])
@@ -132,6 +146,7 @@ export async function GET(req: NextRequest) {
             ...row,
             salesman_name: salesmanMap.get(row.salesman_id as number) ?? `Salesman #${row.salesman_id}`,
             customer_name: customerMap.get(row.customer_code as string) ?? row.customer_code,
+            po_no: row.sales_order_id ? (poNoMap.get(row.sales_order_id as number) ?? null) : null,
         }));
 
         // Grouping logic based on sales_order_id or sales_order_no
