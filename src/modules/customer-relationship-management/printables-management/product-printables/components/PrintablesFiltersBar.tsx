@@ -143,11 +143,11 @@ export default function PrintablesFiltersBar({
                 </div>
 
                 <FilterSelector
-                    label="Suppliers"
-                    selectedIds={filters.supplier_ids || []}
-                    options={suppliers.map(s => ({ label: s.supplier_name, value: String(s.id) }))}
-                    onToggle={(id) => toggleFilter("supplier_ids", id)}
-                    onClear={() => setFilters(prev => ({ ...prev, supplier_ids: [], page: 1 }))}
+                    label="Categories"
+                    selectedIds={filters.category_ids || []}
+                    options={categories.map(c => ({ label: c.category_name, value: String(c.category_id) }))}
+                    onToggle={(id) => toggleFilter("category_ids", id)}
+                    onClear={() => setFilters(prev => ({ ...prev, category_ids: [], page: 1 }))}
                 />
 
                 <FilterSelector
@@ -166,13 +166,24 @@ export default function PrintablesFiltersBar({
                     onClear={() => setFilters(prev => ({ ...prev, unit_ids: [], page: 1 }))}
                 />
 
-                <FilterSelector
-                    label="Prices"
-                    selectedIds={filters.price_type_ids || []}
-                    options={priceTypes.map(pt => ({ label: pt.price_type_name, value: String(pt.price_type_id) }))}
-                    onToggle={(id) => toggleFilter("price_type_ids", id)}
-                    onClear={() => setFilters(prev => ({ ...prev, price_type_ids: [] }))}
-                />
+                <div className="flex items-center gap-2">
+                    <FilterSelector
+                        label="Prices"
+                        selectedIds={filters.price_type_ids || []}
+                        options={priceTypes.map(pt => ({ label: pt.price_type_name, value: String(pt.price_type_id) }))}
+                        onToggle={(id) => toggleFilter("price_type_ids", id)}
+                        onClear={() => setFilters(prev => ({ ...prev, price_type_ids: [] }))}
+                    />
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={resetFilters}
+                        className="rounded-xl hover:bg-orange-50 hover:text-orange-600 transition-colors h-9 w-9 flex-shrink-0"
+                        title="Reset Filters"
+                    >
+                        <RotateCcw className="w-4 h-4" />
+                    </Button>
+                </div>
             </div>
 
             {/* Active Filters Catalog */}
