@@ -34,6 +34,7 @@ export interface Customer {
     isActive: number; // 0 or 1
     isVAT: number;    // 0 or 1
     isEWT: number;    // 0 or 1
+    classification?: number | null;
     discount_type?: number | null;
     otherDetails?: string | null;
     division_id?: number | null;
@@ -42,8 +43,8 @@ export interface Customer {
 }
 
 export interface BankAccount {
-    id: number;
-    customer_id: number;
+    id?: number;
+    customer_id?: number;
     bank_name: number; // Based on schema being int
     account_name: string;
     account_number: string;
@@ -51,18 +52,20 @@ export interface BankAccount {
     branch_of_account?: string | null;
     is_primary: number; // 0 or 1
     notes?: string | null;
-    created_at: string;
-    updated_at: string;
+    created_at?: string;
+    updated_at?: string;
 }
 
 export interface BankAccountFormData {
+    id?: number;
+    customer_id?: number;
     bank_name: number;
     account_name: string;
     account_number: string;
     account_type: 'Savings' | 'Checking' | 'Other';
-    branch_of_account?: string;
+    branch_of_account?: string | null;
     is_primary: number;
-    notes?: string;
+    notes?: string | null;
 }
 
 export interface StoreType {
@@ -81,6 +84,11 @@ export interface PaymentTerm {
     payment_name: string;
     payment_days: number;
     payment_description?: string | null;
+}
+
+export interface ReferenceOption {
+    id: number;
+    name: string;
 }
 
 export interface ReferenceItem {

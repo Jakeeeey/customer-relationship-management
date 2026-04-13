@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { fetchWithRetry } from "@/modules/customer-relationship-management/customer-management/customer/fetch-with-retry";
 
 const DIRECTUS_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
 const COLLECTION = "customer_bank_account";
@@ -15,7 +16,7 @@ export async function GET(req: NextRequest) {
         }
 
         const token = process.env.DIRECTUS_STATIC_TOKEN;
-        const res = await fetch(url, {
+        const res = await fetchWithRetry(url, {
             cache: "no-store",
             headers: token ? { Authorization: `Bearer ${token}` } : {}
         });
@@ -40,7 +41,7 @@ export async function POST(req: NextRequest) {
 
     try {
         const body = await req.json();
-        const res = await fetch(`${DIRECTUS_URL}/items/${COLLECTION}`, {
+        const res = await fetchWithRetry(`${DIRECTUS_URL}/items/${COLLECTION}`, {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
@@ -79,7 +80,7 @@ export async function PATCH(req: NextRequest) {
             return NextResponse.json({ error: "Bank Account ID is required" }, { status: 400 });
         }
 
-        const res = await fetch(`${DIRECTUS_URL}/items/${COLLECTION}/${id}`, {
+        const res = await fetchWithRetry(`${DIRECTUS_URL}/items/${COLLECTION}/${id}`, {
             method: "PATCH",
             headers: {
                 "Content-Type": "application/json",
@@ -117,7 +118,7 @@ export async function DELETE(req: NextRequest) {
             return NextResponse.json({ error: "Bank Account ID is required" }, { status: 400 });
         }
 
-        const res = await fetch(`${DIRECTUS_URL}/items/${COLLECTION}/${id}`, {
+        const res = await fetchWithRetry(`${DIRECTUS_URL}/items/${COLLECTION}/${id}`, {
             method: "DELETE",
             headers: {
                 "Authorization": `Bearer ${token}`

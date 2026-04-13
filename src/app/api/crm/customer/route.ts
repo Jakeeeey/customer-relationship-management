@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { fetchWithRetry } from "@/modules/customer-relationship-management/customer-management/customer/fetch-with-retry";
 
 // ============================================================================
 // CONFIG
@@ -24,7 +25,7 @@ export const revalidate = 0;
 async function fetchAll<T>(collection: string, offset = 0, acc: T[] = []): Promise<T[]> {
     const token = process.env.DIRECTUS_STATIC_TOKEN;
     const url = `${DIRECTUS_URL}/items/${collection}?limit=${LIMIT}&offset=${offset}`;
-    const res = await fetch(url, {
+    const res = await fetchWithRetry(url, {
         cache: "no-store",
         headers: token ? { Authorization: `Bearer ${token}` } : {}
     });
@@ -52,14 +53,26 @@ export async function GET(req: NextRequest) {
         const id = searchParams.get("id");
 
         if (id) {
-            // Fetch single customer
-            const res = await fetch(`${DIRECTUS_URL}/items/${COLLECTIONS.CUSTOMER}/${id}`, {
-                cache: "no-store",
-                headers: token ? { Authorization: `Bearer ${token}` } : {}
+            // Fetch single customer and their bank accounts
+            const [customerRes, bankRes] = await Promise.all([
+                fetchWithRetry(`${DIRECTUS_URL}/items/${COLLECTIONS.CUSTOMER}/${id}`, {
+                    cache: "no-store",
+                    headers: token ? { Authorization: `Bearer ${token}` } : {}
+                }),
+                fetchWithRetry(`${DIRECTUS_URL}/items/${COLLECTIONS.BANK_ACCOUNTS}?filter[customer_id][_eq]=${id}`, {
+                    cache: "no-store",
+                    headers: token ? { Authorization: `Bearer ${token}` } : {}
+                })
+            ]);
+
+            if (!customerRes.ok) throw new Error(`Customer not found: ${id}`);
+            const customerData = await customerRes.json();
+            const bankData = await bankRes.json();
+
+            return NextResponse.json({
+                ...customerData.data,
+                bank_accounts: bankData.data || []
             });
-            if (!res.ok) throw new Error(`Customer not found: ${id}`);
-            const data = await res.json();
-            return NextResponse.json(data.data);
         }
 
         // Pagination parameters
@@ -102,7 +115,7 @@ export async function GET(req: NextRequest) {
 
         // Fetch customers with pagination and filtering
         const customersUrl = `${DIRECTUS_URL}/items/${COLLECTIONS.CUSTOMER}?${params.toString()}`;
-        const customersRes = await fetch(customersUrl, {
+        const customersRes = await fetchWithRetry(customersUrl, {
             cache: "no-store",
             headers: token ? { Authorization: `Bearer ${token}` } : {}
         });
@@ -113,8 +126,17 @@ export async function GET(req: NextRequest) {
         // Fetch all bank accounts for enrichment
         const bankAccounts = await fetchAll<Record<string, unknown>>(COLLECTIONS.BANK_ACCOUNTS);
 
+        // 🚀 MANUALLY ENRICH CUSTOMERS WITH BANK ACCOUNTS
+        // This ensures the frontend gets bank_accounts[] inside each customer object
+        const enrichedCustomers = (customersJson.data || []).map((customer: Record<string, unknown>) => ({
+            ...customer,
+            bank_accounts: bankAccounts.filter((acc: Record<string, unknown>) => 
+                String(acc.customer_id) === String(customer.id)
+            )
+        }));
+
         return NextResponse.json({
-            customers: customersJson.data || [],
+            customers: enrichedCustomers,
             bank_accounts: bankAccounts,
             metadata: {
                 total_count: customersJson.meta?.total_count || 0,
@@ -150,7 +172,7 @@ export async function POST(req: NextRequest) {
         const newCustomerData = { ...body };
         delete newCustomerData.bank_accounts;
 
-        const res = await fetch(`${DIRECTUS_URL}/items/${COLLECTIONS.CUSTOMER}`, {
+        const res = await fetchWithRetry(`${DIRECTUS_URL}/items/${COLLECTIONS.CUSTOMER}`, {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
@@ -193,7 +215,7 @@ export async function PATCH(req: NextRequest) {
             return NextResponse.json({ error: "Customer ID is required" }, { status: 400 });
         }
 
-        const res = await fetch(`${DIRECTUS_URL}/items/${COLLECTIONS.CUSTOMER}/${id}`, {
+        const res = await fetchWithRetry(`${DIRECTUS_URL}/items/${COLLECTIONS.CUSTOMER}/${id}`, {
             method: "PATCH",
             headers: {
                 "Content-Type": "application/json",
@@ -235,7 +257,7 @@ export async function DELETE(req: NextRequest) {
             return NextResponse.json({ error: "Customer ID is required" }, { status: 400 });
         }
 
-        const res = await fetch(`${DIRECTUS_URL}/items/${COLLECTIONS.CUSTOMER}/${id}`, {
+        const res = await fetchWithRetry(`${DIRECTUS_URL}/items/${COLLECTIONS.CUSTOMER}/${id}`, {
             method: "DELETE",
             headers: {
                 "Authorization": `Bearer ${token}`
