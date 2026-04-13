@@ -5,9 +5,8 @@ import {
     Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle2, Info, User, Store, Phone, MapPin, Landmark, ShieldCheck } from "lucide-react";
+import { Info, User, Store, Phone, MapPin, ShieldCheck, Landmark } from "lucide-react";
 import { CustomerProspect } from "../types";
 import { SimilarityMatchReason } from "../utils/similarity";
 
@@ -15,7 +14,7 @@ interface CustomerComparisonModalProps {
     isOpen: boolean;
     onClose: () => void;
     prospect: CustomerProspect;
-    existingCustomer: any; // Using any for flexibility or we could define a Partial<Customer>
+    existingCustomer: any; 
     reasons: SimilarityMatchReason[];
 }
 
@@ -48,11 +47,11 @@ export function CustomerComparisonModal({
 
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
-            <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col overflow-hidden p-0">
-                <DialogHeader className="p-6 pb-2">
+            <DialogContent className="max-w-4xl max-h-[85vh] flex flex-col p-0 overflow-hidden shadow-2xl border-border/50">
+                <DialogHeader className="p-6 pb-2 shrink-0">
                     <div className="flex items-center gap-2">
                         <DialogTitle className="text-xl">Duplicate Comparison</DialogTitle>
-                        <Badge variant="outline" className="text-[10px] bg-warning-bg text-warning border-warning/20">
+                        <Badge variant="outline" className="text-[10px] bg-warning-bg text-warning border-warning/20 font-bold">
                             {reasons.length} Matches Found
                         </Badge>
                     </div>
@@ -61,18 +60,19 @@ export function CustomerComparisonModal({
                     </DialogDescription>
                 </DialogHeader>
 
-                <ScrollArea className="flex-1 px-6">
-                    <div className="grid grid-cols-[1fr,1fr] gap-x-4 gap-y-4 mt-2">
+                {/* Using a standard div with overflow-y-auto for maximum compatibility */}
+                <div className="flex-1 overflow-y-auto min-h-0 px-6 py-2 pb-8 scrollbar-thin scrollbar-thumb-muted-foreground/20 hover:scrollbar-thumb-muted-foreground/40 scrollbar-track-transparent">
+                    <div className="grid grid-cols-[1fr,1fr] gap-x-4 gap-y-4">
                         {/* Headers */}
-                        <div className="bg-primary/10 p-3 rounded-xl border border-primary/20 text-center relative overflow-hidden">
-                            <Badge variant="secondary" className="absolute -top-1 -right-1 text-[8px] bg-primary text-white border-0 rounded-none rounded-bl-lg">PROSPECT</Badge>
+                        <div className="bg-primary/10 p-3 rounded-xl border border-primary/20 text-center relative overflow-hidden h-fit">
+                            <Badge variant="secondary" className="absolute -top-1 -right-1 text-[8px] bg-primary text-white border-0 rounded-none rounded-bl-lg font-bold uppercase">PROSPECT</Badge>
                             <span className="text-[9px] font-bold uppercase text-primary/70 tracking-widest block mb-1">New Entry</span>
-                            <span className="font-extrabold text-xs text-primary truncate block uppercase">{prospect.customer_name}</span>
+                            <span className="font-extrabold text-sm text-primary truncate block uppercase">{prospect.customer_name}</span>
                         </div>
-                        <div className="bg-muted/50 p-3 rounded-xl border border-border text-center relative overflow-hidden">
-                            <Badge variant="secondary" className="absolute -top-1 -right-1 text-[8px] bg-muted-foreground/60 text-white border-0 rounded-none rounded-bl-lg">EXISTING</Badge>
+                        <div className="bg-muted/50 p-3 rounded-xl border border-border text-center relative overflow-hidden h-fit">
+                            <Badge variant="secondary" className="absolute -top-1 -right-1 text-[8px] bg-muted-foreground/60 text-white border-0 rounded-none rounded-bl-lg font-bold uppercase">EXISTING</Badge>
                             <span className="text-[9px] font-bold uppercase text-muted-foreground tracking-widest block mb-1">Database Record</span>
-                            <span className="font-extrabold text-xs text-foreground truncate block uppercase">{existingCustomer.customer_name}</span>
+                            <span className="font-extrabold text-sm text-foreground truncate block uppercase">{existingCustomer.customer_name}</span>
                         </div>
 
                         {/* Comparison Rows */}
@@ -94,10 +94,10 @@ export function CustomerComparisonModal({
                                             )}
                                         </div>
                                         <div className="grid grid-cols-2 gap-3">
-                                            <div className={`p-2.5 px-3 rounded-lg border text-xs transition-colors ${matched ? 'bg-warning-bg border-warning/30 text-foreground font-semibold' : 'bg-background border-border/50 text-muted-foreground'}`}>
+                                            <div className={`p-2.5 px-3 rounded-lg border text-xs transition-colors ${matched ? 'bg-warning-bg border-warning/30 text-foreground font-semibold' : 'bg-background border-border/50'}`}>
                                                 {val1}
                                             </div>
-                                            <div className={`p-2.5 px-3 rounded-lg border text-xs transition-colors ${matched ? 'bg-warning-bg border-warning/30 text-foreground font-semibold' : 'bg-background border-border/50 text-muted-foreground'}`}>
+                                            <div className={`p-2.5 px-3 rounded-lg border text-xs transition-colors ${matched ? 'bg-warning-bg border-warning/30 text-foreground font-semibold' : 'bg-background border-border/50'}`}>
                                                 {val2}
                                             </div>
                                         </div>
@@ -107,7 +107,7 @@ export function CustomerComparisonModal({
                         })}
                     </div>
 
-                    <div className="my-6 p-3 bg-primary/10 rounded-xl border border-primary/20">
+                    <div className="mt-8 mb-4 p-3 bg-primary/10 rounded-xl border border-primary/20">
                         <h4 className="text-[9px] font-bold text-primary uppercase mb-2 flex items-center gap-1.5 px-1">
                             <Info className="h-3 w-3" />
                             Match Indicators
@@ -120,9 +120,9 @@ export function CustomerComparisonModal({
                             ))}
                         </div>
                     </div>
-                </ScrollArea>
+                </div>
 
-                <DialogFooter className="p-6 pt-4 border-t border-border/50">
+                <DialogFooter className="p-6 pt-4 border-t border-border/50 shrink-0">
                     <Button variant="outline" onClick={onClose} className="h-9 px-6 rounded-lg font-bold text-[10px] uppercase tracking-widest">
                         Close Comparison
                     </Button>

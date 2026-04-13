@@ -18,7 +18,7 @@ import { CustomerProspect, CustomerProspectsAPIResponse, DiscountType, Salesman,
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "./StatusBadge";
-import { SearchableSelect } from "@/components/ui/searchable-select";
+import { SearchableSelect } from "./SearchableSelect";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
@@ -28,6 +28,7 @@ import { ProspectMapViewer } from "./ProspectMapViewer";
 import { SimilarCustomerWarning } from "./SimilarCustomerWarning";
 import { CustomerComparisonModal } from "./CustomerComparisonModal";
 import { findPotentialMatches, SimilarityGroup, Customer } from "../utils/similarity";
+import { parseApiError } from "../utils/error-parser";
 
 
 interface CustomerProspectTableProps {
@@ -107,7 +108,7 @@ export function CustomerProspectTable({
                 toast.error("Prospect Rejected", { description: "The prospect request has been denied." });
             }
         } catch (err) {
-            const errorMessage = err instanceof Error ? err.message : "Something went wrong. Please try again.";
+            const errorMessage = parseApiError(err);
             toast.error("Operation Failed", { description: errorMessage });
         } finally {
             setProcessingId(null);
@@ -293,7 +294,7 @@ export function CustomerProspectTable({
             toast.success("Prospect updated", { description: "Information has been successfully updated." });
             setIsEditing(false);
         } catch (err) {
-            toast.error("Update failed", { description: err instanceof Error ? err.message : "Could not save changes." });
+            toast.error("Update failed", { description: parseApiError(err) });
         } finally {
             setIsUpdating(false);
         }
@@ -317,28 +318,35 @@ export function CustomerProspectTable({
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
-                    <Select value={statusFilter} onValueChange={onStatusChange}>
-                        <SelectTrigger className="h-10 rounded-xl shadow-sm border-border/60 w-[150px] bg-background">
-                            <Filter className="mr-2 h-4 w-4 text-muted-foreground" />
-                            <SelectValue placeholder="Status" />
-                        </SelectTrigger>
-                        <SelectContent className="rounded-xl border-primary/10">
-                            <SelectItem value="all">All Status</SelectItem>
-                            <SelectItem value="Pending">Pending</SelectItem>
-                            <SelectItem value="Approved">Approved</SelectItem>
-                            <SelectItem value="Rejected">Rejected</SelectItem>
-                        </SelectContent>
-                    </Select>
+                    <div className="w-full sm:w-[160px]">
+                        <SearchableSelect
+                            options={[
+                                { value: "all", label: "All Status" },
+                                { value: "Pending", label: "Pending" },
+                                { value: "Approved", label: "Approved" },
+                                { value: "Rejected", label: "Rejected" },
+                            ]}
+                            value={statusFilter}
+                            onValueChange={onStatusChange}
+                            placeholder="Status"
+                            icon={<Filter className="h-4 w-4 text-muted-foreground" />}
+                            className="h-10 rounded-xl shadow-sm border-border/60 bg-background"
+                        />
+                    </div>
 
-                    <div className="flex items-center w-full sm:w-[180px]">
+                    <div className="w-full sm:w-[220px]">
                         <SearchableSelect
                             options={[
                                 { value: "all", label: "All Salesmen" },
-                                ...salesmen.map((s) => ({ value: s.id.toString(), label: s.salesman_name }))
+                                ...salesmen.map((s) => ({ 
+                                    value: s.id.toString(), 
+                                    label: `${s.salesman_name} ${s.salesman_code ? `(${s.salesman_code})` : ""}` 
+                                }))
                             ]}
                             value={salesmanFilter}
                             onValueChange={onSalesmanChange}
                             placeholder="All Salesmen"
+                            icon={<User className="h-4 w-4 text-muted-foreground" />}
                             className="h-10 rounded-xl shadow-sm border-border/60 bg-background"
                         />
                     </div>
@@ -420,10 +428,19 @@ export function CustomerProspectTable({
                                     </TableCell>
                                     <TableCell>
                                         <div className="flex items-center gap-2">
-                                            <div className="h-7 w-7 rounded-full bg-primary/10 flex items-center justify-center text-[10px] font-bold text-primary">
+                                            <div className="h-7 w-7 rounded-full bg-primary/10 flex items-center justify-center text-[10px] font-bold text-primary shrink-0">
                                                 {prospect.salesman_name?.split(' ').map(n => n[0]).join('').slice(0, 2)}
                                             </div>
-                                            <span className="text-sm">{prospect.salesman_name}</span>
+                                            <div className="flex flex-col">
+                                                <span className="text-sm font-medium text-foreground line-clamp-1">
+                                                    {prospect.salesman_name}
+                                                </span>
+                                                {prospect.salesman_code && (
+                                                    <span className="text-[10px] text-muted-foreground font-mono leading-none">
+                                                        {prospect.salesman_code}
+                                                    </span>
+                                                )}
+                                            </div>
                                         </div>
                                     </TableCell>
                                     <TableCell className="text-center">
@@ -741,19 +758,13 @@ export function CustomerProspectTable({
                                         <div className="flex flex-col">
                                             <Label className="text-[10px] font-bold text-muted-foreground uppercase mb-1">Store Type</Label>
                                             {isEditing ? (
-                                                <Select 
-                                                    value={editForm.store_type?.toString()} 
+                                                <SearchableSelect 
+                                                    options={storeTypes.map(st => ({ value: st.id.toString(), label: st.store_type }))}
+                                                    value={editForm.store_type?.toString()}
                                                     onValueChange={(v) => setEditForm({...editForm, store_type: Number(v)})}
-                                                >
-                                                    <SelectTrigger className="h-8 text-[10px]">
-                                                        <SelectValue placeholder="Select type" />
-                                                    </SelectTrigger>
-                                                    <SelectContent>
-                                                        {storeTypes.map(st => (
-                                                            <SelectItem key={st.id} value={st.id.toString()}>{st.store_type}</SelectItem>
-                                                        ))}
-                                                    </SelectContent>
-                                                </Select>
+                                                    placeholder="Select type"
+                                                    className="h-8"
+                                                />
                                             ) : (
                                                 <span className="font-medium">
                                                     {storeTypes.find(st => st.id === Number(selectedProspect.store_type))?.store_type || "None"}
@@ -763,19 +774,13 @@ export function CustomerProspectTable({
                                         <div className="flex flex-col">
                                             <Label className="text-[10px] font-bold text-muted-foreground uppercase mb-1">Classification</Label>
                                             {isEditing ? (
-                                                <Select 
-                                                    value={editForm.classification?.toString()} 
+                                                <SearchableSelect 
+                                                    options={classifications.map(cl => ({ value: cl.id.toString(), label: cl.classification_name }))}
+                                                    value={editForm.classification?.toString()}
                                                     onValueChange={(v) => setEditForm({...editForm, classification: Number(v)})}
-                                                >
-                                                    <SelectTrigger className="h-8 text-[10px]">
-                                                        <SelectValue placeholder="Select classification" />
-                                                    </SelectTrigger>
-                                                    <SelectContent>
-                                                        {classifications.map(cl => (
-                                                            <SelectItem key={cl.id} value={cl.id.toString()}>{cl.classification_name}</SelectItem>
-                                                        ))}
-                                                    </SelectContent>
-                                                </Select>
+                                                    placeholder="Select classification"
+                                                    className="h-8"
+                                                />
                                             ) : (
                                                 <span className="font-medium">
                                                     {classifications.find(c => c.id === Number(selectedProspect.classification))?.classification_name || "None"}
@@ -902,7 +907,7 @@ export function CustomerProspectTable({
                                     Save Changes
                                 </Button>
                             </>
-                        ) : selectedProspect?.prospect_status === 'Pending' || selectedProspect?.prospect_status === 'Rejected' ? (
+                        ) : selectedProspect?.prospect_status === 'Pending' ? (
                             <>
                                 <Button
                                     variant="outline"
