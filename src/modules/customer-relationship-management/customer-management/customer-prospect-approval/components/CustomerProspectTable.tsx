@@ -19,7 +19,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "./StatusBadge";
 import { SearchableSelect } from "./SearchableSelect";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Label } from "@/components/ui/label";
@@ -27,7 +26,7 @@ import { toast } from "sonner";
 import { ProspectMapViewer } from "./ProspectMapViewer";
 import { SimilarCustomerWarning } from "./SimilarCustomerWarning";
 import { CustomerComparisonModal } from "./CustomerComparisonModal";
-import { findPotentialMatches, SimilarityGroup, Customer } from "../utils/similarity";
+import { findPotentialMatches, SimilarityGroup } from "../utils/similarity";
 import { parseApiError } from "../utils/error-parser";
 
 
@@ -76,7 +75,6 @@ export function CustomerProspectTable({
     const [similarGroups, setSimilarGroups] = useState<SimilarityGroup[]>([]);
     const [isComparisonOpen, setIsComparisonOpen] = useState(false);
     const [activeComparisonGroup, setActiveComparisonGroup] = useState<SimilarityGroup | null>(null);
-    const [isScanning, setIsScanning] = useState(false);
 
     // PSGC Location States
     const [provincesList, setProvincesList] = useState<{code: string, name: string}[]>([]);
@@ -127,7 +125,6 @@ export function CustomerProspectTable({
     };
 
     const checkForDuplicates = async (prospect: CustomerProspect) => {
-        setIsScanning(true);
         setSimilarGroups([]);
         try {
             // Fetch all customers to scan against
@@ -143,7 +140,7 @@ export function CustomerProspectTable({
             console.error("Duplicate check failed:", err);
             // We don't block the UI if duplicate check fails
         } finally {
-            setIsScanning(false);
+            // Duplicate check complete
         }
     };
 

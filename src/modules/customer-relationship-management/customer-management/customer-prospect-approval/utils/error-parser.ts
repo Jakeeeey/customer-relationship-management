@@ -34,7 +34,7 @@ export function parseApiError(error: unknown): string {
     if (message.includes("INVALID_PAYLOAD")) return "The information provided is invalid.";
     
     // 3. Final cleaning: Remove technical prefixes (Directus, status codes, etc.)
-    let cleanMessage = message
+    const cleanMessage = message
         .replace(/^Directus.*failed: \d+ - /i, '') // Remove API specific prefix
         .replace(/^[a-z_]+ failed: \d+ - /i, '')   // Remove generic "action failed" prefix
         .replace(/\d+ - \{.*/i, '')                // Remove trailing JSON starts

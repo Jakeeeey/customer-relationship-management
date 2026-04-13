@@ -8,13 +8,13 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Info, User, Store, Phone, MapPin, ShieldCheck, Landmark } from "lucide-react";
 import { CustomerProspect } from "../types";
-import { SimilarityMatchReason } from "../utils/similarity";
+import { SimilarityMatchReason, Customer } from "../utils/similarity";
 
 interface CustomerComparisonModalProps {
     isOpen: boolean;
     onClose: () => void;
     prospect: CustomerProspect;
-    existingCustomer: any; 
+    existingCustomer: Customer; 
     reasons: SimilarityMatchReason[];
 }
 

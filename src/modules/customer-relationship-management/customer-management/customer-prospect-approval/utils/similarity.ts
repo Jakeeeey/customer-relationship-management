@@ -12,10 +12,47 @@ export type SimilarityMatchReason =
     | 'SHARED_STORE_LOCATION'
     | 'SIMILAR_NAME_SAME_ADDRESS';
 
+/**
+ * Customer interface matching the main customer table schema.
+ * Used for comparing with prospects.
+ */
+export interface Customer {
+    id: number;
+    customer_code: string;
+    customer_name: string;
+    type: 'Regular' | 'Employee';
+    user_id?: number | null;
+    customer_image?: string | null;
+    store_name: string;
+    store_signage: string;
+    brgy?: string | null;
+    city?: string | null;
+    province?: string | null;
+    contact_number: string;
+    customer_email?: string | null;
+    tel_number?: string | null;
+    bank_details?: string | null;
+    customer_tin?: string | null;
+    payment_term?: number | null;
+    store_type: number;
+    price_type?: string | null;
+    encoder_id: number;
+    credit_type?: number | null;
+    company_code?: number | null;
+    date_entered?: string | null;
+    isActive: number;
+    isVAT: number;
+    isEWT: number;
+    discount_type?: number | null;
+    otherDetails?: string | null;
+    classification?: number | null;
+    prospect_status?: string | null;
+}
+
 export interface SimilarityGroup {
     id: string;
     reasons: SimilarityMatchReason[];
-    customers: any[]; // [Prospect, ExistingCustomer]
+    customers: (CustomerProspect | Customer)[]; // [Prospect, ExistingCustomer]
     confidence_score: number;
 }
 
@@ -53,7 +90,7 @@ export function getStringSimilarity(str1: string | null | undefined, str2: strin
  */
 export function findPotentialMatches(
     prospect: CustomerProspect,
-    customers: any[],
+    customers: Customer[],
     threshold: number = 0.85
 ): SimilarityGroup[] {
     const matches: SimilarityGroup[] = [];
