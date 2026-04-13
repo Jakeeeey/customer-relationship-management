@@ -155,6 +155,23 @@ export function BankAccountManager({
     };
 
     const onSubmit: SubmitHandler<BankAccountFormValues> = (values) => {
+        // Validation: Check for duplicate account numbers in the local list
+        const isDuplicate = accounts.some(acc => {
+            // If editing, skip the one being edited
+            if (selectedAccount) {
+                const isSelected = selectedAccount.id 
+                    ? acc.id === selectedAccount.id 
+                    : acc.account_number === selectedAccount.account_number;
+                if (isSelected) return false;
+            }
+            return acc.account_number === values.account_number;
+        });
+
+        if (isDuplicate) {
+            toast.error("An account with this number already exists in the list.");
+            return;
+        }
+
         let updatedAccounts: BankAccount[];
 
         if (selectedAccount) {
@@ -181,12 +198,12 @@ export function BankAccountManager({
             updatedAccounts = [...accounts, newAccount];
         }
 
-        // If this one is primary, unset other primaries
+        // If this one is primary, unset ALL other accounts
         if (values.is_primary === 1) {
             updatedAccounts = updatedAccounts.map(acc => {
-                const isCurrent = selectedAccount 
-                    ? (selectedAccount.id ? acc.id === selectedAccount.id : acc.account_number === selectedAccount.account_number)
-                    : (acc.account_number === values.account_number);
+                // Identity of the "current" account we just saved
+                // We use account_number since we now enforce uniqueness
+                const isCurrent = acc.account_number === values.account_number;
                 
                 if (!isCurrent) {
                     return { ...acc, is_primary: 0 };
@@ -469,4 +486,4 @@ export function BankAccountManager({
             </Dialog>
         </div>
     );
-}
+}

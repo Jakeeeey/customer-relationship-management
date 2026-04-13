@@ -141,18 +141,28 @@ export function useCustomers(): UseCustomersReturn {
                 throw new Error(errorData.message || `Server error: ${res.status}`);
             }
 
-            const newCustomer = await res.json();
-            const customerId = newCustomer.id;
+            const newCustomerResponse = await res.json();
+            const customerId = newCustomerResponse.id;
+
+            if (!customerId) throw new Error("Failed to get customer ID after creation");
 
             // Save bank accounts if any
             if (bank_accounts && bank_accounts.length > 0) {
-                await Promise.all(bank_accounts.map(account => 
-                    fetch("/api/crm/customer/bank-account", {
+                await Promise.all(bank_accounts.map(async (account) => {
+                    // Strip ID and metadata for new records to prevent Directus errors
+                    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+                    const { id, created_at, updated_at, ...cleanedAccount } = account as BankAccount;
+                    const baRes = await fetch("/api/crm/customer/bank-account", {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ ...account, customer_id: customerId })
-                    })
-                ));
+                        body: JSON.stringify({ ...cleanedAccount, customer_id: customerId })
+                    });
+                    if (!baRes.ok) {
+                        const errTxt = await baRes.text().catch(() => baRes.statusText);
+                        throw new Error(`Failed to save bank account: ${errTxt}`);
+                    }
+                    return baRes.json();
+                }));
             }
 
             await fetchData(true);
@@ -188,24 +198,65 @@ export function useCustomers(): UseCustomersReturn {
                 const toDelete = oldAccounts.filter(old => !newAccounts.some(n => n.id === old.id));
                 
                 // Identify POST (new) and PATCH (existing)
-                const toPost = newAccounts.filter(n => !n.id || n.id === 0);
-                const toPatch = newAccounts.filter(n => n.id && n.id !== 0);
+                const toPost = newAccounts.filter(n => {
+                    const isNew = !n.id || n.id === 0;
+                    // If it's "new" but its account number already exists in the DB for this customer, it's not actually a POST
+                    const alreadyExists = oldAccounts.some(old => old.account_number === n.account_number);
+                    return isNew && !alreadyExists;
+                });
 
-                const syncPromises = [
-                    ...toDelete.map(acc => fetch(`/api/crm/customer/bank-account?id=${acc.id}`, { method: "DELETE" })),
-                    ...toPost.map(acc => fetch("/api/crm/customer/bank-account", {
+                const toPatch = newAccounts.filter(n => {
+                    const hasId = n.id && n.id !== 0;
+                    const matchesOld = oldAccounts.some(old => old.account_number === n.account_number);
+                    return hasId || matchesOld;
+                }).map(n => {
+                    // If it has no ID but matched an old account by number, attach the ID for patching
+                    if (!n.id || n.id === 0) {
+                        const oldMatch = oldAccounts.find(old => old.account_number === n.account_number);
+                        return { ...n, id: oldMatch?.id };
+                    }
+                    return n;
+                });
+
+                // 3. Process Synchronization Sequentially
+                // We use sequential processing instead of Promise.all to avoid 
+                // overwhelming the network connection and hitting socket limits
+                
+                // DELETIONS
+                for (const acc of toDelete) {
+                    const delRes = await fetch(`/api/crm/customer/bank-account?id=${acc.id}`, { method: "DELETE", cache: "no-store" });
+                    if (!delRes.ok) throw new Error(`Failed to delete bank account: ${delRes.statusText}`);
+                }
+
+                // CREATIONS
+                for (const acc of toPost) {
+                    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+                    const { id: _id, created_at, updated_at, ...cleanedAccount } = acc as BankAccount;
+                    const postRes = await fetch("/api/crm/customer/bank-account", {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ ...acc, customer_id: id })
-                    })),
-                    ...toPatch.map(acc => fetch("/api/crm/customer/bank-account", {
+                        body: JSON.stringify({ ...cleanedAccount, customer_id: id })
+                    });
+                    if (!postRes.ok) {
+                        const errTxt = await postRes.text().catch(() => postRes.statusText);
+                        throw new Error(`Failed to create bank account: ${errTxt}`);
+                    }
+                }
+
+                // UPDATES
+                for (const acc of toPatch) {
+                    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+                    const { created_at, updated_at, ...cleanedAccount } = acc as BankAccount;
+                    const patchRes = await fetch("/api/crm/customer/bank-account", {
                         method: "PATCH",
                         headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify(acc)
-                    }))
-                ];
-
-                await Promise.all(syncPromises);
+                        body: JSON.stringify(cleanedAccount)
+                    });
+                    if (!patchRes.ok) {
+                        const errTxt = await patchRes.text().catch(() => patchRes.statusText);
+                        throw new Error(`Failed to update bank account: ${errTxt}`);
+                    }
+                }
             }
 
             await fetchData(true);

@@ -45,11 +45,12 @@ export default function PrintablesMatrixTable({
 
     // Defined colors for groups (matching spreadsheet aesthetic)
     const groupColors = [
-        "bg-[#EAF4FF] text-[#1E4D8C] border-[#B8D1F3]", // Group 1
-        "bg-[#F0FFF4] text-[#1D5C2E] border-[#C6F6D5]", // Group 2
-        "bg-[#FFF9E6] text-[#8C6D1E] border-[#FCEFB4]", // Group 3
-        "bg-[#FFF5F5] text-[#8C1E1E] border-[#FED7D7]", // Group 4
-        "bg-[#F7F0FF] text-[#4D1E8C] border-[#E9D8FD]", // Group 5
+        "bg-[#F3F4F6] text-[#374151] border-[#D1D5DB]", // List Price (Gray)
+        "bg-[#EAF4FF] text-[#1E4D8C] border-[#B8D1F3]", // Group 1 (Blue)
+        "bg-[#F0FFF4] text-[#1D5C2E] border-[#C6F6D5]", // Group 2 (Green)
+        "bg-[#FFF9E6] text-[#8C6D1E] border-[#FCEFB4]", // Group 3 (Yellow)
+        "bg-[#FFF5F5] text-[#8C1E1E] border-[#FED7D7]", // Group 4 (Red)
+        "bg-[#F7F0FF] text-[#4D1E8C] border-[#E9D8FD]", // Group 5 (Purple)
     ];
 
     return (
@@ -120,17 +121,15 @@ export default function PrintablesMatrixTable({
                                 {row.brand_name}
                             </TableCell>
                             {activePriceTypes.map((pt, i) => {
-                                // Map pt.price_type_name or sort to A-E correctly
-                                // Since PT name might not be A-E, we use the property name mapping
-                                // Generally PT are mapped to priceA, priceB...
-                                const ptSuffix = ["A", "B", "C", "D", "E"][i] || "A"; // Fallback mapping
+                                // If synthetic List Price (ID -1), use ListPrice key
+                                // Otherwise, calculate its A-E mapping based on its position among non-synthetic price types
+                                const nonSyntheticIndex = activePriceTypes.slice(0, i).filter(p => p.price_type_id !== -1).length;
+                                const ptSuffix = pt.price_type_id === -1 ? "ListPrice" : (["A", "B", "C", "D", "E"][nonSyntheticIndex] || "A");
                                 
                                 return (
                                     <React.Fragment key={pt.price_type_id}>
                                         {visibleUnits.length > 0 ? visibleUnits.map((u) => {
                                             const variant = row.variantsByUnitId[Number(u.unit_id)];
-                                            // Extract price based on price type ID if possible, or fallback to the suffix
-                                            // In our setup, price types are fetched from pricing table.
                                             const price = (variant?.tiers as Record<string, number | null>)?.[ptSuffix];
 
                                             return (
