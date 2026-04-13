@@ -536,7 +536,7 @@ export function CustomerProspectTable({
 
                                 {/* General Information */}
                                 <section className="space-y-4">
-                                    <div className="flex items-center gap-2 px-3 py-1.5 bg-primary/5 rounded-lg border border-primary/10">
+                                    <div className="flex items-center gap-2 px-3 py-1.5 bg-primary/10 rounded-lg border border-primary/20">
                                         <Info className="h-3.5 w-3.5 text-primary" />
                                         <h4 className="text-[10px] font-bold uppercase text-primary tracking-wider">
                                             General Information
@@ -590,13 +590,13 @@ export function CustomerProspectTable({
 
                                 {/* Geo Tag Location Map */}
                                 <section className="space-y-4">
-                                    <div className="flex items-center gap-2 px-3 py-1.5 bg-emerald-50 rounded-lg border border-emerald-100">
-                                        <MapIcon className="h-3.5 w-3.5 text-emerald-600" />
-                                        <h4 className="text-[10px] font-bold uppercase text-emerald-700 tracking-wider">
+                                    <div className="flex items-center gap-2 px-3 py-1.5 bg-success-bg rounded-lg border border-success/20">
+                                        <MapIcon className="h-3.5 w-3.5 text-success" />
+                                        <h4 className="text-[10px] font-bold uppercase text-success tracking-wider">
                                             Geo Tag Location
                                         </h4>
                                     </div>
-                                    <div className="rounded-xl overflow-hidden border border-emerald-100 shadow-sm">
+                                    <div className="rounded-xl overflow-hidden border border-success/20 shadow-sm">
                                         <ProspectMapViewer
                                             location={selectedProspect.location}
                                             storeName={selectedProspect.store_name}
@@ -616,20 +616,20 @@ export function CustomerProspectTable({
 
                                 {/* Contact Information */}
                                 <section className="space-y-4">
-                                    <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 rounded-lg border border-blue-100">
-                                        <Phone className="h-3.5 w-3.5 text-blue-600" />
-                                        <h4 className="text-[10px] font-bold uppercase text-blue-700 tracking-wider">
+                                    <div className="flex items-center gap-2 px-3 py-1.5 bg-info-bg rounded-lg border border-info/20">
+                                        <Phone className="h-3.5 w-3.5 text-info" />
+                                        <h4 className="text-[10px] font-bold uppercase text-info tracking-wider">
                                             Contact Details
                                         </h4>
                                     </div>
                                     <div className="grid grid-cols-2 gap-4 text-sm">
                                         <div className="flex flex-col">
                                             <span className="text-[10px] font-bold text-muted-foreground uppercase">Contact Number</span>
-                                            <span className="text-blue-600 font-medium">{selectedProspect.contact_number || "None"}</span>
+                                            <span className="text-info font-medium">{selectedProspect.contact_number || "None"}</span>
                                         </div>
                                         <div className="flex flex-col">
                                             <span className="text-[10px] font-bold text-muted-foreground uppercase">Email Address</span>
-                                            <span className="text-blue-600 font-medium truncate">{selectedProspect.customer_email || "None"}</span>
+                                            <span className="text-info font-medium truncate">{selectedProspect.customer_email || "None"}</span>
                                         </div>
                                         <div className="flex flex-col">
                                             <span className="text-[10px] font-bold text-muted-foreground uppercase">Telephone</span>
@@ -649,9 +649,9 @@ export function CustomerProspectTable({
 
                                 {/* Store & Location */}
                                 <section className="space-y-4">
-                                    <div className="flex items-center gap-2 px-3 py-1.5 bg-amber-50 rounded-lg border border-amber-100">
-                                        <Building className="h-3.5 w-3.5 text-amber-600" />
-                                        <h4 className="text-[10px] font-bold uppercase text-amber-700 tracking-wider">
+                                    <div className="flex items-center gap-2 px-3 py-1.5 bg-warning-bg rounded-lg border border-warning/20">
+                                        <Building className="h-3.5 w-3.5 text-warning" />
+                                        <h4 className="text-[10px] font-bold uppercase text-warning tracking-wider">
                                             Store & Location
                                         </h4>
                                     </div>
@@ -789,9 +789,9 @@ export function CustomerProspectTable({
 
                                 {/* Financial & Tax Info */}
                                 <section className="space-y-4">
-                                    <div className="flex items-center gap-2 px-3 py-1.5 bg-indigo-50 rounded-lg border border-indigo-100">
-                                        <Landmark className="h-3.5 w-3.5 text-indigo-600" />
-                                        <h4 className="text-[10px] font-bold uppercase text-indigo-700 tracking-wider">
+                                    <div className="flex items-center gap-2 px-3 py-1.5 bg-primary/10 rounded-lg border border-primary/20">
+                                        <Landmark className="h-3.5 w-3.5 text-primary" />
+                                        <h4 className="text-[10px] font-bold uppercase text-primary tracking-wider">
                                             Financials & Taxation
                                         </h4>
                                     </div>
@@ -811,8 +811,8 @@ export function CustomerProspectTable({
                                         <div className="flex flex-col">
                                             <span className="text-[10px] font-bold text-muted-foreground uppercase mb-1">Tax Status</span>
                                             <div className="flex items-center gap-2 mt-1">
-                                                {selectedProspect.isVAT === 1 && <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100 border-emerald-200 text-[9px] h-4">VAT</Badge>}
-                                                {selectedProspect.isEWT === 1 && <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100 border-amber-200 text-[9px] h-4">EWT</Badge>}
+                                                {selectedProspect.isVAT === 1 && <Badge className="bg-success-bg text-success hover:bg-success-bg border-success/20 text-[9px] h-4 font-bold uppercase">VAT</Badge>}
+                                                {selectedProspect.isEWT === 1 && <Badge className="bg-warning-bg text-warning hover:bg-warning-bg border-warning/20 text-[9px] h-4 font-bold uppercase">EWT</Badge>}
                                                 {!selectedProspect.isVAT && !selectedProspect.isEWT && <span className="text-xs text-muted-foreground italic">Non-Vatable</span>}
                                             </div>
                                         </div>
@@ -836,9 +836,9 @@ export function CustomerProspectTable({
 
                                 {/* Settings */}
                                 <section className="space-y-4">
-                                    <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 rounded-lg border border-slate-200">
-                                        <ShieldCheck className="h-3.5 w-3.5 text-slate-600" />
-                                        <h4 className="text-[10px] font-bold uppercase text-slate-700 tracking-wider">
+                                    <div className="flex items-center gap-2 px-3 py-1.5 bg-muted rounded-lg border border-border/50">
+                                        <ShieldCheck className="h-3.5 w-3.5 text-muted-foreground" />
+                                        <h4 className="text-[10px] font-bold uppercase text-foreground tracking-wider">
                                             Operational Settings
                                         </h4>
                                     </div>
@@ -849,7 +849,7 @@ export function CustomerProspectTable({
                                         </div>
                                         <div className="flex flex-col">
                                             <span className="text-[10px] font-bold text-muted-foreground uppercase">Discount Type</span>
-                                            <span className="font-medium text-emerald-600">
+                                            <span className="font-medium text-success">
                                                 {discountTypes.find(dt => dt.id === Number(selectedProspect.discount_type))?.discount_type 
                                                     || (selectedProspect.discount_type ? `ID: ${selectedProspect.discount_type}` : "None")}
                                             </span>
@@ -860,7 +860,7 @@ export function CustomerProspectTable({
                                         </div>
                                         <div className="flex flex-col">
                                             <span className="text-[10px] font-bold text-muted-foreground uppercase">Store Type</span>
-                                            <span className="font-medium text-emerald-600">
+                                            <span className="font-medium text-success">
                                                 {storeTypes.find(st => st.id === Number(selectedProspect.store_type))?.store_type 
                                                     || (selectedProspect.store_type ? `ID: ${selectedProspect.store_type}` : "None")}
                                             </span>
@@ -869,12 +869,12 @@ export function CustomerProspectTable({
                                 </section>
 
                                 {selectedProspect.otherDetails && (
-                                    <section className="space-y-2 p-3 bg-amber-50/50 rounded-lg border border-amber-100">
-                                        <h4 className="text-[10px] font-bold uppercase text-amber-700 flex items-center gap-1.5">
+                                    <section className="space-y-2 p-3 bg-warning-bg rounded-lg border border-warning/20">
+                                        <h4 className="text-[10px] font-bold uppercase text-warning flex items-center gap-1.5">
                                             <FileText className="h-3 w-3" />
                                             Notes / Other Details
                                         </h4>
-                                        <p className="text-xs text-amber-900 leading-relaxed italic">
+                                        <p className="text-xs text-foreground/80 leading-relaxed italic">
                                             &quot;{selectedProspect.otherDetails}&quot;
                                         </p>
                                     </section>
@@ -907,7 +907,7 @@ export function CustomerProspectTable({
                                 <Button
                                     variant="outline"
                                     onClick={handleStartEdit}
-                                    className="w-full sm:w-auto h-10 border-blue-100 bg-blue-50/30 text-blue-600 hover:bg-blue-50 font-bold uppercase text-[10px] tracking-widest"
+                                    className="w-full sm:w-auto h-10 border-info/20 bg-info-bg text-info hover:bg-info/20 font-bold uppercase text-[10px] tracking-widest"
                                 >
                                     <Edit2 className="h-3.5 w-3.5 mr-2" />
                                     Edit
@@ -918,7 +918,7 @@ export function CustomerProspectTable({
                                             variant="outline"
                                             onClick={() => selectedProspect && handleAction(selectedProspect.id, 'Reject')}
                                             disabled={processingId !== null}
-                                            className="w-full sm:w-auto h-10 border-rose-100 bg-rose-50/50 text-rose-600 hover:bg-rose-100 font-bold uppercase text-[10px] tracking-widest"
+                                            className="w-full sm:w-auto h-10 border-destructive/20 bg-destructive/10 text-destructive hover:bg-destructive/20 font-bold uppercase text-[10px] tracking-widest"
                                         >
                                             {processingId === selectedProspect?.id ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <X className="h-4 w-4 mr-2" />}
                                             Reject
@@ -926,7 +926,7 @@ export function CustomerProspectTable({
                                         <Button
                                             onClick={() => selectedProspect && handleAction(selectedProspect.id, 'Approve')}
                                             disabled={processingId !== null}
-                                            className="w-full sm:flex-1 h-10 bg-emerald-600 hover:bg-emerald-700 text-white font-bold uppercase text-[10px] tracking-widest shadow-lg shadow-emerald-200"
+                                            className="w-full sm:flex-1 h-10 bg-success hover:bg-success/90 text-success-foreground font-bold uppercase text-[10px] tracking-widest shadow-lg shadow-success/20"
                                         >
                                             {processingId === selectedProspect?.id ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Check className="h-4 w-4 mr-2" />}
                                             Approve

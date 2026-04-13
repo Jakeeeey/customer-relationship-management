@@ -17,27 +17,27 @@ export function SimilarCustomerWarning({ similarGroups, onCompare }: SimilarCust
     const count = similarGroups.length;
     
     return (
-        <div className="bg-amber-50/50 border border-amber-200/60 rounded-xl overflow-hidden mb-6 animate-in fade-in slide-in-from-top-2 duration-500 shadow-sm relative">
-            <div className="flex items-center gap-3 p-3 bg-amber-50">
-                <div className="bg-amber-100 p-1.5 rounded-lg border border-amber-200">
-                    <AlertTriangle className="h-4 w-4 text-amber-600" />
+        <div className="bg-warning/5 border border-warning/20 rounded-xl overflow-hidden mb-6 animate-in fade-in slide-in-from-top-2 duration-500 shadow-sm relative">
+            <div className="flex items-center gap-3 p-3 bg-warning-bg">
+                <div className="bg-warning/10 p-1.5 rounded-lg border border-warning/20">
+                    <AlertTriangle className="h-4 w-4 text-warning" />
                 </div>
                 <div className="flex-1">
-                    <h5 className="text-amber-900 font-bold text-xs uppercase tracking-wider mb-0.5 leading-none">
+                    <h5 className="text-foreground font-bold text-xs uppercase tracking-wider mb-0.5 leading-none">
                         Duplicate Warning
                     </h5>
-                    <p className="text-amber-800/70 text-[10px] uppercase font-medium leading-none">
+                    <p className="text-warning-foreground/70 text-[10px] uppercase font-medium leading-none">
                         {count === 1 
                             ? "1 Potential match found in database" 
                             : `${count} Potential matches found in database`
                         }
                     </p>
                 </div>
-                <div className="bg-amber-200/50 px-2 py-1 rounded text-[10px] font-bold text-amber-800 tabular-nums border border-amber-300/30">
+                <div className="bg-warning/20 px-2 py-1 rounded text-[10px] font-bold text-warning tabular-nums border border-warning/30">
                     {count}
                 </div>
             </div>
-            <div className="border-t border-amber-200/40 bg-white/40">
+            <div className="border-t border-warning/10 bg-muted/30">
                 {similarGroups.map((group) => {
                     const existingCustomer = group.customers[1];
                     
@@ -45,17 +45,17 @@ export function SimilarCustomerWarning({ similarGroups, onCompare }: SimilarCust
                         <button
                             key={group.id}
                             onClick={() => onCompare(group)}
-                            className="w-full flex items-center justify-between p-2.5 px-3 hover:bg-amber-100/50 transition-colors border-b border-amber-200/20 last:border-0 group select-none"
+                            className="w-full flex items-center justify-between p-2.5 px-3 hover:bg-warning/10 transition-colors border-b border-warning/10 last:border-0 group select-none"
                         >
                             <div className="flex items-center gap-2 overflow-hidden mr-2">
-                                <Copy className="h-3 w-3 text-amber-600/50 shrink-0" />
-                                <span className="text-[11px] font-semibold text-amber-900 truncate" title={existingCustomer.customer_name}>
+                                <Copy className="h-3 w-3 text-warning/50 shrink-0" />
+                                <span className="text-[11px] font-semibold text-foreground/90 truncate" title={existingCustomer.customer_name}>
                                     {existingCustomer.customer_name}
                                 </span>
                             </div>
-                            <div className="flex items-center gap-1.5 shrink-0 bg-white/80 px-2 py-0.5 rounded-full border border-amber-200 group-hover:border-amber-400 group-hover:bg-amber-50 transition-all shadow-sm">
-                                <span className="text-[9px] font-bold uppercase text-amber-700">Compare</span>
-                                <ChevronRight className="h-2.5 w-2.5 text-amber-600" />
+                            <div className="flex items-center gap-1.5 shrink-0 bg-background/80 px-2 py-0.5 rounded-full border border-warning/20 group-hover:border-warning group-hover:bg-warning-bg transition-all shadow-sm">
+                                <span className="text-[9px] font-bold uppercase text-warning">Compare</span>
+                                <ChevronRight className="h-2.5 w-2.5 text-warning" />
                             </div>
                         </button>
                     );

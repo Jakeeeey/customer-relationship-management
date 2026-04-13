@@ -52,7 +52,7 @@ export function CustomerComparisonModal({
                 <DialogHeader className="p-6 pb-2">
                     <div className="flex items-center gap-2">
                         <DialogTitle className="text-xl">Duplicate Comparison</DialogTitle>
-                        <Badge variant="outline" className="text-[10px] bg-amber-50 text-amber-700">
+                        <Badge variant="outline" className="text-[10px] bg-warning-bg text-warning border-warning/20">
                             {reasons.length} Matches Found
                         </Badge>
                     </div>
@@ -64,15 +64,15 @@ export function CustomerComparisonModal({
                 <ScrollArea className="flex-1 px-6">
                     <div className="grid grid-cols-[1fr,1fr] gap-x-4 gap-y-4 mt-2">
                         {/* Headers */}
-                        <div className="bg-primary/5 p-3 rounded-xl border border-primary/10 text-center relative overflow-hidden">
+                        <div className="bg-primary/10 p-3 rounded-xl border border-primary/20 text-center relative overflow-hidden">
                             <Badge variant="secondary" className="absolute -top-1 -right-1 text-[8px] bg-primary text-white border-0 rounded-none rounded-bl-lg">PROSPECT</Badge>
-                            <span className="text-[9px] font-bold uppercase text-primary/60 tracking-widest block mb-1">New Entry</span>
+                            <span className="text-[9px] font-bold uppercase text-primary/70 tracking-widest block mb-1">New Entry</span>
                             <span className="font-extrabold text-xs text-primary truncate block uppercase">{prospect.customer_name}</span>
                         </div>
-                        <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 text-center relative overflow-hidden">
-                            <Badge variant="secondary" className="absolute -top-1 -right-1 text-[8px] bg-slate-500 text-white border-0 rounded-none rounded-bl-lg">EXISTING</Badge>
-                            <span className="text-[9px] font-bold uppercase text-slate-400 tracking-widest block mb-1">Database Record</span>
-                            <span className="font-extrabold text-xs text-slate-700 truncate block uppercase">{existingCustomer.customer_name}</span>
+                        <div className="bg-muted/50 p-3 rounded-xl border border-border text-center relative overflow-hidden">
+                            <Badge variant="secondary" className="absolute -top-1 -right-1 text-[8px] bg-muted-foreground/60 text-white border-0 rounded-none rounded-bl-lg">EXISTING</Badge>
+                            <span className="text-[9px] font-bold uppercase text-muted-foreground tracking-widest block mb-1">Database Record</span>
+                            <span className="font-extrabold text-xs text-foreground truncate block uppercase">{existingCustomer.customer_name}</span>
                         </div>
 
                         {/* Comparison Rows */}
@@ -85,19 +85,19 @@ export function CustomerComparisonModal({
                                 <React.Fragment key={field.key}>
                                     <div className="col-span-2 space-y-1.5 mt-2">
                                         <div className="flex items-center gap-2 px-1">
-                                            <field.icon className={`h-3 w-3 ${matched ? 'text-amber-500' : 'text-slate-400'}`} />
-                                            <span className="text-[9px] font-bold uppercase text-slate-500 tracking-wider">
+                                            <field.icon className={`h-3 w-3 ${matched ? 'text-warning' : 'text-muted-foreground/60'}`} />
+                                            <span className="text-[9px] font-bold uppercase text-muted-foreground tracking-wider">
                                                 {field.label}
                                             </span>
                                             {matched && (
-                                                <div className="flex-1 h-[1px] bg-amber-100" />
+                                                <div className="flex-1 h-[1px] bg-warning/20" />
                                             )}
                                         </div>
                                         <div className="grid grid-cols-2 gap-3">
-                                            <div className={`p-2.5 px-3 rounded-lg border text-xs transition-colors ${matched ? 'bg-amber-50 border-amber-200 text-amber-900 font-semibold' : 'bg-white border-slate-100 text-slate-600'}`}>
+                                            <div className={`p-2.5 px-3 rounded-lg border text-xs transition-colors ${matched ? 'bg-warning-bg border-warning/30 text-foreground font-semibold' : 'bg-background border-border/50 text-muted-foreground'}`}>
                                                 {val1}
                                             </div>
-                                            <div className={`p-2.5 px-3 rounded-lg border text-xs transition-colors ${matched ? 'bg-amber-50 border-amber-200 text-amber-900 font-semibold' : 'bg-white border-slate-100 text-slate-600'}`}>
+                                            <div className={`p-2.5 px-3 rounded-lg border text-xs transition-colors ${matched ? 'bg-warning-bg border-warning/30 text-foreground font-semibold' : 'bg-background border-border/50 text-muted-foreground'}`}>
                                                 {val2}
                                             </div>
                                         </div>
@@ -107,14 +107,14 @@ export function CustomerComparisonModal({
                         })}
                     </div>
 
-                    <div className="my-6 p-3 bg-primary/5 rounded-xl border border-primary/10">
+                    <div className="my-6 p-3 bg-primary/10 rounded-xl border border-primary/20">
                         <h4 className="text-[9px] font-bold text-primary uppercase mb-2 flex items-center gap-1.5 px-1">
                             <Info className="h-3 w-3" />
                             Match Indicators
                         </h4>
                         <div className="flex flex-wrap gap-1.5">
                             {reasons.map((reason) => (
-                                <Badge key={reason} variant="outline" className="bg-white text-[9px] text-primary/80 border-primary/20 font-bold px-2 py-0 h-5">
+                                <Badge key={reason} variant="outline" className="bg-background text-[9px] text-primary border-primary/30 font-bold px-2 py-0 h-5">
                                     {reason.replace(/_/g, " ")}
                                 </Badge>
                             ))}
@@ -122,7 +122,7 @@ export function CustomerComparisonModal({
                     </div>
                 </ScrollArea>
 
-                <DialogFooter className="p-6 pt-4 border-t border-slate-100">
+                <DialogFooter className="p-6 pt-4 border-t border-border/50">
                     <Button variant="outline" onClick={onClose} className="h-9 px-6 rounded-lg font-bold text-[10px] uppercase tracking-widest">
                         Close Comparison
                     </Button>
