@@ -90,8 +90,25 @@ export default function PrintablesFiltersBar({
     suppliers,
     priceTypes
 }: Props) {
+    const [localQ, setLocalQ] = React.useState(filters.q);
+
+    // Sync localQ if filters.q changes externally (e.g. from clear button)
+    React.useEffect(() => {
+        setLocalQ(filters.q);
+    }, [filters.q]);
+
     const handleQChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        setFilters((prev) => ({ ...prev, q: e.target.value, page: 1 }));
+        setLocalQ(e.target.value);
+    };
+
+    const handleSearch = () => {
+        setFilters((prev) => ({ ...prev, q: localQ, page: 1 }));
+    };
+
+    const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+        if (e.key === "Enter") {
+            handleSearch();
+        }
     };
 
     const toggleFilter = (key: keyof FilterState, id: string) => {
@@ -121,13 +138,21 @@ export default function PrintablesFiltersBar({
         <div className="flex flex-col gap-4 bg-background/60 backdrop-blur-md p-6 rounded-2xl border border-border/50 shadow-sm">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
                 <div className="relative group lg:col-span-1">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground transition-colors group-focus-within:text-primary" />
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground transition-colors group-focus-within:text-primary z-10" />
                     <Input
                         placeholder="Search products..."
-                        value={filters.q}
+                        value={localQ}
                         onChange={handleQChange}
-                        className="pl-10 rounded-xl border-border/50 bg-background/50 h-9"
+                        onKeyDown={handleKeyDown}
+                        className="pl-10 pr-12 rounded-xl border-border/50 bg-background/50 h-10 w-full"
                     />
+                    <Button 
+                        onClick={handleSearch}
+                        size="sm"
+                        className="absolute right-1 top-1 bottom-1 h-auto rounded-lg w-10 p-0 shadow-none"
+                    >
+                        <Search className="w-4 h-4" />
+                    </Button>
                 </div>
 
                 <FilterSelector
