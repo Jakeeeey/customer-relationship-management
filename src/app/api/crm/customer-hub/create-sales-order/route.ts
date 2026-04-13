@@ -248,7 +248,7 @@ export async function GET(req: NextRequest) {
         }
 
         if (action === "suppliers") {
-            const res = await fetch(`${DIRECTUS_URL}/items/suppliers?limit=-1`, { headers: fetchHeaders });
+            const res = await fetch(`${DIRECTUS_URL}/items/suppliers?filter[supplier_type][_icontains]=TRADE&limit=-1`, { headers: fetchHeaders });
             return NextResponse.json((await res.json()).data || []);
         }
 
