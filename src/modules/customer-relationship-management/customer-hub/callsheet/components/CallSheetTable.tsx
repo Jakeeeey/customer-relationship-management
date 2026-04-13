@@ -157,8 +157,8 @@ export function CallSheetTable({
                                     const isApproved = row.status?.toLowerCase() === "approved";
 
                                     return (
-                                        <TableRow 
-                                            key={row.id} 
+                                        <TableRow
+                                            key={row.id}
                                             className="group hover:bg-primary/[0.02] transition-colors border-b border-border/30 relative cursor-pointer"
                                             onClick={() => handleRowAction(row)}
                                         >
@@ -270,8 +270,8 @@ export function CallSheetTable({
                                                             disabled={processingId === String(row.id)}
                                                             className={cn(
                                                                 "gap-2 h-9 px-4 text-xs font-bold bg-background shadow-sm transition-all z-10",
-                                                                processingId === String(row.id) 
-                                                                    ? "opacity-50 cursor-not-allowed" 
+                                                                processingId === String(row.id)
+                                                                    ? "opacity-50 cursor-not-allowed"
                                                                     : "hover:shadow-md hover:bg-primary hover:text-primary-foreground border-primary/20 hover:-translate-y-0.5"
                                                             )}
                                                             onClick={(e) => {
@@ -324,7 +324,7 @@ export function CallSheetTable({
                                 Displaying <span className="text-foreground">{data.length}</span> of <span className="text-foreground">{metadata.total_count}</span> callsheet records
                             </p>
                         </div>
-                        
+
                         <div className="flex items-center gap-2">
                             <Button
                                 variant="outline"
@@ -351,8 +351,8 @@ export function CallSheetTable({
                                             size="icon"
                                             className={cn(
                                                 "h-8 w-8 text-[11px] font-black transition-all rounded-lg",
-                                                page === p 
-                                                    ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20 scale-110 z-10" 
+                                                page === p
+                                                    ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20 scale-110 z-10"
                                                     : "text-muted-foreground hover:bg-primary/10 hover:text-primary"
                                             )}
                                             onClick={() => onPageChange(p)}
