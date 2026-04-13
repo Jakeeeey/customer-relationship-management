@@ -25,7 +25,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
     Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { CustomerWithRelations, PaymentTerm } from "../types";
+import { CustomerWithRelations, PaymentTerm, ReferenceOption } from "../types";
 import { BankAccountManager } from "./BankAccountManager";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -33,10 +33,6 @@ import { cn } from "@/lib/utils";
 // ============================================================================
 // TYPES & INTERFACES
 // ============================================================================
-interface ReferenceOption {
-    id: number | string;
-    name: string;
-}
 
 interface CreatableComboboxProps {
     items: ReferenceOption[];
@@ -195,9 +191,24 @@ const customerSchema = z.object({
     store_type: z.coerce.number().nullable(),
     classification: z.coerce.number().nullable(),
     price_type: z.string(),
-    isActive: z.coerce.number(), isVAT: z.coerce.number(), isEWT: z.coerce.number(),
     discount_type: z.coerce.number().nullable(),
     encoder_id: z.number(),
+    isActive: z.coerce.number().default(1),
+    isVAT: z.coerce.number().default(0),
+    isEWT: z.coerce.number().default(0),
+    bank_accounts: z.array(z.object({
+        id: z.number().optional(),
+        customer_id: z.number().optional(),
+        bank_name: z.coerce.number(),
+        account_name: z.string().min(1, "Account name is required"),
+        account_number: z.string().min(1, "Account number is required"),
+        account_type: z.enum(["Savings", "Checking", "Other"]),
+        branch_of_account: z.string().optional().nullable(),
+        is_primary: z.coerce.number().default(0),
+        notes: z.string().optional().nullable(),
+        created_at: z.string().optional(),
+        updated_at: z.string().optional(),
+    })).default([]),
 });
 
 type CustomerFormValues = z.infer<typeof customerSchema>;
@@ -214,7 +225,7 @@ const getDefaultValues = (): CustomerFormValues => ({
     customer_code: "", customer_name: "", store_name: "", store_signage: "", contact_number: "",
     customer_email: "", brgy: "", city: "", province: "", tel_number: "", customer_tin: "",
     payment_term: 0, store_type: null, classification: null, price_type: "", isActive: 1, isVAT: 0, isEWT: 0,
-    discount_type: null, type: "Regular", user_id: null, encoder_id: 1,
+    discount_type: null, type: "Regular", user_id: null, encoder_id: 1, bank_accounts: [],
 });
 
 // ============================================================================
@@ -231,6 +242,7 @@ export function CustomerFormSheet({
     const [storeTypes, setStoreTypes] = useState<ReferenceOption[]>([]);
     const [classifications, setClassifications] = useState<ReferenceOption[]>([]);
     const [paymentTerms, setPaymentTerms] = useState<PaymentTerm[]>([]);
+    const [bankNames, setBankNames] = useState<ReferenceOption[]>([]);
 
     // 🚀 PSGC API States
     const [provincesList, setProvincesList] = useState<LocationOption[]>([]);
@@ -242,6 +254,7 @@ export function CustomerFormSheet({
     const [isLoadingCities, setIsLoadingCities] = useState(false);
     const [isLoadingBarangays, setIsLoadingBarangays] = useState(false);
     const [isLoadingPaymentTerms, setIsLoadingPaymentTerms] = useState(false);
+    const [isLoadingBankNames, setIsLoadingBankNames] = useState(false);
 
     const form = useForm<CustomerFormValues>({
         resolver: zodResolver(customerSchema) as Resolver<CustomerFormValues>,
@@ -405,6 +418,34 @@ export function CustomerFormSheet({
         return () => { isMounted = false; };
     }, [open]);
 
+    // 5. Fetch Bank Names
+    useEffect(() => {
+        if (!open) return;
+        let isMounted = true;
+
+        const fetchBankNames = async () => {
+            setIsLoadingBankNames(true);
+            try {
+                const res = await fetch("/api/crm/customer/references?type=bank_name");
+                if (!res.ok) throw new Error("Failed to fetch bank names");
+                const json = await res.json();
+                if (isMounted) {
+                    setBankNames(json.data?.map((item: { id: number; bank_name: string }) => ({
+                        id: item.id,
+                        name: item.bank_name
+                    })) || []);
+                }
+            } catch (err) {
+                console.error("Failed to fetch bank names", err);
+            } finally {
+                if (isMounted) setIsLoadingBankNames(false);
+            }
+        };
+
+        fetchBankNames();
+        return () => { isMounted = false; };
+    }, [open]);
+
     useEffect(() => {
         if (open) {
             if (customer) {
@@ -427,7 +468,8 @@ export function CustomerFormSheet({
                     type: customer.type || "Regular",
                     user_id: customer.user_id || null,
                     encoder_id: customer.encoder_id || 1,
-                    classification: (customer as CustomerWithRelations & { classification?: number | null }).classification || null
+                    classification: customer.classification || null,
+                    bank_accounts: customer.bank_accounts || [],
                 });
             } else {
                 form.reset(getDefaultValues());
@@ -733,23 +775,12 @@ export function CustomerFormSheet({
                                 </TabsContent>
 
                                 <TabsContent value="bank" className="m-0 animate-in fade-in slide-in-from-bottom-2">
-                                    {customer?.id ? (
-                                        <BankAccountManager customerId={customer.id} />
-                                    ) : (
-                                        <div
-                                            className="flex flex-col items-center justify-center py-24 px-4 border-2 border-dashed border-border/60 rounded-2xl bg-muted/10 text-center">
-                                            <div
-                                                className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center mb-4">
-                                                <CreditCard className="h-8 w-8 text-primary" />
-                                            </div>
-                                            <h4 className="font-black text-lg uppercase tracking-widest text-foreground mb-2">Save
-                                                Customer First</h4>
-                                            <p className="text-sm font-medium text-muted-foreground max-w-[320px]">
-                                                You need to create and save this customer profile before attaching bank
-                                                accounts.
-                                            </p>
-                                        </div>
-                                    )}
+                                    <BankAccountManager 
+                                        accounts={form.watch("bank_accounts") || []} 
+                                        banks={bankNames}
+                                        onAccountsChange={(accounts) => form.setValue("bank_accounts", accounts, { shouldDirty: true })}
+                                        isLoading={isLoadingBankNames}
+                                    />
                                 </TabsContent>
                             </div>
                         </Tabs>
