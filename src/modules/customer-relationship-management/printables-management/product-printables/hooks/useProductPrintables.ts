@@ -84,6 +84,7 @@ export function useProductPrintables(
                     variantsByUnitId[uomId] = {
                         product: v,
                         tiers: {
+                            ListPrice: v.cost_per_unit ? Number(v.cost_per_unit) : null,
                             A: v.priceA ? Number(v.priceA) : null,
                             B: v.priceB ? Number(v.priceB) : null,
                             C: v.priceC ? Number(v.priceC) : null,
