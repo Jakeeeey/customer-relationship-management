@@ -150,7 +150,8 @@ export function useCustomers(): UseCustomersReturn {
             if (bank_accounts && bank_accounts.length > 0) {
                 await Promise.all(bank_accounts.map(async (account) => {
                     // Strip ID and metadata for new records to prevent Directus errors
-                    const { id, created_at, updated_at, ...cleanedAccount } = account as any;
+                    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+                    const { id, created_at, updated_at, ...cleanedAccount } = account as BankAccount;
                     const baRes = await fetch("/api/crm/customer/bank-account", {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
@@ -217,43 +218,45 @@ export function useCustomers(): UseCustomersReturn {
                     return n;
                 });
 
-                const syncPromises = [
-                    ...toDelete.map(async (acc) => {
-                        const delRes = await fetch(`/api/crm/customer/bank-account?id=${acc.id}`, { method: "DELETE", cache: "no-store" });
-                        if (!delRes.ok) throw new Error(`Failed to delete bank account: ${delRes.statusText}`);
-                        return delRes;
-                    }),
-                    ...toPost.map(async (acc) => {
-                        // Strip ID and metadata for new records
-                        const { id: _, created_at, updated_at, ...cleanedAccount } = acc as any;
-                        const postRes = await fetch("/api/crm/customer/bank-account", {
-                            method: "POST",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({ ...cleanedAccount, customer_id: id })
-                        });
-                        if (!postRes.ok) {
-                            const errTxt = await postRes.text().catch(() => postRes.statusText);
-                            throw new Error(`Failed to create bank account: ${errTxt}`);
-                        }
-                        return postRes;
-                    }),
-                    ...toPatch.map(async (acc) => {
-                        // Strip metadata from patch to prevent modification of read-only fields
-                        const { created_at, updated_at, ...cleanedAccount } = acc as any;
-                        const patchRes = await fetch("/api/crm/customer/bank-account", {
-                            method: "PATCH",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify(cleanedAccount)
-                        });
-                        if (!patchRes.ok) {
-                            const errTxt = await patchRes.text().catch(() => patchRes.statusText);
-                            throw new Error(`Failed to update bank account: ${errTxt}`);
-                        }
-                        return patchRes;
-                    })
-                ];
+                // 3. Process Synchronization Sequentially
+                // We use sequential processing instead of Promise.all to avoid 
+                // overwhelming the network connection and hitting socket limits
+                
+                // DELETIONS
+                for (const acc of toDelete) {
+                    const delRes = await fetch(`/api/crm/customer/bank-account?id=${acc.id}`, { method: "DELETE", cache: "no-store" });
+                    if (!delRes.ok) throw new Error(`Failed to delete bank account: ${delRes.statusText}`);
+                }
 
-                await Promise.all(syncPromises);
+                // CREATIONS
+                for (const acc of toPost) {
+                    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+                    const { id: _id, created_at, updated_at, ...cleanedAccount } = acc as BankAccount;
+                    const postRes = await fetch("/api/crm/customer/bank-account", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ ...cleanedAccount, customer_id: id })
+                    });
+                    if (!postRes.ok) {
+                        const errTxt = await postRes.text().catch(() => postRes.statusText);
+                        throw new Error(`Failed to create bank account: ${errTxt}`);
+                    }
+                }
+
+                // UPDATES
+                for (const acc of toPatch) {
+                    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+                    const { created_at, updated_at, ...cleanedAccount } = acc as BankAccount;
+                    const patchRes = await fetch("/api/crm/customer/bank-account", {
+                        method: "PATCH",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify(cleanedAccount)
+                    });
+                    if (!patchRes.ok) {
+                        const errTxt = await patchRes.text().catch(() => patchRes.statusText);
+                        throw new Error(`Failed to update bank account: ${errTxt}`);
+                    }
+                }
             }
 
             await fetchData(true);

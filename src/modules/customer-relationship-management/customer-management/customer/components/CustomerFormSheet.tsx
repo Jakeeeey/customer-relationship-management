@@ -558,12 +558,15 @@ export function CustomerFormSheet({
                             <div className="px-6 md:px-8 pt-4 shrink-0 bg-background z-10">
                                 <TabsList className="grid w-full grid-cols-4 h-auto p-1 bg-muted/50 rounded-xl">
                                     <TabsTrigger value="basic"
+                                                 disabled={defaultTab === "bank"}
                                                  className="py-2.5 text-xs font-bold uppercase tracking-widest rounded-lg"><Building2
                                         className="w-3.5 h-3.5 mr-2 hidden md:block" /> Basic</TabsTrigger>
                                     <TabsTrigger value="address"
+                                                 disabled={defaultTab === "bank"}
                                                  className="py-2.5 text-xs font-bold uppercase tracking-widest rounded-lg"><MapPin
                                         className="w-3.5 h-3.5 mr-2 hidden md:block" /> Location</TabsTrigger>
                                     <TabsTrigger value="billing"
+                                                 disabled={defaultTab === "bank"}
                                                  className="py-2.5 text-xs font-bold uppercase tracking-widest rounded-lg"><Receipt
                                         className="w-3.5 h-3.5 mr-2 hidden md:block" /> Billing</TabsTrigger>
                                     <TabsTrigger value="bank"

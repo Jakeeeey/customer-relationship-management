@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { fetchWithRetry } from "@/lib/fetch-with-retry";
 
 // ============================================================================
 // CONFIG
@@ -24,7 +25,7 @@ export const revalidate = 0;
 async function fetchAll<T>(collection: string, offset = 0, acc: T[] = []): Promise<T[]> {
     const token = process.env.DIRECTUS_STATIC_TOKEN;
     const url = `${DIRECTUS_URL}/items/${collection}?limit=${LIMIT}&offset=${offset}`;
-    const res = await fetch(url, {
+    const res = await fetchWithRetry(url, {
         cache: "no-store",
         headers: token ? { Authorization: `Bearer ${token}` } : {}
     });
@@ -54,11 +55,11 @@ export async function GET(req: NextRequest) {
         if (id) {
             // Fetch single customer and their bank accounts
             const [customerRes, bankRes] = await Promise.all([
-                fetch(`${DIRECTUS_URL}/items/${COLLECTIONS.CUSTOMER}/${id}`, {
+                fetchWithRetry(`${DIRECTUS_URL}/items/${COLLECTIONS.CUSTOMER}/${id}`, {
                     cache: "no-store",
                     headers: token ? { Authorization: `Bearer ${token}` } : {}
                 }),
-                fetch(`${DIRECTUS_URL}/items/${COLLECTIONS.BANK_ACCOUNTS}?filter[customer_id][_eq]=${id}`, {
+                fetchWithRetry(`${DIRECTUS_URL}/items/${COLLECTIONS.BANK_ACCOUNTS}?filter[customer_id][_eq]=${id}`, {
                     cache: "no-store",
                     headers: token ? { Authorization: `Bearer ${token}` } : {}
                 })
@@ -114,7 +115,7 @@ export async function GET(req: NextRequest) {
 
         // Fetch customers with pagination and filtering
         const customersUrl = `${DIRECTUS_URL}/items/${COLLECTIONS.CUSTOMER}?${params.toString()}`;
-        const customersRes = await fetch(customersUrl, {
+        const customersRes = await fetchWithRetry(customersUrl, {
             cache: "no-store",
             headers: token ? { Authorization: `Bearer ${token}` } : {}
         });
@@ -127,9 +128,9 @@ export async function GET(req: NextRequest) {
 
         // 🚀 MANUALLY ENRICH CUSTOMERS WITH BANK ACCOUNTS
         // This ensures the frontend gets bank_accounts[] inside each customer object
-        const enrichedCustomers = (customersJson.data || []).map((customer: any) => ({
+        const enrichedCustomers = (customersJson.data || []).map((customer: Record<string, unknown>) => ({
             ...customer,
-            bank_accounts: bankAccounts.filter((acc: any) => 
+            bank_accounts: bankAccounts.filter((acc: Record<string, unknown>) => 
                 String(acc.customer_id) === String(customer.id)
             )
         }));
@@ -171,7 +172,7 @@ export async function POST(req: NextRequest) {
         const newCustomerData = { ...body };
         delete newCustomerData.bank_accounts;
 
-        const res = await fetch(`${DIRECTUS_URL}/items/${COLLECTIONS.CUSTOMER}`, {
+        const res = await fetchWithRetry(`${DIRECTUS_URL}/items/${COLLECTIONS.CUSTOMER}`, {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
@@ -214,7 +215,7 @@ export async function PATCH(req: NextRequest) {
             return NextResponse.json({ error: "Customer ID is required" }, { status: 400 });
         }
 
-        const res = await fetch(`${DIRECTUS_URL}/items/${COLLECTIONS.CUSTOMER}/${id}`, {
+        const res = await fetchWithRetry(`${DIRECTUS_URL}/items/${COLLECTIONS.CUSTOMER}/${id}`, {
             method: "PATCH",
             headers: {
                 "Content-Type": "application/json",
@@ -256,7 +257,7 @@ export async function DELETE(req: NextRequest) {
             return NextResponse.json({ error: "Customer ID is required" }, { status: 400 });
         }
 
-        const res = await fetch(`${DIRECTUS_URL}/items/${COLLECTIONS.CUSTOMER}/${id}`, {
+        const res = await fetchWithRetry(`${DIRECTUS_URL}/items/${COLLECTIONS.CUSTOMER}/${id}`, {
             method: "DELETE",
             headers: {
                 "Authorization": `Bearer ${token}`
