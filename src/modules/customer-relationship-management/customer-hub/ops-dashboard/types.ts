@@ -57,3 +57,5 @@ export interface StatusGroupedOrders {
     status: OPSStatus;
     customerGroups: CustomerGroupedOrders[];
 }
+
+export type BulkAction = { type: 'expand' | 'collapse'; id: number } | null;
