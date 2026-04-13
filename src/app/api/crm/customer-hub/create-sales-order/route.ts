@@ -489,7 +489,7 @@ export async function GET(req: NextRequest) {
 
                 const finalProducts = sellableItems.map((p) => {
                     let winId = null;
-                    let level = "Default Customer Discount";
+                    let level = "None";
 
                     let price = priceOverrides[Number(p.product_id)] || Number(p[priceField] as number) || Number(p.price_per_unit) || 0;
 
@@ -506,7 +506,7 @@ export async function GET(req: NextRequest) {
                         if (l4) { winId = l4.discount_type_id; level = "Customer Brand Discount"; }
                     }
 
-                    if (!winId && customerData?.discount_type) { winId = customerData.discount_type; level = "Default Customer Discount"; }
+                    if (!winId && customerData?.discount_type) { winId = customerData.discount_type; level = "None"; }
 
                     const specificDiscountName = winId ? discountTypeNameMap[Number(winId)] : "";
                     const displayLevel = specificDiscountName || level;

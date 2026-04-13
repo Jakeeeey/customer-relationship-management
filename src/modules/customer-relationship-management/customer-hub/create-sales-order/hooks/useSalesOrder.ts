@@ -181,6 +181,48 @@ export function useSalesOrder() {
                             // Initialize the Order Reference so it matches the group
                             if (attachment.sales_order_no) setExistingOrderNo(attachment.sales_order_no);
 
+                            // EXACT SALESMAN MATCH (Extract Price Type & ID correctly based on literal callsheet assignment)
+                            if (attachment.salesman_id) {
+                                const smData = await fetch(`${salesOrderProvider.API_BASE}?action=salesman_by_id&id=${attachment.salesman_id}`).then(r => r.json());
+                                if (smData) {
+                                    const uidStr = (smData.employee_id || smData.encoder_id || smData.user_id)?.toString();
+                                    const sIdStr = smData.id?.toString();
+
+                                    if (uidStr) {
+                                        setSelectedSalesmanId(uidStr);
+                                        const accts = await fetch(`${salesOrderProvider.API_BASE}?action=accounts&user_id=${uidStr}`).then(r => r.json());
+                                        setAccounts(accts);
+                                        
+                                        if (sIdStr) {
+                                            setSelectedAccountId(sIdStr);
+                                            console.log(`[useSalesOrder] Auto-selected Account ID from attachment: ${sIdStr}`);
+
+                                            // Trigger accurate price type calculation based on Salesman details
+                                            let finalPriceTypeId: number | null = null;
+                                            if (smData.price_type_id !== null && smData.price_type_id !== undefined) {
+                                                finalPriceTypeId = Number(smData.price_type_id);
+                                            }
+
+                                            setPriceTypeId(finalPriceTypeId);
+
+                                            if (finalPriceTypeId && Array.isArray(pt)) {
+                                                const ptModel = pt.find(m => m.price_type_id === finalPriceTypeId);
+                                                if (ptModel) {
+                                                    setPriceType(ptModel.price_type_name);
+                                                    console.log(`[useSalesOrder] Extracted Price Type: ${ptModel.price_type_name} (ID: ${finalPriceTypeId})`);
+                                                } else if (smData.price_type) {
+                                                    setPriceType(smData.price_type);
+                                                } else {
+                                                    setPriceType("A");
+                                                }
+                                            } else if (smData.price_type) {
+                                                setPriceType(smData.price_type);
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
                             if (attachment.customer_code) {
                                 setCustomerSearch(attachment.customer_code);
                                 const custs = await salesOrderProvider.getAllCustomers(attachment.customer_code, 0);
@@ -191,33 +233,6 @@ export function useSalesOrder() {
                                     if (custs[0].payment_term !== undefined) setPaymentTerms(custs[0].payment_term);
 
                                     console.log(`[useSalesOrder] Auto-selected Customer: ${custs[0].customer_name} (ID: ${targetCustId})`);
-
-                                    // Resolve salesman/account from customer linkage
-                                    const sLinks = await salesOrderProvider.getSalesmanByCustomer(Number(targetCustId));
-                                    if (sLinks && sLinks.length > 0) {
-                                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                                        const uid = (sLinks[0] as any).employee_id || (sLinks[0] as any).encoder_id || (sLinks[0] as any).user_id;
-                                        if (uid && uid.toString()) {
-                                            const uidStr = uid.toString();
-                                            setSelectedSalesmanId(uidStr);
-                                            const accts = await fetch(`${salesOrderProvider.API_BASE}?action=accounts&user_id=${uidStr}`).then(r => r.json());
-                                            setAccounts(accts);
-                                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                                            const sId = (sLinks[0] as any).id;
-                                            if (sId) {
-                                                const sIdStr = sId.toString();
-                                                setSelectedAccountId(sIdStr);
-                                                console.log(`[useSalesOrder] Auto-selected Account ID: ${sIdStr}`);
-
-                                                // Trigger price type from account
-                                                const account = accts.find((a: Salesman) => a.id.toString() === sIdStr);
-                                                if (account) {
-                                                    setPriceType(account.price_type || "A");
-                                                    setPriceTypeId(account.price_type_id || null);
-                                                }
-                                            }
-                                        }
-                                    }
                                 }
                             }
                         }
@@ -257,6 +272,11 @@ export function useSalesOrder() {
                                         setAccounts(accts);
                                         setSelectedAccountId(header.salesman_id.toString());
                                     }
+                                    
+                                    // If the order header lacks a price_type_id, fallback to the salesman's assigned price type
+                                    if (!header.price_type_id && smUser.price_type_id) {
+                                        header.price_type_id = smUser.price_type_id;
+                                    }
                                 }
                             }
 
@@ -269,11 +289,17 @@ export function useSalesOrder() {
                             }
 
                             if (header.payment_terms !== undefined) setPaymentTerms(header.payment_terms);
+                            
                             if (header.price_type_id) {
-                                setPriceTypeId(Number(header.price_type_id));
-                                // Resolve price type name for labels
-                                const ptModel = priceTypeModels.find(m => m.price_type_id === Number(header.price_type_id));
-                                if (ptModel) setPriceType(ptModel.price_type_name);
+                                const pTIdNum = Number(header.price_type_id);
+                                setPriceTypeId(pTIdNum);
+                                // Resolve price type name using the locally fetched `pt` array to bypass React state stale closures
+                                if (Array.isArray(pt)) {
+                                    const ptModel = pt.find((m: PriceTypeModel) => m.price_type_id === pTIdNum);
+                                    if (ptModel) {
+                                        setPriceType(ptModel.price_type_name);
+                                    }
+                                }
                             }
 
                             if (header.supplier_id) setSelectedSupplierId(header.supplier_id.toString());
