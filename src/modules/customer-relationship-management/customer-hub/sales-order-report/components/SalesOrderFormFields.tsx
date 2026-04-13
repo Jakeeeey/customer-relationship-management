@@ -146,6 +146,8 @@ export function SalesOrderFormFields({ appliedFilters, onSearch, salesmen, branc
                         <SearchableSelect
                             options={[
                                 { value: "none", label: "All Status" },
+                                { value: "Draft", label: "Draft" },
+                                { value: "Pending", label: "Pending" },
                                 { value: "For Approval", label: "For Approval" },
                                 { value: "For Consolidation", label: "For Consolidation" },
                                 { value: "For Picking", label: "For Picking" },

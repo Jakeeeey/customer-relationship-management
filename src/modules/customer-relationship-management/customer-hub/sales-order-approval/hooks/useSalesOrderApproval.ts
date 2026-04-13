@@ -19,6 +19,7 @@ export interface OrderDetail {
     discount_amount: number;
     discount_type: number | string | null;
     net_amount: number;
+    allocated_amount?: number;
     gross_amount?: number;
     _recalculated_discount?: number;
     _recalculated_gross?: number;
