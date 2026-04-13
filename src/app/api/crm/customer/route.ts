@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { fetchWithRetry } from "@/lib/fetch-with-retry";
+import { fetchWithRetry } from "@/modules/customer-relationship-management/customer-management/customer/fetch-with-retry";
 
 // ============================================================================
 // CONFIG
