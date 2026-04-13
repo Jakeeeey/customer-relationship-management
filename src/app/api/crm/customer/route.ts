@@ -52,14 +52,26 @@ export async function GET(req: NextRequest) {
         const id = searchParams.get("id");
 
         if (id) {
-            // Fetch single customer
-            const res = await fetch(`${DIRECTUS_URL}/items/${COLLECTIONS.CUSTOMER}/${id}`, {
-                cache: "no-store",
-                headers: token ? { Authorization: `Bearer ${token}` } : {}
+            // Fetch single customer and their bank accounts
+            const [customerRes, bankRes] = await Promise.all([
+                fetch(`${DIRECTUS_URL}/items/${COLLECTIONS.CUSTOMER}/${id}`, {
+                    cache: "no-store",
+                    headers: token ? { Authorization: `Bearer ${token}` } : {}
+                }),
+                fetch(`${DIRECTUS_URL}/items/${COLLECTIONS.BANK_ACCOUNTS}?filter[customer_id][_eq]=${id}`, {
+                    cache: "no-store",
+                    headers: token ? { Authorization: `Bearer ${token}` } : {}
+                })
+            ]);
+
+            if (!customerRes.ok) throw new Error(`Customer not found: ${id}`);
+            const customerData = await customerRes.json();
+            const bankData = await bankRes.json();
+
+            return NextResponse.json({
+                ...customerData.data,
+                bank_accounts: bankData.data || []
             });
-            if (!res.ok) throw new Error(`Customer not found: ${id}`);
-            const data = await res.json();
-            return NextResponse.json(data.data);
         }
 
         // Pagination parameters
@@ -113,8 +125,17 @@ export async function GET(req: NextRequest) {
         // Fetch all bank accounts for enrichment
         const bankAccounts = await fetchAll<Record<string, unknown>>(COLLECTIONS.BANK_ACCOUNTS);
 
+        // 🚀 MANUALLY ENRICH CUSTOMERS WITH BANK ACCOUNTS
+        // This ensures the frontend gets bank_accounts[] inside each customer object
+        const enrichedCustomers = (customersJson.data || []).map((customer: any) => ({
+            ...customer,
+            bank_accounts: bankAccounts.filter((acc: any) => 
+                String(acc.customer_id) === String(customer.id)
+            )
+        }));
+
         return NextResponse.json({
-            customers: customersJson.data || [],
+            customers: enrichedCustomers,
             bank_accounts: bankAccounts,
             metadata: {
                 total_count: customersJson.meta?.total_count || 0,
