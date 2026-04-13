@@ -24,6 +24,9 @@ export interface Customer {
     price_type?: PriceType;
     price_type_id?: number | null;
     discount_type_id?: number;
+    payment_term?: number | null;
+    province?: string;
+    city?: string;
 }
 
 export interface Supplier {
@@ -56,6 +59,7 @@ export interface Product {
     parent_product_name?: string;
     available_qty?: number | null;
     unit_count?: number | null;
+    discount_type?: number | string | null;
     [key: string]: unknown;
 }
 
@@ -70,6 +74,9 @@ export interface LineItem {
     netAmount: number;
     totalAmount: number;
     discountAmount: number;
+    savedNetAmount?: number;
+    savedDiscountAmount?: number;
+    savedAllocatedQty?: number;
 }
 
 export interface SalesOrderHeader {
@@ -88,6 +95,7 @@ export interface SalesOrderHeader {
     discount_amount: number;
     net_amount: number;
     allocated_amount: number;
+    payment_terms?: number | null;
     order_no: string;
     order_status: string;
     for_approval_at: string;

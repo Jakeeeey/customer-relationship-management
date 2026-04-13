@@ -9,6 +9,7 @@
 
 export interface SalesOrderAttachment {
     id: number;
+    sales_order_id: number | null; // added field from directus table
     salesman_id: number;
     salesman_name: string;        // enriched from salesman collection
     customer_code: string;

@@ -39,7 +39,7 @@ export interface SalesOrder {
 
 export interface SalesOrderDetail {
     detail_id: number;
-    product_id: number | { product_name: string; product_code: string };
+    product_id: number | { product_name: string; product_code: string; description?: string; uom?: string };
     order_id: number;
     unit_price: number;
     ordered_quantity: number;
@@ -85,6 +85,38 @@ export interface Branch {
 export interface Supplier {
     id: number;
     supplier_shortcut: string;
+}
+
+export interface InvoiceDetail {
+    product_id: { product_name: string; product_code: string; description?: string; uom?: string };
+    unit_price: number;
+    quantity: number;
+    total_amount: number;
+    discount_amount: number;
+    discount_type?: string | number | null;
+}
+
+export interface InvoiceData {
+    invoice_no: string;
+    invoice_date: string;
+    gross_amount: number;
+    discount_amount: number;
+    vat_amount?: number;
+    net_amount: number;
+}
+
+export interface PdfData {
+    fileId: string;
+    receipts: string;
+    url: string;
+    width_mm?: number;
+    height_mm?: number;
+}
+
+export interface Invoice {
+    invoice: InvoiceData;
+    details: InvoiceDetail[];
+    pdf?: PdfData | null;
 }
 
 export interface SalesOrderDataResponse {

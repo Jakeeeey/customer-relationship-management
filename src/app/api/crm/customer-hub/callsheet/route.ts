@@ -32,6 +32,7 @@ export async function GET(req: NextRequest) {
         const search = searchParams.get("search") || "";
         const customerCode = searchParams.get("customer_code") || "";
         const salesmanId = searchParams.get("salesman_id") || "";
+        const statusParam = searchParams.get("status") || "pending";
         
         const offset = (page - 1) * pageSize;
 
@@ -52,7 +53,7 @@ export async function GET(req: NextRequest) {
 
         const filter: DirectusFilter = {
             _and: [
-                { status: { _eq: "pending" } }
+                { status: { _eq: statusParam } }
             ]
         };
 

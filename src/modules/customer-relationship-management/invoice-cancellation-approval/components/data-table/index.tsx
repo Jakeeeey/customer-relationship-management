@@ -26,7 +26,7 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { formatCurrency } from "@/lib/utils";
 import {
-  InvoiceAction,
+  ApprovalAction, // 🚀 FIX: Changed from InvoiceAction to ApprovalAction
   InvoiceRow,
 } from "@/modules/customer-relationship-management/invoice-cancellation-approval/types";
 import { TableToolbar } from "./table-view-option";
@@ -35,7 +35,8 @@ import { TasksTableActionBar } from "./table-action-bar";
 interface ApprovalDataTableProps {
   data: InvoiceRow[];
   isLoading: boolean;
-  onBulkAction: (action: InvoiceAction, rows: InvoiceRow[]) => void;
+  // 🚀 FIX: Updated the type here as well
+  onBulkAction: (action: ApprovalAction, rows: InvoiceRow[]) => void;
   columns: ColumnDef<InvoiceRow>[];
   currentTab: string;
   onTabChange: (val: string) => void;
@@ -89,14 +90,6 @@ export function ApprovalDataTable({
     0,
   );
 
-  // const handleBulkAction = (action: InvoiceAction) => {
-  //   onBulkAction(
-  //     action,
-  //     selectedRows.map((r) => r.original),
-  //   );
-  //   setRowSelection({});
-  // };
-
   // FIX: Clear row selection when currentTab changes (via useEffect, not during render)
   React.useEffect(() => {
     setRowSelection({});
@@ -132,45 +125,10 @@ export function ApprovalDataTable({
         {selectedCount > 0 && (
           <div className="flex items-center justify-between px-4 py-2 border rounded-lg bg-muted/50 animate-in fade-in slide-in-from-bottom-1">
             <div className="flex items-center gap-4">
-              {/* <div className="flex items-center gap-2 text-sm font-medium">
-                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary text-[10px] text-primary-foreground">
-                  {selectedCount}
-                </span>
-                Invoices Selected
-              </div>
-              <div className="h-4 w-px bg-blue-200" /> */}
               <div className="text-sm font-semibold">
                 Total: {formatCurrency(selectedTotal)}
               </div>
             </div>
-            {/* <div className="flex items-center gap-2">
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => setRowSelection({})}
-                disabled={isProcessing}
-                className="h-8 text-xs"
-              >
-                Clear
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => handleBulkAction("REJECT")}
-                disabled={isProcessing}
-                className="h-8 text-xs"
-              >
-                Reject
-              </Button>
-              <Button
-                size="sm"
-                onClick={() => handleBulkAction("APPROVE")}
-                disabled={isProcessing}
-                className="h-8 text-xs bg-blue-700 text-white hover:bg-blue-600"
-              >
-                Approve
-              </Button>
-            </div> */}
           </div>
         )}
 
@@ -187,9 +145,9 @@ export function ApprovalDataTable({
                         {header.isPlaceholder
                           ? null
                           : flexRender(
-                              header.column.columnDef.header,
-                              header.getContext(),
-                            )}
+                            header.column.columnDef.header,
+                            header.getContext(),
+                          )}
                       </TableHead>
                     ))}
                   </TableRow>

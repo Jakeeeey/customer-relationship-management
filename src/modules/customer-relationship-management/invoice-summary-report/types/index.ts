@@ -2,7 +2,7 @@ import { z } from "zod";
 
 export const InvoiceReportRowSchema = z.object({
   date_time: z.string().nullable().optional(),
-  original_invoice: z.number(),
+  original_invoice: z.string(), // 🚀 FIX: Changed to string to support alphanumeric invoice numbers
   sales_order_no: z.string(),
   customer_name: z.string(),
   amount: z.number(),
