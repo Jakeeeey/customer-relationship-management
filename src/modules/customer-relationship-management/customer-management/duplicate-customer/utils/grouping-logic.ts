@@ -4,7 +4,7 @@ import { Customer, DuplicateGroup, DuplicateMatchReason, GroupingOptions } from 
  * Calculates string similarity using Sorensen-Dice coefficient.
  * Returns a value between 0 and 1.
  */
-export function getStringSimilarity(str1: string | null | undefined, str2: string | null | undefined): number {
+function getStringSimilarity(str1: string | null | undefined, str2: string | null | undefined): number {
     const s1 = (str1 || "").toLowerCase().replace(/\s+/g, "");
     const s2 = (str2 || "").toLowerCase().replace(/\s+/g, "");
 

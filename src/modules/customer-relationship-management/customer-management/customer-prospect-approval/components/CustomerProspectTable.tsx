@@ -25,6 +25,10 @@ import { Separator } from "@/components/ui/separator";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { ProspectMapViewer } from "./ProspectMapViewer";
+import { SimilarCustomerWarning } from "./SimilarCustomerWarning";
+import { CustomerComparisonModal } from "./CustomerComparisonModal";
+import { findPotentialMatches, SimilarityGroup, Customer } from "../utils/similarity";
+
 
 interface CustomerProspectTableProps {
     data: CustomerProspect[];
@@ -67,6 +71,12 @@ export function CustomerProspectTable({
     const [editForm, setEditForm] = useState<Partial<CustomerProspect>>({});
     const [isUpdating, setIsUpdating] = useState(false);
 
+    // Duplicate Detection State
+    const [similarGroups, setSimilarGroups] = useState<SimilarityGroup[]>([]);
+    const [isComparisonOpen, setIsComparisonOpen] = useState(false);
+    const [activeComparisonGroup, setActiveComparisonGroup] = useState<SimilarityGroup | null>(null);
+    const [isScanning, setIsScanning] = useState(false);
+
     // PSGC Location States
     const [provincesList, setProvincesList] = useState<{code: string, name: string}[]>([]);
     const [citiesList, setCitiesList] = useState<{code: string, name: string}[]>([]);
@@ -105,11 +115,35 @@ export function CustomerProspectTable({
         }
     };
 
-    const handleView = (prospect: CustomerProspect) => {
+    const handleView = async (prospect: CustomerProspect) => {
         setSelectedProspect(prospect);
         setIsEditing(false);
         setEditForm({});
         setIsModalOpen(true);
+        
+        // Trigger duplicate scan when viewing
+        checkForDuplicates(prospect);
+    };
+
+    const checkForDuplicates = async (prospect: CustomerProspect) => {
+        setIsScanning(true);
+        setSimilarGroups([]);
+        try {
+            // Fetch all customers to scan against
+            const res = await fetch("/api/crm/customer/scan?limit=1000");
+            if (!res.ok) throw new Error("Failed to fetch customer scan data");
+            
+            const { customers } = await res.json();
+            
+            // source needs to be cast to Partial<Customer> for findPotentialMatches
+            const matches = findPotentialMatches(prospect, customers);
+            setSimilarGroups(matches);
+        } catch (err) {
+            console.error("Duplicate check failed:", err);
+            // We don't block the UI if duplicate check fails
+        } finally {
+            setIsScanning(false);
+        }
     };
 
     const handleStartEdit = () => {
@@ -464,39 +498,50 @@ export function CustomerProspectTable({
                     {selectedProspect && (
                         <ScrollArea className="max-h-[70vh] pr-4 py-4">
                             <div className="space-y-6">
+                                {/* Duplicate Warning */}
+                                <SimilarCustomerWarning 
+                                    similarGroups={similarGroups} 
+                                    onCompare={(group) => {
+                                        setActiveComparisonGroup(group);
+                                        setIsComparisonOpen(true);
+                                    }}
+                                />
+
                                 {/* Character Profile / Image */}
-                                {selectedProspect.customer_image && (
-                                    <div className="flex justify-center mb-6">
+                                 {selectedProspect.customer_image && (
+                                    <div className="flex justify-center mb-8 pt-2">
                                         <div 
                                             className="relative group cursor-zoom-in"
                                             onClick={() => setIsZoomOpen(true)}
                                             title="Click to zoom"
                                         >
-                                            <div className="absolute -inset-1 bg-gradient-to-r from-primary to-emerald-600 rounded-2xl blur opacity-25 group-hover:opacity-50 transition duration-1000 group-hover:duration-200"></div>
-                                            <div className="relative h-40 w-40 rounded-2xl border-4 border-background overflow-hidden shadow-2xl bg-muted flex items-center justify-center">
+                                            <div className="absolute -inset-2 bg-gradient-to-tr from-primary/30 to-emerald-500/20 rounded-3xl blur-xl opacity-40 group-hover:opacity-60 transition duration-1000 group-hover:duration-200"></div>
+                                            <div className="relative h-44 w-44 rounded-3xl border-4 border-background overflow-hidden shadow-2xl bg-muted flex items-center justify-center">
                                                 {/* eslint-disable-next-line @next/next/no-img-element */}
                                                 <img
                                                     src={`${process.env.NEXT_PUBLIC_API_BASE_URL}/assets/${selectedProspect.customer_image}`}
                                                     alt={selectedProspect.customer_name || "Prospect"}
-                                                    className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110"
+                                                    className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105"
                                                     onError={(e) => {
-                                                        (e.target as HTMLImageElement).src = 'https://ui-avatars.com/api/?name=' + encodeURIComponent(selectedProspect.customer_name || "Prospect") + '&background=random&size=160';
+                                                        (e.target as HTMLImageElement).src = 'https://ui-avatars.com/api/?name=' + encodeURIComponent(selectedProspect.customer_name || "Prospect") + '&background=random&size=200';
                                                     }}
                                                 />
-                                            </div>
-                                            <div className="absolute bottom-2 right-2 bg-black/60 text-white p-1 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity">
-                                                <Search className="h-3 w-3" />
+                                                <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/40 to-transparent p-2 flex justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                                    <div className="bg-white/20 backdrop-blur-md px-2 py-0.5 rounded text-[8px] font-bold text-white uppercase tracking-widest">Click to Zoom</div>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
                                 )}
 
                                 {/* General Information */}
-                                <section className="space-y-3">
-                                    <h4 className="text-xs font-bold uppercase text-primary flex items-center gap-1.5 underline underline-offset-4">
-                                        <Info className="h-3.5 w-3.5" />
-                                        General Information
-                                    </h4>
+                                <section className="space-y-4">
+                                    <div className="flex items-center gap-2 px-3 py-1.5 bg-primary/5 rounded-lg border border-primary/10">
+                                        <Info className="h-3.5 w-3.5 text-primary" />
+                                        <h4 className="text-[10px] font-bold uppercase text-primary tracking-wider">
+                                            General Information
+                                        </h4>
+                                    </div>
                                     <div className="grid grid-cols-2 gap-4 text-sm">
                                         <div className="flex flex-col col-span-2">
                                             <Label className="text-[10px] font-bold text-muted-foreground uppercase mb-1">Customer Name</Label>
@@ -544,17 +589,21 @@ export function CustomerProspectTable({
                                 </section>
 
                                 {/* Geo Tag Location Map */}
-                                <section className="space-y-2">
-                                    <h4 className="text-xs font-bold uppercase text-primary flex items-center gap-1.5 underline underline-offset-4">
-                                        <MapIcon className="h-3.5 w-3.5" />
-                                        Geo Tag Location
-                                    </h4>
-                                    <ProspectMapViewer
-                                        location={selectedProspect.location}
-                                        storeName={selectedProspect.store_name}
-                                        customerName={selectedProspect.customer_name}
-                                        address={[selectedProspect.brgy, selectedProspect.city, selectedProspect.province].filter(Boolean).join(', ')}
-                                    />
+                                <section className="space-y-4">
+                                    <div className="flex items-center gap-2 px-3 py-1.5 bg-emerald-50 rounded-lg border border-emerald-100">
+                                        <MapIcon className="h-3.5 w-3.5 text-emerald-600" />
+                                        <h4 className="text-[10px] font-bold uppercase text-emerald-700 tracking-wider">
+                                            Geo Tag Location
+                                        </h4>
+                                    </div>
+                                    <div className="rounded-xl overflow-hidden border border-emerald-100 shadow-sm">
+                                        <ProspectMapViewer
+                                            location={selectedProspect.location}
+                                            storeName={selectedProspect.store_name}
+                                            customerName={selectedProspect.customer_name}
+                                            address={[selectedProspect.brgy, selectedProspect.city, selectedProspect.province].filter(Boolean).join(', ')}
+                                        />
+                                    </div>
                                     <p className="text-[10px] text-muted-foreground italic flex items-center gap-1 px-1">
                                         <Info className="h-2.5 w-2.5" />
                                         {selectedProspect.location
@@ -566,11 +615,13 @@ export function CustomerProspectTable({
                                 <Separator className="opacity-50" />
 
                                 {/* Contact Information */}
-                                <section className="space-y-3">
-                                    <h4 className="text-xs font-bold uppercase text-primary flex items-center gap-1.5 underline underline-offset-4">
-                                        <Phone className="h-3.5 w-3.5" />
-                                        Contact Details
-                                    </h4>
+                                <section className="space-y-4">
+                                    <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 rounded-lg border border-blue-100">
+                                        <Phone className="h-3.5 w-3.5 text-blue-600" />
+                                        <h4 className="text-[10px] font-bold uppercase text-blue-700 tracking-wider">
+                                            Contact Details
+                                        </h4>
+                                    </div>
                                     <div className="grid grid-cols-2 gap-4 text-sm">
                                         <div className="flex flex-col">
                                             <span className="text-[10px] font-bold text-muted-foreground uppercase">Contact Number</span>
@@ -597,11 +648,13 @@ export function CustomerProspectTable({
                                 <Separator className="opacity-50" />
 
                                 {/* Store & Location */}
-                                <section className="space-y-3">
-                                    <h4 className="text-xs font-bold uppercase text-primary flex items-center gap-1.5 underline underline-offset-4">
-                                        <Building className="h-3.5 w-3.5" />
-                                        Store & Location
-                                    </h4>
+                                <section className="space-y-4">
+                                    <div className="flex items-center gap-2 px-3 py-1.5 bg-amber-50 rounded-lg border border-amber-100">
+                                        <Building className="h-3.5 w-3.5 text-amber-600" />
+                                        <h4 className="text-[10px] font-bold uppercase text-amber-700 tracking-wider">
+                                            Store & Location
+                                        </h4>
+                                    </div>
                                     <div className="grid grid-cols-2 gap-4 text-sm">
                                         <div className="flex flex-col col-span-2 p-2 bg-muted/40 rounded-lg">
                                             <Label className="text-[10px] font-bold text-muted-foreground uppercase mb-1">Store Name</Label>
@@ -735,11 +788,13 @@ export function CustomerProspectTable({
                                 <Separator className="opacity-50" />
 
                                 {/* Financial & Tax Info */}
-                                <section className="space-y-3">
-                                    <h4 className="text-xs font-bold uppercase text-primary flex items-center gap-1.5 underline underline-offset-4">
-                                        <Landmark className="h-3.5 w-3.5" />
-                                        Financials & Taxation
-                                    </h4>
+                                <section className="space-y-4">
+                                    <div className="flex items-center gap-2 px-3 py-1.5 bg-indigo-50 rounded-lg border border-indigo-100">
+                                        <Landmark className="h-3.5 w-3.5 text-indigo-600" />
+                                        <h4 className="text-[10px] font-bold uppercase text-indigo-700 tracking-wider">
+                                            Financials & Taxation
+                                        </h4>
+                                    </div>
                                     <div className="grid grid-cols-2 gap-4 text-sm">
                                         <div className="flex flex-col">
                                             <Label className="text-[10px] font-bold text-muted-foreground uppercase mb-1">TIN</Label>
@@ -780,11 +835,13 @@ export function CustomerProspectTable({
                                 <Separator className="opacity-50" />
 
                                 {/* Settings */}
-                                <section className="space-y-3">
-                                    <h4 className="text-xs font-bold uppercase text-primary flex items-center gap-1.5 underline underline-offset-4">
-                                        <ShieldCheck className="h-3.5 w-3.5" />
-                                        Operational Settings
-                                    </h4>
+                                <section className="space-y-4">
+                                    <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 rounded-lg border border-slate-200">
+                                        <ShieldCheck className="h-3.5 w-3.5 text-slate-600" />
+                                        <h4 className="text-[10px] font-bold uppercase text-slate-700 tracking-wider">
+                                            Operational Settings
+                                        </h4>
+                                    </div>
                                     <div className="grid grid-cols-2 gap-4 text-sm">
                                         <div className="flex flex-col">
                                             <span className="text-[10px] font-bold text-muted-foreground uppercase">Price Type</span>
@@ -798,7 +855,7 @@ export function CustomerProspectTable({
                                             </span>
                                         </div>
                                         <div className="flex flex-col">
-                                            <span className="text-[10px] font-bold text-muted-foreground uppercase">Credit Type</span>
+                                            <span className="text-[10px) font-bold text-muted-foreground uppercase">Credit Type</span>
                                             <span>{selectedProspect.credit_type || "None"}</span>
                                         </div>
                                         <div className="flex flex-col">
@@ -825,21 +882,21 @@ export function CustomerProspectTable({
                             </div>
                         </ScrollArea>
                     )}
-                    <DialogFooter className="flex flex-col sm:flex-row gap-2 mt-4">
+                    <DialogFooter className="flex flex-col sm:flex-row gap-3 mt-6 pt-4 border-t border-slate-100">
                         {isEditing ? (
                             <>
                                 <Button
                                     variant="outline"
                                     onClick={handleCancelEdit}
                                     disabled={isUpdating}
-                                    className="w-full sm:w-auto"
+                                    className="w-full sm:flex-1 h-10 font-bold uppercase text-[10px] tracking-widest border-slate-200 hover:bg-slate-50"
                                 >
                                     Cancel
                                 </Button>
                                 <Button
                                     onClick={handleSaveChanges}
                                     disabled={isUpdating}
-                                    className="w-full sm:w-auto bg-primary text-primary-foreground"
+                                    className="w-full sm:flex-1 h-10 bg-primary text-primary-foreground font-bold uppercase text-[10px] tracking-widest shadow-lg shadow-primary/20"
                                 >
                                     {isUpdating ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Check className="h-4 w-4 mr-2" />}
                                     Save Changes
@@ -850,10 +907,10 @@ export function CustomerProspectTable({
                                 <Button
                                     variant="outline"
                                     onClick={handleStartEdit}
-                                    className="w-full sm:w-auto border-primary/20 text-primary hover:bg-primary/5"
+                                    className="w-full sm:w-auto h-10 border-blue-100 bg-blue-50/30 text-blue-600 hover:bg-blue-50 font-bold uppercase text-[10px] tracking-widest"
                                 >
                                     <Edit2 className="h-3.5 w-3.5 mr-2" />
-                                    Edit Details
+                                    Edit
                                 </Button>
                                 {selectedProspect.prospect_status === 'Pending' && (
                                     <>
@@ -861,7 +918,7 @@ export function CustomerProspectTable({
                                             variant="outline"
                                             onClick={() => selectedProspect && handleAction(selectedProspect.id, 'Reject')}
                                             disabled={processingId !== null}
-                                            className="w-full sm:w-auto border-rose-200 text-rose-600 hover:bg-rose-50"
+                                            className="w-full sm:w-auto h-10 border-rose-100 bg-rose-50/50 text-rose-600 hover:bg-rose-100 font-bold uppercase text-[10px] tracking-widest"
                                         >
                                             {processingId === selectedProspect?.id ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <X className="h-4 w-4 mr-2" />}
                                             Reject
@@ -869,7 +926,7 @@ export function CustomerProspectTable({
                                         <Button
                                             onClick={() => selectedProspect && handleAction(selectedProspect.id, 'Approve')}
                                             disabled={processingId !== null}
-                                            className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white"
+                                            className="w-full sm:flex-1 h-10 bg-emerald-600 hover:bg-emerald-700 text-white font-bold uppercase text-[10px] tracking-widest shadow-lg shadow-emerald-200"
                                         >
                                             {processingId === selectedProspect?.id ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Check className="h-4 w-4 mr-2" />}
                                             Approve
@@ -881,7 +938,7 @@ export function CustomerProspectTable({
                             <Button
                                 variant="outline"
                                 onClick={() => setIsModalOpen(false)}
-                                className="w-full sm:w-auto"
+                                className="w-full sm:w-auto h-10 font-bold uppercase text-[10px] tracking-widest"
                             >
                                 Close Review
                             </Button>
@@ -889,6 +946,17 @@ export function CustomerProspectTable({
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
+
+            {/* Comparison Modal */}
+            {selectedProspect && activeComparisonGroup && (
+                <CustomerComparisonModal
+                    isOpen={isComparisonOpen}
+                    onClose={() => setIsComparisonOpen(false)}
+                    prospect={selectedProspect}
+                    existingCustomer={activeComparisonGroup.customers[1]}
+                    reasons={activeComparisonGroup.reasons}
+                />
+            )}
 
             {/* Zoom Dialog */}
             <Dialog open={isZoomOpen} onOpenChange={setIsZoomOpen}>
@@ -918,7 +986,6 @@ export function CustomerProspectTable({
                     </div>
                 </DialogContent>
             </Dialog>
-
 
         </div>
     );
