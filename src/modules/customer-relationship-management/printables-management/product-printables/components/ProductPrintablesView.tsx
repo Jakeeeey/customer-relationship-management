@@ -144,7 +144,6 @@ export default function ProductPrintablesView() {
                 setFilters={setFilters}
                 resetFilters={resetFilters}
                 categories={categories}
-                brands={brands}
                 units={units}
                 suppliers={suppliers}
                 priceTypes={priceTypes}

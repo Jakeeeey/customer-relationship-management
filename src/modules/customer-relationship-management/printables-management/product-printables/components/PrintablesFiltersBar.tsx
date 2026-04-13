@@ -23,7 +23,6 @@ type Props = {
     setFilters: React.Dispatch<React.SetStateAction<FilterState>>;
     resetFilters: () => void;
     categories: Category[];
-    brands: Brand[];
     units: Unit[];
     suppliers: Supplier[];
     priceTypes: PriceType[];
@@ -85,13 +84,18 @@ export default function PrintablesFiltersBar({
     setFilters,
     resetFilters,
     categories,
-    brands,
     units,
     suppliers,
     priceTypes
 }: Props) {
-    const handleQChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        setFilters((prev) => ({ ...prev, q: e.target.value, page: 1 }));
+    const [localQ, setLocalQ] = React.useState(filters.q || "");
+
+    const handleSearch = () => {
+        setFilters((prev) => ({ ...prev, q: localQ, page: 1 }));
+    };
+
+    const handleKeyDown = (e: React.KeyboardEvent) => {
+        if (e.key === "Enter") handleSearch();
     };
 
     const toggleFilter = (key: keyof FilterState, id: string) => {
@@ -111,7 +115,6 @@ export default function PrintablesFiltersBar({
 
     const activeFiltersCount = 
         (filters.category_ids?.length || 0) + 
-        (filters.brand_ids?.length || 0) + 
         (filters.unit_ids?.length || 0) + 
         (filters.supplier_ids?.length || 0) + 
         (filters.price_type_ids?.length || 0) +
@@ -119,32 +122,25 @@ export default function PrintablesFiltersBar({
 
     return (
         <div className="flex flex-col gap-4 bg-background/60 backdrop-blur-md p-6 rounded-2xl border border-border/50 shadow-sm">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3">
                 <div className="relative group lg:col-span-1">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground transition-colors group-focus-within:text-primary" />
                     <Input
                         placeholder="Search products..."
-                        value={filters.q}
-                        onChange={handleQChange}
-                        className="pl-10 rounded-xl border-border/50 bg-background/50 h-9"
+                        value={localQ}
+                        onChange={(e) => setLocalQ(e.target.value)}
+                        onKeyDown={handleKeyDown}
+                        className="pl-9 pr-12 rounded-xl border-border/50 bg-background/50 h-9"
                     />
+                    <Button 
+                        size="sm" 
+                        variant="ghost" 
+                        onClick={handleSearch}
+                        className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-8 rounded-lg hover:bg-primary/10 hover:text-primary transition-all p-0"
+                    >
+                        <Search className="w-3.5 h-3.5" />
+                    </Button>
                 </div>
-
-                <FilterSelector
-                    label="Categories"
-                    selectedIds={filters.category_ids || []}
-                    options={categories.map(c => ({ label: c.category_name, value: String(c.category_id) }))}
-                    onToggle={(id) => toggleFilter("category_ids", id)}
-                    onClear={() => setFilters(prev => ({ ...prev, category_ids: [], page: 1 }))}
-                />
-
-                <FilterSelector
-                    label="Brands"
-                    selectedIds={filters.brand_ids || []}
-                    options={brands.map(b => ({ label: b.brand_name, value: String(b.brand_id) }))}
-                    onToggle={(id) => toggleFilter("brand_ids", id)}
-                    onClear={() => setFilters(prev => ({ ...prev, brand_ids: [], page: 1 }))}
-                />
 
                 <FilterSelector
                     label="Suppliers"
@@ -155,6 +151,14 @@ export default function PrintablesFiltersBar({
                 />
 
                 <FilterSelector
+                    label="Categories"
+                    selectedIds={filters.category_ids || []}
+                    options={categories.map(c => ({ label: c.category_name, value: String(c.category_id) }))}
+                    onToggle={(id) => toggleFilter("category_ids", id)}
+                    onClear={() => setFilters(prev => ({ ...prev, category_ids: [], page: 1 }))}
+                />
+
+                <FilterSelector
                     label="Units"
                     selectedIds={filters.unit_ids || []}
                     options={units.map(u => ({ label: u.unit_shortcut, value: String(u.unit_id) }))}
@@ -162,24 +166,13 @@ export default function PrintablesFiltersBar({
                     onClear={() => setFilters(prev => ({ ...prev, unit_ids: [], page: 1 }))}
                 />
 
-                <div className="flex items-center gap-2">
-                    <FilterSelector
-                        label="Prices"
-                        selectedIds={filters.price_type_ids || []}
-                        options={priceTypes.map(pt => ({ label: pt.price_type_name, value: String(pt.price_type_id) }))}
-                        onToggle={(id) => toggleFilter("price_type_ids", id)}
-                        onClear={() => setFilters(prev => ({ ...prev, price_type_ids: [] }))}
-                    />
-                    <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={resetFilters}
-                        className="rounded-xl hover:bg-orange-50 hover:text-orange-600 transition-colors h-9 w-9 flex-shrink-0"
-                        title="Reset Filters"
-                    >
-                        <RotateCcw className="w-4 h-4" />
-                    </Button>
-                </div>
+                <FilterSelector
+                    label="Prices"
+                    selectedIds={filters.price_type_ids || []}
+                    options={priceTypes.map(pt => ({ label: pt.price_type_name, value: String(pt.price_type_id) }))}
+                    onToggle={(id) => toggleFilter("price_type_ids", id)}
+                    onClear={() => setFilters(prev => ({ ...prev, price_type_ids: [] }))}
+                />
             </div>
 
             {/* Active Filters Catalog */}
@@ -192,7 +185,10 @@ export default function PrintablesFiltersBar({
                     {filters.q && (
                         <Badge variant="secondary" className="gap-1 rounded-lg px-2 py-0.5 bg-primary/5 text-primary border-primary/20">
                             Search: {filters.q}
-                            <X className="w-3 h-3 cursor-pointer hover:text-destructive" onClick={() => setFilters(prev => ({ ...prev, q: "", page: 1 }))} />
+                            <X className="w-3 h-3 cursor-pointer hover:text-destructive" onClick={() => {
+                                setFilters(prev => ({ ...prev, q: "", page: 1 }));
+                                setLocalQ("");
+                            }} />
                         </Badge>
                     )}
                     {(filters.category_ids || []).map(id => {
@@ -201,15 +197,6 @@ export default function PrintablesFiltersBar({
                             <Badge key={id} variant="secondary" className="gap-1 rounded-lg px-2 py-0.5">
                                 Cat: {name || id}
                                 <X className="w-3 h-3 cursor-pointer hover:text-destructive" onClick={() => removeFilter("category_ids", id)} />
-                            </Badge>
-                        );
-                    })}
-                    {(filters.brand_ids || []).map(id => {
-                        const name = brands.find(b => String(b.brand_id) === id)?.brand_name;
-                        return (
-                            <Badge key={id} variant="secondary" className="gap-1 rounded-lg px-2 py-0.5">
-                                Brand: {name || id}
-                                <X className="w-3 h-3 cursor-pointer hover:text-destructive" onClick={() => removeFilter("brand_ids", id)} />
                             </Badge>
                         );
                     })}
