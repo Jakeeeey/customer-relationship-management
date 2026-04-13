@@ -142,7 +142,7 @@ export default function SalesOrderDraftModule() {
                                 <TableHead className="h-11 uppercase text-[10px] font-black text-muted-foreground tracking-widest whitespace-nowrap">PO No</TableHead>
                                 <TableHead className="h-11 uppercase text-[10px] font-black text-muted-foreground tracking-widest">Customer</TableHead>
                                 <TableHead className="h-11 uppercase text-[10px] font-black text-muted-foreground tracking-widest">Draft Date</TableHead>
-                                <TableHead className="text-right h-11 uppercase text-[10px] font-black text-muted-foreground tracking-widest">Total Amount</TableHead>
+                                <TableHead className="text-right h-11 uppercase text-[10px] font-black text-muted-foreground tracking-widest">Net Amount</TableHead>
                                 <TableHead className="text-right h-11 uppercase text-[10px] font-black text-muted-foreground tracking-widest w-[120px]">Allocation</TableHead>
                                 <TableHead className="text-right h-11 uppercase text-[10px] font-black text-muted-foreground tracking-widest pr-6 w-[100px]">Action</TableHead>
                             </TableRow>

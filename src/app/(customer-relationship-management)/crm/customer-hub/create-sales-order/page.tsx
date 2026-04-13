@@ -76,6 +76,8 @@ export default async function Page(props: {
     const searchParams = await props.searchParams;
     const attachmentId = searchParams.attachment_id as string | undefined;
 
+    const orderId = searchParams.orderId as string | undefined;
+
     // ✅ Next.js 16: cookies() is async
     const cookieStore = await cookies();
     const token = cookieStore.get(COOKIE_NAME)?.value ?? null;
@@ -84,34 +86,38 @@ export default async function Page(props: {
 
     let documentViewerUrl: string | null = null;
 
-    if (attachmentId) {
-        try {
-            const DIRECTUS_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
-            const DIRECTUS_TOKEN = process.env.DIRECTUS_STATIC_TOKEN;
+    try {
+        const DIRECTUS_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
+        const DIRECTUS_TOKEN = process.env.DIRECTUS_STATIC_TOKEN;
+        const headers = { Authorization: `Bearer ${DIRECTUS_TOKEN}`, "Content-Type": "application/json" };
+        
+        let targetFileId: string | null = null;
+        let targetFileName: string | null = null;
 
-            const res = await fetch(`${DIRECTUS_URL}/items/sales_order_attachment/${attachmentId}?fields=sales_order_id,sales_order_no`, {
-                headers: {
-                    Authorization: `Bearer ${DIRECTUS_TOKEN}`,
-                    "Content-Type": "application/json"
-                },
-                cache: 'no-store'
-            });
-
+        if (attachmentId) {
+            const res = await fetch(`${DIRECTUS_URL}/items/sales_order_attachment/${attachmentId}?fields=file_id,attachment_name`, { headers, cache: 'no-store' });
             if (res.ok) {
                 const json = await res.json();
-                const attachment = json.data;
-                
-                if (attachment?.sales_order_id) {
-                    documentViewerUrl = `/crm/document-viewer?sales_order_id=${attachment.sales_order_id}`;
-                } else if (attachment?.sales_order_no) {
-                    documentViewerUrl = `/crm/document-viewer?sales_order_no=${encodeURIComponent(attachment.sales_order_no)}`;
-                } else {
-                    documentViewerUrl = `/crm/document-viewer?attachment_id=${attachmentId}`;
+                targetFileId = json.data?.file_id;
+                targetFileName = json.data?.attachment_name;
+            }
+        } else if (orderId) {
+            const res = await fetch(`${DIRECTUS_URL}/items/sales_order_attachment?filter[sales_order_id][_eq]=${orderId}&fields=file_id,attachment_name&limit=1`, { headers, cache: 'no-store' });
+            if (res.ok) {
+                const json = await res.json();
+                if (json.data && json.data.length > 0) {
+                    targetFileId = json.data[0].file_id;
+                    targetFileName = json.data[0].attachment_name;
                 }
             }
-        } catch (e) {
-            console.error("Failed to fetch attachment for header button:", e);
         }
+
+        if (targetFileId) {
+            documentViewerUrl = `/api/crm/customer-hub/callsheet/file?id=${targetFileId}`;
+            if (targetFileName) documentViewerUrl += `&filename=${encodeURIComponent(targetFileName)}`;
+        }
+    } catch (e) {
+        console.error("Failed to resolve file ID for Viewer:", e);
     }
 
     return (
