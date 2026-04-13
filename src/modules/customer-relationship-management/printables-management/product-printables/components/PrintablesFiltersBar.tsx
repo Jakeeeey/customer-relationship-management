@@ -2,7 +2,7 @@
 "use client";
 
 import * as React from "react";
-import type { FilterState, Category, Brand, Unit, Supplier, PriceType } from "../types";
+import type { FilterState, Category, Unit, Supplier, PriceType } from "../types";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -14,7 +14,7 @@ import {
     CommandItem,
     CommandList,
 } from "@/components/ui/command";
-import { Search, X, RotateCcw, Filter, Check, ChevronsUpDown } from "lucide-react";
+import { Search, X, Filter, Check, ChevronsUpDown } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
