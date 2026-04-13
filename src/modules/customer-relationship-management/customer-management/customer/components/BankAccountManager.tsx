@@ -486,4 +486,4 @@ export function BankAccountManager({
             </Dialog>
         </div>
     );
-}
+}
