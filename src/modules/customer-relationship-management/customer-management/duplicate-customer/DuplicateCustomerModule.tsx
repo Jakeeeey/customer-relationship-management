@@ -12,7 +12,7 @@ import { Toaster } from "sonner";
  */
 const DuplicateCustomerModule: React.FC = () => {
     return (
-        <div className="p-6 max-w-[1600px] mx-auto min-h-screen bg-white">
+        <div className="p-6 max-w-[1600px] mx-auto min-h-screen bg-background">
             <DuplicateDashboard />
             <Toaster richColors position="top-right" />
         </div>

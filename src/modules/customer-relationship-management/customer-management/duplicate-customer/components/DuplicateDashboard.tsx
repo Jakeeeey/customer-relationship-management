@@ -39,11 +39,11 @@ export const DuplicateDashboard: React.FC = () => {
         <div className="space-y-6">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
-                    <h2 className="text-3xl font-bold tracking-tight text-slate-900 flex items-center gap-2">
-                        <Layers className="h-8 w-8 text-blue-600" />
+                    <h2 className="text-3xl font-bold tracking-tight text-foreground flex items-center gap-2">
+                        <Layers className="h-8 w-8 text-primary" />
                         Duplicate Customer Detection
                     </h2>
-                    <p className="text-slate-500 mt-1">
+                    <p className="text-muted-foreground mt-1">
                         Review and resolve potential duplicate records based on &quot;fishy&quot; logic matching.
                     </p>
                 </div>
@@ -61,7 +61,7 @@ export const DuplicateDashboard: React.FC = () => {
                     </Button>
                     <Button 
                         size="sm" 
-                        className="gap-2 bg-blue-600 hover:bg-blue-700"
+                        className="gap-2 bg-primary hover:bg-primary/90 text-primary-foreground"
                         onClick={() => refreshScan()}
                         disabled={isLoading}
                     >
@@ -71,48 +71,64 @@ export const DuplicateDashboard: React.FC = () => {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <Card className="bg-slate-50/50 border-slate-200">
-                    <CardHeader className="pb-2">
-                        <CardTitle className="text-sm font-medium text-slate-500 uppercase tracking-wider">Potential Groups</CardTitle>
-                        <CardDescription className="text-2xl font-bold text-slate-900">{isLoading ? <Skeleton className="h-8 w-16" /> : duplicateGroups.length}</CardDescription>
-                    </CardHeader>
+                <Card className="bg-muted/40 border-border shadow-sm flex items-center p-4">
+                    <div className="p-3 bg-primary/10 rounded-xl mr-4">
+                        <Layers className="h-6 w-6 text-primary" />
+                    </div>
+                    <div>
+                        <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Potential Groups</p>
+                        <div className="text-3xl font-black text-foreground tabular-nums">
+                            {isLoading ? <Skeleton className="h-9 w-16" /> : duplicateGroups.length}
+                        </div>
+                    </div>
                 </Card>
-                <Card className="bg-slate-50/50 border-slate-200">
-                    <CardHeader className="pb-2">
-                        <CardTitle className="text-sm font-medium text-slate-500 uppercase tracking-wider">Affected Records</CardTitle>
-                        <CardDescription className="text-2xl font-bold text-slate-900">
-                            {isLoading ? <Skeleton className="h-8 w-16" /> : duplicateGroups.reduce((acc, g) => acc + g.customers.length, 0)}
-                        </CardDescription>
-                    </CardHeader>
+                <Card className="bg-muted/40 border-border shadow-sm flex items-center p-4">
+                    <div className="p-3 bg-warning/10 rounded-xl mr-4">
+                        <AlertCircle className="h-6 w-6 text-warning" />
+                    </div>
+                    <div>
+                        <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Affected Records</p>
+                        <div className="text-3xl font-black text-foreground tabular-nums">
+                            {isLoading ? <Skeleton className="h-9 w-16" /> : duplicateGroups.reduce((acc, g) => acc + g.customers.length, 0)}
+                        </div>
+                    </div>
                 </Card>
-                <Card className="bg-slate-50/50 border-slate-200">
-                    <CardHeader className="pb-2">
-                        <CardTitle className="text-sm font-medium text-slate-500 uppercase tracking-wider">Avg. Confidence</CardTitle>
-                        <CardDescription className="text-2xl font-bold text-slate-900">
-                            {isLoading ? <Skeleton className="h-8 w-16" /> : "92%"}
-                        </CardDescription>
-                    </CardHeader>
+                <Card className="bg-muted/40 border-border shadow-sm flex items-center p-4">
+                    <div className="p-3 bg-success/10 rounded-xl mr-4">
+                        <RefreshCw className="h-6 w-6 text-success" />
+                    </div>
+                    <div>
+                        <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Avg. Confidence</p>
+                        <div className="text-3xl font-black text-foreground tabular-nums">
+                            {isLoading ? <Skeleton className="h-9 w-16" /> : "92%"}
+                        </div>
+                    </div>
                 </Card>
             </div>
 
-            <Card className="border-slate-200 shadow-sm overflow-hidden">
-                <CardHeader className="bg-white border-b border-slate-100 space-y-4">
+            <Card className="border-border shadow-md overflow-hidden bg-card/50 backdrop-blur-sm">
+                <CardHeader className="bg-muted/30 border-b border-border/50 py-5">
                     <div className="flex flex-col md:flex-row md:items-center gap-4 justify-between">
-                        <CardTitle className="text-lg font-semibold flex items-center gap-2">
-                            <AlertCircle className="h-5 w-5 text-amber-500" />
-                            Pending Review
-                        </CardTitle>
+                        <div className="flex items-center gap-3">
+                            <div className="p-2 bg-warning/20 rounded-lg">
+                                <AlertCircle className="h-5 w-5 text-warning" />
+                            </div>
+                            <div>
+                                <CardTitle className="text-xl font-bold text-foreground">Pending Review</CardTitle>
+                                <p className="text-xs text-muted-foreground font-medium">Resolution actions are required for these matches.</p>
+                            </div>
+                        </div>
                         <div className="flex items-center gap-2">
                             <div className="relative w-full md:w-80">
-                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                                 <Input 
                                     placeholder="Search by name or code..." 
-                                    className="pl-9 bg-slate-50 border-slate-200 focus:bg-white transition-all"
+                                    className="pl-9 bg-background border-border focus:ring-1 focus:ring-primary/30 transition-all h-10"
                                     value={searchTerm}
                                     onChange={(e) => setSearchTerm(e.target.value)}
                                 />
                             </div>
-                            <Button variant="outline" size="icon">
+                            <Button variant="outline" size="icon" className="h-10 w-10 border-border">
                                 <Filter className="h-4 w-4" />
                             </Button>
                         </div>
@@ -121,13 +137,13 @@ export const DuplicateDashboard: React.FC = () => {
                 <CardContent className="p-0">
                     <div className="relative overflow-x-auto">
                         <Table>
-                            <TableHeader className="bg-slate-50/80">
+                            <TableHeader className="bg-muted/50 border-b border-border/50">
                                 <TableRow>
-                                    <TableHead className="w-[200px] font-semibold">Group Size</TableHead>
-                                    <TableHead className="font-semibold">Top Matches</TableHead>
-                                    <TableHead className="font-semibold">Match Reasons</TableHead>
-                                    <TableHead className="font-semibold">Confidence</TableHead>
-                                    <TableHead className="text-right font-semibold">Actions</TableHead>
+                                    <TableHead className="w-[200px] font-bold text-foreground h-12 uppercase text-[10px] tracking-widest">Group Size</TableHead>
+                                    <TableHead className="font-bold text-foreground h-12 uppercase text-[10px] tracking-widest">Top Matches</TableHead>
+                                    <TableHead className="font-bold text-foreground h-12 uppercase text-[10px] tracking-widest text-center">Match Reasons</TableHead>
+                                    <TableHead className="font-bold text-foreground h-12 uppercase text-[10px] tracking-widest text-center">Confidence</TableHead>
+                                    <TableHead className="text-right font-bold text-foreground h-12 uppercase text-[10px] tracking-widest pr-6">Actions</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -153,10 +169,10 @@ export const DuplicateDashboard: React.FC = () => {
                                 ) : (
                                     <TableRow>
                                         <TableCell colSpan={5} className="py-12 text-center">
-                                            <div className="flex flex-col items-center justify-center text-slate-400 gap-2">
+                                            <div className="flex flex-col items-center justify-center text-muted-foreground gap-2">
                                                 <Layers className="h-12 w-12 opacity-20" />
-                                                <p className="text-lg font-medium">No potential duplicates found</p>
-                                                <p className="text-sm">Try scanning all records to refresh the list.</p>
+                                                <p className="text-lg font-medium tracking-tight">No potential duplicates found</p>
+                                                <p className="text-xs uppercase font-bold tracking-widest opacity-60">Try scanning all records to refresh the list.</p>
                                             </div>
                                         </TableCell>
                                     </TableRow>

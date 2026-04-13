@@ -17,10 +17,10 @@ export const ActionButtons: React.FC<ActionButtonsProps> = ({
                 variant="outline" 
                 size={size} 
                 onClick={onDismiss}
-                className="text-slate-600 hover:text-slate-700 hover:bg-slate-50 border-slate-200"
+                className="text-muted-foreground hover:text-foreground hover:bg-muted border-border font-bold text-[10px] uppercase tracking-widest h-9 px-4"
             >
                 <EyeOff className="h-4 w-4 mr-2" />
-                Dismiss
+                Dismiss Duplicate
             </Button>
         </div>
     );
