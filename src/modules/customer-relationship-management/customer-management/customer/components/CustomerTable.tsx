@@ -311,31 +311,9 @@ export function CustomerTable({
                 customer={selectedCustomer}
                 onSubmit={async (data: CustomerFormData) => {
                     if (selectedCustomer) {
-                        // Transform CustomerFormData to Partial<CustomerWithRelations>
-                        const updateData: Partial<CustomerWithRelations> = {
-                            ...data,
-                            bank_accounts: data.bank_accounts?.map(ba => ({
-                                ...ba,
-                                id: 0, // Will be set by database/API
-                                customer_id: selectedCustomer.id,
-                                created_at: new Date().toISOString(),
-                                updated_at: new Date().toISOString()
-                            }))
-                        };
-                        await onUpdate(selectedCustomer.id, updateData);
+                        await onUpdate(selectedCustomer.id, data as Partial<CustomerWithRelations>);
                     } else {
-                        // Transform CustomerFormData to Partial<CustomerWithRelations>
-                        const createData: Partial<CustomerWithRelations> = {
-                            ...data,
-                            bank_accounts: data.bank_accounts?.map(ba => ({
-                                ...ba,
-                                id: 0, // Will be set by database/API
-                                customer_id: 0, // Will be set after customer creation
-                                created_at: new Date().toISOString(),
-                                updated_at: new Date().toISOString()
-                            }))
-                        };
-                        await onCreate(createData);
+                        await onCreate(data as Partial<CustomerWithRelations>);
                     }
                 }}
                 defaultTab={defaultDialogTab}

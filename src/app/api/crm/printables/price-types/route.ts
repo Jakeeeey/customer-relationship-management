@@ -66,7 +66,13 @@ export async function GET(req: NextRequest) {
         const url = `${DIRECTUS_URL}/items/${COLLECTION}?${params.toString()}`;
         const json = await fetchDirectus<{ data: PriceTypeRow[] }>(url);
 
-        return NextResponse.json({ data: json.data ?? [] });
+        const priceTypes = json.data ?? [];
+        const syntheticPriceTypes = [
+            { price_type_id: -1, price_type_name: "List Price", sort: -1 },
+            ...priceTypes
+        ];
+
+        return NextResponse.json({ data: syntheticPriceTypes });
     } catch (error: unknown) {
         return NextResponse.json(
             {

@@ -44,7 +44,6 @@ export function ApprovalModal({
     onHold,
     onCancel,
     onSubmitForApproval,
-    onSaveDetails
 }: ApprovalModalProps) {
     const [details, setDetails] = useState<OrderDetail[]>([]);
     const [freshOrder, setFreshOrder] = useState<SalesOrder | null>(null);
@@ -176,19 +175,30 @@ export function ApprovalModal({
     };
 
     const getLineNet = (item: OrderDetail) => {
-        // Preference: If manually changed in this session, we must calculate based on new quantity
-        if (item._recalculated_discount !== undefined || item._recalculated_gross !== undefined) {
-            const discount = getLineDiscount(item);
-            const gross = item._recalculated_gross !== undefined ? item._recalculated_gross : (Number(item.allocated_quantity || 0) * Number(item.unit_price || 0));
-            return gross - discount;
-        }
-
-        // Rely purely on database values for initial or fresh load
+        // Target: database value if present (Requested Net)
         if (item.net_amount !== undefined && item.net_amount !== null) {
             return Number(item.net_amount);
         }
 
         // Final fallback calculation
+        const discount = getLineDiscount(item);
+        return (Number(item.ordered_quantity || 0) * Number(item.unit_price || 0)) - discount;
+    };
+
+    const getLineAllocated = (item: OrderDetail) => {
+        // Preference: Recalculated value from current session
+        if (item.allocated_quantity !== undefined) {
+            const discount = getLineDiscount(item);
+            const gross = (Number(item.allocated_quantity || 0) * Number(item.unit_price || 0));
+            return gross - discount;
+        }
+
+        // Target: database value if present
+        if (item.allocated_amount !== undefined && item.allocated_amount !== null) {
+            return Number(item.allocated_amount);
+        }
+
+        // Final fallback: standard calculation
         const discount = getLineDiscount(item);
         return (Number(item.allocated_quantity || 0) * Number(item.unit_price || 0)) - discount;
     };
@@ -203,34 +213,13 @@ export function ApprovalModal({
 
     const calculatedGross = details.reduce((sum, item) => sum + getLineGross(item), 0);
     const calculatedDiscount = details.reduce((sum, item) => sum + getLineDiscount(item), 0);
-    const calculatedNetAllocation = details.reduce((sum, item) => sum + getLineNet(item), 0);
-
-    const calculatedAllocatedTotal = calculatedNetAllocation; // For backward compatibility if needed elsewhere
+    const calculatedOrderedTotal = details.reduce((sum, item) => sum + getLineNet(item), 0);
+    const calculatedAllocatedTotal = details.reduce((sum, item) => sum + getLineAllocated(item), 0);
 
     const handleSaveAndAction = async (action: "approve" | "hold" | "cancel") => {
         setIsSubmitting(true);
         try {
-            // 1. Save line items first (if actionable)
-            if (isActionable || action === "cancel") {
-                const headerUpdates = {
-                    allocated_amount: calculatedAllocatedTotal,
-                    net_amount: calculatedAllocatedTotal,
-                    discount_amount: calculatedDiscount,
-                    total_amount: calculatedGross,
-                };
-                const itemsToUpdate = details.map(d => ({
-                    detail_id: (d.detail_id || d.order_detail_id || (d as OrderDetail & { id?: number }).id) as number,
-                    order_detail_id: (d.detail_id || d.order_detail_id || (d as OrderDetail & { id?: number }).id) as number,
-                    allocated_quantity: d.allocated_quantity,
-                    net_amount: getLineNet(d),
-                    discount_amount: getLineDiscount(d),
-                    gross_amount: getLineGross(d)
-                }));
-                const success = await onSaveDetails(activeOrder.order_id, headerUpdates, itemsToUpdate);
-                if (!success && action !== "cancel") return; // Stop if save failed
-            }
-
-            // 2. Perform status update
+            // Perform status update only - metrics are left "As Is" in the database
             let success = false;
             if (action === "approve") {
                 if (activeOrder.order_status === "Draft" && onSubmitForApproval) {
@@ -377,10 +366,10 @@ export function ApprovalModal({
                             </div>
                             <div className="bg-sky-50 dark:bg-sky-950/30 border border-sky-100 dark:border-sky-900/50 rounded-xl p-3 shadow-[0_2px_12px_rgba(14,165,233,0.06)] flex flex-col gap-1 transition-all hover:border-sky-200">
                                 <p className="text-[10px] text-sky-600 dark:text-sky-400 uppercase font-black tracking-widest leading-none">
-                                    {isInvoiceStatus ? "Invoice Total" : "Net Allocation"}
+                                    {isInvoiceStatus ? "Invoice Total" : "Total Allocated"}
                                 </p>
                                 <p className="font-black text-lg text-sky-600 dark:text-sky-400 tabular-nums leading-none mt-1">
-                                    {formatCurrency(isInvoiceStatus ? (invoiceData?.invoice?.net_amount || 0) : calculatedNetAllocation)}
+                                    {formatCurrency(isInvoiceStatus ? (invoiceData?.invoice?.net_amount || 0) : calculatedAllocatedTotal)}
                                 </p>
                             </div>
                         </div>
@@ -503,7 +492,7 @@ export function ApprovalModal({
                                                 details.map((li, idx) => {
                                                     const productName = li.product_id?.product_name || li.product_id?.description || "Unknown";
                                                     const productCode = li.product_id?.product_code || "N/A";
-                                                    const lineTotal = getLineNet(li);
+                                                    const lineAllocated = getLineAllocated(li);
                                                     const isExceeding = (li.allocated_quantity > li.ordered_quantity) || (li.available_qty !== undefined && li.allocated_quantity > li.available_qty);
 
                                                     return (
@@ -558,7 +547,7 @@ export function ApprovalModal({
                                                                 </Badge>
                                                             </TableCell>
                                                             <TableCell className="text-right font-black text-foreground pr-4 sm:pr-8 font-mono text-[13px] sm:text-base tabular-nums tracking-tighter">
-                                                                {formatCurrency(lineTotal)}
+                                                                {formatCurrency(lineAllocated)}
                                                             </TableCell>
                                                         </TableRow>
                                                     );
@@ -575,7 +564,7 @@ export function ApprovalModal({
                     <div className="px-4 sm:px-8 py-4 sm:py-6 border-t bg-muted/30 backdrop-blur-md flex flex-row items-center justify-between gap-4 shrink-0 mt-auto">
                         <div className="flex items-center gap-6 sm:gap-14 min-w-0">
                             <div className="flex flex-col gap-0.5 shrink-0">
-                                <p className="text-[8px] sm:text-[9px] text-muted-foreground uppercase font-black tracking-widest leading-none">Gross</p>
+                                <p className="text-[8px] sm:text-[9px] text-muted-foreground uppercase font-black tracking-widest leading-none"> Gross Total</p>
                                 <p className="font-black text-sm sm:text-lg text-foreground leading-none mt-1 tabular-nums">{formatCurrency(isInvoiceStatus ? (invoiceData?.invoice?.gross_amount || 0) : calculatedGross)}</p>
                             </div>
                             <div className="flex flex-col gap-0.5 shrink-0">
@@ -584,11 +573,11 @@ export function ApprovalModal({
                             </div>
                             <div className="w-px h-8 bg-border shrink-0" />
                             <div className="flex flex-col gap-0.5 min-w-0">
-                                <p className="text-[8px] sm:text-[9px] text-muted-foreground uppercase font-black tracking-widest leading-none truncate">{isInvoiceStatus ? "Invoice Net" : "Net Allocation"}</p>
+                                <p className="text-[8px] sm:text-[9px] text-muted-foreground uppercase font-black tracking-widest leading-none truncate">{isInvoiceStatus ? "Invoice Net" : "Net Amount"}</p>
                                 <div className="flex items-baseline gap-1 leading-none mt-1">
                                     <span className="text-[9px] sm:text-[11px] font-black text-muted-foreground/30 uppercase italic shrink-0">PHP</span>
                                     <p className="text-[20px] sm:text-[32px] lg:text-[40px] font-black text-foreground tabular-nums tracking-tighter leading-none">
-                                        {formatCurrency(isInvoiceStatus ? (invoiceData?.invoice?.net_amount || 0) : calculatedNetAllocation).replace("PHP", "").replace("₱", "").trim()}
+                                        {formatCurrency(isInvoiceStatus ? (invoiceData?.invoice?.net_amount || 0) : calculatedOrderedTotal).replace("PHP", "").replace("₱", "").trim()}
                                     </p>
                                 </div>
                             </div>

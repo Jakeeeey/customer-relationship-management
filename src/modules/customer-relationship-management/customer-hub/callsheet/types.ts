@@ -16,7 +16,9 @@ export interface SalesOrderAttachment {
     customer_name: string;        // enriched from customer collection
     file_id: string | null;
     attachment_name: string;
+    related_attachments?: { file_id: string; attachment_name: string }[];
     sales_order_no: string;
+    po_no?: string | null;        // mapped from final sales order table
     status: "pending" | "approved" | "rejected" | string;
     created_date: string;
     created_by: number;
