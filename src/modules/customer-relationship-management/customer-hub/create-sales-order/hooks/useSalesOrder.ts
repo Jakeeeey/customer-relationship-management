@@ -554,6 +554,15 @@ export function useSalesOrder() {
             setAccounts([]);
         }
     };
+    
+    const handlePriceTypeIdChange = (id: string) => {
+        const nid = id ? Number(id) : null;
+        setPriceTypeId(nid);
+        if (nid) {
+            const model = priceTypeModels.find(p => p.price_type_id === nid);
+            if (model) setPriceType(model.price_type_name);
+        }
+    };
 
     const handlePriceTypeIdChange = (id: string) => {
         const nid = id ? Number(id) : null;
