@@ -41,6 +41,7 @@ interface SalesOrderDetailsModalProps {
     customers: Customer[];
     salesmen: Salesman[];
     branches: Branch[];
+    suppliers: Supplier[];
 }
 
 export function SalesOrderDetailsModal({
@@ -50,6 +51,7 @@ export function SalesOrderDetailsModal({
     customers,
     salesmen,
     branches,
+    suppliers,
 }: SalesOrderDetailsModalProps) {
     const [details, setDetails] = useState<SalesOrderDetail[]>([]);
     const [invoices, setInvoices] = useState<Invoice[]>([]);
@@ -112,6 +114,7 @@ export function SalesOrderDetailsModal({
     const customer = customers.find((c) => c.customer_code === order.customer_code);
     const salesman = salesmen.find((s) => s.id === order.salesman_id);
     const branch = branches.find((b) => b.id === order.branch_id);
+    const supplier = suppliers.find((s) => s.id === order.supplier_id);
 
     const getStatusStyle = (status: string) => {
         const s = status.toLowerCase().trim();
@@ -274,6 +277,14 @@ export function SalesOrderDetailsModal({
                                 <p className="text-[8px] sm:text-[10px] text-muted-foreground uppercase font-black tracking-widest leading-none">PO Number</p>
                                 <p className="font-bold text-[12px] sm:text-sm text-slate-900 truncate mt-0.5">
                                     {order.po_no || "N/A"}
+                                </p>
+                            </div>
+
+                            {/* Supplier (New) */}
+                            <div className="bg-white border border-rose-50 rounded-xl p-3 sm:p-4 flex flex-col gap-1 shadow-sm sm:col-span-1">
+                                <p className="text-[8px] sm:text-[10px] text-rose-400 uppercase font-black tracking-widest leading-none">Supplier</p>
+                                <p className="font-bold text-[11px] sm:text-xs text-rose-600 truncate mt-0.5" title={supplier?.supplier_name}>
+                                    {supplier ? `${supplier.supplier_name} (${supplier.supplier_shortcut})` : (order.supplier_id || "N/A")}
                                 </p>
                             </div>
                         </div>
