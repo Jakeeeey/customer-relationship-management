@@ -220,7 +220,7 @@ export function ApprovalModal({
     const calculatedDiscount = details.reduce((sum, item) => sum + getLineDiscount(item), 0);
     const calculatedOrderedTotal = details.reduce((sum, item) => sum + getLineNet(item), 0);
     const calculatedAllocatedTotal = details.reduce((sum, item) => sum + getLineAllocated(item), 0);
-    const hasZeroAllocations = details.length > 0 && details.some(li => (li.allocated_quantity || 0) <= 0);
+    const isFullyUnallocated = details.length > 0 && details.every(li => (li.allocated_quantity || 0) <= 0);
 
     const handleSaveAndAction = async (action: "approve" | "hold" | "cancel") => {
         setIsSubmitting(true);
@@ -635,15 +635,15 @@ export function ApprovalModal({
                                             On Hold
                                         </Button>
                                     )}
-                                    {hasZeroAllocations ? (
+                                    {isFullyUnallocated ? (
                                         <div className="flex items-center gap-3 px-4 py-2 bg-amber-50 dark:bg-amber-950/20 border border-amber-100 dark:border-amber-900/50 rounded-xl animate-in fade-in slide-in-from-right-2 duration-300">
                                             <AlertCircle className="h-5 w-5 text-amber-600 dark:text-amber-400 shrink-0" />
                                             <div className="flex flex-col">
                                                 <span className="text-[10px] font-black uppercase text-amber-700 dark:text-amber-300 tracking-tight leading-tight">
-                                                    Zero allocations detected.
+                                                    All items are unallocated.
                                                 </span>
                                                 <span className="text-[9px] font-bold uppercase text-amber-600/80 dark:text-amber-400/80 tracking-tight leading-tight">
-                                                    Please populate all items
+                                                    Please allocate at least one item
                                                 </span>
                                                 <span className="text-[9px] font-bold uppercase text-amber-600/80 dark:text-amber-400/80 tracking-tight leading-tight">
                                                     before approving order.
