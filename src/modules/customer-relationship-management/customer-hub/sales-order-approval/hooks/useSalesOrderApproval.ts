@@ -48,6 +48,7 @@ export interface SalesOrder {
     net_amount: number;
     order_status: string;
     payment_terms?: number | null;
+    price_type_name?: string;
 }
 
 
