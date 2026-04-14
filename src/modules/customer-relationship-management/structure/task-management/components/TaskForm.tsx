@@ -41,6 +41,8 @@ const taskSchema = z.object({
     customer_id: z.string().min(1, "Customer is required"),
     priority_level: z.string().min(1, "Priority is required"),
     remarks: z.string().optional(),
+    sales_amount: z.string().optional(),
+    collection_amount: z.string().optional(),
 });
 
 interface LocalSearchableSelectProps {
@@ -145,6 +147,8 @@ export const TaskForm: React.FC<TaskFormProps> = ({
             customer_id: "",
             priority_level: "",
             remarks: "",
+            sales_amount: "",
+            collection_amount: "",
         }
     });
 
@@ -157,6 +161,8 @@ export const TaskForm: React.FC<TaskFormProps> = ({
                 customer_id: String(initialData.customer_id),
                 priority_level: initialData.priority_level,
                 remarks: parts[1] || "",
+                sales_amount: initialData.sales_amount ? String(initialData.sales_amount) : "",
+                collection_amount: initialData.collection_amount ? String(initialData.collection_amount) : "",
             });
         } else {
             reset({
@@ -165,11 +171,15 @@ export const TaskForm: React.FC<TaskFormProps> = ({
                 customer_id: "",
                 priority_level: "",
                 remarks: "",
+                sales_amount: "",
+                collection_amount: "",
             });
         }
     }, [initialData, reset]);
 
     const handleFormSubmit = async (values: TaskFormValues) => {
+        const selectedCustomer = customers.find(c => String(c.id) === values.customer_id);
+        
         const payload = {
             task_id: parseInt(values.task_id),
             customer_id: parseInt(values.customer_id),
@@ -178,6 +188,12 @@ export const TaskForm: React.FC<TaskFormProps> = ({
             salesman_id: parseInt(selectedSalesmanId),
             employee_id: parseInt(selectedEmployeeId),
             date: selectedDate ? format(selectedDate, "yyyy-MM-dd") : format(new Date(), "yyyy-MM-dd"),
+            province: selectedCustomer?.province || null,
+            city: selectedCustomer?.city || null,
+            barangay: selectedCustomer?.barangay || null,
+            sales_amount: values.sales_amount ? parseFloat(values.sales_amount) : 0,
+            collection_amount: values.collection_amount ? parseFloat(values.collection_amount) : 0,
+            approval_status: "pending",
             ...(initialData?.id && { id: initialData.id })
         };
 
@@ -326,8 +342,43 @@ export const TaskForm: React.FC<TaskFormProps> = ({
                     />
                 </div>
 
+                <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2.5">
+                        <Label className="text-[11px] uppercase font-black tracking-[0.15em] text-primary/70">5. Sales Amount Target</Label>
+                        <Controller
+                            name="sales_amount"
+                            control={control}
+                            render={({ field }) => (
+                                <Input 
+                                    {...field} 
+                                    type="number"
+                                    step="0.01"
+                                    placeholder="0.00" 
+                                    className="bg-muted/30 border-primary/10 h-12 text-base focus:ring-primary/20"
+                                />
+                            )}
+                        />
+                    </div>
+                    <div className="space-y-2.5">
+                        <Label className="text-[11px] uppercase font-black tracking-[0.15em] text-primary/70">6. Collection Target</Label>
+                        <Controller
+                            name="collection_amount"
+                            control={control}
+                            render={({ field }) => (
+                                <Input 
+                                    {...field} 
+                                    type="number"
+                                    step="0.01"
+                                    placeholder="0.00" 
+                                    className="bg-muted/30 border-primary/10 h-12 text-base focus:ring-primary/20"
+                                />
+                            )}
+                        />
+                    </div>
+                </div>
+
                 <div className="space-y-2.5">
-                    <Label className="text-[11px] uppercase font-black tracking-[0.15em] text-primary/70">5. Special Instructions</Label>
+                    <Label className="text-[11px] uppercase font-black tracking-[0.15em] text-primary/70">7. Special Instructions</Label>
                     <Controller
                         name="remarks"
                         control={control}

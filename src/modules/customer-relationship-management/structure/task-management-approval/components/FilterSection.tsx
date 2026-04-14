@@ -1,13 +1,13 @@
-// src/modules/customer-relationship-management/structure/task-management/components/FilterSection.tsx
+// src/modules/customer-relationship-management/structure/task-management-approval/components/FilterSection.tsx
 "use client";
 
 import React from "react";
-import { 
-    Select, 
-    SelectContent, 
-    SelectItem, 
-    SelectTrigger, 
-    SelectValue 
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue
 } from "@/components/ui/select";
 import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -46,14 +46,14 @@ export const FilterSection: React.FC<FilterSectionProps> = ({
     onYearChange,
 }) => {
     return (
-        <div className="space-y-6 mb-8">
+        <div className="space-y-6 mb-8 mt-2">
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
                 <div className="space-y-1">
                     <h1 className="text-3xl font-extrabold tracking-tight bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
-                        Task Management
+                        Task Management Approval
                     </h1>
                     <p className="text-muted-foreground text-sm font-medium">
-                        Strategize, assign, and track team productivity with precision.
+                        Review, audit and approve team productivity plans with precision.
                     </p>
                 </div>
 
@@ -90,15 +90,15 @@ export const FilterSection: React.FC<FilterSectionProps> = ({
 
             <Card className="border-none shadow-xl bg-gradient-to-br from-card/80 to-card/40 backdrop-blur-md overflow-hidden relative group">
                 <div className="absolute inset-0 bg-gradient-to-r from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-                <CardContent className="p-6 relative z-10">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div className="space-y-2">
+                <CardContent className="p-10 relative z-10">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+                        <div className="space-y-4">
                             <Label className="text-xs font-semibold text-primary/80 uppercase tracking-widest flex items-center gap-2">
                                 <div className="w-1.5 h-1.5 rounded-full bg-primary" />
                                 Salesman
                             </Label>
                             <Select value={selectedEmployeeId} onValueChange={onEmployeeChange}>
-                                <SelectTrigger className="bg-background/40 border-primary/10 hover:border-primary/30 transition-all h-11">
+                                <SelectTrigger className="bg-background/40 border-primary/10 hover:border-primary/30 transition-all h-12 rounded-xl font-bold">
                                     <SelectValue placeholder="Select Salesman" />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -112,18 +112,18 @@ export const FilterSection: React.FC<FilterSectionProps> = ({
                             </Select>
                         </div>
 
-                        <div className="space-y-2">
+                        <div className="space-y-4">
                             <Label className="text-xs font-semibold text-primary/80 uppercase tracking-widest flex items-center gap-2">
                                 <div className="w-1.5 h-1.5 rounded-full bg-primary" />
-                                Salesman Code
+                                SALESMAN CODE
                             </Label>
-                            <Select 
-                                value={selectedSalesmanId} 
+                            <Select
+                                value={selectedSalesmanId}
                                 onValueChange={onSalesmanChange}
                                 disabled={!selectedEmployeeId || selectedEmployeeId === "all"}
                             >
-                                <SelectTrigger className="bg-background/40 border-primary/10 hover:border-primary/30 transition-all h-11 disabled:opacity-50 disabled:cursor-not-allowed">
-                                    <SelectValue placeholder={!selectedEmployeeId || selectedEmployeeId === "all" ? "Select employee first" : "Select Salesman"} />
+                                <SelectTrigger className="bg-background/40 border-primary/10 hover:border-primary/30 transition-all h-12 rounded-xl font-bold disabled:opacity-50 disabled:cursor-not-allowed">
+                                    <SelectValue placeholder={!selectedEmployeeId || selectedEmployeeId === "all" ? "Select Salesman first" : "Select Salesman"} />
                                 </SelectTrigger>
                                 <SelectContent>
                                     <SelectItem value="all">Please Select Salesman Code</SelectItem>

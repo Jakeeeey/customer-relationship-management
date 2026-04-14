@@ -1,4 +1,4 @@
-// src/modules/customer-relationship-management/structure/task-management/TaskManagementModule.tsx
+// src/modules/customer-relationship-management/structure/task-management-approval/TaskManagementApprovalModule.tsx
 "use client";
 
 import React, { useState } from "react";
@@ -6,20 +6,19 @@ import { FilterSection } from "./components/FilterSection";
 import { TaskCalendar } from "./components/TaskCalendar";
 import { TaskDialog } from "./components/TaskDialog";
 import { TaskViewDialog } from "./components/TaskViewDialog";
-import { useTaskManagement } from "./hooks/useTaskManagement";
+import { CalendarHeader } from "./components/CalendarHeader";
+import { useTaskManagementApproval } from "./hooks/useTaskManagementApproval";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { DailyActionPlan } from "./types";
-import { CalendarHeader } from "./components/CalendarHeader";
 
 const months = [
     "January", "February", "March", "April", "May", "June",
     "July", "August", "September", "October", "November", "December"
 ];
 
-
-export default function TaskManagementModule() {
+export default function TaskManagementApprovalModule() {
     const {
         data,
         isLoading,
@@ -32,15 +31,19 @@ export default function TaskManagementModule() {
         setSelectedSalesmanId,
         daysInMonth,
         getTasksForDay,
-        handleCreateTask,
+        handleApproveTask,
+        handleRejectTask,
+        handleApproveMonthlyPlan,
+        handleRejectMonthlyPlan,
         handleUpdateTask,
         handleDeleteTask,
         currentMonth,
         currentYear,
         setMonth,
         setYear,
-        currentMonthlyPlanStatus,
-    } = useTaskManagement();
+        pendingActionPlans,
+        pendingMonthlyPlans,
+    } = useTaskManagementApproval();
 
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
@@ -49,7 +52,7 @@ export default function TaskManagementModule() {
 
     const handleDayClick = (day: Date) => {
         if (selectedEmployeeId === "all" || selectedSalesmanId === "all") {
-            toast.warning("Please select an Salesman and a Salesman Code first.");
+            toast.warning("Please select a Salesman and a Salesman Code first.");
             return;
         }
 
@@ -64,39 +67,35 @@ export default function TaskManagementModule() {
         }
     };
 
-    const handleSubmit = async (payload: Partial<DailyActionPlan>) => {
-        let success = false;
-        if (editingTask) {
-            success = await handleUpdateTask(editingTask.id, payload);
-        } else {
-            success = await handleCreateTask(payload);
-        }
-
+    const handleTaskUpdate = async (id: number, payload: Partial<DailyActionPlan>) => {
+        const success = await handleUpdateTask(id, payload);
         if (success) {
-            setIsDialogOpen(false);
-            setEditingTask(null);
-            // Optimization: Remove window.location.reload() as useTaskManagement handles it now
+            // Optimization: fetchTasks(true) is handled inside hook
         }
         return success;
     };
 
     const selectedEmployee = filteredEmployees.find(u => String(u.user_id) === selectedEmployeeId);
-    const employeeName = selectedEmployee ? `${selectedEmployee.user_fname} ${selectedEmployee.user_lname}` : "All Employees";
+    const employeeName = selectedEmployee ? `${selectedEmployee.user_fname} ${selectedEmployee.user_lname}` : "All Salesman";
 
     const selectedSalesman = filteredSalesmen.find(s => String(s.id) === selectedSalesmanId);
-    const salesmanAccount = selectedSalesman ? `${selectedSalesman.salesman_name} (${selectedSalesman.salesman_code})` : "All Salesman Accounts";
+    const salesmanAccount = selectedSalesman ? `${selectedSalesman.salesman_name} (${selectedSalesman.salesman_code})` : "All Accounts";
 
     if (isLoading) {
         return (
             <div className="space-y-8 animate-pulse p-4">
-                <div className="space-y-2">
-                    <Skeleton className="h-10 w-64 bg-primary/10" />
-                    <Skeleton className="h-4 w-96 bg-muted/20" />
+                <div className="space-y-4">
+                    <Skeleton className="h-14 w-96 bg-primary/10 rounded-2xl" />
+                    <Skeleton className="h-6 w-[500px] bg-muted/20 rounded-lg" />
                 </div>
-                <Skeleton className="h-32 w-full rounded-2xl bg-muted/20" />
-                <div className="grid grid-cols-7 gap-1">
+                <div className="grid grid-cols-4 gap-6">
+                    {Array.from({ length: 4 }).map((_, i) => (
+                        <Skeleton key={i} className="h-28 rounded-3xl bg-muted/10" />
+                    ))}
+                </div>
+                <div className="grid grid-cols-7 gap-1 h-[600px]">
                     {Array.from({ length: 35 }).map((_, i) => (
-                        <Skeleton key={i} className="h-32 bg-muted/10 rounded-sm" />
+                        <Skeleton key={i} className="bg-muted/5 rounded-2xl" />
                     ))}
                 </div>
             </div>
@@ -104,20 +103,21 @@ export default function TaskManagementModule() {
     }
 
     return (
-        <div className="flex flex-col min-h-full max-w-[1200px] mx-auto w-full pb-10 relative">
+        <div className="flex flex-col min-h-full max-w-[1200px] mx-auto w-full pb-20 relative px-4">
             {isRefreshing && (
-                <div className="absolute top-4 right-4 z-50 flex items-center gap-2 bg-background/80 backdrop-blur-sm border border-primary/20 px-3 py-1.5 rounded-full shadow-lg animate-in fade-in slide-in-from-top-2">
-                    <Loader2 className="w-3.5 h-3.5 animate-spin text-primary" />
-                    <span className="text-[10px] font-black uppercase tracking-widest text-primary/80">Updating...</span>
+                <div className="absolute top-4 right-8 z-50 flex items-center gap-3 bg-white/80 backdrop-blur-xl border border-primary/20 px-4 py-2 rounded-full shadow-2xl animate-in fade-in slide-in-from-top-4">
+                    <Loader2 className="w-4 h-4 animate-spin text-primary" />
+                    <span className="text-[10px] font-black uppercase tracking-widest text-primary">Syncing with HQ...</span>
                 </div>
             )}
+
             <FilterSection
                 users={filteredEmployees}
                 salesmen={filteredSalesmen}
                 selectedEmployeeId={selectedEmployeeId}
                 onEmployeeChange={(id) => {
                     setSelectedEmployeeId(id);
-                    setSelectedSalesmanId("all"); // Reset salesman when employee changes
+                    setSelectedSalesmanId("all");
                 }}
                 selectedSalesmanId={selectedSalesmanId}
                 onSalesmanChange={setSelectedSalesmanId}
@@ -127,21 +127,23 @@ export default function TaskManagementModule() {
                 onYearChange={setYear}
             />
 
-            <CalendarHeader
-                monthName={months[currentMonth]}
-                year={currentYear}
-                employeeName={employeeName}
-                salesmanAccount={salesmanAccount}
-            />
-
-            <div key={`${currentMonth}-${currentYear}`}>
-                <TaskCalendar
-                    days={daysInMonth}
-                    getTasksForDay={getTasksForDay}
-                    onDayClick={handleDayClick}
-                    selectedEmployeeId={selectedEmployeeId}
-                    selectedSalesmanId={selectedSalesmanId}
+            <div className="space-y-8">
+                <CalendarHeader
+                    monthName={months[currentMonth]}
+                    year={currentYear}
+                    employeeName={employeeName}
+                    salesmanAccount={salesmanAccount}
                 />
+
+                <div key={`${currentMonth}-${currentYear}`} className="animate-in fade-in zoom-in-95 duration-500">
+                    <TaskCalendar
+                        days={daysInMonth}
+                        getTasksForDay={getTasksForDay}
+                        onDayClick={handleDayClick}
+                        selectedEmployeeId={selectedEmployeeId}
+                        selectedSalesmanId={selectedSalesmanId}
+                    />
+                </div>
             </div>
 
             <TaskDialog
@@ -150,7 +152,10 @@ export default function TaskManagementModule() {
                     setIsDialogOpen(false);
                     setEditingTask(null);
                 }}
-                onSubmit={handleSubmit}
+                onSubmit={async (payload) => {
+                    // Mirroring basic update logic if supervisor adds a task manually
+                    return false; // Creation not primary focus here
+                }}
                 onDelete={handleDeleteTask}
                 initialData={editingTask}
                 selectedDate={selectedDate}
@@ -171,9 +176,10 @@ export default function TaskManagementModule() {
                 selectedDate={selectedDate}
                 selectedEmployeeId={selectedEmployeeId}
                 selectedSalesmanId={selectedSalesmanId}
-                onCreateTask={handleCreateTask}
-                onUpdateTask={handleUpdateTask}
+                onUpdateTask={handleTaskUpdate}
                 onDeleteTask={handleDeleteTask}
+                onApproveTask={handleApproveTask}
+                onRejectTask={handleRejectTask}
             />
         </div>
     );

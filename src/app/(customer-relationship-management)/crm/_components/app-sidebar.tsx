@@ -167,6 +167,11 @@ const data = {
                     url: "/crm/structure/target-settings",
                     icon: Printer,
                 },
+                {
+                    title: "Task Management Approval",
+                    url: "/crm/structure/task-management-approval",
+                    icon: Printer,
+                },
             ],
         },
     ],

@@ -1,4 +1,4 @@
-// src/modules/customer-relationship-management/structure/task-management/types.ts
+// src/modules/customer-relationship-management/structure/task-management-approval/types.ts
 
 export interface User {
     user_id: number;
@@ -126,11 +126,5 @@ export interface TaskManagementData {
     actionPlans: DailyActionPlan[];
     attachments: DailyActionPlanAttachment[];
     monthlyCoveragePlans: MonthlyCoveragePlan[];
-}
-
-export interface TaskManagementState {
-    selectedEmployeeId: string | null;
-    selectedSalesmanId: string | null;
-    selectedMonth: number;
-    selectedYear: number;
+    currentUserId?: number;
 }

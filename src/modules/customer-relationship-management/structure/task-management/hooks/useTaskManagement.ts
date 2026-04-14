@@ -118,6 +118,10 @@ export const useTaskManagement = () => {
             
             if (!isSameDate) return false;
 
+            // Only show tasks if both the task and the monthly plan are approved
+            const mcp = data.monthlyCoveragePlans.find(m => Number(m.id) === Number(t.mcp_id));
+            if (t.approval_status !== "approved" || mcp?.status !== "approved") return false;
+
             // 1. Filter by specific Salesman
             if (selectedSalesmanId !== "all") {
                 return String(t.salesman_id) === selectedSalesmanId;
@@ -149,7 +153,7 @@ export const useTaskManagement = () => {
             created_at: new Date().toISOString().slice(0, 19).replace('T', ' '),
             created_by: data?.currentUserId,
             is_completed: 0,
-            mcp_id: 1 // Default
+            approval_status: "pending"
         };
 
         // Optimistic Update
@@ -233,6 +237,20 @@ export const useTaskManagement = () => {
         return false;
     };
 
+    const currentMonthlyPlanStatus = useMemo(() => {
+        if (!data || selectedSalesmanId === "all") return null;
+        const currentMonthNum = getMonth(currentDate) + 1;
+        const currentYearNum = getYear(currentDate);
+
+        const mcp = data.monthlyCoveragePlans.find(m => 
+            String(m.salesman_id) === selectedSalesmanId &&
+            m.month === currentMonthNum &&
+            m.year === currentYearNum
+        );
+
+        return mcp?.status || null;
+    }, [data, selectedSalesmanId, currentDate]);
+
     return {
         data,
         isLoading,
@@ -250,6 +268,7 @@ export const useTaskManagement = () => {
         handleCreateTask,
         handleUpdateTask,
         handleDeleteTask,
+        currentMonthlyPlanStatus,
         // Helper to change month/year
         setMonth: (m: number) => setCurrentDate(setMonth(currentDate, m)),
         setYear: (y: number) => setCurrentDate(setYear(currentDate, y)),
