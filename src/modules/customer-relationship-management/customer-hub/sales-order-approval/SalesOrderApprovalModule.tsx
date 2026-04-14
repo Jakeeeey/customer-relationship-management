@@ -154,7 +154,8 @@ export default function SalesOrderApprovalModule() {
                             <TableHead>Customer</TableHead>
                             <TableHead>Order Date</TableHead>
                             <TableHead className="text-right">Total Amt</TableHead>
-                            <TableHead className="text-right">Net Amt</TableHead>
+                            <TableHead className="text-right">Ordered Net</TableHead>
+                            <TableHead className="text-right">Allocated Amt</TableHead>
                             <TableHead className="w-[150px] text-center">Status</TableHead>
                             <TableHead className="w-[100px] text-right">Action</TableHead>
                         </TableRow>
@@ -210,8 +211,11 @@ export default function SalesOrderApprovalModule() {
                                         <TableCell className="text-right text-muted-foreground">
                                             {formatCurrency(order.total_amount)}
                                         </TableCell>
-                                        <TableCell className="text-right text-success font-bold">
+                                        <TableCell className="text-right text-slate-400 font-bold tabular-nums">
                                             {formatCurrency(order.net_amount)}
+                                        </TableCell>
+                                        <TableCell className="text-right text-success font-black tabular-nums">
+                                            {formatCurrency(order.allocated_amount || 0)}
                                         </TableCell>
                                         <TableCell className="text-center">
                                             <Badge variant="outline" className={`${badgeColor} whitespace-nowrap font-bold`}>

@@ -35,6 +35,9 @@ export async function GET(req: NextRequest) {
             case "payment_term":
                 collection = "payment_terms";
                 break;
+            case "bank_name": // 🚀 Added Bank Name support
+                collection = "bank_names";
+                break;
             default:
                 return NextResponse.json({ error: "Invalid reference type" }, { status: 400 });
         }

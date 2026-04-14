@@ -30,8 +30,10 @@ export default function CustomerProspectApprovalModule() {
         refetch,
         approveProspect,
         rejectProspect,
+        updateProspect,
         storeTypes,
         paymentTerms,
+        classifications,
     } = useCustomerProspects();
 
     if (isError) {
@@ -109,7 +111,9 @@ export default function CustomerProspectApprovalModule() {
                     onSalesmanChange={setSalesmanFilter}
                     onApprove={approveProspect}
                     onReject={rejectProspect}
+                    onUpdate={updateProspect}
                     paymentTerms={paymentTerms}
+                    classifications={classifications}
                 />
             </div>
         </div>

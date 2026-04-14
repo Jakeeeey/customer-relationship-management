@@ -5,8 +5,10 @@ export interface TargetSetting {
     new_accounts: number;
     productive_outlets: number;
     line_sales: number;
+    line_sales_target?: number;
     frequency: number;
     basket_count: number;
+    basket_count_target?: number;
     tactica_sku?: number; // Total count of tactical SKUs
     reach: number;
     date_range_from: string;
@@ -15,6 +17,8 @@ export interface TargetSetting {
     created_by?: number;
     // Relationships
     tactical_skus?: TacticalSKU[];
+    customer_targets?: CustomerTarget[];
+    supplier_targets?: SupplierTarget[];
 }
 
 export interface TacticalSKU {
@@ -23,6 +27,8 @@ export interface TacticalSKU {
     product_id: number;
     target_quantity: number;
     target_value: number;
+    achieved_quantity?: number;
+    achieved_volume?: number;
     created_at?: string;
     created_by?: number;
     // Expanded data
@@ -82,12 +88,54 @@ export interface TargetFormData {
     new_accounts: number;
     productive_outlets: number;
     line_sales: number;
+    line_sales_target: number;
     frequency: number;
     basket_count: number;
+    basket_count_target: number;
     reach: number;
     tactical_skus: {
         product_id: number;
         target_quantity: number;
         target_value: number;
     }[];
+    customer_targets: {
+        customer_id: number;
+        target_amount: number;
+    }[];
+    supplier_targets: {
+        supplier_id: number;
+        target_amount: number;
+    }[];
+}
+
+export interface CustomerTarget {
+    id?: number;
+    target_setting_id: number;
+    customer_id: number;
+    target_amount: number;
+    created_at?: string;
+    customer_name?: string;
+}
+
+export interface SupplierTarget {
+    id?: number;
+    target_setting_id: number;
+    supplier_id: number;
+    target_amount: number;
+    created_at?: string;
+    supplier_name?: string;
+}
+
+export interface CustomerRecord {
+    id: number;
+    customer_name: string;
+    province: string;
+    city: string;
+    brgy: string;
+}
+
+export interface SupplierRecord {
+    id: number;
+    supplier_name: string;
+    supplier_type: string;
 }

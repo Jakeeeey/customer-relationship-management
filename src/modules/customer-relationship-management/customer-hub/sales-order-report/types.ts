@@ -100,6 +100,7 @@ export interface InvoiceData {
     invoice_no: string;
     invoice_date: string;
     gross_amount: number;
+    total_amount: number;
     discount_amount: number;
     vat_amount?: number;
     net_amount: number;
