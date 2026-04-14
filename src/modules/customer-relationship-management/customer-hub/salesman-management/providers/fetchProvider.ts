@@ -18,12 +18,7 @@ export const salesmanProvider = {
         };
     },
 
-    getSupportingData: async (): Promise<{
-        branches: Branch[];
-        divisions: Division[];
-        operations: Operation[];
-        users: User[];
-    }> => {
+    getSupportingData: async (): Promise<{ branches: Branch[]; divisions: Division[]; operations: Operation[]; users: User[]; }> => {
         const res = await fetch(`${API_BASE}?action=supporting-data`);
         if (!res.ok) throw new Error("Failed to load supporting data");
         return res.json();
@@ -54,31 +49,25 @@ export const salesmanProvider = {
         return res.json();
     },
 
-    createSalesman: async (data: Partial<Salesman>): Promise<{ success: boolean; id?: number; error?: string }> => {
-        const res = await fetch(API_BASE, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(data)
-        });
-        return res.json();
+    // 🚀 NEW: Get valid registered vehicles
+    getVehicles: async () => {
+        const res = await fetch(`${API_BASE}?action=vehicles`);
+        const result = await res.json();
+        return result.data || [];
     },
 
-    deleteSalesman: async (id: number): Promise<{ success: boolean; deletedAssignments?: number; error?: string }> => {
-        const res = await fetch(`${API_BASE}?id=${id}`, {
-            method: "DELETE",
-        });
-        return res.json();
-    },
-
-    // 🚀 NEW: CUSTOMER MANAGEMENT ENDPOINTS
     getAssignedCustomers: async (salesmanId: number) => {
         const res = await fetch(`${API_BASE}?action=assigned-customers&id=${salesmanId}`);
         const result = await res.json();
         return result.data || [];
     },
 
-    searchAvailableCustomers: async (search: string) => {
-        const res = await fetch(`${API_BASE}?action=search-customers&search=${encodeURIComponent(search)}`);
+    // 🚀 FIXED: Enforces strict price type matching to prevent pricing discrepancies!
+    searchAvailableCustomers: async (search: string, priceType?: string) => {
+        let url = `${API_BASE}?action=search-customers&search=${encodeURIComponent(search)}`;
+        if (priceType) url += `&priceType=${encodeURIComponent(priceType)}`;
+
+        const res = await fetch(url);
         const result = await res.json();
         return result.data || [];
     },
