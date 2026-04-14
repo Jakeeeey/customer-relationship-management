@@ -8,10 +8,10 @@ import {
 } from "@/components/ui/breadcrumb";
 import { Separator } from "@/components/ui/separator";
 import { SidebarTrigger } from "@/components/ui/sidebar";
-import { NavUser } from "./../../_components/nav-user";
+import { NavUser } from "../../_components/nav-user";
 
 import { cookies } from "next/headers";
-import { OPSDashboardModule } from "@/modules/customer-relationship-management/customer-hub/ops-dashboard";
+import { OPSDashboardModule } from "@/modules/customer-relationship-management/structure/ops-dashboard";
 
 export const dynamic = "force-dynamic";
 

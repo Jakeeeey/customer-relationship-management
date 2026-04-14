@@ -111,11 +111,6 @@ const data = {
                     url: "/crm/customer-hub/sales-order-approval",
                     icon: ClipboardList,
                 },
-                {
-                    title: "Ops Dashboard",
-                    url: "/crm/customer-hub/ops-dashboard",
-                    icon: LayoutDashboard,
-                },
             ],
         },
         {
@@ -161,6 +156,11 @@ const data = {
                     title: "Task Management",
                     url: "/crm/structure/task-management",
                     icon: Printer,
+                },
+                {
+                    title: "Ops Dashboard",
+                    url: "/crm/structure/ops-dashboard",
+                    icon: LayoutDashboard,
                 },
             ],
         },
