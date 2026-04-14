@@ -43,17 +43,17 @@ interface ApprovalDataTableProps {
 }
 
 export function ApprovalDataTable({
-                                    data,
-                                    isLoading,
-                                    onBulkAction,
-                                    columns,
-                                    currentTab,
-                                    onTabChange,
-                                  }: ApprovalDataTableProps) {
+  data,
+  isLoading,
+  onBulkAction,
+  columns,
+  currentTab,
+  onTabChange,
+}: ApprovalDataTableProps) {
   const [rowSelection, setRowSelection] = React.useState<RowSelectionState>({});
   const [sorting, setSorting] = React.useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
-      [],
+    [],
   );
 
   const filteredData = React.useMemo(() => {
@@ -86,8 +86,8 @@ export function ApprovalDataTable({
   const selectedRows = table.getSelectedRowModel().rows;
   const selectedCount = selectedRows.length;
   const selectedTotal = selectedRows.reduce(
-      (sum, row) => sum + row.original.total_amount,
-      0,
+    (sum, row) => sum + row.original.total_amount,
+    0,
   );
 
   // FIX: Clear row selection when currentTab changes (via useEffect, not during render)
@@ -96,107 +96,107 @@ export function ApprovalDataTable({
   }, [currentTab]);
 
   return (
-      <div className="space-y-4">
-        <Tabs value={currentTab} onValueChange={onTabChange} className="w-full">
-          <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <TabsList className="w-full sm:w-auto">
-              <TabsTrigger value="PENDING">Pending</TabsTrigger>
-              <TabsTrigger value="APPROVED">Approved</TabsTrigger>
-            </TabsList>
-            <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center sm:gap-2">
-              <Input
-                  placeholder="Search invoice number..."
-                  value={
-                      (table.getColumn("invoice_no")?.getFilterValue() as string) ??
-                      ""
-                  }
-                  onChange={(event) =>
-                      table
-                          .getColumn("invoice_no")
-                          ?.setFilterValue(event.target.value)
-                  }
-                  className="w-full sm:w-62.5"
-              />
-              <TableToolbar table={table} />
+    <div className="space-y-4">
+      <Tabs value={currentTab} onValueChange={onTabChange} className="w-full">
+        <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <TabsList className="w-full sm:w-auto">
+            <TabsTrigger value="PENDING">Pending</TabsTrigger>
+            <TabsTrigger value="APPROVED">Approved</TabsTrigger>
+          </TabsList>
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center sm:gap-2">
+            <Input
+              placeholder="Search invoice number..."
+              value={
+                (table.getColumn("invoice_no")?.getFilterValue() as string) ??
+                ""
+              }
+              onChange={(event) =>
+                table
+                  .getColumn("invoice_no")
+                  ?.setFilterValue(event.target.value)
+              }
+              className="w-full sm:w-62.5"
+            />
+            <TableToolbar table={table} />
+          </div>
+        </div>
+
+        {/* BULK ACTION TOOLBAR */}
+        {selectedCount > 0 && (
+          <div className="flex items-center justify-between px-4 py-2 border rounded-lg bg-muted/50 animate-in fade-in slide-in-from-bottom-1">
+            <div className="flex items-center gap-4">
+              <div className="text-sm font-semibold">
+                Total: {formatCurrency(selectedTotal)}
+              </div>
             </div>
           </div>
+        )}
 
-          {/* BULK ACTION TOOLBAR */}
-          {selectedCount > 0 && (
-              <div className="flex items-center justify-between px-4 py-2 border rounded-lg bg-muted/50 animate-in fade-in slide-in-from-bottom-1">
-                <div className="flex items-center gap-4">
-                  <div className="text-sm font-semibold">
-                    Total: {formatCurrency(selectedTotal)}
-                  </div>
-                </div>
-              </div>
-          )}
+        <TasksTableActionBar table={table} onBulkAction={onBulkAction} />
 
-          <TasksTableActionBar table={table} onBulkAction={onBulkAction} />
-
-          <TabsContent value={currentTab}>
-            <div className="overflow-hidden rounded-md border">
-              <Table>
-                <TableHeader className="sticky top-0 z-10">
-                  {table.getHeaderGroups().map((headerGroup) => (
-                      <TableRow key={headerGroup.id}>
-                        {headerGroup.headers.map((header) => (
-                            <TableHead key={header.id}>
-                              {header.isPlaceholder
-                                  ? null
-                                  : flexRender(
-                                      header.column.columnDef.header,
-                                      header.getContext(),
-                                  )}
-                            </TableHead>
-                        ))}
-                      </TableRow>
-                  ))}
-                </TableHeader>
-                <TableBody>
-                  {isLoading ? (
-                      <TableRow>
-                        <TableCell
-                            colSpan={columns.length}
-                            className="h-24 text-center"
-                        >
-                          Loading...
+        <TabsContent value={currentTab}>
+          <div className="overflow-hidden rounded-md border">
+            <Table>
+              <TableHeader className="sticky top-0 z-10">
+                {table.getHeaderGroups().map((headerGroup) => (
+                  <TableRow key={headerGroup.id}>
+                    {headerGroup.headers.map((header) => (
+                      <TableHead key={header.id}>
+                        {header.isPlaceholder
+                          ? null
+                          : flexRender(
+                            header.column.columnDef.header,
+                            header.getContext(),
+                          )}
+                      </TableHead>
+                    ))}
+                  </TableRow>
+                ))}
+              </TableHeader>
+              <TableBody>
+                {isLoading ? (
+                  <TableRow>
+                    <TableCell
+                      colSpan={columns.length}
+                      className="h-24 text-center"
+                    >
+                      Loading...
+                    </TableCell>
+                  </TableRow>
+                ) : table.getRowModel().rows.length > 0 ? (
+                  table.getRowModel().rows.map((row) => (
+                    <TableRow
+                      key={row.id}
+                      data-state={row.getIsSelected() && "selected"}
+                    >
+                      {row.getVisibleCells().map((cell) => (
+                        <TableCell key={cell.id}>
+                          {flexRender(
+                            cell.column.columnDef.cell,
+                            cell.getContext(),
+                          )}
                         </TableCell>
-                      </TableRow>
-                  ) : table.getRowModel().rows.length > 0 ? (
-                      table.getRowModel().rows.map((row) => (
-                          <TableRow
-                              key={row.id}
-                              data-state={row.getIsSelected() && "selected"}
-                          >
-                            {row.getVisibleCells().map((cell) => (
-                                <TableCell key={cell.id}>
-                                  {flexRender(
-                                      cell.column.columnDef.cell,
-                                      cell.getContext(),
-                                  )}
-                                </TableCell>
-                            ))}
-                          </TableRow>
-                      ))
-                  ) : (
-                      <TableRow>
-                        <TableCell
-                            colSpan={columns.length}
-                            className="h-24 text-center text-muted-foreground"
-                        >
-                          {currentTab === "PENDING"
-                              ? "No pending requests."
-                              : "No approved requests."}
-                        </TableCell>
-                      </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-            </div>
-            <DataTablePagination table={table} />
-          </TabsContent>
-        </Tabs>
-      </div>
+                      ))}
+                    </TableRow>
+                  ))
+                ) : (
+                  <TableRow>
+                    <TableCell
+                      colSpan={columns.length}
+                      className="h-24 text-center text-muted-foreground"
+                    >
+                      {currentTab === "PENDING"
+                        ? "No pending requests."
+                        : "No approved requests."}
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </div>
+          <DataTablePagination table={table} />
+        </TabsContent>
+      </Tabs>
+    </div>
   );
 }

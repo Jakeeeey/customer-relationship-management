@@ -355,3 +355,70 @@ html.theme-switching * {
     appearance: textfield;
   }
 }
+
+/* ============================================================
+   LEAFLET THEME OVERRIDES
+   - Uses CSS variables to automatically adapt to light/dark modes
+   - Includes aggressive selectors for dark mode portability
+   ============================================================ */
+.leaflet-container {
+  background: hsl(var(--background)) !important;
+  font-family: inherit !important;
+}
+
+/* Fallback for the popup wrapper */
+.leaflet-popup-content-wrapper,
+.leaflet-popup-tip {
+  background-color: hsl(var(--popover)) !important;
+  color: hsl(var(--popover-foreground)) !important;
+  box-shadow: 0 3px 14px rgba(0,0,0,0.4) !important;
+}
+
+/* Force dark mode background when .dark is active */
+:is(.dark) .leaflet-popup-content-wrapper,
+:is(.dark) .leaflet-popup-tip,
+html.dark .leaflet-popup-content-wrapper,
+html.dark .leaflet-popup-tip {
+  background-color: hsl(var(--popover)) !important;
+  color: hsl(var(--popover-foreground)) !important;
+}
+
+.leaflet-popup-content {
+  color: hsl(var(--popover-foreground)) !important;
+  margin: 13px 19px !important;
+  line-height: 1.4 !important;
+}
+
+.leaflet-bar,
+.leaflet-bar a {
+  background-color: hsl(var(--popover)) !important;
+  color: hsl(var(--popover-foreground)) !important;
+  border-color: hsl(var(--border)) !important;
+}
+
+.leaflet-bar a:hover {
+  background-color: hsl(var(--accent)) !important;
+  color: hsl(var(--accent-foreground)) !important;
+}
+
+.leaflet-control-attribution {
+  background: hsl(var(--background) / 0.7) !important;
+  color: hsl(var(--muted-foreground)) !important;
+  font-size: 10px !important;
+}
+
+.leaflet-control-attribution a {
+  color: hsl(var(--primary)) !important;
+}
+
+/* Specific Dark Mode Filter for Tiles */
+:is(.dark) .leaflet-tile,
+html.dark .leaflet-tile {
+  filter: invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%) !important;
+}
+
+/* Higher contrast for map labels in dark mode */
+:is(.dark) .leaflet-tile-pane,
+html.dark .leaflet-tile-pane {
+  background-color: #222 !important;
+}

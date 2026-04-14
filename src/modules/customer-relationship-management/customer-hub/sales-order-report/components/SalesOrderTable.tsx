@@ -162,13 +162,13 @@ export function SalesOrderTable({
                                     </TableCell>
                                     <TableCell className="border-r py-1.5 px-2 text-[10px]">{order.created_date?.split("T")[0] || "-"}</TableCell>
                                     <TableCell className="text-right border-r py-1.5 px-2 text-[11px] font-mono">
-                                        {formatCurrency(order.total_amount)}
+                                        {formatCurrency((Number(order.total_amount) || 0) + (Number(order.discount_amount) || 0))}
                                     </TableCell>
                                     <TableCell className="text-right border-r py-1.5 px-2 text-[11px] font-mono text-muted-foreground">
                                         {formatCurrency(order.discount_amount || 0)}
                                     </TableCell>
                                     <TableCell className="text-right border-r py-1.5 px-2 text-[11px] font-mono font-medium">
-                                        {formatCurrency(order.net_amount || 0)}
+                                        {formatCurrency(Number(order.total_amount) || 0)}
                                     </TableCell>
                                     <TableCell className="text-right border-r py-1.5 px-2 text-[11px] font-mono font-bold text-primary">
                                         {formatCurrency(order.allocated_amount)}

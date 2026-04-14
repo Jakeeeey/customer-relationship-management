@@ -80,16 +80,22 @@ export async function POST(req: NextRequest) {
         const uploadData = await uploadRes.json();
         const fileId = uploadData.data.id;
 
+        // 1.5 Dynamic Folder Resolution
+        const folderName = process.env.DIRECTUS_INVOICE_PDF_FOLDER_NAME || "sales_invoice_pdf";
+        const targetFolderId = await getOrCreateFolderId(folderName);
+        const folderWarning = !targetFolderId ? `Folder '${folderName}' could not be resolved. PDF stored in root.` : null;
+
         // 2. PATCH the file to set the folder
-        await fetch(`${DIRECTUS_BASE}/files/${fileId}`, {
-            method: "PATCH",
-            headers: {
-                "Content-Type": "application/json",
-                Authorization: `Bearer ${DIRECTUS_TOKEN}`,
-            },
-            body: JSON.stringify({
-                folder: process.env.DIRECTUS_INVOICE_PDF_FOLDER_ID}),
-        }).catch(err => console.warn("[Save PDF API] Folder patch failed:", err));
+        if (targetFolderId) {
+            await fetch(`${DIRECTUS_BASE}/files/${fileId}`, {
+                method: "PATCH",
+                headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${DIRECTUS_TOKEN}`,
+                },
+                body: JSON.stringify({ folder: targetFolderId }),
+            }).catch(err => console.warn("[Save PDF API] Folder patch failed:", err));
+        }
 
         // 3. Create records in sales_invoice_pdf for EACH invoice
         const archivePromises = invoiceIds.map(async (id, index) => {
@@ -123,10 +129,56 @@ export async function POST(req: NextRequest) {
         const createdRecords = await Promise.all(archivePromises);
         console.log(`[Save PDF API] PDF archived for ${createdRecords.length} invoices.`);
 
-        return NextResponse.json({ success: true, record_ids: createdRecords, file_id: fileId });
+        return NextResponse.json({ success: true, record_ids: createdRecords, file_id: fileId, warning: folderWarning });
 
     } catch (err: unknown) {
         console.error("[Save PDF API] Catch Error:", err);
         return NextResponse.json({ error: "Internal Server Error", details: err instanceof Error ? err.message : String(err) }, { status: 500 });
     }
 }
+
+/**
+ * Directus Folder Utility (Inlined)
+ */
+async function getOrCreateFolderId(folderName: string): Promise<string | null> {
+    const DIRECTUS_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
+    const DIRECTUS_TOKEN = process.env.DIRECTUS_STATIC_TOKEN;
+
+    if (!DIRECTUS_URL || !DIRECTUS_TOKEN) {
+        console.error("[Directus Folders] Missing API URL or Static Token.");
+        return null;
+    }
+
+    try {
+        const searchUrl = `${DIRECTUS_URL}/folders?filter[name][_eq]=${encodeURIComponent(folderName)}&fields=id`;
+        const searchRes = await fetch(searchUrl, {
+            headers: { Authorization: `Bearer ${DIRECTUS_TOKEN}` },
+            cache: "no-store",
+        });
+
+        if (!searchRes.ok) return null;
+
+        const searchResult = await searchRes.json();
+        if (searchResult.data && searchResult.data.length > 0) {
+            return searchResult.data[0].id;
+        }
+
+        const createRes = await fetch(`${DIRECTUS_URL}/folders`, {
+            method: "POST",
+            headers: {
+                Authorization: `Bearer ${DIRECTUS_TOKEN}`,
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ name: folderName }),
+        });
+
+        if (!createRes.ok) return null;
+
+        const createdResult = await createRes.json();
+        return createdResult.data?.id || null;
+    } catch (error) {
+        console.error(`[Directus Folders] Error for '${folderName}':`, error);
+        return null;
+    }
+}
+

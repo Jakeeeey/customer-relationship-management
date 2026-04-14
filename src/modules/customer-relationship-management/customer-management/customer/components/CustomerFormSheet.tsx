@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { CreditCard, Loader2, Users, Building2, MapPin, Receipt, Check, ChevronsUpDown, Plus } from "lucide-react";
+import { CreditCard, Loader2, Users, Building2, MapPin, Receipt, Check, ChevronsUpDown, Plus, AlertCircle, ArrowRight } from "lucide-react";
 import { useForm, Resolver, SubmitHandler } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -9,6 +9,9 @@ import * as z from "zod";
 import {
     Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle
 } from "@/components/ui/sheet";
+import {
+    Alert, AlertDescription, AlertTitle
+} from "@/components/ui/alert";
 import {
     Form, FormControl, FormField, FormItem, FormLabel, FormMessage
 } from "@/components/ui/form";
@@ -22,7 +25,11 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { CustomerWithRelations } from "../types";
+import { Badge } from "@/components/ui/badge";
+import {
+    Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
+import { CustomerWithRelations, PaymentTerm, ReferenceOption } from "../types";
 import { BankAccountManager } from "./BankAccountManager";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -30,10 +37,6 @@ import { cn } from "@/lib/utils";
 // ============================================================================
 // TYPES & INTERFACES
 // ============================================================================
-interface ReferenceOption {
-    id: number | string;
-    name: string;
-}
 
 interface CreatableComboboxProps {
     items: ReferenceOption[];
@@ -192,9 +195,24 @@ const customerSchema = z.object({
     store_type: z.coerce.number().nullable(),
     classification: z.coerce.number().nullable(),
     price_type: z.string(),
-    isActive: z.coerce.number(), isVAT: z.coerce.number(), isEWT: z.coerce.number(),
     discount_type: z.coerce.number().nullable(),
     encoder_id: z.number(),
+    isActive: z.coerce.number().default(1),
+    isVAT: z.coerce.number().default(0),
+    isEWT: z.coerce.number().default(0),
+    bank_accounts: z.array(z.object({
+        id: z.number().optional(),
+        customer_id: z.number().optional(),
+        bank_name: z.coerce.number(),
+        account_name: z.string().min(1, "Account name is required"),
+        account_number: z.string().min(1, "Account number is required"),
+        account_type: z.enum(["Savings", "Checking", "Other"]),
+        branch_of_account: z.string().optional().nullable(),
+        is_primary: z.coerce.number().default(0),
+        notes: z.string().optional().nullable(),
+        created_at: z.string().optional(),
+        updated_at: z.string().optional(),
+    })).default([]),
 });
 
 type CustomerFormValues = z.infer<typeof customerSchema>;
@@ -211,7 +229,7 @@ const getDefaultValues = (): CustomerFormValues => ({
     customer_code: "", customer_name: "", store_name: "", store_signage: "", contact_number: "",
     customer_email: "", brgy: "", city: "", province: "", tel_number: "", customer_tin: "",
     payment_term: 0, store_type: null, classification: null, price_type: "", isActive: 1, isVAT: 0, isEWT: 0,
-    discount_type: null, type: "Regular", user_id: null, encoder_id: 1,
+    discount_type: null, type: "Regular", user_id: null, encoder_id: 1, bank_accounts: [],
 });
 
 // ============================================================================
@@ -227,6 +245,8 @@ export function CustomerFormSheet({
     const [activeTab, setActiveTab] = useState(defaultTab);
     const [storeTypes, setStoreTypes] = useState<ReferenceOption[]>([]);
     const [classifications, setClassifications] = useState<ReferenceOption[]>([]);
+    const [paymentTerms, setPaymentTerms] = useState<PaymentTerm[]>([]);
+    const [bankNames, setBankNames] = useState<ReferenceOption[]>([]);
 
     // 🚀 PSGC API States
     const [provincesList, setProvincesList] = useState<LocationOption[]>([]);
@@ -237,6 +257,8 @@ export function CustomerFormSheet({
     const [isLoadingProvinces, setIsLoadingProvinces] = useState(false);
     const [isLoadingCities, setIsLoadingCities] = useState(false);
     const [isLoadingBarangays, setIsLoadingBarangays] = useState(false);
+    const [isLoadingPaymentTerms, setIsLoadingPaymentTerms] = useState(false);
+    const [isLoadingBankNames, setIsLoadingBankNames] = useState(false);
 
     const form = useForm<CustomerFormValues>({
         resolver: zodResolver(customerSchema) as Resolver<CustomerFormValues>,
@@ -375,6 +397,59 @@ export function CustomerFormSheet({
         return () => { isMounted = false; };
     }, [open]);
 
+    // 4. Fetch Payment Terms from Directus
+    useEffect(() => {
+        if (!open) return;
+        let isMounted = true;
+
+        const fetchPaymentTerms = async () => {
+            setIsLoadingPaymentTerms(true);
+            try {
+                const res = await fetch("/api/crm/customer/references?type=payment_term");
+                if (!res.ok) throw new Error("Failed to fetch payment terms");
+                const json = await res.json();
+                if (isMounted) {
+                    setPaymentTerms(json.data || []);
+                }
+            } catch (err) {
+                console.error("Failed to fetch payment terms", err);
+            } finally {
+                if (isMounted) setIsLoadingPaymentTerms(false);
+            }
+        };
+
+        fetchPaymentTerms();
+        return () => { isMounted = false; };
+    }, [open]);
+
+    // 5. Fetch Bank Names
+    useEffect(() => {
+        if (!open) return;
+        let isMounted = true;
+
+        const fetchBankNames = async () => {
+            setIsLoadingBankNames(true);
+            try {
+                const res = await fetch("/api/crm/customer/references?type=bank_name");
+                if (!res.ok) throw new Error("Failed to fetch bank names");
+                const json = await res.json();
+                if (isMounted) {
+                    setBankNames(json.data?.map((item: { id: number; bank_name: string }) => ({
+                        id: item.id,
+                        name: item.bank_name
+                    })) || []);
+                }
+            } catch (err) {
+                console.error("Failed to fetch bank names", err);
+            } finally {
+                if (isMounted) setIsLoadingBankNames(false);
+            }
+        };
+
+        fetchBankNames();
+        return () => { isMounted = false; };
+    }, [open]);
+
     useEffect(() => {
         if (open) {
             if (customer) {
@@ -397,7 +472,8 @@ export function CustomerFormSheet({
                     type: customer.type || "Regular",
                     user_id: customer.user_id || null,
                     encoder_id: customer.encoder_id || 1,
-                    classification: (customer as CustomerWithRelations & { classification?: number | null }).classification || null
+                    classification: customer.classification || null,
+                    bank_accounts: customer.bank_accounts || [],
                 });
             } else {
                 form.reset(getDefaultValues());
@@ -413,6 +489,48 @@ export function CustomerFormSheet({
             toast.error("Failed to save customer. Please try again.");
         }
     };
+
+    // Helper to count errors per tab
+    const getTabErrorCount = (tab: string) => {
+        const errorKeys = Object.keys(form.formState.errors);
+        if (errorKeys.length === 0) return 0;
+
+        switch (tab) {
+            case "basic":
+                return errorKeys.filter(k =>
+                    ["customer_code", "customer_name", "store_type", "classification", "store_name", "store_signage"].includes(k)
+                ).length;
+            case "address":
+                return errorKeys.filter(k =>
+                    ["province", "city", "brgy", "contact_number", "tel_number", "customer_email"].includes(k)
+                ).length;
+            case "billing":
+                return errorKeys.filter(k =>
+                    ["payment_term", "price_type", "isActive", "isVAT", "isEWT"].includes(k)
+                ).length;
+            case "bank":
+                return form.formState.errors.bank_accounts ? 1 : 0;
+            default:
+                return 0;
+        }
+    };
+
+    const TabBadge = ({ count }: { count: number }) => {
+        if (count === 0) return null;
+        return (
+            <Badge variant="destructive" className="ml-2 h-4 w-4 p-0 flex items-center justify-center text-[10px] animate-in zoom-in">
+                {count}
+            </Badge>
+        );
+    };
+
+    const navigateToFirstError = () => {
+        if (getTabErrorCount("basic") > 0) setActiveTab("basic");
+        else if (getTabErrorCount("address") > 0) setActiveTab("address");
+        else if (getTabErrorCount("billing") > 0) setActiveTab("billing");
+    };
+
+    const hasExternalErrors = getTabErrorCount("basic") > 0 || getTabErrorCount("address") > 0 || getTabErrorCount("billing") > 0;
 
     const onFormError = () => {
         toast.error("Please fill in all required fields in the highlighted tabs.");
@@ -483,20 +601,56 @@ export function CustomerFormSheet({
                           className="flex flex-col flex-1 min-h-0 overflow-hidden">
                         <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0">
 
-                            <div className="px-6 md:px-8 pt-4 shrink-0 bg-background z-10">
+                            <div className="px-6 md:px-8 pt-4 shrink-0 bg-background z-10 space-y-4">
+                                {defaultTab === "bank" && hasExternalErrors && (
+                                    <Alert variant="destructive" className="bg-destructive/5 border-destructive/20 animate-in slide-in-from-top-2 duration-300">
+                                        <AlertCircle className="h-4 w-4" />
+                                        <AlertTitle className="text-sm font-black uppercase tracking-tight">Profile Incomplete</AlertTitle>
+                                        <AlertDescription className="flex items-center justify-between gap-4 mt-1">
+                                            <span className="text-xs font-bold leading-relaxed">
+                                                This customer has missing required information in other sections. Please complete them to save changes.
+                                            </span>
+                                            <Button 
+                                                type="button" 
+                                                variant="destructive" 
+                                                size="sm" 
+                                                onClick={navigateToFirstError}
+                                                className="h-8 px-3 text-[10px] font-black uppercase tracking-widest rounded-lg shrink-0"
+                                            >
+                                                Fix Issues <ArrowRight className="ml-1.5 h-3 w-3" />
+                                            </Button>
+                                        </AlertDescription>
+                                    </Alert>
+                                )}
+
                                 <TabsList className="grid w-full grid-cols-4 h-auto p-1 bg-muted/50 rounded-xl">
                                     <TabsTrigger value="basic"
-                                                 className="py-2.5 text-xs font-bold uppercase tracking-widest rounded-lg"><Building2
-                                        className="w-3.5 h-3.5 mr-2 hidden md:block" /> Basic</TabsTrigger>
+                                                 disabled={defaultTab === "bank" && getTabErrorCount("basic") === 0}
+                                                 className="py-2.5 text-xs font-bold uppercase tracking-widest rounded-lg flex items-center justify-center">
+                                        <Building2 className="w-3.5 h-3.5 mr-2 hidden md:block" />
+                                        Basic
+                                        <TabBadge count={getTabErrorCount("basic")} />
+                                    </TabsTrigger>
                                     <TabsTrigger value="address"
-                                                 className="py-2.5 text-xs font-bold uppercase tracking-widest rounded-lg"><MapPin
-                                        className="w-3.5 h-3.5 mr-2 hidden md:block" /> Location</TabsTrigger>
+                                                 disabled={defaultTab === "bank" && getTabErrorCount("address") === 0}
+                                                 className="py-2.5 text-xs font-bold uppercase tracking-widest rounded-lg flex items-center justify-center">
+                                        <MapPin className="w-3.5 h-3.5 mr-2 hidden md:block" />
+                                        Location
+                                        <TabBadge count={getTabErrorCount("address")} />
+                                    </TabsTrigger>
                                     <TabsTrigger value="billing"
-                                                 className="py-2.5 text-xs font-bold uppercase tracking-widest rounded-lg"><Receipt
-                                        className="w-3.5 h-3.5 mr-2 hidden md:block" /> Billing</TabsTrigger>
+                                                 disabled={defaultTab === "bank" && getTabErrorCount("billing") === 0}
+                                                 className="py-2.5 text-xs font-bold uppercase tracking-widest rounded-lg flex items-center justify-center">
+                                        <Receipt className="w-3.5 h-3.5 mr-2 hidden md:block" />
+                                        Billing
+                                        <TabBadge count={getTabErrorCount("billing")} />
+                                    </TabsTrigger>
                                     <TabsTrigger value="bank"
-                                                 className="py-2.5 text-xs font-bold uppercase tracking-widest rounded-lg"><CreditCard
-                                        className="w-3.5 h-3.5 mr-2 hidden md:block" /> Bank</TabsTrigger>
+                                                 className="py-2.5 text-xs font-bold uppercase tracking-widest rounded-lg flex items-center justify-center">
+                                        <CreditCard className="w-3.5 h-3.5 mr-2 hidden md:block" />
+                                        Bank
+                                        <TabBadge count={getTabErrorCount("bank")} />
+                                    </TabsTrigger>
                                 </TabsList>
                             </div>
 
@@ -637,10 +791,30 @@ export function CustomerFormSheet({
                                              className="space-y-6 m-0 animate-in fade-in slide-in-from-bottom-2">
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                         <FormField control={form.control} name="payment_term" render={({ field }) => (
-                                            <FormItem><FormLabel
-                                                className="font-bold uppercase text-xs text-muted-foreground">Payment
-                                                Term (Days)</FormLabel><FormControl><Input className="h-11 bg-muted/30"
-                                                                                           type="number" {...field} /></FormControl><FormMessage /></FormItem>
+                                            <FormItem>
+                                                <FormLabel className="font-bold uppercase text-xs text-muted-foreground">
+                                                    Payment Term
+                                                </FormLabel>
+                                                <Select
+                                                    disabled={isLoadingPaymentTerms}
+                                                    onValueChange={(val) => field.onChange(Number(val))}
+                                                    value={field.value ? String(field.value) : ""}
+                                                >
+                                                    <FormControl>
+                                                        <SelectTrigger className="h-11 bg-muted/30">
+                                                            <SelectValue placeholder={isLoadingPaymentTerms ? "Loading terms..." : "Select payment term"} />
+                                                        </SelectTrigger>
+                                                    </FormControl>
+                                                    <SelectContent>
+                                                        {paymentTerms.map((term) => (
+                                                            <SelectItem key={term.id} value={String(term.id)}>
+                                                                {term.payment_name}
+                                                            </SelectItem>
+                                                        ))}
+                                                    </SelectContent>
+                                                </Select>
+                                                <FormMessage />
+                                            </FormItem>
                                         )} />
                                         <FormField control={form.control} name="price_type" render={({ field }) => (
                                             <FormItem><FormLabel
@@ -683,23 +857,12 @@ export function CustomerFormSheet({
                                 </TabsContent>
 
                                 <TabsContent value="bank" className="m-0 animate-in fade-in slide-in-from-bottom-2">
-                                    {customer?.id ? (
-                                        <BankAccountManager customerId={customer.id} />
-                                    ) : (
-                                        <div
-                                            className="flex flex-col items-center justify-center py-24 px-4 border-2 border-dashed border-border/60 rounded-2xl bg-muted/10 text-center">
-                                            <div
-                                                className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center mb-4">
-                                                <CreditCard className="h-8 w-8 text-primary" />
-                                            </div>
-                                            <h4 className="font-black text-lg uppercase tracking-widest text-foreground mb-2">Save
-                                                Customer First</h4>
-                                            <p className="text-sm font-medium text-muted-foreground max-w-[320px]">
-                                                You need to create and save this customer profile before attaching bank
-                                                accounts.
-                                            </p>
-                                        </div>
-                                    )}
+                                    <BankAccountManager 
+                                        accounts={form.watch("bank_accounts") || []} 
+                                        banks={bankNames}
+                                        onAccountsChange={(accounts) => form.setValue("bank_accounts", accounts, { shouldDirty: true })}
+                                        isLoading={isLoadingBankNames}
+                                    />
                                 </TabsContent>
                             </div>
                         </Tabs>

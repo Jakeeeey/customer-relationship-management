@@ -641,9 +641,16 @@ export const ConvertToInvoiceModal: React.FC<ConvertToInvoiceModalProps> = ({
                     fetch(`${INVOICING_API_BASE}/save-pdf`, {
                         method: "POST",
                         body: uploadFormData
-                    }).then(res => {
-                        if (res.ok) console.log("[Archive] PDF successfully archived to server.");
-                        else console.error("[Archive] Failed to archive PDF.");
+                    }).then(async (res) => {
+                        const data = await res.json();
+                        if (res.ok) {
+                            console.log("[Archive] PDF successfully archived to server.");
+                            if (data.warning) {
+                                toast.info(data.warning, { duration: 8000 });
+                            }
+                        } else {
+                            console.error("[Archive] Failed to archive PDF.");
+                        }
                     }).catch(_e => console.error("[Archive] Network error during archiving:", _e));
                     
                 } catch (archiveErr) {
