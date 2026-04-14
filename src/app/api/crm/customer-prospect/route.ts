@@ -26,7 +26,7 @@ export async function GET(req: NextRequest) {
         params.append("limit", pageSize.toString());
         params.append("offset", offset.toString());
         params.append("meta", "*");
-        params.append("fields", "*,salesman_id.salesman_name,user_updated.first_name,user_updated.last_name"); // Join salesman name & updated by
+        params.append("fields", "*,salesman_id.salesman_name,salesman_id.salesman_code,user_updated.first_name,user_updated.last_name"); // Join salesman name, code & updated by
 
         if (searchQuery) {
             params.append("filter[_or][0][customer_name][_icontains]", searchQuery);
@@ -54,12 +54,13 @@ export async function GET(req: NextRequest) {
 
         // Flatten salesman name for easier use in frontend
         const prospects = (json.data || []).map((p: { 
-            salesman_id?: { salesman_name?: string }; 
+            salesman_id?: { salesman_name?: string; salesman_code?: string }; 
             user_updated?: { first_name?: string; last_name?: string };
             [key: string]: unknown;
         }) => ({
             ...p,
             salesman_name: p.salesman_id?.salesman_name || "Unknown Salesman",
+            salesman_code: p.salesman_id?.salesman_code || null,
             updated_by_name: p.user_updated ? `${p.user_updated.first_name || ''} ${p.user_updated.last_name || ''}`.trim() : null
         }));
 
@@ -132,6 +133,34 @@ export async function POST(req: NextRequest) {
                 }
             }
 
+            // 2c. Handle Customer Code Generation
+            let finalCustomerCode = prospect.customer_code;
+            if (!finalCustomerCode || finalCustomerCode === "AUTO-ASSIGN" || finalCustomerCode.trim() === "") {
+                try {
+                    // Fetch latest customers to determine next number
+                    const latestRes = await fetch(`${DIRECTUS_URL}/items/${COLLECTIONS.CUSTOMER}?sort=-customer_code&limit=1`, {
+                        headers: { Authorization: `Bearer ${DIRECTUS_TOKEN}` }
+                    });
+                    if (latestRes.ok) {
+                        const { data: latestCustomers } = await latestRes.json();
+                        let nextNum = 1;
+                        if (latestCustomers && latestCustomers.length > 0) {
+                            const lastCode = latestCustomers[0].customer_code;
+                            const match = lastCode.match(/CUST-(\d+)/);
+                            if (match) {
+                                nextNum = parseInt(match[1]) + 1;
+                            }
+                        }
+                        finalCustomerCode = `CUST-${nextNum.toString().padStart(5, '0')}`;
+                    } else {
+                        finalCustomerCode = `CUST-00001`;
+                    }
+                } catch (err) {
+                    console.error("DEBUG: Failed to generate code, defaulting to timestamp", err);
+                    finalCustomerCode = `CUST-${Date.now().toString().slice(-5)}`;
+                }
+            }
+
             // CRITICAL FIX: Ensure mandatory fields are not null for the customer collection
             // Defaulting store_type to 1 (Department Store) if missing, as it's a mandatory field
             const finalStoreType = prospect.store_type || 1;
@@ -140,6 +169,7 @@ export async function POST(req: NextRequest) {
 
             console.log("DEBUG: Creating customer with data:", JSON.stringify({ 
                 ...customerData, 
+                customer_code: finalCustomerCode,
                 store_type: finalStoreType,
                 price_type: finalPriceType,
                 payment_term: finalPaymentTerm,
@@ -154,6 +184,7 @@ export async function POST(req: NextRequest) {
                 },
                 body: JSON.stringify({
                     ...customerData,
+                    customer_code: finalCustomerCode,
                     store_type: finalStoreType,
                     price_type: finalPriceType,
                     payment_term: finalPaymentTerm,
@@ -205,3 +236,49 @@ export async function POST(req: NextRequest) {
         }, { status: 500 });
     }
 }
+
+export async function PATCH(req: NextRequest) {
+    const DIRECTUS_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
+    const DIRECTUS_TOKEN = process.env.DIRECTUS_STATIC_TOKEN;
+    
+    if (!DIRECTUS_TOKEN) {
+        return NextResponse.json({ error: "Server Configuration Error" }, { status: 500 });
+    }
+
+    try {
+        const body = await req.json();
+        const { id, ...updateData } = body;
+
+        if (!id) {
+            return NextResponse.json({ error: "ID is required" }, { status: 400 });
+        }
+
+        // Protect specific fields from being updated via this route
+        delete updateData.payment_term;
+        delete updateData.discount_type;
+        delete updateData.prospect_status;
+
+        const updateRes = await fetch(`${DIRECTUS_URL}/items/${COLLECTIONS.PROSPECT}/${id}`, {
+            method: "PATCH",
+            headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${DIRECTUS_TOKEN}`
+            },
+            body: JSON.stringify(updateData),
+        });
+
+        if (!updateRes.ok) {
+            const errText = await updateRes.text();
+            throw new Error(`Directus update failed: ${updateRes.status} - ${errText}`);
+        }
+
+        return NextResponse.json({ success: true });
+    } catch (e) {
+        console.error("Prospect API PATCH error:", e);
+        return NextResponse.json({ 
+            error: "Update failed", 
+            message: e instanceof Error ? e.message : "Unknown error" 
+        }, { status: 500 });
+    }
+}
+

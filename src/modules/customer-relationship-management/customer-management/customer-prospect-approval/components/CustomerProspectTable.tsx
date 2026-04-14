@@ -13,19 +13,22 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-    Search, Filter, Check, X, Loader2, ChevronLeft, ChevronRight, MoreHorizontal, User, Store, MapPin, Calendar,
-    Phone, Building, Info, Briefcase, Landmark, ShieldCheck, FileText
-} from "lucide-react";
+import { Search, Filter, Check, X, ChevronLeft, ChevronRight, MoreHorizontal, User, Store, MapPin, Calendar, Phone, Building, Info, Briefcase, Landmark, ShieldCheck, FileText, Edit2, Loader2, Map as MapIcon } from "lucide-react";
 import { CustomerProspect, CustomerProspectsAPIResponse, DiscountType, Salesman, StoreType, PaymentTerm, CustomerClassification } from "../types";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "./StatusBadge";
-import { SearchableSelect } from "@/components/ui/searchable-select";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { SearchableSelect } from "./SearchableSelect";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
+import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
+import { ProspectMapViewer } from "./ProspectMapViewer";
+import { SimilarCustomerWarning } from "./SimilarCustomerWarning";
+import { CustomerComparisonModal } from "./CustomerComparisonModal";
+import { findPotentialMatches, SimilarityGroup, Customer } from "../utils/similarity";
+import { parseApiError } from "../utils/error-parser";
+
 
 interface CustomerProspectTableProps {
     data: CustomerProspect[];
@@ -45,6 +48,7 @@ interface CustomerProspectTableProps {
     onSalesmanChange: (salesmanId: string) => void;
     onApprove: (id: number) => Promise<void>;
     onReject: (id: number) => Promise<void>;
+    onUpdate: (id: number, data: Partial<CustomerProspect>) => Promise<void>;
     storeTypes: StoreType[];
     paymentTerms: PaymentTerm[];
     classifications: CustomerClassification[];
@@ -53,14 +57,34 @@ interface CustomerProspectTableProps {
 export function CustomerProspectTable({
     data, discountTypes, salesmen, storeTypes, paymentTerms, classifications, isLoading, metadata, page, pageSize,
     searchQuery: parentSearchQuery, statusFilter, salesmanFilter,
-    onPageChange, onPageSizeChange: _onPageSizeChange, onSearchChange, onStatusChange, onSalesmanChange, // eslint-disable-line @typescript-eslint/no-unused-vars
-    onApprove, onReject,
+    onPageChange, onSearchChange, onStatusChange, onSalesmanChange, 
+    onApprove, onReject, onUpdate,
 }: CustomerProspectTableProps) {
     const [localSearchQuery, setLocalSearchQuery] = useState(parentSearchQuery);
     const [processingId, setProcessingId] = useState<number | null>(null);
     const [selectedProspect, setSelectedProspect] = useState<CustomerProspect | null>(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isZoomOpen, setIsZoomOpen] = useState(false);
+
+    // Edit State
+    const [isEditing, setIsEditing] = useState(false);
+    const [editForm, setEditForm] = useState<Partial<CustomerProspect>>({});
+    const [isUpdating, setIsUpdating] = useState(false);
+
+    // Duplicate Detection State
+    const [similarGroups, setSimilarGroups] = useState<SimilarityGroup[]>([]);
+    const [isComparisonOpen, setIsComparisonOpen] = useState(false);
+    const [activeComparisonGroup, setActiveComparisonGroup] = useState<SimilarityGroup | null>(null);
+
+    // PSGC Location States
+    const [provincesList, setProvincesList] = useState<{code: string, name: string}[]>([]);
+    const [citiesList, setCitiesList] = useState<{code: string, name: string}[]>([]);
+    const [barangaysList, setBarangaysList] = useState<{code: string, name: string}[]>([]);
+    
+    // Loading States
+    const [isLoadingProvinces, setIsLoadingProvinces] = useState(false);
+    const [isLoadingCities, setIsLoadingCities] = useState(false);
+    const [isLoadingBarangays, setIsLoadingBarangays] = useState(false);
 
     useEffect(() => {
         const handler = setTimeout(() => {
@@ -82,7 +106,7 @@ export function CustomerProspectTable({
                 toast.error("Prospect Rejected", { description: "The prospect request has been denied." });
             }
         } catch (err) {
-            const errorMessage = err instanceof Error ? err.message : "Something went wrong. Please try again.";
+            const errorMessage = parseApiError(err);
             toast.error("Operation Failed", { description: errorMessage });
         } finally {
             setProcessingId(null);
@@ -90,10 +114,190 @@ export function CustomerProspectTable({
         }
     };
 
-    const handleView = (prospect: CustomerProspect) => {
+    const handleView = async (prospect: CustomerProspect) => {
         setSelectedProspect(prospect);
+        setIsEditing(false);
+        setEditForm({});
         setIsModalOpen(true);
+        
+        // Trigger duplicate scan when viewing
+        checkForDuplicates(prospect);
     };
+
+    const checkForDuplicates = async (prospect: CustomerProspect) => {
+        setSimilarGroups([]);
+        try {
+            // Fetch all customers to scan against
+            const res = await fetch("/api/crm/customer/scan?limit=1000");
+            if (!res.ok) throw new Error("Failed to fetch customer scan data");
+            
+            const { customers } = await res.json();
+            
+            // source needs to be cast to Partial<Customer> for findPotentialMatches
+            const matches = findPotentialMatches(prospect, customers);
+            setSimilarGroups(matches);
+        } catch (err) {
+            console.error("Duplicate check failed:", err);
+            // We don't block the UI if duplicate check fails
+        } finally {
+            // Duplicate check complete
+        }
+    };
+
+    const handleStartEdit = () => {
+        if (!selectedProspect) return;
+        setIsEditing(true);
+        setEditForm({
+            customer_name: selectedProspect.customer_name,
+            store_name: selectedProspect.store_name,
+            store_type: selectedProspect.store_type,
+            brgy: selectedProspect.brgy,
+            city: selectedProspect.city,
+            province: selectedProspect.province,
+            customer_tin: selectedProspect.customer_tin,
+            classification: selectedProspect.classification,
+        });
+    };
+
+    const handleCancelEdit = () => {
+        setIsEditing(false);
+        setEditForm({});
+    };
+
+    // --- PSGC FETCHING LOGIC ---
+    useEffect(() => {
+        if (!isEditing || !isModalOpen) return;
+        const fetchProvinces = async () => {
+            if (provincesList.length > 0) return;
+            setIsLoadingProvinces(true);
+            try {
+                const res = await fetch("https://psgc.gitlab.io/api/provinces/");
+                if (!res.ok) throw new Error("Failed to fetch provinces");
+                const data = await res.json();
+                setProvincesList(data.map((p: { code: string; name: string }) => ({ code: p.code, name: p.name })));
+            } catch (err) {
+                console.error("PSGC Error:", err);
+            } finally {
+                setIsLoadingProvinces(false);
+            }
+        };
+        fetchProvinces();
+    }, [isEditing, isModalOpen, provincesList.length]);
+
+    // Utility for fuzzy matching geographic names
+    const fuzzyMatch = (stored: string, apiName: string) => {
+        if (!stored || !apiName) return false;
+        
+        const normalize = (s: string) => s.toLowerCase().trim()
+            .replace(/\s+/g, ' ')      // Normalize spaces
+            .replace(/-/g, ' ')        // Treat hyphens as spaces
+            .replace(/^city of\s+/i, '') // Remove "City of " prefix for comparison
+            .trim();
+
+        const sNormalized = normalize(stored);
+        const aNormalized = normalize(apiName);
+        
+        return sNormalized === aNormalized || sNormalized.includes(aNormalized) || aNormalized.includes(sNormalized);
+    };
+
+    useEffect(() => {
+        if (!isEditing || !editForm.province || provincesList.length === 0) {
+            setCitiesList([]);
+            return;
+        }
+
+        // Fuzzy match for the province
+        const provObj = provincesList.find(p => fuzzyMatch(editForm.province || "", p.name));
+        if (!provObj) return;
+
+        // Standardize the casing in editForm so SearchableSelect highlights the correct option
+        if (provObj.name !== editForm.province) {
+            setEditForm(prev => ({ ...prev, province: provObj.name }));
+        }
+
+        const fetchCities = async () => {
+            setIsLoadingCities(true);
+            try {
+                const res = await fetch(`https://psgc.gitlab.io/api/provinces/${provObj.code}/cities-municipalities/`);
+                if (!res.ok) throw new Error("Failed to fetch cities");
+                const data = await res.json();
+                setCitiesList(data.map((c: { code: string; name: string }) => ({ code: c.code, name: c.name })));
+            } catch (err) {
+                console.error("PSGC Error:", err);
+            } finally {
+                setIsLoadingCities(false);
+            }
+        };
+        fetchCities();
+    }, [isEditing, editForm.province, provincesList]);
+
+    useEffect(() => {
+        if (!isEditing || !editForm.city || citiesList.length === 0) {
+            setBarangaysList([]);
+            return;
+        }
+
+        // Fuzzy match for the city
+        const cityObj = citiesList.find(c => fuzzyMatch(editForm.city || "", c.name));
+        if (!cityObj) return;
+
+        // Standardize the casing in editForm
+        if (cityObj.name !== editForm.city) {
+            setEditForm(prev => ({ ...prev, city: cityObj.name }));
+        }
+
+        const fetchBarangays = async () => {
+            setIsLoadingBarangays(true);
+            try {
+                const res = await fetch(`https://psgc.gitlab.io/api/cities-municipalities/${cityObj.code}/barangays/`);
+                if (!res.ok) throw new Error("Failed to fetch barangays");
+                const data = await res.json();
+                setBarangaysList(data.map((b: { code: string; name: string }) => ({ code: b.code, name: b.name })));
+            } catch (err) {
+                console.error("PSGC Error:", err);
+            } finally {
+                setIsLoadingBarangays(false);
+            }
+        };
+        fetchBarangays();
+    }, [isEditing, editForm.city, citiesList]);
+
+    useEffect(() => {
+        if (!isEditing || !editForm.brgy || barangaysList.length === 0) return;
+
+        // Fuzzy match for the barangay object to standardize casing
+        const brgyObj = barangaysList.find(b => fuzzyMatch(editForm.brgy || "", b.name));
+        if (brgyObj && brgyObj.name !== editForm.brgy) {
+            setEditForm(prev => ({ ...prev, brgy: brgyObj.name }));
+        }
+    }, [isEditing, editForm.brgy, barangaysList]);
+    // ----------------------------
+
+    const handleSaveChanges = async () => {
+        if (!selectedProspect) return;
+        setIsUpdating(true);
+        try {
+            await onUpdate(selectedProspect.id, editForm);
+            
+            // Update selected prospect locally to reflect changes in modal
+            setSelectedProspect({
+                ...selectedProspect,
+                ...editForm,
+                // Ensure number types are correctly handled if they came from strings in select
+                store_type: editForm.store_type ? Number(editForm.store_type) : selectedProspect.store_type,
+                classification: editForm.classification ? Number(editForm.classification) : selectedProspect.classification,
+            });
+
+            toast.success("Prospect updated", { description: "Information has been successfully updated." });
+            setIsEditing(false);
+        } catch (err) {
+            toast.error("Update failed", { description: parseApiError(err) });
+        } finally {
+            setIsUpdating(false);
+        }
+    };
+
+    // (Map is now managed entirely by <ProspectMapViewer>)
 
     const totalPages = Math.ceil(metadata.total_count / pageSize) || 1;
 
@@ -111,28 +315,35 @@ export function CustomerProspectTable({
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
-                    <Select value={statusFilter} onValueChange={onStatusChange}>
-                        <SelectTrigger className="h-10 rounded-xl shadow-sm border-border/60 w-[150px] bg-background">
-                            <Filter className="mr-2 h-4 w-4 text-muted-foreground" />
-                            <SelectValue placeholder="Status" />
-                        </SelectTrigger>
-                        <SelectContent className="rounded-xl border-primary/10">
-                            <SelectItem value="all">All Status</SelectItem>
-                            <SelectItem value="Pending">Pending</SelectItem>
-                            <SelectItem value="Approved">Approved</SelectItem>
-                            <SelectItem value="Rejected">Rejected</SelectItem>
-                        </SelectContent>
-                    </Select>
+                    <div className="w-full sm:w-[160px]">
+                        <SearchableSelect
+                            options={[
+                                { value: "all", label: "All Status" },
+                                { value: "Pending", label: "Pending" },
+                                { value: "Approved", label: "Approved" },
+                                { value: "Rejected", label: "Rejected" },
+                            ]}
+                            value={statusFilter}
+                            onValueChange={onStatusChange}
+                            placeholder="Status"
+                            icon={<Filter className="h-4 w-4 text-muted-foreground" />}
+                            className="h-10 rounded-xl shadow-sm border-border/60 bg-background"
+                        />
+                    </div>
 
-                    <div className="flex items-center w-full sm:w-[180px]">
+                    <div className="w-full sm:w-[220px]">
                         <SearchableSelect
                             options={[
                                 { value: "all", label: "All Salesmen" },
-                                ...salesmen.map((s) => ({ value: s.id.toString(), label: s.salesman_name }))
+                                ...salesmen.map((s) => ({ 
+                                    value: s.id.toString(), 
+                                    label: `${s.salesman_name} ${s.salesman_code ? `(${s.salesman_code})` : ""}` 
+                                }))
                             ]}
                             value={salesmanFilter}
                             onValueChange={onSalesmanChange}
                             placeholder="All Salesmen"
+                            icon={<User className="h-4 w-4 text-muted-foreground" />}
                             className="h-10 rounded-xl shadow-sm border-border/60 bg-background"
                         />
                     </div>
@@ -214,10 +425,19 @@ export function CustomerProspectTable({
                                     </TableCell>
                                     <TableCell>
                                         <div className="flex items-center gap-2">
-                                            <div className="h-7 w-7 rounded-full bg-primary/10 flex items-center justify-center text-[10px] font-bold text-primary">
+                                            <div className="h-7 w-7 rounded-full bg-primary/10 flex items-center justify-center text-[10px] font-bold text-primary shrink-0">
                                                 {prospect.salesman_name?.split(' ').map(n => n[0]).join('').slice(0, 2)}
                                             </div>
-                                            <span className="text-sm">{prospect.salesman_name}</span>
+                                            <div className="flex flex-col">
+                                                <span className="text-sm font-medium text-foreground line-clamp-1">
+                                                    {prospect.salesman_name}
+                                                </span>
+                                                {prospect.salesman_code && (
+                                                    <span className="text-[10px] text-muted-foreground font-mono leading-none">
+                                                        {prospect.salesman_code}
+                                                    </span>
+                                                )}
+                                            </div>
                                         </div>
                                     </TableCell>
                                     <TableCell className="text-center">
@@ -292,43 +512,62 @@ export function CustomerProspectTable({
                     {selectedProspect && (
                         <ScrollArea className="max-h-[70vh] pr-4 py-4">
                             <div className="space-y-6">
+                                {/* Duplicate Warning */}
+                                <SimilarCustomerWarning 
+                                    similarGroups={similarGroups} 
+                                    onCompare={(group) => {
+                                        setActiveComparisonGroup(group);
+                                        setIsComparisonOpen(true);
+                                    }}
+                                />
+
                                 {/* Character Profile / Image */}
-                                {selectedProspect.customer_image && (
-                                    <div className="flex justify-center mb-6">
+                                 {selectedProspect.customer_image && (
+                                    <div className="flex justify-center mb-8 pt-2">
                                         <div 
                                             className="relative group cursor-zoom-in"
                                             onClick={() => setIsZoomOpen(true)}
                                             title="Click to zoom"
                                         >
-                                            <div className="absolute -inset-1 bg-gradient-to-r from-primary to-emerald-600 rounded-2xl blur opacity-25 group-hover:opacity-50 transition duration-1000 group-hover:duration-200"></div>
-                                            <div className="relative h-40 w-40 rounded-2xl border-4 border-background overflow-hidden shadow-2xl bg-muted flex items-center justify-center">
+                                            <div className="absolute -inset-2 bg-gradient-to-tr from-primary/30 to-emerald-500/20 rounded-3xl blur-xl opacity-40 group-hover:opacity-60 transition duration-1000 group-hover:duration-200"></div>
+                                            <div className="relative h-44 w-44 rounded-3xl border-4 border-background overflow-hidden shadow-2xl bg-muted flex items-center justify-center">
                                                 {/* eslint-disable-next-line @next/next/no-img-element */}
                                                 <img
                                                     src={`${process.env.NEXT_PUBLIC_API_BASE_URL}/assets/${selectedProspect.customer_image}`}
                                                     alt={selectedProspect.customer_name || "Prospect"}
-                                                    className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110"
+                                                    className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105"
                                                     onError={(e) => {
-                                                        (e.target as HTMLImageElement).src = 'https://ui-avatars.com/api/?name=' + encodeURIComponent(selectedProspect.customer_name || "Prospect") + '&background=random&size=160';
+                                                        (e.target as HTMLImageElement).src = 'https://ui-avatars.com/api/?name=' + encodeURIComponent(selectedProspect.customer_name || "Prospect") + '&background=random&size=200';
                                                     }}
                                                 />
-                                            </div>
-                                            <div className="absolute bottom-2 right-2 bg-black/60 text-white p-1 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity">
-                                                <Search className="h-3 w-3" />
+                                                <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/40 to-transparent p-2 flex justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                                    <div className="bg-white/20 backdrop-blur-md px-2 py-0.5 rounded text-[8px] font-bold text-white uppercase tracking-widest">Click to Zoom</div>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
                                 )}
 
                                 {/* General Information */}
-                                <section className="space-y-3">
-                                    <h4 className="text-xs font-bold uppercase text-primary flex items-center gap-1.5 underline underline-offset-4">
-                                        <Info className="h-3.5 w-3.5" />
-                                        General Information
-                                    </h4>
+                                <section className="space-y-4">
+                                    <div className="flex items-center gap-2 px-3 py-1.5 bg-primary/10 rounded-lg border border-primary/20">
+                                        <Info className="h-3.5 w-3.5 text-primary" />
+                                        <h4 className="text-[10px] font-bold uppercase text-primary tracking-wider">
+                                            General Information
+                                        </h4>
+                                    </div>
                                     <div className="grid grid-cols-2 gap-4 text-sm">
-                                        <div className="flex flex-col">
-                                            <span className="text-[10px] font-bold text-muted-foreground uppercase">Customer Name</span>
-                                            <span className="font-semibold">{selectedProspect.customer_name || "None"}</span>
+                                        <div className="flex flex-col col-span-2">
+                                            <Label className="text-[10px] font-bold text-muted-foreground uppercase mb-1">Customer Name</Label>
+                                            {isEditing ? (
+                                                <Input 
+                                                    value={editForm.customer_name || ""} 
+                                                    onChange={(e) => setEditForm({...editForm, customer_name: e.target.value})}
+                                                    className="h-8 text-sm"
+                                                />
+                                            ) : (
+                                                <span className="font-semibold">{selectedProspect.customer_name || "None"}</span>
+                                            )}
                                         </div>
                                         <div className="flex flex-col">
                                             <span className="text-[10px] font-bold text-muted-foreground uppercase">Customer Code</span>
@@ -340,13 +579,15 @@ export function CustomerProspectTable({
                                                 {selectedProspect.type || "None"}
                                             </Badge>
                                         </div>
-                                        <div className="flex flex-col">
-                                            <span className="text-[10px] font-bold text-muted-foreground uppercase">Prospect Date</span>
-                                            <span className="flex items-center gap-1">
-                                                <Calendar className="h-3 w-3 text-muted-foreground" />
-                                                {selectedProspect.prospect_date ? new Date(selectedProspect.prospect_date).toLocaleDateString() : "None"}
-                                            </span>
-                                        </div>
+                                        {!isEditing && (
+                                            <div className="flex flex-col">
+                                                <span className="text-[10px] font-bold text-muted-foreground uppercase">Prospect Date</span>
+                                                <span className="flex items-center gap-1">
+                                                    <Calendar className="h-3 w-3 text-muted-foreground" />
+                                                    {selectedProspect.prospect_date ? new Date(selectedProspect.prospect_date).toLocaleDateString() : "None"}
+                                                </span>
+                                            </div>
+                                        )}
                                         <div className="flex flex-col col-span-2 pt-2 border-t mt-1 border-dashed">
                                             <span className="text-[10px] font-bold text-muted-foreground uppercase">Current Status</span>
                                             <div className="flex items-center gap-2 mt-1.5">
@@ -361,22 +602,48 @@ export function CustomerProspectTable({
                                     </div>
                                 </section>
 
+                                {/* Geo Tag Location Map */}
+                                <section className="space-y-4">
+                                    <div className="flex items-center gap-2 px-3 py-1.5 bg-success-bg rounded-lg border border-success/20">
+                                        <MapIcon className="h-3.5 w-3.5 text-success" />
+                                        <h4 className="text-[10px] font-bold uppercase text-success tracking-wider">
+                                            Geo Tag Location
+                                        </h4>
+                                    </div>
+                                    <div className="rounded-xl overflow-hidden border border-success/20 shadow-sm">
+                                        <ProspectMapViewer
+                                            location={selectedProspect.location}
+                                            storeName={selectedProspect.store_name}
+                                            customerName={selectedProspect.customer_name}
+                                            address={[selectedProspect.brgy, selectedProspect.city, selectedProspect.province].filter(Boolean).join(', ')}
+                                        />
+                                    </div>
+                                    <p className="text-[10px] text-muted-foreground italic flex items-center gap-1 px-1">
+                                        <Info className="h-2.5 w-2.5" />
+                                        {selectedProspect.location
+                                            ? "Precise location captured at time of registration."
+                                            : "Location was not captured during registration."}
+                                    </p>
+                                </section>
+
                                 <Separator className="opacity-50" />
 
                                 {/* Contact Information */}
-                                <section className="space-y-3">
-                                    <h4 className="text-xs font-bold uppercase text-primary flex items-center gap-1.5 underline underline-offset-4">
-                                        <Phone className="h-3.5 w-3.5" />
-                                        Contact Details
-                                    </h4>
+                                <section className="space-y-4">
+                                    <div className="flex items-center gap-2 px-3 py-1.5 bg-info-bg rounded-lg border border-info/20">
+                                        <Phone className="h-3.5 w-3.5 text-info" />
+                                        <h4 className="text-[10px] font-bold uppercase text-info tracking-wider">
+                                            Contact Details
+                                        </h4>
+                                    </div>
                                     <div className="grid grid-cols-2 gap-4 text-sm">
                                         <div className="flex flex-col">
                                             <span className="text-[10px] font-bold text-muted-foreground uppercase">Contact Number</span>
-                                            <span className="text-blue-600 font-medium">{selectedProspect.contact_number || "None"}</span>
+                                            <span className="text-info font-medium">{selectedProspect.contact_number || "None"}</span>
                                         </div>
                                         <div className="flex flex-col">
                                             <span className="text-[10px] font-bold text-muted-foreground uppercase">Email Address</span>
-                                            <span className="text-blue-600 font-medium truncate">{selectedProspect.customer_email || "None"}</span>
+                                            <span className="text-info font-medium truncate">{selectedProspect.customer_email || "None"}</span>
                                         </div>
                                         <div className="flex flex-col">
                                             <span className="text-[10px] font-bold text-muted-foreground uppercase">Telephone</span>
@@ -395,29 +662,127 @@ export function CustomerProspectTable({
                                 <Separator className="opacity-50" />
 
                                 {/* Store & Location */}
-                                <section className="space-y-3">
-                                    <h4 className="text-xs font-bold uppercase text-primary flex items-center gap-1.5 underline underline-offset-4">
-                                        <Building className="h-3.5 w-3.5" />
-                                        Store & Location
-                                    </h4>
+                                <section className="space-y-4">
+                                    <div className="flex items-center gap-2 px-3 py-1.5 bg-warning-bg rounded-lg border border-warning/20">
+                                        <Building className="h-3.5 w-3.5 text-warning" />
+                                        <h4 className="text-[10px] font-bold uppercase text-warning tracking-wider">
+                                            Store & Location
+                                        </h4>
+                                    </div>
                                     <div className="grid grid-cols-2 gap-4 text-sm">
                                         <div className="flex flex-col col-span-2 p-2 bg-muted/40 rounded-lg">
-                                            <span className="text-[10px] font-bold text-muted-foreground uppercase">Store Info</span>
-                                            <span className="font-semibold text-base">{selectedProspect.store_name || "None"}</span>
-                                            <span className="text-xs text-muted-foreground italic">{selectedProspect.store_signage || "No signage"}</span>
+                                            <Label className="text-[10px] font-bold text-muted-foreground uppercase mb-1">Store Name</Label>
+                                            {isEditing ? (
+                                                <Input 
+                                                    value={editForm.store_name || ""} 
+                                                    onChange={(e) => setEditForm({...editForm, store_name: e.target.value})}
+                                                    className="h-8 text-sm"
+                                                />
+                                            ) : (
+                                                <>
+                                                    <span className="font-semibold text-base">{selectedProspect.store_name || "None"}</span>
+                                                    <span className="text-xs text-muted-foreground italic">{selectedProspect.store_signage || "No signage"}</span>
+                                                </>
+                                            )}
+                                        </div>
+                                        <div className="flex flex-col col-span-2">
+                                            <Label className="text-[10px] font-bold text-muted-foreground uppercase mb-1">Full Address (Province, City, Brgy)</Label>
+                                            {isEditing ? (
+                                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-1">
+                                                    <div className="flex flex-col gap-1">
+                                                        <span className="text-[8px] font-bold uppercase text-muted-foreground">Province</span>
+                                                        <SearchableSelect 
+                                                            options={[
+                                                                // Always include the stored DB value so it shows up even if not in PSGC
+                                                                ...(editForm.province && !provincesList.some(p => p.name === editForm.province)
+                                                                    ? [{ value: editForm.province, label: editForm.province }]
+                                                                    : []),
+                                                                ...provincesList.map(p => ({ value: p.name, label: p.name }))
+                                                            ]}
+                                                            value={editForm.province || ""}
+                                                            onValueChange={(val) => {
+                                                                setEditForm({ ...editForm, province: val, city: "", brgy: "" });
+                                                            }}
+                                                            placeholder={isLoadingProvinces ? "Loading..." : "Select Province"}
+                                                            className="h-9"
+                                                        />
+                                                    </div>
+                                                    <div className="flex flex-col gap-1">
+                                                        <span className="text-[8px] font-bold uppercase text-muted-foreground">City/Municipality</span>
+                                                        <SearchableSelect 
+                                                            options={[
+                                                                // Always include the stored DB value so it shows up even if not in PSGC
+                                                                ...(editForm.city && !citiesList.some(c => c.name === editForm.city)
+                                                                    ? [{ value: editForm.city, label: editForm.city }]
+                                                                    : []),
+                                                                ...citiesList.map(c => ({ value: c.name, label: c.name }))
+                                                            ]}
+                                                            value={editForm.city || ""}
+                                                            onValueChange={(val) => {
+                                                                setEditForm({ ...editForm, city: val, brgy: "" });
+                                                            }}
+                                                            placeholder={isLoadingCities ? "Loading..." : (!editForm.province ? "Select Province first" : "Select City")}
+                                                            className="h-9"
+                                                            disabled={!editForm.province || isLoadingCities}
+                                                        />
+                                                    </div>
+                                                    <div className="flex flex-col gap-1">
+                                                        <span className="text-[8px] font-bold uppercase text-muted-foreground">Barangay</span>
+                                                        <SearchableSelect 
+                                                            options={[
+                                                                // Always include the stored DB value so it shows up even if not in PSGC
+                                                                ...(editForm.brgy && !barangaysList.some(b => b.name === editForm.brgy)
+                                                                    ? [{ value: editForm.brgy, label: editForm.brgy }]
+                                                                    : []),
+                                                                ...barangaysList.map(b => ({ value: b.name, label: b.name }))
+                                                            ]}
+                                                            value={editForm.brgy || ""}
+                                                            onValueChange={(val) => {
+                                                                setEditForm({ ...editForm, brgy: val });
+                                                            }}
+                                                            placeholder={isLoadingBarangays ? "Loading..." : (!editForm.city ? "Select City first" : "Select Brgy")}
+                                                            className="h-9"
+                                                            disabled={!editForm.city || isLoadingBarangays}
+                                                        />
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                <span className="text-xs leading-tight">
+                                                    {selectedProspect.province || "N/A"}, {selectedProspect.city || "N/A"}, {selectedProspect.brgy || "N/A"}
+                                                </span>
+                                            )}
                                         </div>
                                         <div className="flex flex-col">
-                                            <span className="text-[10px] font-bold text-muted-foreground uppercase">Full Address</span>
-                                            <span className="text-xs leading-tight">
-                                                {selectedProspect.brgy || "N/A"}, {selectedProspect.city || "N/A"}, {selectedProspect.province || "N/A"}
-                                            </span>
+                                            <Label className="text-[10px] font-bold text-muted-foreground uppercase mb-1">Store Type</Label>
+                                            {isEditing ? (
+                                                <SearchableSelect 
+                                                    options={storeTypes.map(st => ({ value: st.id.toString(), label: st.store_type }))}
+                                                    value={editForm.store_type?.toString()}
+                                                    onValueChange={(v) => setEditForm({...editForm, store_type: Number(v)})}
+                                                    placeholder="Select type"
+                                                    className="h-8"
+                                                />
+                                            ) : (
+                                                <span className="font-medium">
+                                                    {storeTypes.find(st => st.id === Number(selectedProspect.store_type))?.store_type || "None"}
+                                                </span>
+                                            )}
                                         </div>
                                         <div className="flex flex-col">
-                                            <span className="text-[10px] font-bold text-muted-foreground uppercase">Classification</span>
-                                            <span className="font-medium">
-                                                {classifications.find(c => c.id === Number(selectedProspect.classification))?.classification_name 
-                                                    || "None"}
-                                            </span>
+                                            <Label className="text-[10px] font-bold text-muted-foreground uppercase mb-1">Classification</Label>
+                                            {isEditing ? (
+                                                <SearchableSelect 
+                                                    options={classifications.map(cl => ({ value: cl.id.toString(), label: cl.classification_name }))}
+                                                    value={editForm.classification?.toString()}
+                                                    onValueChange={(v) => setEditForm({...editForm, classification: Number(v)})}
+                                                    placeholder="Select classification"
+                                                    className="h-8"
+                                                />
+                                            ) : (
+                                                <span className="font-medium">
+                                                    {classifications.find(c => c.id === Number(selectedProspect.classification))?.classification_name || "None"}
+                                                </span>
+                                            )}
                                         </div>
                                     </div>
                                 </section>
@@ -425,21 +790,31 @@ export function CustomerProspectTable({
                                 <Separator className="opacity-50" />
 
                                 {/* Financial & Tax Info */}
-                                <section className="space-y-3">
-                                    <h4 className="text-xs font-bold uppercase text-primary flex items-center gap-1.5 underline underline-offset-4">
-                                        <Landmark className="h-3.5 w-3.5" />
-                                        Financials & Taxation
-                                    </h4>
+                                <section className="space-y-4">
+                                    <div className="flex items-center gap-2 px-3 py-1.5 bg-primary/10 rounded-lg border border-primary/20">
+                                        <Landmark className="h-3.5 w-3.5 text-primary" />
+                                        <h4 className="text-[10px] font-bold uppercase text-primary tracking-wider">
+                                            Financials & Taxation
+                                        </h4>
+                                    </div>
                                     <div className="grid grid-cols-2 gap-4 text-sm">
                                         <div className="flex flex-col">
-                                            <span className="text-[10px] font-bold text-muted-foreground uppercase">TIN</span>
-                                            <span className="font-mono font-medium">{selectedProspect.customer_tin || "None"}</span>
+                                            <Label className="text-[10px] font-bold text-muted-foreground uppercase mb-1">TIN</Label>
+                                            {isEditing ? (
+                                                <Input 
+                                                    value={editForm.customer_tin || ""} 
+                                                    onChange={(e) => setEditForm({...editForm, customer_tin: e.target.value})}
+                                                    className="h-8 text-sm font-mono"
+                                                />
+                                            ) : (
+                                                <span className="font-mono font-medium">{selectedProspect.customer_tin || "None"}</span>
+                                            )}
                                         </div>
                                         <div className="flex flex-col">
-                                            <span className="text-[10px] font-bold text-muted-foreground uppercase">Tax Status</span>
+                                            <span className="text-[10px] font-bold text-muted-foreground uppercase mb-1">Tax Status</span>
                                             <div className="flex items-center gap-2 mt-1">
-                                                {selectedProspect.isVAT === 1 && <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100 border-emerald-200 text-[9px] h-4">VAT</Badge>}
-                                                {selectedProspect.isEWT === 1 && <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100 border-amber-200 text-[9px] h-4">EWT</Badge>}
+                                                {selectedProspect.isVAT === 1 && <Badge className="bg-success-bg text-success hover:bg-success-bg border-success/20 text-[9px] h-4 font-bold uppercase">VAT</Badge>}
+                                                {selectedProspect.isEWT === 1 && <Badge className="bg-warning-bg text-warning hover:bg-warning-bg border-warning/20 text-[9px] h-4 font-bold uppercase">EWT</Badge>}
                                                 {!selectedProspect.isVAT && !selectedProspect.isEWT && <span className="text-xs text-muted-foreground italic">Non-Vatable</span>}
                                             </div>
                                         </div>
@@ -462,11 +837,13 @@ export function CustomerProspectTable({
                                 <Separator className="opacity-50" />
 
                                 {/* Settings */}
-                                <section className="space-y-3">
-                                    <h4 className="text-xs font-bold uppercase text-primary flex items-center gap-1.5 underline underline-offset-4">
-                                        <ShieldCheck className="h-3.5 w-3.5" />
-                                        Operational Settings
-                                    </h4>
+                                <section className="space-y-4">
+                                    <div className="flex items-center gap-2 px-3 py-1.5 bg-muted rounded-lg border border-border/50">
+                                        <ShieldCheck className="h-3.5 w-3.5 text-muted-foreground" />
+                                        <h4 className="text-[10px] font-bold uppercase text-foreground tracking-wider">
+                                            Operational Settings
+                                        </h4>
+                                    </div>
                                     <div className="grid grid-cols-2 gap-4 text-sm">
                                         <div className="flex flex-col">
                                             <span className="text-[10px] font-bold text-muted-foreground uppercase">Price Type</span>
@@ -474,18 +851,18 @@ export function CustomerProspectTable({
                                         </div>
                                         <div className="flex flex-col">
                                             <span className="text-[10px] font-bold text-muted-foreground uppercase">Discount Type</span>
-                                            <span className="font-medium text-emerald-600">
+                                            <span className="font-medium text-success">
                                                 {discountTypes.find(dt => dt.id === Number(selectedProspect.discount_type))?.discount_type 
                                                     || (selectedProspect.discount_type ? `ID: ${selectedProspect.discount_type}` : "None")}
                                             </span>
                                         </div>
                                         <div className="flex flex-col">
-                                            <span className="text-[10px] font-bold text-muted-foreground uppercase">Credit Type</span>
+                                            <span className="text-[10px) font-bold text-muted-foreground uppercase">Credit Type</span>
                                             <span>{selectedProspect.credit_type || "None"}</span>
                                         </div>
                                         <div className="flex flex-col">
                                             <span className="text-[10px] font-bold text-muted-foreground uppercase">Store Type</span>
-                                            <span className="font-medium text-emerald-600">
+                                            <span className="font-medium text-success">
                                                 {storeTypes.find(st => st.id === Number(selectedProspect.store_type))?.store_type 
                                                     || (selectedProspect.store_type ? `ID: ${selectedProspect.store_type}` : "None")}
                                             </span>
@@ -494,12 +871,12 @@ export function CustomerProspectTable({
                                 </section>
 
                                 {selectedProspect.otherDetails && (
-                                    <section className="space-y-2 p-3 bg-amber-50/50 rounded-lg border border-amber-100">
-                                        <h4 className="text-[10px] font-bold uppercase text-amber-700 flex items-center gap-1.5">
+                                    <section className="space-y-2 p-3 bg-warning-bg rounded-lg border border-warning/20">
+                                        <h4 className="text-[10px] font-bold uppercase text-warning flex items-center gap-1.5">
                                             <FileText className="h-3 w-3" />
                                             Notes / Other Details
                                         </h4>
-                                        <p className="text-xs text-amber-900 leading-relaxed italic">
+                                        <p className="text-xs text-foreground/80 leading-relaxed italic">
                                             &quot;{selectedProspect.otherDetails}&quot;
                                         </p>
                                     </section>
@@ -507,32 +884,63 @@ export function CustomerProspectTable({
                             </div>
                         </ScrollArea>
                     )}
-                    <DialogFooter className="flex flex-col sm:flex-row gap-2 mt-4">
-                        {selectedProspect?.prospect_status === 'Pending' ? (
+                    <DialogFooter className="flex flex-col sm:flex-row gap-3 mt-6 pt-4 border-t border-slate-100">
+                        {isEditing ? (
                             <>
                                 <Button
                                     variant="outline"
-                                    onClick={() => selectedProspect && handleAction(selectedProspect.id, 'Reject')}
-                                    disabled={processingId !== null}
-                                    className="w-full sm:w-auto border-rose-200 text-rose-600 hover:bg-rose-50"
+                                    onClick={handleCancelEdit}
+                                    disabled={isUpdating}
+                                    className="w-full sm:flex-1 h-10 font-bold uppercase text-[10px] tracking-widest border-slate-200 hover:bg-slate-50"
                                 >
-                                    {processingId === selectedProspect?.id ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <X className="h-4 w-4 mr-2" />}
-                                    Reject Prospect
+                                    Cancel
                                 </Button>
                                 <Button
-                                    onClick={() => selectedProspect && handleAction(selectedProspect.id, 'Approve')}
-                                    disabled={processingId !== null}
-                                    className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white"
+                                    onClick={handleSaveChanges}
+                                    disabled={isUpdating}
+                                    className="w-full sm:flex-1 h-10 bg-primary text-primary-foreground font-bold uppercase text-[10px] tracking-widest shadow-lg shadow-primary/20"
                                 >
-                                    {processingId === selectedProspect?.id ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Check className="h-4 w-4 mr-2" />}
-                                    Approve & Create Customer
+                                    {isUpdating ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Check className="h-4 w-4 mr-2" />}
+                                    Save Changes
                                 </Button>
+                            </>
+                        ) : selectedProspect?.prospect_status === 'Pending' ? (
+                            <>
+                                <Button
+                                    variant="outline"
+                                    onClick={handleStartEdit}
+                                    className="w-full sm:w-auto h-10 border-info/20 bg-info-bg text-info hover:bg-info/20 font-bold uppercase text-[10px] tracking-widest"
+                                >
+                                    <Edit2 className="h-3.5 w-3.5 mr-2" />
+                                    Edit
+                                </Button>
+                                {selectedProspect.prospect_status === 'Pending' && (
+                                    <>
+                                        <Button
+                                            variant="outline"
+                                            onClick={() => selectedProspect && handleAction(selectedProspect.id, 'Reject')}
+                                            disabled={processingId !== null}
+                                            className="w-full sm:w-auto h-10 border-destructive/20 bg-destructive/10 text-destructive hover:bg-destructive/20 font-bold uppercase text-[10px] tracking-widest"
+                                        >
+                                            {processingId === selectedProspect?.id ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <X className="h-4 w-4 mr-2" />}
+                                            Reject
+                                        </Button>
+                                        <Button
+                                            onClick={() => selectedProspect && handleAction(selectedProspect.id, 'Approve')}
+                                            disabled={processingId !== null}
+                                            className="w-full sm:flex-1 h-10 bg-success hover:bg-success/90 text-success-foreground font-bold uppercase text-[10px] tracking-widest shadow-lg shadow-success/20"
+                                        >
+                                            {processingId === selectedProspect?.id ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Check className="h-4 w-4 mr-2" />}
+                                            Approve
+                                        </Button>
+                                    </>
+                                )}
                             </>
                         ) : (
                             <Button
                                 variant="outline"
                                 onClick={() => setIsModalOpen(false)}
-                                className="w-full sm:w-auto"
+                                className="w-full sm:w-auto h-10 font-bold uppercase text-[10px] tracking-widest"
                             >
                                 Close Review
                             </Button>
@@ -540,6 +948,17 @@ export function CustomerProspectTable({
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
+
+            {/* Comparison Modal */}
+            {selectedProspect && activeComparisonGroup && (
+                <CustomerComparisonModal
+                    isOpen={isComparisonOpen}
+                    onClose={() => setIsComparisonOpen(false)}
+                    prospect={selectedProspect}
+                    existingCustomer={activeComparisonGroup.customers[1] as Customer}
+                    reasons={activeComparisonGroup.reasons}
+                />
+            )}
 
             {/* Zoom Dialog */}
             <Dialog open={isZoomOpen} onOpenChange={setIsZoomOpen}>
@@ -569,6 +988,7 @@ export function CustomerProspectTable({
                     </div>
                 </DialogContent>
             </Dialog>
+
         </div>
     );
 }
