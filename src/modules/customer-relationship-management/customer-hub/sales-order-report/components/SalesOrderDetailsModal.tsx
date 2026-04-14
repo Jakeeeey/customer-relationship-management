@@ -132,7 +132,7 @@ export function SalesOrderDetailsModal({
 
     const isInvoiceMode = isInvoiceStatus && invoices.length > 0;
     const activeInvoiceData = isInvoiceMode ? invoices.find(inv => inv.invoice.invoice_no === activeTab) : null;
-    const totalInvoicesAmount = isInvoiceMode ? invoices.reduce((sum, inv) => sum + (Number(inv.invoice.net_amount) || 0), 0) : 0;
+    const totalInvoicesAmount = isInvoiceMode ? invoices.reduce((sum, inv) => sum + ((Number(inv.invoice.gross_amount) || 0) - (Number(inv.invoice.discount_amount) || 0)), 0) : 0;
     const totalInvoicesItems = isInvoiceMode ? invoices.reduce((sum, inv) => sum + (inv.details?.length || 0), 0) : 0;
 
     const displayAmount = isInvoiceMode
@@ -377,8 +377,8 @@ export function SalesOrderDetailsModal({
                                                                         <span className="text-[10px] font-bold text-slate-300 uppercase tracking-widest">—</span>
                                                                     )}
                                                                 </TableCell>
-                                                                <TableCell className="text-right font-black text-slate-950 pr-4 sm:pr-8 font-mono text-[12px] sm:text-[14px] tabular-nums tracking-tighter">
-                                                                    {formatCurrency(item.total_amount)}
+                                                                <TableCell className="text-right font-black text-[#0EA5E9] pr-4 sm:pr-8 font-mono text-[12px] sm:text-[14px] tabular-nums tracking-tighter">
+                                                                    {formatCurrency(Number(item.total_amount) + Number(item.discount_amount || 0) - Number(item.discount_amount || 0))}
                                                                 </TableCell>
                                                             </TableRow>
                                                         ))}
@@ -390,7 +390,7 @@ export function SalesOrderDetailsModal({
                                             <div className="p-4 sm:p-8 bg-slate-50/20 border-t flex justify-end">
                                                 <div className="w-full max-w-[260px] space-y-2.5 sm:space-y-3">
                                                     <div className="flex justify-between items-center text-slate-500">
-                                                        <span className="font-medium text-[11px] sm:text-xs uppercase tracking-wider">Gross Total</span>
+                                                        <span className="font-medium text-[11px] sm:text-xs uppercase tracking-wider">Total Amount</span>
                                                         <span className="font-bold text-[11px] sm:text-xs tabular-nums font-mono">
                                                             {formatCurrency(Number(inv.invoice.gross_amount) || 0)}
                                                         </span>
@@ -404,7 +404,7 @@ export function SalesOrderDetailsModal({
                                                     <div className="flex justify-between items-center">
                                                         <span className="font-medium text-[11px] sm:text-xs uppercase tracking-wider text-[#0EA5E9]">Net Amount</span>
                                                         <span className="font-bold text-[11px] sm:text-xs tabular-nums font-mono text-[#0EA5E9]">
-                                                            {formatCurrency(Number(inv.invoice.net_amount) || 0)}
+                                                            {formatCurrency((Number(inv.invoice.gross_amount) || 0) - (Number(inv.invoice.discount_amount) || 0))}
                                                         </span>
                                                     </div>
                                                     <div className="flex justify-between items-center text-slate-400">
@@ -417,7 +417,7 @@ export function SalesOrderDetailsModal({
                                                     <div className="flex justify-between items-center pt-0.5">
                                                         <span className="text-[10px] font-black uppercase tracking-widest text-[#0EA5E9]">TOTAL INVOICE</span>
                                                         <span className="text-lg sm:text-2xl font-black text-slate-950 tabular-nums font-mono">
-                                                            {formatCurrency(Number(inv.invoice.net_amount) || 0)}
+                                                            {formatCurrency((Number(inv.invoice.gross_amount) || 0) - (Number(inv.invoice.discount_amount) || 0))}
                                                         </span>
                                                     </div>
                                                 </div>
@@ -554,13 +554,13 @@ export function SalesOrderDetailsModal({
                                 <div className="flex items-center gap-6">
                                     {(() => {
                                         const totalGross = details.reduce((sum, li) => sum + (Number(li.gross_amount) || (Number(li.unit_price) * Number(li.allocated_quantity) || 0)), 0);
-                                        const totalNet = details.reduce((sum, li) => sum + (Number(li.net_amount) || 0), 0);
-                                        const totalDiscount = totalGross - totalNet;
+                                        const totalDiscount = details.reduce((sum, li) => sum + (Number(li.discount_amount) || 0), 0);
+                                        const totalNet = totalGross - totalDiscount;
 
                                         return (
                                             <>
                                                 <div className="flex flex-col gap-0.5">
-                                                    <p className="text-[8px] sm:text-[9px] text-slate-400 uppercase font-black tracking-widest leading-none">Gross Total</p>
+                                                    <p className="text-[8px] sm:text-[9px] text-slate-400 uppercase font-black tracking-widest leading-none">Total Amount</p>
                                                     <p className="text-[12px] sm:text-[14px] font-bold text-slate-500 tabular-nums">{formatCurrency(totalGross)}</p>
                                                 </div>
                                                 <div className="flex flex-col gap-0.5">
@@ -584,6 +584,16 @@ export function SalesOrderDetailsModal({
                                                                 {formatCurrency(details.reduce((sum, li) => sum + (Number(li.allocated_amount) || 0), 0))}
                                                             </span>
                                                         </div>
+                                                    </div>
+                                                </div>
+
+                                                {/* New: Allocated Total */}
+                                                <div className="flex flex-col gap-0.5 min-w-0 bg-emerald-50 px-3 py-1 rounded-lg border border-emerald-100">
+                                                    <p className="text-[8px] sm:text-[9px] text-emerald-500 uppercase font-black tracking-widest leading-none">Allocated Total</p>
+                                                    <div className="flex items-baseline gap-1 leading-none">
+                                                        <span className="text-[10px] sm:text-[14px] font-black text-emerald-600 tabular-nums tracking-tighter">
+                                                            {formatCurrency(details.reduce((sum, li) => sum + (Number(li.allocated_amount) || 0), 0))}
+                                                        </span>
                                                     </div>
                                                 </div>
                                             </>

@@ -1,12 +1,9 @@
 // src/modules/financial-management/printables-management/product-printables/utils/printPdf.ts
 
 import type { MatrixRow, PriceType, Unit, Supplier } from "../types";
-import { PdfEngine } from "@/components/pdf-layout-design/PdfEngine";
-import { PdfTemplate } from "@/components/pdf-layout-design/services/pdf-template";
-import { PdfData } from "@/components/pdf-layout-design/types";
 
 type MatrixOptions = {
-    paper?: string;
+    paper?: "a4" | "legal" | "a3";
     orientation?: "landscape" | "portrait";
     fontSize?: number;
     title?: string;
@@ -14,9 +11,6 @@ type MatrixOptions = {
     units?: Unit[];
     usedUnitIds?: Set<number>;
     supplier?: Supplier | null;
-    selectedTemplate?: PdfTemplate;
-    companyData?: PdfData | null;
-    selectedPriceTypeIds?: string[];
 };
 
 type PdfCell = {
@@ -63,51 +57,17 @@ function money(v: unknown): string {
 export async function generateProductMatrixPdf(rows: MatrixRow[], options: MatrixOptions = {}) {
     const { default: jsPDF } = await import("jspdf");
     const { default: autoTable } = await import("jspdf-autotable");
-    const { drawPageNumbers } = await import("@/components/pdf-layout-design/PdfGenerator");
     const {
+        paper = "a3",
+        orientation = "landscape",
         fontSize = 7,
         title = "Product Matrix Report",
         units = [],
         usedUnitIds = new Set(),
-        supplier = null,
-        selectedTemplate,
-        companyData,
-        selectedPriceTypeIds = [],
-        priceTypes = []
+        supplier = null
     } = options;
-    
-    // --- Extract config from template ---
-    const tplConfig = selectedTemplate?.config;
 
-    // Paper size: template uses e.g. "Letter", jsPDF also accepts these strings
-    const finalPaper = tplConfig?.paperSize.toLowerCase() || options.paper || "a4";
-    const finalOrientation = tplConfig?.orientation || options.orientation || "landscape";
-
-    // Margins: prefer template config, fallback to default
-    const finalMargins = tplConfig?.margins || { top: 10, left: 10, right: 10, bottom: 10 };
-
-    // Body start Y (below header elements) — PdfEngine.applyTemplate returns this
-    // bodyEnd is the lowest allowed Y before footer — we use it for the bottom margin
-    const bodyEnd = tplConfig?.bodyEnd;
-
-    const doc = new jsPDF({ orientation: finalOrientation, unit: "mm", format: finalPaper });
-    
-    // Determine active tiers based on selection
-    const activeTiers = priceTypes && selectedPriceTypeIds.length > 0 
-        ? priceTypes
-            .filter(pt => selectedPriceTypeIds.includes(String(pt.price_type_id)))
-            .map(pt => {
-                const fullIdx = priceTypes.findIndex(p => p.price_type_id === pt.price_type_id);
-                return {
-                    key: TIERS[fullIdx] as typeof TIERS[number],
-                    label: pt.price_type_name
-                };
-            })
-            .filter(t => t.key !== undefined)
-        : TIERS.map((key, i) => ({ 
-            key, 
-            label: priceTypes?.[i]?.price_type_name || `PRICE TYPE ${key}` 
-        })).slice(0, 5); // Default to first 5 if none selected or no priceTypes info
+    const doc = new jsPDF({ orientation, unit: "pt", format: paper });
 
     const usedUnits = units
         .filter(u => usedUnitIds.has(Number(u.unit_id)))
@@ -116,40 +76,54 @@ export async function generateProductMatrixPdf(rows: MatrixRow[], options: Matri
     const uomCount = Math.max(usedUnits.length, 1);
     const now = new Date();
 
-    // --- Header Construction (2 rows) ---
-    // Row 1: Product columns + Price Type name per tier
+    // --- Header Construction ---
     const headRow1: PdfCell[] = [
-        { content: "Product Name", rowSpan: 2, styles: { valign: "middle", fontStyle: "bold", halign: "center" } },
-        { content: "Category",     rowSpan: 2, styles: { valign: "middle", halign: "center" } },
-        { content: "Brand",        rowSpan: 2, styles: { valign: "middle", halign: "center" } },
+        { content: "Product Details", colSpan: 3, styles: { halign: "center", fontStyle: "bold" } },
     ];
 
-    for (const tier of activeTiers) {
+    for (const tier of TIERS) {
         headRow1.push({
-            content: tier.label,
+            content: `PRICE TYPE ${tier}`,
             colSpan: uomCount,
             styles: {
                 halign: "center",
-                fillColor: groupColors[tier.key],
-                textColor: groupTextColors[tier.key],
+                fillColor: groupColors[tier],
+                textColor: groupTextColors[tier],
                 fontStyle: "bold"
             },
         });
     }
 
-    // Row 2: UOM names per tier
-    const headRow2: PdfCell[] = [];
-    for (const tier of activeTiers) {
+    const headRow2: PdfCell[] = [
+        { content: "Product Name", rowSpan: 2, styles: { valign: "middle", fontStyle: "bold" } },
+        { content: "Category", rowSpan: 2, styles: { valign: "middle" } },
+        { content: "Brand", rowSpan: 2, styles: { valign: "middle" } },
+    ];
+
+    for (const tier of TIERS) {
+        headRow2.push({
+            content: `Tier ${tier}`,
+            colSpan: uomCount,
+            styles: {
+                halign: "center",
+                fillColor: groupColors[tier],
+                textColor: groupTextColors[tier]
+            },
+        });
+    }
+
+    const headRow3: PdfCell[] = [];
+    for (const tier of TIERS) {
         if (usedUnits.length === 0) {
-            headRow2.push({ content: "Price", styles: { halign: "center", fillColor: groupColors[tier.key] } });
+            headRow3.push({ content: "Price", styles: { halign: "center", fillColor: groupColors[tier] } });
         } else {
             for (const unit of usedUnits) {
-                headRow2.push({
+                headRow3.push({
                     content: unit.unit_shortcut || unit.unit_name || "—",
                     styles: {
                         halign: "center",
                         fontSize: 6,
-                        fillColor: groupColors[tier.key]
+                        fillColor: groupColors[tier]
                     },
                 });
             }
@@ -164,13 +138,13 @@ export async function generateProductMatrixPdf(rows: MatrixRow[], options: Matri
             row.brand_name || "—"
         ];
 
-        for (const tier of activeTiers) {
+        for (const tier of TIERS) {
             if (usedUnits.length === 0) {
                 cells.push("—");
             } else {
                 for (const unit of usedUnits) {
                     const variant = row.variantsByUnitId[Number(unit.unit_id)];
-                    const price = variant?.tiers?.[tier.key];
+                    const price = variant?.tiers?.[tier];
                     cells.push(price != null ? money(price) : "—");
                 }
             }
@@ -179,55 +153,42 @@ export async function generateProductMatrixPdf(rows: MatrixRow[], options: Matri
     });
 
     const generated = `${now.toLocaleDateString()} ${now.toLocaleTimeString()}`;
-    
-    let y = 40;
+    doc.setFontSize(16);
+    doc.setTextColor(0);
+    doc.text(title, 40, 40);
 
-    if (selectedTemplate) {
-        // Use PdfEngine to apply the template header — returns the Y where body content should start
-        y = await PdfEngine.applyTemplate(doc, selectedTemplate.name, companyData || null);
-        // Use bodyStart from config if explicitly defined (overrides calculated value)
-        if (tplConfig?.bodyStart != null) {
-            y = tplConfig.bodyStart;
-        }
-    } else {
-        // Fallback to legacy hardcoded header
-        doc.setFontSize(16);
+    let y = 55;
+    doc.setFontSize(9);
+    doc.setTextColor(100);
+    doc.text(`Generated: ${generated} | Total Products: ${rows.length}`, 40, y);
+    y += 15;
+
+    if (supplier) {
+        doc.setFontSize(10);
         doc.setTextColor(0);
-        doc.text(title, finalMargins.left, finalMargins.top);
+        doc.setFont("helvetica", "bold");
+        doc.text(supplier.supplier_name, 40, y);
+        y += 12;
 
-        y = finalMargins.top + 5;
-        doc.setFontSize(9);
-        doc.setTextColor(100);
-        doc.text(`Generated: ${generated} | Total Products: ${rows.length}`, finalMargins.left, y);
-        y += 5;
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(8);
+        doc.setTextColor(80);
 
-        if (supplier) {
-            doc.setFontSize(10);
-            doc.setTextColor(0);
-            doc.setFont("helvetica", "bold");
-            doc.text(supplier.supplier_name, finalMargins.left, y);
-            y += 4;
+        const details: string[] = [];
+        if (supplier.address) details.push(`Address: ${supplier.address}`);
+        if (supplier.tin_number) details.push(`TIN: ${supplier.tin_number}`);
+        if (supplier.contact_person) details.push(`Contact: ${supplier.contact_person}`);
+        if (supplier.phone_number) details.push(`Phone: ${supplier.phone_number}`);
 
-            doc.setFont("helvetica", "normal");
-            doc.setFontSize(8);
-            doc.setTextColor(80);
-
-            const details: string[] = [];
-            if (supplier.address) details.push(`Address: ${supplier.address}`);
-            if (supplier.tin_number) details.push(`TIN: ${supplier.tin_number}`);
-            if (supplier.contact_person) details.push(`Contact: ${supplier.contact_person}`);
-            if (supplier.phone_number) details.push(`Phone: ${supplier.phone_number}`);
-
-            if (details.length > 0) {
-                doc.text(details.join("  |  "), finalMargins.left, y);
-                y += 4;
-            }
+        if (details.length > 0) {
+            doc.text(details.join("  |  "), 40, y);
+            y += 12;
         }
     }
 
     autoTable(doc, {
         startY: y + 5,
-        head: [headRow1, headRow2],
+        head: [headRow1, headRow2, headRow3],
         body,
         theme: "grid",
         styles: {
@@ -243,37 +204,25 @@ export async function generateProductMatrixPdf(rows: MatrixRow[], options: Matri
             fontStyle: "bold",
         },
         columnStyles: {
-            0: { cellWidth: 56 },
-            1: { cellWidth: 28 },
-            2: { cellWidth: 28 }
+            0: { cellWidth: 160 },
+            1: { cellWidth: 80 },
+            2: { cellWidth: 80 }
         },
-        margin: { 
-            left: finalMargins.left, 
-            right: finalMargins.right,
-            top: finalMargins.top,
-            bottom: bodyEnd != null
-                ? (doc.internal.pageSize.getHeight() - bodyEnd)
-                : finalMargins.bottom
-        },
+        margin: { left: 40, right: 40 },
         didParseCell: (data) => {
             if (data.section === "body" && data.column.index >= 3) {
                 const tierIdx = Math.floor((data.column.index - 3) / uomCount);
-                const tier = activeTiers[tierIdx];
+                const tier = TIERS[tierIdx];
                 if (tier) {
-                    data.cell.styles.fillColor = groupColors[tier.key];
+                    data.cell.styles.fillColor = groupColors[tier];
                     data.cell.styles.halign = "right";
                 }
             }
         },
         didDrawPage: (data) => {
-            // Draw page numbers from template if available
-            if (selectedTemplate?.config?.pageNumber?.show) {
-                drawPageNumbers(doc, selectedTemplate.config);
-            } else {
-                const str = "Page " + doc.getCurrentPageInfo().pageNumber;
-                doc.setFontSize(8);
-                doc.text(str, data.settings.margin.left, doc.internal.pageSize.getHeight() - 4);
-            }
+            const str = "Page " + doc.getCurrentPageInfo().pageNumber;
+            doc.setFontSize(8);
+            doc.text(str, data.settings.margin.left, doc.internal.pageSize.getHeight() - 10);
         }
     });
 
