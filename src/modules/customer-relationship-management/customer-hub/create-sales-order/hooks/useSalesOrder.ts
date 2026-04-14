@@ -464,9 +464,21 @@ export function useSalesOrder() {
         if (id) {
             setLoadingAccounts(true);
             try {
+                // 1. Fetch current accounts for this user
                 const res = await fetch(`/api/crm/customer-hub/create-sales-order?action=accounts&user_id=${id}`);
                 const data = await res.json();
                 setAccounts(data);
+
+                // 🚀 SMART ACCOUNT RESOLUTION:
+                // Find if this Master User has a specific account linked to the current selected customer
+                const masterUser = salesmen.find(s => (s.user_id || s.id)?.toString() === id);
+                if (masterUser && masterUser.linked_account_ids && masterUser.linked_account_ids.length === 1) {
+                    const linkedId = masterUser.linked_account_ids[0].toString();
+                    console.log(`[handleSalesmanChange] Master User ${id} has one linked account for this customer: ${linkedId}. Auto-selecting...`);
+                    
+                    // We call handleAccountChange directly to trigger cascading side-effects (Price Type, Branch)
+                    handleAccountChange(linkedId);
+                }
             } catch (e) {
                 console.error(e);
             } finally {
@@ -516,7 +528,9 @@ export function useSalesOrder() {
     const handleCustomerChange = async (id: string) => {
         setSelectedCustomerId(id);
         const customer = customers.find(c => c.id.toString() === id);
+
         if (customer) {
+            // Apply customer-specific defaults
             if (customer.price_type) setPriceType(customer.price_type);
             if (customer.price_type_id) setPriceTypeId(Number(customer.price_type_id));
             if (customer.payment_term !== undefined) setPaymentTerms(customer.payment_term);
@@ -524,25 +538,45 @@ export function useSalesOrder() {
 
         if (id) {
             try {
+                // 🚀 GET LINKED SALESMEN (Via customer_salesmen link table)
                 const linkedUsers = await salesOrderProvider.getSalesmanByCustomer(Number(id));
                 const activeSalesmen = Array.isArray(linkedUsers) && linkedUsers.length > 0 ? linkedUsers : allSalesmen;
                 setSalesmen(activeSalesmen);
 
-                // Check if current user is still valid, else reset
+                // Check if current selection is still valid
                 const isCurrentValid = activeSalesmen.some(s => (s.user_id || s.id)?.toString() === selectedSalesmanId);
 
-                if (linkedUsers.length === 1) {
-                    const singleId = (linkedUsers[0].user_id || linkedUsers[0].id)?.toString();
-                    if (singleId && (!selectedSalesmanId || !isCurrentValid)) {
-                        handleSalesmanChange(singleId);
+                // --- SCENARIO A: Only one Master User linked to this customer ---
+                if (activeSalesmen.length === 1) {
+                    const sm = activeSalesmen[0];
+                    const uid = (sm.user_id || sm.id)?.toString();
+                    if (uid && (!selectedSalesmanId || !isCurrentValid)) {
+                        console.log(`[handleCustomerChange] Single salesman detected: ${uid}. Auto-selecting...`);
+                        
+                        // Set Master User
+                        setSelectedSalesmanId(uid);
+                        
+                        // Fetch all accounts for this user so the dropdown is ready
+                        const res = await fetch(`/api/crm/customer-hub/create-sales-order?action=accounts&user_id=${uid}`);
+                        const acctsData = await res.json();
+                        setAccounts(acctsData);
+
+                        // --- AUTO-SELECT ACCOUNT: If this user has exactly one account linked to this customer ---
+                        if (sm.linked_account_ids && sm.linked_account_ids.length === 1) {
+                            const aid = sm.linked_account_ids[0].toString();
+                            console.log(`[handleCustomerChange] Single account link detected: ${aid}. Auto-selecting Account...`);
+                            handleAccountChange(aid);
+                        }
                     }
-                } else if (!isCurrentValid) {
+                } 
+                // --- SCENARIO B: Current user no longer valid or multiple options ---
+                else if (!isCurrentValid) {
                     setSelectedSalesmanId("");
                     setSelectedAccountId("");
                     setAccounts([]);
                 }
             } catch (e) {
-                console.error("Failed to fetch customer salesmen:", e);
+                console.error("Failed to fetch linked salesmen:", e);
                 setSalesmen(allSalesmen);
                 setSelectedSalesmanId("");
                 setSelectedAccountId("");

@@ -237,7 +237,24 @@ export async function GET(req: NextRequest) {
 
             // 3. Fetch full User records for the distinct user IDs
             const uRes = await fetch(`${DIRECTUS_URL}/items/user?filter[user_id][_in]=${Array.from(userIds).join(',')}&limit=-1`, { headers: fetchHeaders });
-            return NextResponse.json((await uRes.json()).data || []);
+            const uData = (await uRes.json()).data || [];
+
+            // 🚀 SMART MAPPING: Attach the specific accounts (salesman_id) linked to this customer for each Master User
+            const finalUsers = uData.map((user: { user_id: number | string }) => {
+                const myLinkedAccounts = sData
+                    .filter((s: { employee_id?: number | string; encoder_id?: number | string; user_id?: number | string; id: number | string }) => {
+                        const sid = (s.employee_id || s.encoder_id || s.user_id)?.toString();
+                        return sid === user.user_id.toString();
+                    })
+                    .map((s: { id: number | string }) => s.id);
+
+                return {
+                    ...user,
+                    linked_account_ids: myLinkedAccounts
+                };
+            });
+
+            return NextResponse.json(finalUsers);
         }
 
         if (action === "salesman_by_id") {
