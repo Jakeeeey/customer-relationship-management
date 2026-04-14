@@ -2,7 +2,7 @@ import { OPSOrder } from "../types";
 
 export const opsDashboardProvider = {
     async getAllOrders(): Promise<OPSOrder[]> {
-        const res = await fetch("/api/crm/structure/ops-dashboard", {
+        const res = await fetch("/api/crm/customer-hub/ops-dashboard", {
             method: "GET",
             headers: {
                 "Content-Type": "application/json",

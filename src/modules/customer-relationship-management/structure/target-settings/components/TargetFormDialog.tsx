@@ -54,8 +54,8 @@ import {
     SupplierTarget,
     CustomerRecord,
     SupplierRecord
-} from "@/modules/customer-relationship-management/target-settings/types";
-import { targetSettingsProvider } from "@/modules/customer-relationship-management/target-settings/providers/fetchProvider";
+} from "@/modules/customer-relationship-management/structure/target-settings/types";
+import { targetSettingsProvider } from "@/modules/customer-relationship-management/structure/target-settings/providers/fetchProvider";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -248,11 +248,11 @@ export function TargetFormDialog({
     // --- Allocation Calculations ---
     const totalAllocatedCustomer = useMemo(() => customerTargets.reduce((sum, ct) => sum + (Number(ct.target_amount) || 0), 0), [customerTargets]);
     const totalAllocatedSupplier = useMemo(() => supplierTargets.reduce((sum, st) => sum + (Number(st.target_amount) || 0), 0), [supplierTargets]);
-    
+
     // Count only customers with a target > 0
-    const activeCustomerCount = useMemo(() => 
+    const activeCustomerCount = useMemo(() =>
         customerTargets.filter(ct => (Number(ct.target_amount) || 0) > 0).length,
-    [customerTargets]);
+        [customerTargets]);
 
     const handleCustomerTargetChange = (customerId: number, amount: number) => {
         setCustomerTargets(prev => {
@@ -852,7 +852,7 @@ export function TargetFormDialog({
                                                                 className="h-8 bg-slate-50 border-slate-100 text-xs font-bold rounded-lg mb-1"
                                                             />
                                                             <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden mb-1">
-                                                                <div 
+                                                                <div
                                                                     className={cn(
                                                                         "h-full transition-all duration-500",
                                                                         (sku.achieved_quantity || 0) >= (sku.target_quantity || 0) ? "bg-emerald-500" : "bg-blue-500"
@@ -872,7 +872,7 @@ export function TargetFormDialog({
                                                                 ₱{Number(sku.target_value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                                             </div>
                                                             <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden mb-1">
-                                                                <div 
+                                                                <div
                                                                     className={cn(
                                                                         "h-full transition-all duration-500",
                                                                         (sku.achieved_volume || 0) >= (Number(sku.target_value) || 0) ? "bg-emerald-500" : "bg-blue-500"

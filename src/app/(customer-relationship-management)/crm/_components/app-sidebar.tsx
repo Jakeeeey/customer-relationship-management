@@ -111,6 +111,11 @@ const data = {
                     url: "/crm/customer-hub/sales-order-approval",
                     icon: ClipboardList,
                 },
+                {
+                    title: "Ops Dashboard",
+                    url: "/crm/customer-hub/ops-dashboard",
+                    icon: LayoutDashboard,
+                },
             ],
         },
         {
@@ -158,16 +163,11 @@ const data = {
                     icon: Printer,
                 },
                 {
-                    title: "Ops Dashboard",
-                    url: "/crm/structure/ops-dashboard",
-                    icon: LayoutDashboard,
+                    title: "Target Settings",
+                    url: "/crm/structure/target-settings",
+                    icon: Printer,
                 },
             ],
-        },
-        {
-            title: "Target Settings",
-            url: "/crm/target-settings",
-            icon: Printer,
         },
     ],
 };
