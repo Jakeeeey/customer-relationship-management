@@ -129,7 +129,7 @@ export function SalesOrderCheckout({
                                     <div className="flex flex-col">
                                         <span className="text-[10px] font-black text-muted-foreground uppercase tracking-wider mb-1">Receipt Type</span>
                                         <span className="text-xs font-bold text-emerald-600">
-                                            {header.receiptType?.shortcut ? `${header.receiptType.shortcut} - ` : ""}
+                                            {/* {header.receiptType?.shortcut ? `${header.receiptType.shortcut} - ` : ""} */}
                                             {header.receiptType?.type || "Standard"}
                                         </span>
                                     </div>

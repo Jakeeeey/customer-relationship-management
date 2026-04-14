@@ -40,7 +40,31 @@ export async function GET(req: NextRequest) {
             if (!res.ok) return NextResponse.json({ error: "Failed to fetch order header" }, { status: 500 });
             
             const json = await res.json();
-            return NextResponse.json({ data: json.data });
+            const order = json.data;
+
+            // Enrich with Customer Name
+            if (order && order.customer_code) {
+                try {
+                    const cRes = await fetch(`${DIRECTUS_URL}/items/customer?filter[customer_code][_eq]=${encodeURIComponent(order.customer_code)}&fields=customer_name&limit=1`, {
+                        headers: fetchHeaders,
+                    });
+                    if (cRes.ok) {
+                        const cJson = await cRes.json();
+                        if (cJson.data && cJson.data.length > 0) {
+                            order.customer_name = cJson.data[0].customer_name;
+                        } else {
+                            order.customer_name = "Unknown Customer";
+                        }
+                    } else {
+                        order.customer_name = "Unknown Customer";
+                    }
+                } catch (e) {
+                    console.error("Failed to fetch customer name for header:", e);
+                    order.customer_name = "Unknown Customer";
+                }
+            }
+            
+            return NextResponse.json({ data: order });
         }
 
         if (type === "orders") {

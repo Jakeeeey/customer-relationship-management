@@ -78,7 +78,7 @@ export function ApprovalModal({
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [discountTypes, setDiscountTypes] = useState<Record<number, string>>({});
 
-    const activeOrder = freshOrder || order;
+    const activeOrder = freshOrder ? { ...order, ...freshOrder } : order;
     const isInvoiceStatus = ["For Loading", "For Shipping", "En Route", "Delivered"].includes(activeOrder?.order_status || "");
 
     useEffect(() => {
