@@ -73,13 +73,15 @@ export function useSalesOrder() {
 
     // --- AUTO-DATE CALCULATION ---
     useEffect(() => {
-        // If paymentTerms is a number (including 0 for COD), calculate due date
-        if (paymentTerms !== null && paymentTerms !== undefined) {
-            const today = new Date();
-            const futureDate = new Date(today.getTime() + (paymentTerms * 24 * 60 * 60 * 1000));
-            setDueDate(futureDate.toISOString().split('T')[0]);
+        // If paymentTerms is a number (including 0 for COD), calculate due date relative to deliveryDate
+        if (paymentTerms !== null && paymentTerms !== undefined && deliveryDate) {
+            const baseDate = new Date(deliveryDate);
+            if (!isNaN(baseDate.getTime())) {
+                const futureDate = new Date(baseDate.getTime() + (paymentTerms * 24 * 60 * 60 * 1000));
+                setDueDate(futureDate.toISOString().split('T')[0]);
+            }
         }
-    }, [paymentTerms]);
+    }, [paymentTerms, deliveryDate]);
 
     const selectedSalesman = useMemo(() => Array.isArray(salesmen) ? salesmen.find(s => (s.user_id || s.id)?.toString() === selectedSalesmanId) : undefined, [salesmen, selectedSalesmanId]);
     const selectedAccount = useMemo(() => Array.isArray(accounts) ? accounts.find(a => a.id.toString() === selectedAccountId) : undefined, [accounts, selectedAccountId]);
@@ -917,7 +919,8 @@ export function useSalesOrder() {
             const res = await salesOrderProvider.createOrder(payload, itemsWithAllocation);
             if (res.success) {
                 console.log(`[SubmitOrder] SUCCESS: ${res.order_no}`);
-                toast.success(`Order created: ${res.order_no}`);
+                const statusMsg = finalStatus === "Draft" ? "Saved in Draft" : "Submitted for Approval";
+                toast.success(`${statusMsg}: ${res.order_no}`);
                 // Instead of reload, reset the local state
                 setLineItems([]);
                 setAllocatedQuantities({});

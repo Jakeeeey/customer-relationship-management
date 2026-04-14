@@ -65,13 +65,7 @@ export function SalesOrderCheckout({
 
     const handleConfirmClick = () => {
         if (hasZeroAllocation) {
-            const isCurrentlyDraft = existingOrderStatus?.toLowerCase() === "draft";
-            if (isExistingOrder && isCurrentlyDraft) {
-                // If it's already a draft and still has 0 allocation, auto-save as Draft. Hide dialog.
-                onConfirm("Draft");
-            } else {
-                setShowConfirmDialog(true);
-            }
+            setShowConfirmDialog(true);
         } else {
             onConfirm("For Approval");
         }

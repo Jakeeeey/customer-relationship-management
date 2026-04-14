@@ -306,7 +306,14 @@ export function SalesOrderHeader({
                     <label className="text-xs font-bold uppercase text-muted-foreground">Due Date <span className="text-red-500">*</span></label>
                     <div className="relative">
                         <CalendarIcon className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
-                        <Input type="date" value={dueDate || ""} onChange={(e) => onDueDateChange(e.target.value)} className="pl-9 h-9 text-xs" required />
+                        <Input 
+                            type="date" 
+                            value={dueDate || ""} 
+                            onChange={(e) => onDueDateChange(e.target.value)} 
+                            className="pl-9 h-9 text-xs bg-slate-50/50 opacity-80 cursor-not-allowed" 
+                            disabled 
+                            required 
+                        />
                     </div>
                 </div>
 
