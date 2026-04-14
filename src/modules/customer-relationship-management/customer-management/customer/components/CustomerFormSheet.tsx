@@ -1,10 +1,11 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
-import { CreditCard, Loader2, Users, Building2, MapPin, Receipt, Check, ChevronsUpDown, Plus, AlertCircle, ArrowRight } from "lucide-react";
+import React, { useEffect, useState, useRef } from "react";
+import { CreditCard, Loader2, Users, Building2, MapPin, Receipt, Check, ChevronsUpDown, Plus, AlertCircle, ArrowRight, UploadCloud } from "lucide-react";
 import { useForm, Resolver, SubmitHandler } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
+import { Textarea } from "@/components/ui/textarea";
 
 import {
     Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle
@@ -47,7 +48,6 @@ interface CreatableComboboxProps {
     itemName: string;
 }
 
-// 🚀 NEW: Interface for PSGC API Data
 interface LocationOption {
     code: string;
     name: string;
@@ -59,13 +59,43 @@ interface SearchableComboboxProps {
     onChange: (value: string) => void;
     placeholder: string;
     disabled?: boolean;
-    isLoading?: boolean; // 🚀 Added to show network state
+    isLoading?: boolean;
 }
 
 // ============================================================================
-// 🚀 CREATABLE COMBOBOX (For Store Types / Classifications)
+// 🚀 IMAGE PREVIEW HELPER
 // ============================================================================
-function CreatableCombobox({ items, value, onChange, onCreate, placeholder, itemName }: CreatableComboboxProps) {
+const renderImagePreview = (imageId: string | null | undefined) => {
+    if (!imageId || imageId.trim() === "") return null;
+
+    const isUrl = imageId.startsWith('http');
+    const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8055";
+    const imageUrl = isUrl ? imageId : `${baseUrl}/assets/${imageId}`;
+
+    return (
+        <div className="mt-4 relative w-full sm:w-[250px] aspect-video rounded-xl overflow-hidden border border-border shadow-sm group bg-muted/30">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+                src={imageUrl}
+                alt="Customer/Store Preview"
+                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                onError={(e) => {
+                    (e.target as HTMLImageElement).src = "https://placehold.co/400x300/e2e8f0/64748b?text=Image+Not+Found";
+                }}
+            />
+            <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-2 pt-6">
+                <p className="text-[9px] font-black uppercase tracking-widest text-white truncate">
+                    Store Image
+                </p>
+            </div>
+        </div>
+    );
+};
+
+// ============================================================================
+// CREATABLE COMBOBOX
+// ============================================================================
+function CreatableCombobox({items, value, onChange, onCreate, placeholder, itemName}: CreatableComboboxProps) {
     const [open, setOpen] = useState(false);
     const [inputValue, setInputValue] = useState("");
     const selectedItem = items.find((i) => String(i.id) === String(value));
@@ -78,14 +108,14 @@ function CreatableCombobox({ items, value, onChange, onCreate, placeholder, item
                     <Button variant="outline" role="combobox"
                             className={cn("w-full h-11 justify-between bg-muted/30", !value && "text-muted-foreground")}>
                         {selectedItem ? selectedItem.name : placeholder}
-                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50"/>
                     </Button>
                 </FormControl>
             </PopoverTrigger>
             <PopoverContent className="w-[300px] p-0 shadow-xl rounded-xl border-border/50">
                 <Command className="bg-transparent overflow-hidden rounded-xl">
                     <CommandInput placeholder={`Search or create ${itemName}...`} onValueChange={setInputValue}
-                                  className="h-11" />
+                                  className="h-11"/>
                     <CommandList className="max-h-[200px] overflow-y-auto custom-scrollbar">
                         <CommandEmpty className="p-2">
                             {inputValue && !exactMatch ? (
@@ -96,7 +126,7 @@ function CreatableCombobox({ items, value, onChange, onCreate, placeholder, item
                                             setInputValue("");
                                             setOpen(false);
                                         }}>
-                                    <Plus className="mr-2 h-4 w-4" /> Create &quot;{inputValue}&quot;
+                                    <Plus className="mr-2 h-4 w-4"/> Create &quot;{inputValue}&quot;
                                 </Button>
                             ) : `No ${itemName} found.`}
                         </CommandEmpty>
@@ -111,7 +141,7 @@ function CreatableCombobox({ items, value, onChange, onCreate, placeholder, item
                                     }}
                                 >
                                     <Check
-                                        className={cn("mr-2 h-4 w-4 text-primary", String(value) === String(item.id) ? "opacity-100" : "opacity-0")} />
+                                        className={cn("mr-2 h-4 w-4 text-primary", String(value) === String(item.id) ? "opacity-100" : "opacity-0")}/>
                                     {item.name}
                                 </CommandItem>
                             ))}
@@ -124,9 +154,9 @@ function CreatableCombobox({ items, value, onChange, onCreate, placeholder, item
 }
 
 // ============================================================================
-// 🚀 API-DRIVEN SEARCHABLE COMBOBOX
+// API-DRIVEN SEARCHABLE COMBOBOX
 // ============================================================================
-function SearchableCombobox({ items, value, onChange, placeholder, disabled, isLoading }: SearchableComboboxProps) {
+function SearchableCombobox({items, value, onChange, placeholder, disabled, isLoading}: SearchableComboboxProps) {
     const [open, setOpen] = useState(false);
 
     return (
@@ -140,22 +170,22 @@ function SearchableCombobox({ items, value, onChange, placeholder, disabled, isL
                         className={cn("w-full h-11 justify-between bg-muted/30", !value && "text-muted-foreground", (disabled || isLoading) && "opacity-50 cursor-not-allowed")}
                     >
                         <div className="flex items-center truncate">
-                            {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin text-muted-foreground" />}
+                            {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin text-muted-foreground"/>}
                             {value ? value : (isLoading ? "Fetching..." : placeholder)}
                         </div>
-                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50"/>
                     </Button>
                 </FormControl>
             </PopoverTrigger>
             <PopoverContent className="w-[300px] p-0 shadow-xl rounded-xl border-border/50">
                 <Command className="bg-transparent overflow-hidden rounded-xl filter-none">
-                    <CommandInput placeholder="Search..." className="h-11" />
+                    <CommandInput placeholder="Search..." className="h-11"/>
                     <CommandList className="max-h-[250px] overflow-y-auto custom-scrollbar">
                         <CommandEmpty>No results found.</CommandEmpty>
                         <CommandGroup>
                             {items.map((item, index) => (
                                 <CommandItem
-                                    key={item.code || `${item.name}-${index}`} // 🚀 Uses PSGC API code
+                                    key={item.code || `${item.name}-${index}`}
                                     value={item.name}
                                     onSelect={() => {
                                         onChange(item.name);
@@ -163,7 +193,7 @@ function SearchableCombobox({ items, value, onChange, placeholder, disabled, isL
                                     }}
                                 >
                                     <Check
-                                        className={cn("mr-2 h-4 w-4 text-primary", value === item.name ? "opacity-100" : "opacity-0")} />
+                                        className={cn("mr-2 h-4 w-4 text-primary", value === item.name ? "opacity-100" : "opacity-0")}/>
                                     {item.name}
                                 </CommandItem>
                             ))}
@@ -179,7 +209,7 @@ function SearchableCombobox({ items, value, onChange, placeholder, disabled, isL
 // SCHEMA & TYPES
 // ============================================================================
 const customerSchema = z.object({
-    customer_code: z.string().min(1, "Customer code is required"),
+    customer_code: z.string().optional().or(z.literal("")),
     customer_name: z.string().min(1, "Customer name is required"),
     store_name: z.string().min(1, "Store name is required"),
     store_signage: z.string(),
@@ -190,7 +220,8 @@ const customerSchema = z.object({
     province: z.string().min(1, "Province is required"),
     type: z.enum(["Regular", "Employee"]),
     user_id: z.coerce.number().nullable(),
-    tel_number: z.string(), customer_tin: z.string(),
+    tel_number: z.string(),
+    customer_tin: z.string(),
     payment_term: z.coerce.number(),
     store_type: z.coerce.number().nullable(),
     classification: z.coerce.number().nullable(),
@@ -200,6 +231,9 @@ const customerSchema = z.object({
     isActive: z.coerce.number().default(1),
     isVAT: z.coerce.number().default(0),
     isEWT: z.coerce.number().default(0),
+    customer_image: z.string().optional().nullable(),
+    location: z.string().optional().nullable(),
+    otherDetails: z.string().optional().nullable(),
     bank_accounts: z.array(z.object({
         id: z.number().optional(),
         customer_id: z.number().optional(),
@@ -215,7 +249,7 @@ const customerSchema = z.object({
     })).default([]),
 });
 
-type CustomerFormValues = z.infer<typeof customerSchema>;
+export type CustomerFormValues = z.infer<typeof customerSchema>;
 
 interface CustomerFormSheetProps {
     open: boolean;
@@ -230,35 +264,73 @@ const getDefaultValues = (): CustomerFormValues => ({
     customer_email: "", brgy: "", city: "", province: "", tel_number: "", customer_tin: "",
     payment_term: 0, store_type: null, classification: null, price_type: "", isActive: 1, isVAT: 0, isEWT: 0,
     discount_type: null, type: "Regular", user_id: null, encoder_id: 1, bank_accounts: [],
+    customer_image: "", location: "", otherDetails: "",
 });
+
+// ============================================================================
+// 🚀 MAP HELPER COMPONENT
+// ============================================================================
+const renderMap = (locationString: string | null | undefined) => {
+    if (!locationString) {
+        return (
+            <div
+                className="w-full h-[250px] bg-muted/30 rounded-xl border border-dashed border-border flex flex-col items-center justify-center text-muted-foreground">
+                <MapPin className="h-8 w-8 mb-2 opacity-20"/>
+                <span className="text-xs font-bold uppercase tracking-widest">No Geo-Tag Available</span>
+            </div>
+        );
+    }
+
+    const [lat, lon] = locationString.split(",").map(s => s.trim());
+
+    return (
+        <div className="w-full rounded-xl border border-border shadow-inner overflow-hidden relative group mt-4">
+            <iframe
+                width="100%"
+                height="250"
+                style={{border: 0}}
+                loading="lazy"
+                allowFullScreen
+                referrerPolicy="no-referrer-when-downgrade"
+                src={`https://maps.google.com/maps?q=${lat},${lon}&z=16&output=embed`}
+            ></iframe>
+            <div
+                className="absolute top-3 right-3 bg-background/80 backdrop-blur-md px-3 py-1.5 rounded-full border border-border shadow-sm flex items-center gap-1.5 pointer-events-none">
+                <span className="relative flex h-2 w-2">
+                  <span
+                      className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                </span>
+                <span className="text-[9px] font-black uppercase tracking-widest text-foreground">Live Location</span>
+            </div>
+        </div>
+    );
+};
 
 // ============================================================================
 // MAIN COMPONENT
 // ============================================================================
-export function CustomerFormSheet({
-                                      open,
-                                      onOpenChange,
-                                      customer,
-                                      onSubmit,
-                                      defaultTab = "basic"
-                                  }: CustomerFormSheetProps) {
+export function CustomerFormSheet({ open, onOpenChange, customer, onSubmit, defaultTab = "basic" }: CustomerFormSheetProps) {
     const [activeTab, setActiveTab] = useState(defaultTab);
     const [storeTypes, setStoreTypes] = useState<ReferenceOption[]>([]);
     const [classifications, setClassifications] = useState<ReferenceOption[]>([]);
     const [paymentTerms, setPaymentTerms] = useState<PaymentTerm[]>([]);
     const [bankNames, setBankNames] = useState<ReferenceOption[]>([]);
 
-    // 🚀 PSGC API States
     const [provincesList, setProvincesList] = useState<LocationOption[]>([]);
     const [citiesList, setCitiesList] = useState<LocationOption[]>([]);
     const [barangaysList, setBarangaysList] = useState<LocationOption[]>([]);
 
-    // 🚀 Loading States
     const [isLoadingProvinces, setIsLoadingProvinces] = useState(false);
     const [isLoadingCities, setIsLoadingCities] = useState(false);
     const [isLoadingBarangays, setIsLoadingBarangays] = useState(false);
     const [isLoadingPaymentTerms, setIsLoadingPaymentTerms] = useState(false);
     const [isLoadingBankNames, setIsLoadingBankNames] = useState(false);
+
+    // 🚀 STATES FOR NEW FEATURES
+    const [isUploading, setIsUploading] = useState(false);
+    const [isGeocoding, setIsGeocoding] = useState(false);
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
     const form = useForm<CustomerFormValues>({
         resolver: zodResolver(customerSchema) as Resolver<CustomerFormValues>,
@@ -269,10 +341,85 @@ export function CustomerFormSheet({
     const selectedCity = form.watch("city");
 
     // ========================================================================
-    // 🚀 LIVE PSGC API INTEGRATION
+    // 🚀 NEW FEATURE: AUTOMATIC IMAGE UPLOAD
     // ========================================================================
+    const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
 
-    // 1. Fetch Provinces on Mount
+        setIsUploading(true);
+        try {
+            const formData = new FormData();
+            formData.append('file', file);
+
+            // Calls a Next.js endpoint that forwards the file to Directus
+            const res = await fetch("/api/crm/upload", {
+                method: "POST",
+                body: formData
+            });
+
+            if (!res.ok) throw new Error("Upload failed");
+            const data = await res.json();
+
+            // Instantly fill the input with the returned Directus UUID
+            form.setValue("customer_image", data.id || data.data?.id, { shouldValidate: true });
+            toast.success("Image uploaded successfully!");
+        } catch {
+            toast.error("Failed to upload image. Please ensure the /api/crm/upload endpoint exists.");
+        } finally {
+            setIsUploading(false);
+            if (fileInputRef.current) fileInputRef.current.value = ""; // Reset input
+        }
+    };
+
+    // ========================================================================
+    // 🚀 NEW FEATURE: REVERSE GEOCODING (Coordinates -> Address)
+    // ========================================================================
+    const handleAutoFillAddress = async () => {
+        const loc = form.getValues("location");
+        if (!loc) {
+            toast.error("Please enter coordinates first (Lat, Lon)");
+            return;
+        }
+
+        const coords = loc.split(",");
+        if (coords.length !== 2) {
+            toast.error("Invalid format. Please use 'Lat, Lon'");
+            return;
+        }
+
+        setIsGeocoding(true);
+        try {
+            const lat = coords[0].trim();
+            const lon = coords[1].trim();
+
+            // Ping the free OpenStreetMap Reverse Geocoding API
+            const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`);
+            const data = await res.json();
+
+            if (data && data.address) {
+                const address = data.address;
+                // Attempt to map OSM location names to our form fields
+                const province = address.province || address.state || address.region || "";
+                const city = address.city || address.town || address.municipality || "";
+                const brgy = address.suburb || address.village || address.neighbourhood || address.quarter || "";
+
+                if (province) form.setValue("province", province, { shouldValidate: true });
+                if (city) form.setValue("city", city, { shouldValidate: true });
+                if (brgy) form.setValue("brgy", brgy, { shouldValidate: true });
+
+                toast.success("Address auto-filled from map data!");
+            } else {
+                toast.error("Could not resolve address from these coordinates.");
+            }
+        } catch {
+            toast.error("Failed to fetch address data from maps.");
+        } finally {
+            setIsGeocoding(false);
+        }
+    };
+
+    // [Rest of your existing useEffects for PSGC & References...]
     useEffect(() => {
         if (!open) return;
         let isMounted = true;
@@ -284,7 +431,7 @@ export function CustomerFormSheet({
                 if (!res.ok) throw new Error("Failed to fetch provinces");
                 const data = await res.json();
                 if (isMounted) {
-                    setProvincesList(data.map((p: { code: string; name: string }) => ({ code: p.code, name: p.name })));
+                    setProvincesList(data.map((p: { code: string; name: string }) => ({code: p.code, name: p.name})));
                 }
             } catch {
                 console.error("Failed to fetch provinces");
@@ -296,7 +443,6 @@ export function CustomerFormSheet({
         return () => { isMounted = false; };
     }, [open]);
 
-    // 2. Fetch Cities when Province changes
     useEffect(() => {
         let isMounted = true;
         const fetchCities = async () => {
@@ -314,7 +460,7 @@ export function CustomerFormSheet({
                 if (!res.ok) throw new Error("Failed to fetch cities");
                 const data = await res.json();
                 if (isMounted) {
-                    setCitiesList(data.map((c: { code: string; name: string }) => ({ code: c.code, name: c.name })));
+                    setCitiesList(data.map((c: { code: string; name: string }) => ({code: c.code, name: c.name})));
                 }
             } catch {
                 console.error("Failed to fetch provinces");
@@ -326,7 +472,6 @@ export function CustomerFormSheet({
         return () => { isMounted = false; };
     }, [selectedProvince, provincesList]);
 
-    // 3. Fetch Barangays when City changes
     useEffect(() => {
         let isMounted = true;
         const fetchBarangays = async () => {
@@ -344,7 +489,7 @@ export function CustomerFormSheet({
                 if (!res.ok) throw new Error("Failed to fetch barangays");
                 const data = await res.json();
                 if (isMounted) {
-                    setBarangaysList(data.map((b: { code: string; name: string }) => ({ code: b.code, name: b.name })));
+                    setBarangaysList(data.map((b: { code: string; name: string }) => ({code: b.code, name: b.name})));
                 }
             } catch {
                 console.error("Failed to fetch provinces");
@@ -356,10 +501,6 @@ export function CustomerFormSheet({
         return () => { isMounted = false; };
     }, [selectedCity, citiesList]);
 
-
-    // ========================================================================
-    // 🚀 INTERNAL REFERENCE DATA FETCHING
-    // ========================================================================
     useEffect(() => {
         if (open) setActiveTab(defaultTab);
     }, [open, defaultTab]);
@@ -377,7 +518,10 @@ export function CustomerFormSheet({
 
                 if (storeRes.ok) {
                     const json = await storeRes.json();
-                    setStoreTypes(json.data?.map((item: { id: number; store_type: string }) => ({ id: item.id, name: item.store_type })) || []);
+                    setStoreTypes(json.data?.map((item: { id: number; store_type: string }) => ({
+                        id: item.id,
+                        name: item.store_type
+                    })) || []);
                 }
 
                 if (classRes.ok) {
@@ -387,8 +531,8 @@ export function CustomerFormSheet({
                         name: item.classification_name
                     })) || []);
                 }
-            } catch (err) {
-                if (isMounted) console.error("Failed to fetch references", err);
+            } catch {
+                if (isMounted) console.error("Failed to fetch references");
             }
         };
 
@@ -397,7 +541,6 @@ export function CustomerFormSheet({
         return () => { isMounted = false; };
     }, [open]);
 
-    // 4. Fetch Payment Terms from Directus
     useEffect(() => {
         if (!open) return;
         let isMounted = true;
@@ -411,8 +554,8 @@ export function CustomerFormSheet({
                 if (isMounted) {
                     setPaymentTerms(json.data || []);
                 }
-            } catch (err) {
-                console.error("Failed to fetch payment terms", err);
+            } catch {
+                console.error("Failed to fetch payment terms");
             } finally {
                 if (isMounted) setIsLoadingPaymentTerms(false);
             }
@@ -422,7 +565,6 @@ export function CustomerFormSheet({
         return () => { isMounted = false; };
     }, [open]);
 
-    // 5. Fetch Bank Names
     useEffect(() => {
         if (!open) return;
         let isMounted = true;
@@ -439,8 +581,8 @@ export function CustomerFormSheet({
                         name: item.bank_name
                     })) || []);
                 }
-            } catch (err) {
-                console.error("Failed to fetch bank names", err);
+            } catch {
+                console.error("Failed to fetch bank names");
             } finally {
                 if (isMounted) setIsLoadingBankNames(false);
             }
@@ -474,6 +616,9 @@ export function CustomerFormSheet({
                     encoder_id: customer.encoder_id || 1,
                     classification: customer.classification || null,
                     bank_accounts: customer.bank_accounts || [],
+                    customer_image: customer.customer_image || "",
+                    location: customer.location ? String(customer.location) : "",
+                    otherDetails: customer.otherDetails || "",
                 });
             } else {
                 form.reset(getDefaultValues());
@@ -490,7 +635,6 @@ export function CustomerFormSheet({
         }
     };
 
-    // Helper to count errors per tab
     const getTabErrorCount = (tab: string) => {
         const errorKeys = Object.keys(form.formState.errors);
         if (errorKeys.length === 0) return 0;
@@ -498,11 +642,11 @@ export function CustomerFormSheet({
         switch (tab) {
             case "basic":
                 return errorKeys.filter(k =>
-                    ["customer_code", "customer_name", "store_type", "classification", "store_name", "store_signage"].includes(k)
+                    ["customer_code", "customer_name", "store_type", "classification", "store_name", "store_signage", "customer_image", "otherDetails"].includes(k)
                 ).length;
             case "address":
                 return errorKeys.filter(k =>
-                    ["province", "city", "brgy", "contact_number", "tel_number", "customer_email"].includes(k)
+                    ["province", "city", "brgy", "contact_number", "tel_number", "customer_email", "location"].includes(k)
                 ).length;
             case "billing":
                 return errorKeys.filter(k =>
@@ -515,10 +659,11 @@ export function CustomerFormSheet({
         }
     };
 
-    const TabBadge = ({ count }: { count: number }) => {
+    const TabBadge = ({count}: { count: number }) => {
         if (count === 0) return null;
         return (
-            <Badge variant="destructive" className="ml-2 h-4 w-4 p-0 flex items-center justify-center text-[10px] animate-in zoom-in">
+            <Badge variant="destructive"
+                   className="ml-2 h-4 w-4 p-0 flex items-center justify-center text-[10px] animate-in zoom-in">
                 {count}
             </Badge>
         );
@@ -536,18 +681,19 @@ export function CustomerFormSheet({
         toast.error("Please fill in all required fields in the highlighted tabs.");
     };
 
+    // [handleCreateStoreType & handleCreateClassification omitted for brevity, they remain unchanged]
     const handleCreateStoreType = async (name: string) => {
         try {
             const res = await fetch("/api/crm/customer/references", {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ type: "store_type", name })
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({type: "store_type", name})
             });
             if (!res.ok) throw new Error("Failed to create store type");
             const json = await res.json();
             const newId = json.data.id;
-            setStoreTypes(prev => [...prev, { id: newId, name }]);
-            form.setValue("store_type", newId, { shouldValidate: true });
+            setStoreTypes(prev => [...prev, {id: newId, name}]);
+            form.setValue("store_type", newId, {shouldValidate: true});
             toast.success(`Store Type "${name}" created successfully!`);
         } catch {
             toast.error("Failed to create store type.");
@@ -558,14 +704,14 @@ export function CustomerFormSheet({
         try {
             const res = await fetch("/api/crm/customer/references", {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ type: "classification", name })
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({type: "classification", name})
             });
             if (!res.ok) throw new Error("Failed to create classification");
             const json = await res.json();
             const newId = json.data.id;
-            setClassifications(prev => [...prev, { id: newId, name }]);
-            form.setValue("classification", newId, { shouldValidate: true });
+            setClassifications(prev => [...prev, {id: newId, name}]);
+            form.setValue("classification", newId, {shouldValidate: true});
             toast.success(`Classification "${name}" created successfully!`);
         } catch {
             toast.error("Failed to create classification.");
@@ -581,7 +727,7 @@ export function CustomerFormSheet({
                     <SheetHeader className="text-left">
                         <div className="flex items-center gap-4">
                             <div className="p-3 bg-primary/10 rounded-2xl text-primary shadow-inner hidden sm:flex">
-                                <Users className="h-6 w-6" />
+                                <Users className="h-6 w-6"/>
                             </div>
                             <div>
                                 <SheetTitle
@@ -603,21 +749,23 @@ export function CustomerFormSheet({
 
                             <div className="px-6 md:px-8 pt-4 shrink-0 bg-background z-10 space-y-4">
                                 {defaultTab === "bank" && hasExternalErrors && (
-                                    <Alert variant="destructive" className="bg-destructive/5 border-destructive/20 animate-in slide-in-from-top-2 duration-300">
-                                        <AlertCircle className="h-4 w-4" />
-                                        <AlertTitle className="text-sm font-black uppercase tracking-tight">Profile Incomplete</AlertTitle>
+                                    <Alert variant="destructive"
+                                           className="bg-destructive/5 border-destructive/20 animate-in slide-in-from-top-2 duration-300">
+                                        <AlertCircle className="h-4 w-4"/>
+                                        <AlertTitle className="text-sm font-black uppercase tracking-tight">Profile
+                                            Incomplete</AlertTitle>
                                         <AlertDescription className="flex items-center justify-between gap-4 mt-1">
                                             <span className="text-xs font-bold leading-relaxed">
                                                 This customer has missing required information in other sections. Please complete them to save changes.
                                             </span>
-                                            <Button 
-                                                type="button" 
-                                                variant="destructive" 
-                                                size="sm" 
+                                            <Button
+                                                type="button"
+                                                variant="destructive"
+                                                size="sm"
                                                 onClick={navigateToFirstError}
                                                 className="h-8 px-3 text-[10px] font-black uppercase tracking-widest rounded-lg shrink-0"
                                             >
-                                                Fix Issues <ArrowRight className="ml-1.5 h-3 w-3" />
+                                                Fix Issues <ArrowRight className="ml-1.5 h-3 w-3"/>
                                             </Button>
                                         </AlertDescription>
                                     </Alert>
@@ -627,29 +775,29 @@ export function CustomerFormSheet({
                                     <TabsTrigger value="basic"
                                                  disabled={defaultTab === "bank" && getTabErrorCount("basic") === 0}
                                                  className="py-2.5 text-xs font-bold uppercase tracking-widest rounded-lg flex items-center justify-center">
-                                        <Building2 className="w-3.5 h-3.5 mr-2 hidden md:block" />
+                                        <Building2 className="w-3.5 h-3.5 mr-2 hidden md:block"/>
                                         Basic
-                                        <TabBadge count={getTabErrorCount("basic")} />
+                                        <TabBadge count={getTabErrorCount("basic")}/>
                                     </TabsTrigger>
                                     <TabsTrigger value="address"
                                                  disabled={defaultTab === "bank" && getTabErrorCount("address") === 0}
                                                  className="py-2.5 text-xs font-bold uppercase tracking-widest rounded-lg flex items-center justify-center">
-                                        <MapPin className="w-3.5 h-3.5 mr-2 hidden md:block" />
+                                        <MapPin className="w-3.5 h-3.5 mr-2 hidden md:block"/>
                                         Location
-                                        <TabBadge count={getTabErrorCount("address")} />
+                                        <TabBadge count={getTabErrorCount("address")}/>
                                     </TabsTrigger>
                                     <TabsTrigger value="billing"
                                                  disabled={defaultTab === "bank" && getTabErrorCount("billing") === 0}
                                                  className="py-2.5 text-xs font-bold uppercase tracking-widest rounded-lg flex items-center justify-center">
-                                        <Receipt className="w-3.5 h-3.5 mr-2 hidden md:block" />
+                                        <Receipt className="w-3.5 h-3.5 mr-2 hidden md:block"/>
                                         Billing
-                                        <TabBadge count={getTabErrorCount("billing")} />
+                                        <TabBadge count={getTabErrorCount("billing")}/>
                                     </TabsTrigger>
                                     <TabsTrigger value="bank"
                                                  className="py-2.5 text-xs font-bold uppercase tracking-widest rounded-lg flex items-center justify-center">
-                                        <CreditCard className="w-3.5 h-3.5 mr-2 hidden md:block" />
+                                        <CreditCard className="w-3.5 h-3.5 mr-2 hidden md:block"/>
                                         Bank
-                                        <TabBadge count={getTabErrorCount("bank")} />
+                                        <TabBadge count={getTabErrorCount("bank")}/>
                                     </TabsTrigger>
                                 </TabsList>
                             </div>
@@ -659,20 +807,34 @@ export function CustomerFormSheet({
                                 <TabsContent value="basic"
                                              className="space-y-6 m-0 animate-in fade-in slide-in-from-bottom-2">
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                        <FormField control={form.control} name="customer_code" render={({ field }) => (
-                                            <FormItem><FormLabel
-                                                className="font-bold uppercase text-xs text-muted-foreground">Customer
-                                                Code</FormLabel><FormControl><Input className="h-11 bg-muted/30"
-                                                                                    placeholder="CUST-001" {...field} /></FormControl><FormMessage /></FormItem>
-                                        )} />
-                                        <FormField control={form.control} name="customer_name" render={({ field }) => (
-                                            <FormItem><FormLabel
-                                                className="font-bold uppercase text-xs text-muted-foreground">Customer
-                                                Name</FormLabel><FormControl><Input className="h-11 bg-muted/30"
-                                                                                    placeholder="John Doe" {...field} /></FormControl><FormMessage /></FormItem>
-                                        )} />
+                                        <FormField control={form.control} name="customer_code" render={({field}) => (
+                                            <FormItem>
+                                                <FormLabel
+                                                    className="font-bold uppercase text-xs text-muted-foreground">
+                                                    Customer Code
+                                                </FormLabel>
+                                                <FormControl>
+                                                    <Input
+                                                        className="h-11 bg-muted/30 cursor-not-allowed font-mono text-muted-foreground"
+                                                        placeholder="AUTO-GENERATED"
+                                                        disabled
+                                                        {...field}
+                                                        value={field.value || "AUTO-GENERATED"}
+                                                    />
+                                                </FormControl>
+                                                <FormMessage/>
+                                            </FormItem>
+                                        )}/>
+                                        <FormField control={form.control} name="customer_name"
+                                                   render={({field}) => (
+                                                       <FormItem><FormLabel
+                                                           className="font-bold uppercase text-xs text-muted-foreground">Customer
+                                                           Name</FormLabel><FormControl><Input
+                                                           className="h-11 bg-muted/30"
+                                                           placeholder="John Doe" {...field} /></FormControl><FormMessage/></FormItem>
+                                                   )}/>
 
-                                        <FormField control={form.control} name="store_type" render={({ field }) => (
+                                        <FormField control={form.control} name="store_type" render={({field}) => (
                                             <FormItem className="flex flex-col pt-1.5"><FormLabel
                                                 className="font-bold uppercase text-xs text-muted-foreground">Store
                                                 Type</FormLabel><CreatableCombobox items={storeTypes}
@@ -680,36 +842,85 @@ export function CustomerFormSheet({
                                                                                    onChange={field.onChange}
                                                                                    onCreate={handleCreateStoreType}
                                                                                    placeholder="Select or create..."
-                                                                                   itemName="Store Type" /><FormMessage /></FormItem>
-                                        )} />
+                                                                                   itemName="Store Type"/><FormMessage/></FormItem>
+                                        )}/>
 
-                                        <FormField control={form.control} name="classification" render={({ field }) => (
+                                        <FormField control={form.control} name="classification" render={({field}) => (
                                             <FormItem className="flex flex-col pt-1.5"><FormLabel
                                                 className="font-bold uppercase text-xs text-muted-foreground">Classification</FormLabel><CreatableCombobox
                                                 items={classifications} value={field.value} onChange={field.onChange}
                                                 onCreate={handleCreateClassification} placeholder="Select or create..."
-                                                itemName="Classification" /><FormMessage /></FormItem>
-                                        )} />
+                                                itemName="Classification"/><FormMessage/></FormItem>
+                                        )}/>
 
-                                        <FormField control={form.control} name="store_name" render={({ field }) => (
+                                        <FormField control={form.control} name="store_name" render={({field}) => (
                                             <FormItem><FormLabel
                                                 className="font-bold uppercase text-xs text-muted-foreground">Store
                                                 Name</FormLabel><FormControl><Input className="h-11 bg-muted/30"
-                                                                                    placeholder="Main Branch" {...field} /></FormControl><FormMessage /></FormItem>
-                                        )} />
-                                        <FormField control={form.control} name="store_signage" render={({ field }) => (
+                                                                                    placeholder="Main Branch" {...field} /></FormControl><FormMessage/></FormItem>
+                                        )}/>
+                                        <FormField control={form.control} name="store_signage" render={({field}) => (
                                             <FormItem><FormLabel
                                                 className="font-bold uppercase text-xs text-muted-foreground">Store
                                                 Signage</FormLabel><FormControl><Input className="h-11 bg-muted/30"
-                                                                                       placeholder="Doe's General Store" {...field} /></FormControl><FormMessage /></FormItem>
-                                        )} />
+                                                                                       placeholder="Doe's General Store" {...field} /></FormControl><FormMessage/></FormItem>
+                                        )}/>
+
+                                        {/* 🚀 FIXED: Interactive Image Upload & Preview */}
+                                        <FormField control={form.control} name="customer_image" render={({field}) => (
+                                            <FormItem className="md:col-span-2">
+                                                <FormLabel className="font-bold uppercase text-xs text-muted-foreground">
+                                                    Store / Customer Image (UUID or URL)
+                                                </FormLabel>
+                                                <div className="flex gap-2 items-center">
+                                                    <FormControl>
+                                                        <Input
+                                                            className="h-11 bg-muted/30 font-mono text-xs flex-1"
+                                                            placeholder="Paste Directus UUID or URL..."
+                                                            {...field}
+                                                            value={field.value || ""}
+                                                        />
+                                                    </FormControl>
+                                                    <Button
+                                                        type="button"
+                                                        variant="outline"
+                                                        className="h-11 px-4 border-dashed border-primary text-primary hover:bg-primary/10 transition-colors"
+                                                        onClick={() => fileInputRef.current?.click()}
+                                                        disabled={isUploading}
+                                                    >
+                                                        {isUploading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <UploadCloud className="w-4 h-4 mr-2" />}
+                                                        {isUploading ? "Uploading..." : "Upload File"}
+                                                    </Button>
+                                                    <input
+                                                        type="file"
+                                                        ref={fileInputRef}
+                                                        className="hidden"
+                                                        accept="image/*"
+                                                        onChange={handleImageUpload}
+                                                    />
+                                                </div>
+                                                <FormMessage/>
+                                                {renderImagePreview(field.value)}
+                                            </FormItem>
+                                        )}/>
+
+                                        <FormField control={form.control} name="otherDetails" render={({field}) => (
+                                            <FormItem className="md:col-span-2">
+                                                <FormLabel
+                                                    className="font-bold uppercase text-xs text-muted-foreground">Remarks</FormLabel>
+                                                <FormControl><Textarea className="bg-muted/30 min-h-[100px] resize-none"
+                                                                       placeholder="Additional customer remarks..." {...field}
+                                                                       value={field.value || ""}/></FormControl>
+                                                <FormMessage/>
+                                            </FormItem>
+                                        )}/>
                                     </div>
                                 </TabsContent>
 
                                 <TabsContent value="address"
                                              className="space-y-6 m-0 animate-in fade-in slide-in-from-bottom-2">
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                        <FormField control={form.control} name="province" render={({ field }) => (
+                                        <FormField control={form.control} name="province" render={({field}) => (
                                             <FormItem className="flex flex-col md:col-span-2">
                                                 <FormLabel
                                                     className="font-bold uppercase text-xs text-muted-foreground">Province</FormLabel>
@@ -719,17 +930,17 @@ export function CustomerFormSheet({
                                                     isLoading={isLoadingProvinces}
                                                     onChange={(val: string) => {
                                                         field.onChange(val);
-                                                        form.setValue("city", "", { shouldValidate: true });
-                                                        form.setValue("brgy", "", { shouldValidate: true });
+                                                        form.setValue("city", "", {shouldValidate: true});
+                                                        form.setValue("brgy", "", {shouldValidate: true});
                                                     }}
                                                     placeholder="Search province..."
                                                     disabled={isLoadingProvinces}
                                                 />
-                                                <FormMessage />
+                                                <FormMessage/>
                                             </FormItem>
-                                        )} />
+                                        )}/>
 
-                                        <FormField control={form.control} name="city" render={({ field }) => (
+                                        <FormField control={form.control} name="city" render={({field}) => (
                                             <FormItem className="flex flex-col">
                                                 <FormLabel
                                                     className="font-bold uppercase text-xs text-muted-foreground">City /
@@ -740,16 +951,16 @@ export function CustomerFormSheet({
                                                     isLoading={isLoadingCities}
                                                     onChange={(val: string) => {
                                                         field.onChange(val);
-                                                        form.setValue("brgy", "", { shouldValidate: true });
+                                                        form.setValue("brgy", "", {shouldValidate: true});
                                                     }}
                                                     placeholder={selectedProvince ? "Search city..." : "Select province first"}
                                                     disabled={!selectedProvince || isLoadingCities}
                                                 />
-                                                <FormMessage />
+                                                <FormMessage/>
                                             </FormItem>
-                                        )} />
+                                        )}/>
 
-                                        <FormField control={form.control} name="brgy" render={({ field }) => (
+                                        <FormField control={form.control} name="brgy" render={({field}) => (
                                             <FormItem className="flex flex-col">
                                                 <FormLabel
                                                     className="font-bold uppercase text-xs text-muted-foreground">Barangay</FormLabel>
@@ -761,38 +972,73 @@ export function CustomerFormSheet({
                                                     placeholder={selectedCity ? "Search barangay..." : "Select city first"}
                                                     disabled={!selectedCity || isLoadingBarangays}
                                                 />
-                                                <FormMessage />
+                                                <FormMessage/>
                                             </FormItem>
-                                        )} />
+                                        )}/>
 
-                                        <FormField control={form.control} name="contact_number" render={({ field }) => (
+                                        {/* 🚀 FIXED: Auto-Fill Address Button Added */}
+                                        <FormField control={form.control} name="location" render={({field}) => (
+                                            <FormItem className="md:col-span-2">
+                                                <FormLabel className="font-bold uppercase text-xs text-muted-foreground">
+                                                    Geo Tag (Coordinates)
+                                                </FormLabel>
+                                                <div className="flex gap-2">
+                                                    <FormControl>
+                                                        <Input
+                                                            className="h-11 bg-muted/30 font-mono flex-1"
+                                                            placeholder="e.g., 16.0433, 120.3333"
+                                                            {...field}
+                                                            value={field.value || ""}
+                                                        />
+                                                    </FormControl>
+                                                    <Button
+                                                        type="button"
+                                                        variant="secondary"
+                                                        className="h-11 shadow-sm font-bold tracking-wide"
+                                                        onClick={handleAutoFillAddress}
+                                                        disabled={isGeocoding || !field.value}
+                                                    >
+                                                        {isGeocoding ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <MapPin className="w-4 h-4 mr-2 text-amber-500" />}
+                                                        Auto-Fill Address
+                                                    </Button>
+                                                </div>
+                                                <FormMessage/>
+
+                                                <div className="mt-4">
+                                                    {renderMap(field.value)}
+                                                </div>
+                                            </FormItem>
+                                        )}/>
+
+                                        <FormField control={form.control} name="contact_number" render={({field}) => (
                                             <FormItem><FormLabel
                                                 className="font-bold uppercase text-xs text-muted-foreground">Mobile
                                                 Number</FormLabel><FormControl><Input className="h-11 bg-muted/30"
-                                                                                      placeholder="09123456789" {...field} /></FormControl><FormMessage /></FormItem>
-                                        )} />
-                                        <FormField control={form.control} name="tel_number" render={({ field }) => (
+                                                                                      placeholder="09123456789" {...field} /></FormControl><FormMessage/></FormItem>
+                                        )}/>
+                                        <FormField control={form.control} name="tel_number" render={({field}) => (
                                             <FormItem><FormLabel
                                                 className="font-bold uppercase text-xs text-muted-foreground">Telephone
                                                 Number</FormLabel><FormControl><Input
-                                                className="h-11 bg-muted/30" {...field} /></FormControl><FormMessage /></FormItem>
-                                        )} />
-                                        <FormField control={form.control} name="customer_email" render={({ field }) => (
+                                                className="h-11 bg-muted/30" {...field} /></FormControl><FormMessage/></FormItem>
+                                        )}/>
+                                        <FormField control={form.control} name="customer_email" render={({field}) => (
                                             <FormItem className="md:col-span-2"><FormLabel
                                                 className="font-bold uppercase text-xs text-muted-foreground">Email
                                                 Address</FormLabel><FormControl><Input className="h-11 bg-muted/30"
                                                                                        type="email"
-                                                                                       placeholder="customer@example.com" {...field} /></FormControl><FormMessage /></FormItem>
-                                        )} />
+                                                                                       placeholder="customer@example.com" {...field} /></FormControl><FormMessage/></FormItem>
+                                        )}/>
                                     </div>
                                 </TabsContent>
 
                                 <TabsContent value="billing"
                                              className="space-y-6 m-0 animate-in fade-in slide-in-from-bottom-2">
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                        <FormField control={form.control} name="payment_term" render={({ field }) => (
+                                        <FormField control={form.control} name="payment_term" render={({field}) => (
                                             <FormItem>
-                                                <FormLabel className="font-bold uppercase text-xs text-muted-foreground">
+                                                <FormLabel
+                                                    className="font-bold uppercase text-xs text-muted-foreground">
                                                     Payment Term
                                                 </FormLabel>
                                                 <Select
@@ -802,7 +1048,8 @@ export function CustomerFormSheet({
                                                 >
                                                     <FormControl>
                                                         <SelectTrigger className="h-11 bg-muted/30">
-                                                            <SelectValue placeholder={isLoadingPaymentTerms ? "Loading terms..." : "Select payment term"} />
+                                                            <SelectValue
+                                                                placeholder={isLoadingPaymentTerms ? "Loading terms..." : "Select payment term"}/>
                                                         </SelectTrigger>
                                                     </FormControl>
                                                     <SelectContent>
@@ -813,54 +1060,54 @@ export function CustomerFormSheet({
                                                         ))}
                                                     </SelectContent>
                                                 </Select>
-                                                <FormMessage />
+                                                <FormMessage/>
                                             </FormItem>
-                                        )} />
-                                        <FormField control={form.control} name="price_type" render={({ field }) => (
+                                        )}/>
+                                        <FormField control={form.control} name="price_type" render={({field}) => (
                                             <FormItem><FormLabel
                                                 className="font-bold uppercase text-xs text-muted-foreground">Price
                                                 Type</FormLabel><FormControl><Input className="h-11 bg-muted/30"
-                                                                                    placeholder="Retail/Wholesale" {...field} /></FormControl><FormMessage /></FormItem>
-                                        )} />
+                                                                                    placeholder="Retail/Wholesale" {...field} /></FormControl><FormMessage/></FormItem>
+                                        )}/>
                                     </div>
 
                                     <div
                                         className="bg-muted/20 p-5 rounded-2xl border border-border/50 flex flex-col sm:flex-row gap-8 mt-6">
-                                        <FormField control={form.control} name="isActive" render={({ field }) => (
+                                        <FormField control={form.control} name="isActive" render={({field}) => (
                                             <FormItem
                                                 className="flex flex-row items-center space-x-3 space-y-0"><FormControl><Checkbox
                                                 checked={field.value === 1}
                                                 onCheckedChange={(checked) => field.onChange(checked ? 1 : 0)}
-                                                className="w-5 h-5 rounded-md" /></FormControl><FormLabel
+                                                className="w-5 h-5 rounded-md"/></FormControl><FormLabel
                                                 className="font-bold uppercase text-xs cursor-pointer">Active
                                                 Account</FormLabel></FormItem>
-                                        )} />
-                                        <FormField control={form.control} name="isVAT" render={({ field }) => (
+                                        )}/>
+                                        <FormField control={form.control} name="isVAT" render={({field}) => (
                                             <FormItem
                                                 className="flex flex-row items-center space-x-3 space-y-0"><FormControl><Checkbox
                                                 checked={field.value === 1}
                                                 onCheckedChange={(checked) => field.onChange(checked ? 1 : 0)}
-                                                className="w-5 h-5 rounded-md" /></FormControl><FormLabel
+                                                className="w-5 h-5 rounded-md"/></FormControl><FormLabel
                                                 className="font-bold uppercase text-xs cursor-pointer">VAT
                                                 Registered</FormLabel></FormItem>
-                                        )} />
-                                        <FormField control={form.control} name="isEWT" render={({ field }) => (
+                                        )}/>
+                                        <FormField control={form.control} name="isEWT" render={({field}) => (
                                             <FormItem
                                                 className="flex flex-row items-center space-x-3 space-y-0"><FormControl><Checkbox
                                                 checked={field.value === 1}
                                                 onCheckedChange={(checked) => field.onChange(checked ? 1 : 0)}
-                                                className="w-5 h-5 rounded-md" /></FormControl><FormLabel
+                                                className="w-5 h-5 rounded-md"/></FormControl><FormLabel
                                                 className="font-bold uppercase text-xs cursor-pointer">Subject to
                                                 EWT</FormLabel></FormItem>
-                                        )} />
+                                        )}/>
                                     </div>
                                 </TabsContent>
 
                                 <TabsContent value="bank" className="m-0 animate-in fade-in slide-in-from-bottom-2">
-                                    <BankAccountManager 
-                                        accounts={form.watch("bank_accounts") || []} 
+                                    <BankAccountManager
+                                        accounts={form.watch("bank_accounts") || []}
                                         banks={bankNames}
-                                        onAccountsChange={(accounts) => form.setValue("bank_accounts", accounts, { shouldDirty: true })}
+                                        onAccountsChange={(accounts) => form.setValue("bank_accounts", accounts, {shouldDirty: true})}
                                         isLoading={isLoadingBankNames}
                                     />
                                 </TabsContent>
@@ -875,7 +1122,7 @@ export function CustomerFormSheet({
                             </Button>
                             <Button type="submit" disabled={form.formState.isSubmitting}
                                     className="h-12 px-8 font-black uppercase tracking-widest text-xs rounded-xl shadow-lg transition-all active:scale-95 bg-primary hover:bg-primary/90 text-primary-foreground">
-                                {form.formState.isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                {form.formState.isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
                                 {customer ? "Save Changes" : "Create Customer"}
                             </Button>
                         </div>
