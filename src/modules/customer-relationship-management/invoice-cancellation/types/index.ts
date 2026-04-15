@@ -13,6 +13,7 @@ export const CancellationRequestSchema = z.object({
   sales_order_id: z.string(),
   invoice_no: z.string(),
   customer_code: z.string(),
+  customer_name: z.string(), // 🚀 NEW
   total_amount: z.number(),
   reason_code: z.string(),
   remarks: z.string().optional(),
@@ -24,9 +25,10 @@ export const SalesInvoiceSchema = z.object({
   invoice_id: z.number(),
   invoice_no: z.string(),
   customer_code: z.string(),
+  customer_name: z.string(), // 🚀 NEW
   total_amount: z.number(),
   transaction_status: TransactionStatusEnum,
-  order_id: z.string(), // Maps to orderNo in Spring Boot
+  order_id: z.string(),
 });
 
 export type CancellationRequest = z.infer<typeof CancellationRequestSchema>;
@@ -38,4 +40,24 @@ export interface ApprovalParams {
   invoiceId: number;
   orderNo: string;
   auditorId: number;
+}
+
+export type ApprovalAction = "APPROVE" | "REJECT";
+
+export interface CancellationReportDto {
+  requestId: number;
+  invoiceId: number;
+  salesOrderId: string;
+  reasonCode: string;
+  remarks: string;
+  status: string;
+  dateApproved?: string;
+  invoiceNo: string;
+  totalAmount: number;
+  customerCode: string;
+  customerName: string; // 🚀 NEW
+}
+
+export interface InvoiceRow extends CancellationRequest {
+  ui_status: "PENDING" | "APPROVED";
 }

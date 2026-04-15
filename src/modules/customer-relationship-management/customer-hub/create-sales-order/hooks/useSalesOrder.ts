@@ -480,7 +480,6 @@ export function useSalesOrder() {
                     const linkedId = masterUser.linked_account_ids[0].toString();
                     const linkedAccount = data.find((a: Salesman) => a.id.toString() === linkedId);
                     console.log(`[handleSalesmanChange] Master User ${id} has one linked account for this customer: ${linkedId}. Auto-selecting...`);
-
                     // PASS THE FRESH DATA DIRECTLY to avoid React state delay
                     handleAccountChange(linkedId, linkedAccount);
                 }

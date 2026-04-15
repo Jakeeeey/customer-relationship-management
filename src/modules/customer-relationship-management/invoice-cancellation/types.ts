@@ -2,6 +2,7 @@ export interface SalesInvoice {
   invoice_id: number;
   invoice_no: string;
   customer_code: string;
+  customer_name: string;
   total_amount: number;
   transaction_status: "FOR DISPATCH" | "PENDING CANCEL" | "CANCELLED" | "VOID";
   order_id: string;
@@ -21,6 +22,7 @@ export interface CancellationRequest {
   // Enriched fields from the BFF
   invoice_no: string;
   customer_code: string;
+  customer_name: string;
   total_amount: number;
 }
 
