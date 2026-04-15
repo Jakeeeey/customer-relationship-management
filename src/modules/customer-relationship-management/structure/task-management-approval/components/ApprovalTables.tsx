@@ -13,32 +13,24 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Check, X, Calendar, User, ClipboardList, Briefcase } from "lucide-react";
-import { DailyActionPlan, MonthlyCoveragePlan, Task, Customer, Salesman } from "../types";
+import { Check, X, User, ClipboardList } from "lucide-react";
+import { DailyActionPlan, Task, Customer } from "../types";
 import { format } from "date-fns";
 
 interface ApprovalTablesProps {
     pendingDaps: DailyActionPlan[];
-    pendingMcps: MonthlyCoveragePlan[];
     tasks: Task[];
     customers: Customer[];
-    salesmen: Salesman[];
     onApproveDap: (id: number) => Promise<boolean>;
     onRejectDap: (id: number) => Promise<boolean>;
-    onApproveMcp: (id: number) => Promise<boolean>;
-    onRejectMcp: (id: number) => Promise<boolean>;
 }
 
 export const ApprovalTables: React.FC<ApprovalTablesProps> = ({
     pendingDaps,
-    pendingMcps,
     tasks,
     customers,
-    salesmen,
     onApproveDap,
     onRejectDap,
-    onApproveMcp,
-    onRejectMcp,
 }) => {
     return (
         <div className="space-y-12 pb-20 pt-8">

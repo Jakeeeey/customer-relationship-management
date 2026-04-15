@@ -34,11 +34,16 @@ export function CustomerGroup({ group, status, bulkAction }: CustomerGroupProps)
     useEffect(() => {
         if (!bulkAction) return;
         
-        if (bulkAction.type === 'expand') {
-            setIsOpen(true);
-        } else if (bulkAction.type === 'collapse') {
-            setIsOpen(false);
-        }
+        // Use setTimeout to avoid synchronous setState in effect warning
+        const timer = setTimeout(() => {
+            if (bulkAction.type === 'expand') {
+                setIsOpen(true);
+            } else if (bulkAction.type === 'collapse') {
+                setIsOpen(false);
+            }
+        }, 0);
+
+        return () => clearTimeout(timer);
     }, [bulkAction]);
 
     return (

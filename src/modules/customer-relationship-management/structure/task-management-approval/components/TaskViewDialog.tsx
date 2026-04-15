@@ -12,7 +12,6 @@ import {
     DailyActionPlan, 
     Task, 
     Customer, 
-    DailyActionPlanAttachment 
 } from "../types";
 import { TaskForm } from "./TaskForm";
 import { Button } from "@/components/ui/button";
@@ -21,7 +20,6 @@ import {
     Clock, 
     Calendar,
     Info,
-    CheckCircle,
     Plus
 } from "lucide-react";
 import { format } from "date-fns";
@@ -31,7 +29,6 @@ interface TaskViewDialogProps {
     isOpen: boolean;
     onClose: () => void;
     dayTasks: DailyActionPlan[];
-    attachments: DailyActionPlanAttachment[];
     tasks: Task[];
     customers: Customer[];
     selectedDate: Date | null;
@@ -47,7 +44,6 @@ export const TaskViewDialog: React.FC<TaskViewDialogProps> = ({
     isOpen,
     onClose,
     dayTasks,
-    attachments,
     tasks,
     customers,
     selectedDate,

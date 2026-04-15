@@ -15,7 +15,6 @@ import {
     TaskManagementData, 
     SalesmanPerSupervisor,
     SupervisorPerDivision,
-    DailyActionPlan,
 } from "../types";
 import { toast } from "sonner";
 import { 
@@ -128,7 +127,7 @@ export const useTaskManagementApproval = () => {
                 fetchTasks(true);
             }
             return success;
-        } catch (error) {
+        } catch {
             toast.error("Failed to approve task");
             return false;
         }
@@ -142,7 +141,7 @@ export const useTaskManagementApproval = () => {
                 fetchTasks(true);
             }
             return success;
-        } catch (error) {
+        } catch {
             toast.error("Failed to reject task");
             return false;
         }
@@ -156,7 +155,7 @@ export const useTaskManagementApproval = () => {
                 fetchTasks(true);
             }
             return success;
-        } catch (error) {
+        } catch {
             toast.error("Failed to approve monthly plan");
             return false;
         }
@@ -170,7 +169,7 @@ export const useTaskManagementApproval = () => {
                 fetchTasks(true);
             }
             return success;
-        } catch (error) {
+        } catch {
             toast.error("Failed to reject monthly plan");
             return false;
         }

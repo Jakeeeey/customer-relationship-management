@@ -2,7 +2,7 @@
 "use client";
 
 import React from "react";
-import { useForm, Controller } from "react-hook-form";
+import { useForm, Controller, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { format } from "date-fns";
@@ -18,8 +18,7 @@ import {
     SelectValue 
 } from "@/components/ui/select";
 import { Task, Customer, DailyActionPlan } from "../types";
-import { Loader2, Trash2, Save, AlertCircle, Check, ChevronsUpDown, CheckCircle } from "lucide-react";
-import { toast } from "sonner";
+import { Loader2, Save, AlertCircle, Check, ChevronsUpDown, CheckCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
     Command,
@@ -125,7 +124,6 @@ interface TaskFormProps {
     tasks: Task[];
     customers: Customer[];
     onSubmit: (data: Partial<DailyActionPlan>) => Promise<boolean>;
-    onDelete?: (id: number) => Promise<boolean>;
     onApprove?: (id: number) => Promise<boolean>;
     onReject?: (id: number) => Promise<boolean>;
     isSubmitting?: boolean;
@@ -134,12 +132,16 @@ interface TaskFormProps {
     selectedDate: Date | null;
 }
 
+interface PSGCItem {
+    code: string;
+    name: string;
+}
+
 export const TaskForm: React.FC<TaskFormProps> = ({
     initialData,
     tasks,
     customers,
     onSubmit,
-    onDelete,
     onApprove,
     onReject,
     selectedSalesmanId,
@@ -150,7 +152,7 @@ export const TaskForm: React.FC<TaskFormProps> = ({
     const [cities, setCities] = React.useState<{ value: string; label: string }[]>([]);
     const [barangays, setBarangays] = React.useState<{ value: string; label: string }[]>([]);
 
-    const { control, handleSubmit, reset, watch, setValue, formState: { isSubmitting } } = useForm<TaskFormValues>({
+    const { control, handleSubmit, reset, setValue, formState: { isSubmitting } } = useForm<TaskFormValues>({
         resolver: zodResolver(taskSchema),
         defaultValues: {
             task_id: "",
@@ -166,19 +168,19 @@ export const TaskForm: React.FC<TaskFormProps> = ({
         }
     });
 
-    const selectedTaskId = watch("task_id");
+    const selectedTaskId = useWatch({ control, name: "task_id" });
     const selectedTask = tasks.find(t => String(t.id) === selectedTaskId);
     const taskTypeName = selectedTask?.name.toLowerCase() || "";
 
-    const selectedProvince = watch("province");
-    const selectedCity = watch("city");
+    const selectedProvince = useWatch({ control, name: "province" });
+    const selectedCity = useWatch({ control, name: "city" });
 
     // PSGC Data Fetching
     React.useEffect(() => {
         fetch("https://psgc.gitlab.io/api/provinces.json")
             .then(res => res.json())
-            .then(data => {
-                setProvinces(data.map((p: any) => ({ value: p.code, label: p.name })));
+            .then((data: PSGCItem[]) => {
+                setProvinces(data.map((p) => ({ value: p.code, label: p.name })));
             })
             .catch(err => console.error("Error fetching provinces:", err));
     }, []);
@@ -187,8 +189,8 @@ export const TaskForm: React.FC<TaskFormProps> = ({
         if (selectedProvince) {
             fetch(`https://psgc.gitlab.io/api/provinces/${selectedProvince}/cities-municipalities.json`)
                 .then(res => res.json())
-                .then(data => {
-                    setCities(data.map((c: any) => ({ value: c.code, label: c.name })));
+                .then((data: PSGCItem[]) => {
+                    setCities(data.map((c) => ({ value: c.code, label: c.name })));
                     // Don't reset if it's initial load and matches
                     if (initialData?.city !== selectedCity) {
                         setValue("city", "");
@@ -199,15 +201,16 @@ export const TaskForm: React.FC<TaskFormProps> = ({
         } else {
             setCities([]);
         }
-    }, [selectedProvince, setValue, initialData]);
+    }, [selectedProvince, setValue, initialData, selectedCity]);
 
+    const barangayValue = useWatch({ control, name: "barangay" });
     React.useEffect(() => {
         if (selectedCity) {
             fetch(`https://psgc.gitlab.io/api/cities-municipalities/${selectedCity}/barangays.json`)
                 .then(res => res.json())
-                .then(data => {
-                    setBarangays(data.map((b: any) => ({ value: b.code, label: b.name })));
-                    if (initialData?.barangay !== watch("barangay")) {
+                .then((data: PSGCItem[]) => {
+                    setBarangays(data.map((b) => ({ value: b.code, label: b.name })));
+                    if (initialData?.barangay !== barangayValue) {
                         setValue("barangay", "");
                     }
                 })
@@ -215,7 +218,7 @@ export const TaskForm: React.FC<TaskFormProps> = ({
         } else {
             setBarangays([]);
         }
-    }, [selectedCity, setValue, initialData, watch]);
+    }, [selectedCity, setValue, initialData, barangayValue]);
 
     React.useEffect(() => {
         if (initialData) {
@@ -236,8 +239,6 @@ export const TaskForm: React.FC<TaskFormProps> = ({
     }, [initialData, reset]);
 
     const handleFormSubmit = async (values: TaskFormValues) => {
-        const selectedCustomer = customers.find(c => String(c.id) === values.customer_id);
-        
         // Use PSGC labels for the payload if needed, or just the codes
         const provLabel = provinces.find(p => p.value === values.province)?.label || values.province;
         const cityLabel = cities.find(c => c.value === values.city)?.label || values.city;

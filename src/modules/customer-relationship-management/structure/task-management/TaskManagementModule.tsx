@@ -39,7 +39,6 @@ export default function TaskManagementModule() {
         currentYear,
         setMonth,
         setYear,
-        currentMonthlyPlanStatus,
     } = useTaskManagement();
 
     const [isDialogOpen, setIsDialogOpen] = useState(false);

@@ -61,10 +61,16 @@ export default function OPSDashboardModule() {
     // Reset pause state when auto-scroll is manually toggled
     useEffect(() => {
         if (!isAutoScrolling) {
-            setIsPaused(false);
-            setResumeCountdown(0);
+            // Use setTimeout to avoid synchronous setState in effect warning
+            const timer = setTimeout(() => {
+                setIsPaused(false);
+                setResumeCountdown(0);
+            }, 0);
+            
             if (pauseTimerRef.current) clearTimeout(pauseTimerRef.current);
             if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
+            
+            return () => clearTimeout(timer);
         }
     }, [isAutoScrolling]);
 
@@ -203,7 +209,7 @@ export default function OPSDashboardModule() {
                     ref={scrollRef}
                     className="absolute inset-0 overflow-x-auto overflow-y-hidden flex scroll-smooth selection:bg-transparent"
                     style={{ scrollbarWidth: 'thin' }}
-                    onScroll={(e) => {
+                    onScroll={() => {
                         // Only trigger pause on manual scroll (when not being scrolled by auto-scroll)
                         // This is hard to detect perfectly without tracking delta, but onWheel handles most mouse cases.
                     }}

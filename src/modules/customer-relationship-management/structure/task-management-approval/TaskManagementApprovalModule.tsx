@@ -33,16 +33,12 @@ export default function TaskManagementApprovalModule() {
         getTasksForDay,
         handleApproveTask,
         handleRejectTask,
-        handleApproveMonthlyPlan,
-        handleRejectMonthlyPlan,
         handleUpdateTask,
         handleDeleteTask,
         currentMonth,
         currentYear,
         setMonth,
         setYear,
-        pendingActionPlans,
-        pendingMonthlyPlans,
     } = useTaskManagementApproval();
 
     const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -152,7 +148,7 @@ export default function TaskManagementApprovalModule() {
                     setIsDialogOpen(false);
                     setEditingTask(null);
                 }}
-                onSubmit={async (payload) => {
+                onSubmit={async () => {
                     // Mirroring basic update logic if supervisor adds a task manually
                     return false; // Creation not primary focus here
                 }}
