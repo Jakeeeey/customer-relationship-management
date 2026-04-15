@@ -196,14 +196,14 @@ export async function GET(req: NextRequest) {
             const csData = (await csRes.json()).data || [];
             const ids = csData.map((cs: { customer_id: number | string }) => cs.customer_id);
             if (ids.length === 0) return NextResponse.json([]);
-            const cRes = await fetch(`${DIRECTUS_URL}/items/customer?filter[id][_in]=${ids.join(',')}&fields=*,province,city&limit=-1`, { headers: fetchHeaders });
+            const cRes = await fetch(`${DIRECTUS_URL}/items/customer?filter[id][_in]=${ids.join(',')}&filter[isActive][_eq]=1&fields=*,province,city&limit=-1`, { headers: fetchHeaders });
             return NextResponse.json((await cRes.json()).data || []);
         }
 
         if (action === "all_customers") {
             const search = req.nextUrl.searchParams.get("search");
             const offset = req.nextUrl.searchParams.get("offset") || "0";
-            let url = `${DIRECTUS_URL}/items/customer?fields=*,province,city&limit=30&offset=${offset}`;
+            let url = `${DIRECTUS_URL}/items/customer?filter[isActive][_eq]=1&fields=*,province,city&limit=30&offset=${offset}`;
             if (search) {
                 url += `&filter[_or][0][customer_name][_icontains]=${encodeURIComponent(search)}&filter[_or][1][store_name][_icontains]=${encodeURIComponent(search)}&filter[_or][2][customer_code][_icontains]=${encodeURIComponent(search)}`;
             }
