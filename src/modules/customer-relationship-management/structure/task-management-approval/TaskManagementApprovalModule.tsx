@@ -34,7 +34,6 @@ export default function TaskManagementApprovalModule() {
         handleApproveTask,
         handleRejectTask,
         handleUpdateTask,
-        handleDeleteTask,
         currentMonth,
         currentYear,
         setMonth,
@@ -171,7 +170,6 @@ export default function TaskManagementApprovalModule() {
                 selectedEmployeeId={selectedEmployeeId}
                 selectedSalesmanId={selectedSalesmanId}
                 onUpdateTask={handleTaskUpdate}
-                onDeleteTask={handleDeleteTask}
                 onApproveTask={handleApproveTask}
                 onRejectTask={handleRejectTask}
             />

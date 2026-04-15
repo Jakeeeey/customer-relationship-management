@@ -35,7 +35,6 @@ interface TaskViewDialogProps {
     selectedEmployeeId: string;
     selectedSalesmanId: string;
     onUpdateTask: (id: number, data: Partial<DailyActionPlan>) => Promise<boolean>;
-    onDeleteTask: (id: number) => Promise<boolean>;
     onApproveTask: (id: number) => Promise<boolean>;
     onRejectTask: (id: number) => Promise<boolean>;
 }
@@ -50,7 +49,6 @@ export const TaskViewDialog: React.FC<TaskViewDialogProps> = ({
     selectedEmployeeId,
     selectedSalesmanId,
     onUpdateTask,
-    onDeleteTask,
     onApproveTask,
     onRejectTask,
 }) => {
