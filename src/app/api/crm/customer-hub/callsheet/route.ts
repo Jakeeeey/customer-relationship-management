@@ -38,7 +38,7 @@ export async function GET(req: NextRequest) {
 
         // Fetch lookup tables first to support name-based searching
         const [salesmen, customers] = await Promise.all([
-            fetchAll<{ id: number; salesman_name: string }>("/items/salesman?limit=-1&fields=id,salesman_name"),
+            fetchAll<{ id: number; salesman_name: string; salesman_code: string }>("/items/salesman?limit=-1&fields=id,salesman_name,salesman_code"),
             fetchAll<{ id: number; customer_code: string; customer_name: string }>(
                 "/items/customer?limit=-1&fields=id,customer_code,customer_name"
             ),

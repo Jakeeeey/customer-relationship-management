@@ -154,8 +154,8 @@ export default function SalesOrderApprovalModule() {
                             <TableHead>Customer</TableHead>
                             <TableHead>Order Date</TableHead>
                             <TableHead className="text-right">Total Amt</TableHead>
-                            <TableHead className="text-right">Ordered Net</TableHead>
-                            <TableHead className="text-right">Allocated Amt</TableHead>
+                            <TableHead className="text-right">Net Amt</TableHead>
+                            <TableHead className="text-right">Alloc Amt</TableHead>
                             <TableHead className="w-[150px] text-center">Status</TableHead>
                             <TableHead className="w-[100px] text-right">Action</TableHead>
                         </TableRow>

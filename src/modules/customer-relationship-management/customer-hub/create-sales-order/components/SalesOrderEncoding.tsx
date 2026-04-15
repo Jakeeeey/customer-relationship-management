@@ -58,7 +58,9 @@ export function SalesOrderEncoding({
             <div className="xl:col-span-1 lg:col-span-1 flex flex-col gap-4">
                 <Card className="flex-1 flex flex-col min-h-[600px] shadow-sm">
                     <CardHeader className="p-4 flex flex-row items-center justify-between border-b">
-                        <CardTitle className="text-sm font-bold uppercase tracking-wider">Product Catalog</CardTitle>
+                        <CardTitle className="text-sm font-bold uppercase tracking-wider">
+                            Product Catalog ({displayProducts.length} of {products.length})
+                        </CardTitle>
                     </CardHeader>
                     <div className="p-3 border-b">
                         <div className="relative">

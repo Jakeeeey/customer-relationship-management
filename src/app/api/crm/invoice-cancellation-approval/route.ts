@@ -7,8 +7,8 @@ export const runtime = "nodejs";
 // Define interfaces for better type safety
 interface Customer {
     customerCode?: string;
+    customerName?: string; // 🚀 NEW
 }
-
 interface SalesOrder {
     orderNo?: string;
     orderId?: string;
@@ -40,6 +40,8 @@ interface RawReport {
     invoice_no?: string;
     customerCode?: string;
     customer_code?: string;
+    customerName?: string; // 🚀 NEW
+    customer_name?: string; // 🚀 NEW
     totalAmount?: number;
     total_amount?: number;
     salesInvoice?: Invoice;
@@ -59,9 +61,9 @@ interface FormattedReport {
     date_approved: string | null;
     invoice_no: string;
     customer_code: string;
+    customer_name: string; // 🚀 NEW
     total_amount: number;
 }
-
 
 const getSpringBaseUrl = () => {
     const url = process.env.SPRING_API_BASE_URL;
@@ -114,15 +116,15 @@ export async function GET() {
             return {
                 id: req.requestId || req.id || 0,
                 invoice_id: req.invoiceId || req.invoice_id || invoiceObj.invoiceId || 0,
-
                 sales_order_id: req.salesOrderId || req.sales_order_id || orderObj.orderNo || orderObj.orderId || "N/A",
                 reason_code: req.reasonCode || req.reason_code || req.reason || "N/A",
                 remarks: req.remarks || "",
                 status: req.status || "PENDING",
                 date_approved: req.dateApproved || req.date_approved || null,
-
                 invoice_no: req.invoiceNo || req.invoice_no || invoiceObj.invoiceNo || "N/A",
                 customer_code: req.customerCode || req.customer_code || customerObj.customerCode || "N/A",
+                // 🚀 Extract Customer Name Safely
+                customer_name: req.customerName || req.customer_name || customerObj.customerName || "Unknown Customer",
                 total_amount: req.totalAmount || req.total_amount || invoiceObj.totalAmount || 0,
             };
         });

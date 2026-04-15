@@ -8,12 +8,19 @@ import {
     DropdownMenu, DropdownMenuContent, DropdownMenuItem,
     DropdownMenuSeparator, DropdownMenuTrigger, DropdownMenuRadioGroup, DropdownMenuRadioItem,
 } from "@/components/ui/dropdown-menu";
+import {
+    Popover, PopoverContent, PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+    Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList,
+} from "@/components/ui/command";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
-    Search, Filter, UserPlus, X, Loader2, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight
+    Search, Filter, UserPlus, X, Loader2, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Check, ChevronsUpDown
 } from "lucide-react";
-import { CustomerWithRelations, BankAccount, CustomersAPIResponse, ReferenceItem, CustomerFormData } from "../types";
+import { CustomerWithRelations, BankAccount, CustomersAPIResponse, ReferenceItem } from "../types";
+import type { CustomerFormValues } from "./CustomerFormSheet";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { CustomerFormSheet } from "./CustomerFormSheet";
@@ -21,6 +28,64 @@ import { CustomerRow } from "./CustomerRow";
 import {
     Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
+import { cn } from "@/lib/utils";
+
+// 🚀 NEW: Reusable Filter Combobox for Store Type & Classifications
+function FilterCombobox({ value, onChange, options, placeholder, disabled }: {
+    value: string;
+    onChange: (val: string) => void;
+    options: {id: string, name: string}[];
+    placeholder: string;
+    disabled?: boolean;
+}) {
+    const [open, setOpen] = useState(false);
+    const selectedItem = value === "all" ? null : options.find(o => o.id === value);
+
+    return (
+        <Popover open={open} onOpenChange={setOpen}>
+            <PopoverTrigger asChild>
+                <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={open}
+                    disabled={disabled}
+                    className="h-11 rounded-xl shadow-sm border-border/60 w-[200px] justify-between font-bold text-xs uppercase tracking-widest bg-background"
+                >
+                    <span className="truncate">{selectedItem ? selectedItem.name : placeholder}</span>
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-[250px] p-0 shadow-lg rounded-xl border-border/60" align="start">
+                <Command>
+                    <CommandInput placeholder={`Search ${placeholder}...`} className="h-9 text-xs" />
+                    <CommandList className="max-h-[250px] overflow-y-auto custom-scrollbar">
+                        <CommandEmpty className="py-3 text-center text-xs text-muted-foreground">No matches found.</CommandEmpty>
+                        <CommandGroup>
+                            <CommandItem
+                                value="all"
+                                onSelect={() => { onChange("all"); setOpen(false); }}
+                                className="text-xs font-bold uppercase text-muted-foreground cursor-pointer"
+                            >
+                                All {placeholder}s
+                            </CommandItem>
+                            {options.map((opt) => (
+                                <CommandItem
+                                    key={opt.id}
+                                    value={opt.name}
+                                    onSelect={() => { onChange(opt.id); setOpen(false); }}
+                                    className="text-xs font-medium cursor-pointer"
+                                >
+                                    <Check className={cn("mr-2 h-4 w-4 text-primary", value === opt.id ? "opacity-100" : "opacity-0")} />
+                                    {opt.name}
+                                </CommandItem>
+                            ))}
+                        </CommandGroup>
+                    </CommandList>
+                </Command>
+            </PopoverContent>
+        </Popover>
+    );
+}
 
 interface CustomerTableProps {
     data: CustomerWithRelations[];
@@ -45,7 +110,7 @@ interface CustomerTableProps {
 }
 
 export function CustomerTable({
-                                  data, userMapping, isLoading, metadata, page, pageSize,
+                                  data, isLoading, metadata, page, pageSize,
                                   searchQuery: parentSearchQuery, statusFilter, storeTypeFilter = "all", classificationFilter = "all",
                                   onPageChange, onPageSizeChange, onSearchChange, onStatusChange, onStoreTypeChange, onClassificationChange,
                                   onCreate, onUpdate,
@@ -56,12 +121,10 @@ export function CustomerTable({
     const [defaultDialogTab, setDefaultDialogTab] = useState<string>("basic");
     const [isAdding, setIsAdding] = useState(false);
 
-    // 🚀 NEW: State to hold the dynamic filter options
     const [storeTypeOptions, setStoreTypeOptions] = useState<{id: string, name: string}[]>([]);
     const [classificationOptions, setClassificationOptions] = useState<{id: string, name: string}[]>([]);
     const [isLoadingFilters, setIsLoadingFilters] = useState(true);
 
-    // 🚀 NEW: Fetch the filter dropdown data once on mount
     useEffect(() => {
         const fetchFilters = async () => {
             try {
@@ -125,17 +188,10 @@ export function CustomerTable({
         }, 600);
     };
 
-    const handleManageBanks = (customer: CustomerWithRelations) => {
-        setSelectedCustomer(customer);
-        setDefaultDialogTab("bank");
-        setIsDialogOpen(true);
-    };
-
     const totalPages = Math.ceil(metadata.total_count / pageSize) || 1;
 
     return (
         <div className="space-y-4">
-            {/* 🚀 UPGRADED TOOLBAR */}
             <div className="flex flex-col xl:flex-row items-start xl:items-center justify-between gap-4">
                 <div className="relative w-full xl:max-w-sm">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -148,33 +204,24 @@ export function CustomerTable({
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2 w-full xl:w-auto">
-                    {/* 🚀 REAL DATA: STORE TYPE FILTER */}
-                    <Select value={storeTypeFilter} onValueChange={(val) => onStoreTypeChange && onStoreTypeChange(val)} disabled={isLoadingFilters}>
-                        <SelectTrigger className="h-11 rounded-xl shadow-sm border-border/60 w-[160px] font-bold text-xs uppercase tracking-widest bg-background">
-                            <SelectValue placeholder={isLoadingFilters ? "Loading..." : "Store Type"} />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="all">All Store Types</SelectItem>
-                            {storeTypeOptions.map(st => (
-                                <SelectItem key={st.id} value={st.id}>{st.name}</SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
+                    {/* 🚀 FIXED: Searchable Combo Box for Store Type */}
+                    <FilterCombobox
+                        value={storeTypeFilter}
+                        onChange={(val) => onStoreTypeChange && onStoreTypeChange(val)}
+                        options={storeTypeOptions}
+                        placeholder="Store Type"
+                        disabled={isLoadingFilters}
+                    />
 
-                    {/* 🚀 REAL DATA: CLASSIFICATION FILTER */}
-                    <Select value={classificationFilter} onValueChange={(val) => onClassificationChange && onClassificationChange(val)} disabled={isLoadingFilters}>
-                        <SelectTrigger className="h-11 rounded-xl shadow-sm border-border/60 w-[170px] font-bold text-xs uppercase tracking-widest bg-background">
-                            <SelectValue placeholder={isLoadingFilters ? "Loading..." : "Classification"} />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="all">All Classifications</SelectItem>
-                            {classificationOptions.map(cl => (
-                                <SelectItem key={cl.id} value={cl.id}>{cl.name}</SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
+                    {/* 🚀 FIXED: Searchable Combo Box for Classification */}
+                    <FilterCombobox
+                        value={classificationFilter}
+                        onChange={(val) => onClassificationChange && onClassificationChange(val)}
+                        options={classificationOptions}
+                        placeholder="Classification"
+                        disabled={isLoadingFilters}
+                    />
 
-                    {/* EXISTING STATUS FILTER */}
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                             <Button variant="outline" className="h-11 rounded-xl shadow-sm font-bold text-xs uppercase tracking-widest border-border/60 bg-background">
@@ -199,7 +246,6 @@ export function CustomerTable({
                         </DropdownMenuContent>
                     </DropdownMenu>
 
-                    {/* ADD CUSTOMER BUTTON */}
                     <Button onClick={handleAddNew} disabled={isAdding} className="h-11 rounded-xl shadow-lg bg-primary text-primary-foreground font-black text-xs uppercase tracking-widest px-6 ml-auto xl:ml-2">
                         {isAdding ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <UserPlus className="mr-2 h-4 w-4" />}
                         Add Customer
@@ -207,7 +253,6 @@ export function CustomerTable({
                 </div>
             </div>
 
-            {/* 🚀 PREMIUM DATA TABLE */}
             <div className="border rounded-lg bg-card shadow-sm overflow-hidden">
                 <Table>
                     <TableHeader className="bg-muted/50 border-b">
@@ -216,7 +261,8 @@ export function CustomerTable({
                             <TableHead className="w-[200px] h-10 px-4 text-xs font-semibold">Customer</TableHead>
                             <TableHead className="w-[180px] h-10 px-4 text-xs font-semibold">Store Details</TableHead>
                             <TableHead className="w-[90px] h-10 px-4 text-xs font-semibold">Type</TableHead>
-                            <TableHead className="w-[140px] h-10 px-4 text-xs font-semibold">Assigned User</TableHead>
+                            {/* 🚀 FIXED: Column Header */}
+                            <TableHead className="w-[140px] h-10 px-4 text-xs font-semibold">Salesman</TableHead>
                             <TableHead className="w-[180px] h-10 px-4 text-xs font-semibold">Contact Info</TableHead>
                             <TableHead className="w-[140px] h-10 px-4 text-xs font-semibold">Location</TableHead>
                             <TableHead className="w-[90px] h-10 px-4 text-xs font-semibold">Status</TableHead>
@@ -253,16 +299,14 @@ export function CustomerTable({
                                     key={customer.id}
                                     customer={customer}
                                     onEdit={handleEdit}
-                                    onManageBanks={handleManageBanks}
-                                    userMapping={userMapping}
-                                />
+                                    // 🚀 FIXED: Removed onManageBanks prop
+                                                                    />
                             ))
                         )}
                     </TableBody>
                 </Table>
             </div>
 
-            {/* 🚀 SHADCN STANDARD PAGINATION FOOTER */}
             <div className="flex flex-col sm:flex-row items-center justify-between px-2 gap-4">
                 <div className="text-sm text-muted-foreground">
                     {metadata.filter_count !== metadata.total_count ? (
@@ -309,7 +353,7 @@ export function CustomerTable({
                 open={isDialogOpen}
                 onOpenChange={setIsDialogOpen}
                 customer={selectedCustomer}
-                onSubmit={async (data: CustomerFormData) => {
+                onSubmit={async (data: CustomerFormValues) => {
                     if (selectedCustomer) {
                         await onUpdate(selectedCustomer.id, data as Partial<CustomerWithRelations>);
                     } else {

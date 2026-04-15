@@ -52,7 +52,7 @@ export function SalesOrderTable({
     const customerMap = useMemo(() => new Map(customers.map(c => [c.customer_code, c.store_name])), [customers]);
     const salesmanMap = useMemo(() => new Map(salesmen.map(s => [s.id, s.salesman_name])), [salesmen]);
     const branchMap = useMemo(() => new Map(branches.map(b => [b.id, b.branch_name])), [branches]);
-    const supplierMap = useMemo(() => new Map(suppliers.map(s => [s.id, s.supplier_shortcut])), [suppliers]);
+    const supplierMap = useMemo(() => new Map(suppliers.map(s => [s.id, s.supplier_name ? `${s.supplier_name} (${s.supplier_shortcut})` : (s.supplier_shortcut || `Supplier ${s.id}`)])), [suppliers]);
 
     // Use refs so the observer callback always sees fresh values without re-creating
     const isLoadingRef = useRef(isLoading);

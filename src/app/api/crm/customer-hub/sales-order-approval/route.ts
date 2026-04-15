@@ -40,7 +40,64 @@ export async function GET(req: NextRequest) {
             if (!res.ok) return NextResponse.json({ error: "Failed to fetch order header" }, { status: 500 });
             
             const json = await res.json();
-            return NextResponse.json({ data: json.data });
+            const order = json.data;
+
+            // Enrich with Customer Name
+            if (order && order.customer_code) {
+                try {
+                    const cRes = await fetch(`${DIRECTUS_URL}/items/customer?filter[customer_code][_eq]=${encodeURIComponent(order.customer_code)}&fields=customer_name&limit=1`, {
+                        headers: fetchHeaders,
+                    });
+                    if (cRes.ok) {
+                        const cJson = await cRes.json();
+                        if (cJson.data && cJson.data.length > 0) {
+                            order.customer_name = cJson.data[0].customer_name;
+                        } else {
+                            order.customer_name = "Unknown Customer";
+                        }
+                    } else {
+                        order.customer_name = "Unknown Customer";
+                    }
+                } catch (e) {
+                    console.error("Failed to fetch customer name for header:", e);
+                    order.customer_name = "Unknown Customer";
+                }
+            }
+
+            // Enrich with Price Type Name
+            if (order && order.salesman_id) {
+                try {
+                    // 1. Fetch Salesman to get price_type_id
+                    const sRes = await fetch(`${DIRECTUS_URL}/items/salesman/${order.salesman_id}?fields=price_type_id`, {
+                        headers: fetchHeaders,
+                    });
+                    if (sRes.ok) {
+                        const sJson = await sRes.json();
+                        const ptId = sJson.data?.price_type_id;
+                        if (ptId) {
+                            // 2. Fetch Price Type Name
+                            const ptRes = await fetch(`${DIRECTUS_URL}/items/price_types/${ptId}?fields=price_type_name`, {
+                                headers: fetchHeaders,
+                            });
+                            if (ptRes.ok) {
+                                const ptJson = await ptRes.json();
+                                order.price_type_name = ptJson.data?.price_type_name || "Standard";
+                            } else {
+                                order.price_type_name = "Standard";
+                            }
+                        } else {
+                            order.price_type_name = "Standard";
+                        }
+                    } else {
+                        order.price_type_name = "Standard";
+                    }
+                } catch (e) {
+                    console.error("Failed to fetch price type for header:", e);
+                    order.price_type_name = "Standard";
+                }
+            }
+            
+            return NextResponse.json({ data: order });
         }
 
         if (type === "orders") {
@@ -231,6 +288,7 @@ export async function GET(req: NextRequest) {
                     id: pk,
                     // Direct mapped values from DB types
                     allocated_quantity: d.allocated_quantity !== null && d.allocated_quantity !== undefined ? Number(d.allocated_quantity) : 0,
+                    allocated_amount: d.allocated_amount !== null && d.allocated_amount !== undefined ? Number(d.allocated_amount) : 0,
                     discount_amount: d.discount_amount !== null && d.discount_amount !== undefined ? Number(d.discount_amount) : 0,
                     net_amount: d.net_amount !== null && d.net_amount !== undefined ? Number(d.net_amount) : 0,
                     gross_amount: d.gross_amount !== null && d.gross_amount !== undefined ? Number(d.gross_amount) : 0,

@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { ArrowLeft, CheckCircle2, Package, Calculator, AlertCircle, Loader2, MessageSquare } from "lucide-react";
 import { formatCurrency, calculateChainNetPrice } from "../utils/priceCalc";
-import { LineItem, Salesman, Customer, Supplier, ReceiptType, SalesType, Branch } from "../types";
+import { LineItem, Salesman, Customer, Supplier, ReceiptType, SalesType, Branch, PaymentTerm } from "../types";
 
 import { OrderConfirmationDialog } from "./OrderConfirmationDialog";
 import { useState } from "react";
@@ -51,6 +51,7 @@ interface SalesOrderCheckoutProps {
         deliveryDate: string;
         poNo: string;
         paymentTerms?: number | null;
+        paymentTermsList?: PaymentTerm[];
     };
 }
 
@@ -61,18 +62,21 @@ export function SalesOrderCheckout({
 }: SalesOrderCheckoutProps) {
     const [showConfirmDialog, setShowConfirmDialog] = useState(false);
 
+    const allAllocationsZero = lineItems.every(item => (allocatedQuantities[item.id] ?? 0) === 0);
     const hasZeroAllocation = lineItems.some(item => (allocatedQuantities[item.id] ?? 0) === 0);
 
     const handleConfirmClick = () => {
-        if (hasZeroAllocation) {
-            const isCurrentlyDraft = existingOrderStatus?.toLowerCase() === "draft";
-            if (isExistingOrder && isCurrentlyDraft) {
-                // If it's already a draft and still has 0 allocation, auto-save as Draft. Hide dialog.
-                onConfirm("Draft");
-            } else {
-                setShowConfirmDialog(true);
-            }
+        if (allAllocationsZero) {
+            // 🚀 Hard rule: If absolute zero is allocated, it MUST be a Draft. Skip modal.
+            console.log("[Checkout] All allocations are zero. Auto-saving to Draft.");
+            onConfirm("Draft");
+        } else if (hasZeroAllocation) {
+            // ⚖️ Partial allocation detected. Always show modal to let user choose target status.
+            console.log("[Checkout] Partial allocation detected. Showing workflow selection modal.");
+            setShowConfirmDialog(true);
         } else {
+            // ✅ Full allocation. Proceed directly to Approval.
+            console.log("[Checkout] Full allocation detected. Proceeding to Approval.");
             onConfirm("For Approval");
         }
     };
@@ -129,7 +133,7 @@ export function SalesOrderCheckout({
                                     <div className="flex flex-col">
                                         <span className="text-[10px] font-black text-muted-foreground uppercase tracking-wider mb-1">Receipt Type</span>
                                         <span className="text-xs font-bold text-emerald-600">
-                                            {header.receiptType?.shortcut ? `${header.receiptType.shortcut} - ` : ""}
+                                            {/* {header.receiptType?.shortcut ? `${header.receiptType.shortcut} - ` : ""} */}
                                             {header.receiptType?.type || "Standard"}
                                         </span>
                                     </div>
@@ -152,7 +156,9 @@ export function SalesOrderCheckout({
                                     {header.paymentTerms !== undefined && header.paymentTerms !== null && (
                                         <div className="flex flex-col">
                                             <span className="text-[10px] font-black text-sky-600 uppercase tracking-wider mb-1">Terms</span>
-                                            <span className="text-xs font-bold text-sky-700">{header.paymentTerms} Days</span>
+                                            <span className="text-xs font-bold text-sky-700">
+                                                {header.paymentTermsList?.find(pt => Number(pt.id) === Number(header.paymentTerms))?.payment_name || `${header.paymentTerms} Days`}
+                                            </span>
                                         </div>
                                     )}
                                 </div>
