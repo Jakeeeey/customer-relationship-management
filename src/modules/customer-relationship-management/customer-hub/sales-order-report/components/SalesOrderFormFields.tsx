@@ -6,7 +6,7 @@ import { SearchableSelect } from "@/components/ui/searchable-select";
 import { Card, CardContent } from "@/components/ui/card";
 import { Salesman, Branch, Supplier } from "../types";
 import { Search, Calendar } from "lucide-react";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState } from "react";
 
 interface AppliedFilters {
     search: string;
@@ -32,28 +32,16 @@ interface SalesOrderFormFieldsProps {
 
 export function SalesOrderFormFields({ appliedFilters, onSearch, salesmen, branches, suppliers }: SalesOrderFormFieldsProps) {
     const [draftFilters, setDraftFilters] = useState<AppliedFilters>(appliedFilters);
-    const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
     const handleInputChange = (key: keyof AppliedFilters, value: string) => {
-        setDraftFilters(prev => ({ ...prev, [key]: value }));
-    };
-
-    // Auto-search logic for text search (debounced)
-    useEffect(() => {
-        if (searchTimeoutRef.current) {
-            clearTimeout(searchTimeoutRef.current);
+        const next = { ...draftFilters, [key]: value };
+        setDraftFilters(next);
+        
+        // Automatically reset search results if the search bar is cleared
+        if (key === "search" && value.trim() === "") {
+            onSearch(next);
         }
-
-        searchTimeoutRef.current = setTimeout(() => {
-            onSearch(draftFilters);
-        }, 500);
-
-        return () => {
-            if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
-        };
-        // We only want to re-run this when search changes or when onSearch changes
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [draftFilters.search, onSearch]);
+    };
 
     // For other filters, we search immediately
     useEffect(() => {
@@ -74,6 +62,12 @@ export function SalesOrderFormFields({ appliedFilters, onSearch, salesmen, branc
         draftFilters.dueDate
     ]);
 
+    const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+        if (e.key === "Enter") {
+            onSearch(draftFilters);
+        }
+    };
+
     return (
         <Card className="border shadow-sm bg-muted/30">
             <CardContent className="p-4">
@@ -88,9 +82,10 @@ export function SalesOrderFormFields({ appliedFilters, onSearch, salesmen, branc
                             <Input
                                 id="unifiedSearch"
                                 className="pl-9 h-9 text-sm shadow-sm focus-visible:ring-primary/50"
-                                placeholder="Order No, Customer Code..."
+                                placeholder="Order No, Customer Code... (Press Enter to Search)"
                                 value={draftFilters.search}
                                 onChange={(e) => handleInputChange("search", e.target.value)}
+                                onKeyDown={handleKeyDown}
                             />
                         </div>
                     </div>
@@ -101,7 +96,10 @@ export function SalesOrderFormFields({ appliedFilters, onSearch, salesmen, branc
                         <SearchableSelect
                             options={[
                                 { value: "none", label: "All Salesmen" },
-                                ...salesmen.map(sm => ({ value: sm.id.toString(), label: sm.salesman_name }))
+                                ...salesmen.map(sm => ({ 
+                                    value: sm.id.toString(), 
+                                    label: sm.salesman_code ? `${sm.salesman_name} (${sm.salesman_code})` : sm.salesman_name 
+                                }))
                             ]}
                             value={draftFilters.salesmanId}
                             onValueChange={(val) => handleInputChange("salesmanId", val)}
@@ -131,7 +129,10 @@ export function SalesOrderFormFields({ appliedFilters, onSearch, salesmen, branc
                         <SearchableSelect
                             options={[
                                 { value: "none", label: "All Suppliers" },
-                                ...suppliers.map(s => ({ value: s.id.toString(), label: s.supplier_shortcut || `Supplier ${s.id}` }))
+                                ...suppliers.map(s => ({ 
+                                    value: s.id.toString(), 
+                                    label: s.supplier_name ? `${s.supplier_name} (${s.supplier_shortcut})` : (s.supplier_shortcut || `Supplier ${s.id}`)
+                                }))
                             ]}
                             value={draftFilters.supplierId}
                             onValueChange={(val) => handleInputChange("supplierId", val)}

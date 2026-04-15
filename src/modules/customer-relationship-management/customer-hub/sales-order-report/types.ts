@@ -85,6 +85,7 @@ export interface Branch {
 export interface Supplier {
     id: number;
     supplier_shortcut: string;
+    supplier_name: string;
 }
 
 export interface InvoiceDetail {

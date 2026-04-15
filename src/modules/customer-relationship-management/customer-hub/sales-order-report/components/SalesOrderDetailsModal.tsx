@@ -32,7 +32,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { salesOrderProvider } from "../providers/fetchProvider";
-import { SalesOrder, Customer, Salesman, Branch, Invoice, SalesOrderDetail, InvoiceDetail, PdfData } from "../types";
+import { SalesOrder, Customer, Salesman, Branch, Supplier, Invoice, SalesOrderDetail, InvoiceDetail, PdfData } from "../types";
 
 interface SalesOrderDetailsModalProps {
     isOpen: boolean;
@@ -41,6 +41,7 @@ interface SalesOrderDetailsModalProps {
     customers: Customer[];
     salesmen: Salesman[];
     branches: Branch[];
+    suppliers: Supplier[];
 }
 
 export function SalesOrderDetailsModal({
@@ -50,6 +51,7 @@ export function SalesOrderDetailsModal({
     customers,
     salesmen,
     branches,
+    suppliers,
 }: SalesOrderDetailsModalProps) {
     const [details, setDetails] = useState<SalesOrderDetail[]>([]);
     const [invoices, setInvoices] = useState<Invoice[]>([]);
@@ -62,7 +64,7 @@ export function SalesOrderDetailsModal({
 
     // Robust status check (ignores casing/spaces)
     const normalizedStatus = (order?.order_status || "").toLowerCase().trim();
-    const isInvoiceStatus = ["for loading", "for shipping", "en route", "delivered", "for invoicing"].includes(normalizedStatus);
+    const isInvoiceStatus = ["for loading", "for shipping", "en route", "delivered"].includes(normalizedStatus);
     const showPdfBtnRange = ["for loading", "for shipping", "en route", "delivered"].includes(normalizedStatus);
 
     useEffect(() => {
@@ -112,6 +114,7 @@ export function SalesOrderDetailsModal({
     const customer = customers.find((c) => c.customer_code === order.customer_code);
     const salesman = salesmen.find((s) => s.id === order.salesman_id);
     const branch = branches.find((b) => b.id === order.branch_id);
+    const supplier = suppliers.find((s) => s.id === order.supplier_id);
 
     const getStatusStyle = (status: string) => {
         const s = status.toLowerCase().trim();
@@ -276,6 +279,14 @@ export function SalesOrderDetailsModal({
                                     {order.po_no || "N/A"}
                                 </p>
                             </div>
+
+                            {/* Supplier (New) */}
+                            <div className="bg-white border border-rose-50 rounded-xl p-3 sm:p-4 flex flex-col gap-1 shadow-sm sm:col-span-1">
+                                <p className="text-[8px] sm:text-[10px] text-rose-400 uppercase font-black tracking-widest leading-none">Supplier</p>
+                                <p className="font-bold text-[11px] sm:text-xs text-rose-600 truncate mt-0.5" title={supplier?.supplier_name}>
+                                    {supplier ? `${supplier.supplier_name} (${supplier.supplier_shortcut})` : (order.supplier_id || "N/A")}
+                                </p>
+                            </div>
                         </div>
                     </div>
 
@@ -319,9 +330,9 @@ export function SalesOrderDetailsModal({
                                                             <TableHead className="text-center h-10 uppercase text-[9px] font-black text-slate-400 tracking-widest w-[80px]">UOM</TableHead>
                                                             <TableHead className="text-right h-10 uppercase text-[9px] font-black text-slate-400 tracking-widest">Unit Price</TableHead>
                                                             <TableHead className="text-center h-10 uppercase text-[9px] font-black text-slate-400 tracking-widest w-[80px]">Qty</TableHead>
-                                                            <TableHead className="text-center h-10 uppercase text-[9px] font-black text-slate-400 tracking-widest">Discount</TableHead>
-                                                            <TableHead className="text-center h-10 uppercase text-[9px] font-black text-slate-400 tracking-widest whitespace-nowrap px-4">Discount Type</TableHead>
-                                                            <TableHead className="text-right pr-4 sm:pr-8 h-10 uppercase text-[9px] font-black text-[#0EA5E9] tracking-widest w-[130px]">Net Amount</TableHead>
+                                                            <TableHead className="text-center h-10 uppercase text-[9px] font-black text-rose-500 tracking-widest">Discount</TableHead>
+                                                            <TableHead className="text-center h-10 uppercase text-[9px] font-black text-slate-400 tracking-widest whitespace-nowrap px-4">Type</TableHead>
+                                                            <TableHead className="text-right pr-4 sm:pr-8 h-10 uppercase text-[9px] font-black text-slate-400 tracking-widest w-[130px]">Amount</TableHead>
                                                         </TableRow>
                                                     </TableHeader>
                                                     <TableBody>
@@ -349,17 +360,21 @@ export function SalesOrderDetailsModal({
                                                                     {item.quantity}
                                                                 </TableCell>
                                                                 <TableCell className="text-center">
-                                                                    <span className="text-[10px] font-bold text-rose-500">
-                                                                        {item.discount_amount > 0 ? `-${formatCurrency(item.discount_amount)}` : "none"}
+                                                                    <span className="text-[10px] font-bold text-rose-500 tabular-nums">
+                                                                        {item.discount_amount > 0 ? `-${formatCurrency(item.discount_amount)}` : "—"}
                                                                     </span>
                                                                 </TableCell>
-                                                                <TableCell className="text-center">
+                                                                <TableCell className="text-center px-4">
                                                                     {item.discount_type ? (
                                                                         <Badge variant="outline" className="text-[9px] font-black px-2 py-0.5 border-rose-100 bg-rose-50 text-rose-600 dark:bg-rose-950/30 dark:border-rose-900/50 dark:text-rose-400 uppercase tracking-tighter whitespace-nowrap">
                                                                             {item.discount_type}
                                                                         </Badge>
+                                                                    ) : item.discount_amount > 0 ? (
+                                                                        <Badge variant="outline" className="text-[9px] font-black px-2 py-0.5 border-slate-100 bg-slate-50 text-slate-400 uppercase tracking-tighter whitespace-nowrap">
+                                                                            Discounted
+                                                                        </Badge>
                                                                     ) : (
-                                                                        <span className="text-[10px] font-bold text-slate-300 uppercase italic tracking-widest">none</span>
+                                                                        <span className="text-[10px] font-bold text-slate-300 uppercase tracking-widest">—</span>
                                                                     )}
                                                                 </TableCell>
                                                                 <TableCell className="text-right font-black text-[#0EA5E9] pr-4 sm:pr-8 font-mono text-[12px] sm:text-[14px] tabular-nums tracking-tighter">
@@ -423,10 +438,11 @@ export function SalesOrderDetailsModal({
                                                 <TableHead className="text-center uppercase text-[9px] font-black text-[#94A3B8] tracking-widest w-[50px]">Order</TableHead>
                                                 <TableHead className="text-center uppercase text-[9px] font-black text-emerald-500 tracking-widest w-[50px]">Alloc</TableHead>
                                                 <TableHead className="text-right uppercase text-[9px] font-black text-[#94A3B8] tracking-widest">Unit Price</TableHead>
-                                                <TableHead className="text-right uppercase text-[9px] font-black text-[#94A3B8] tracking-widest">Total Amount</TableHead>
-                                                <TableHead className="text-center uppercase text-[9px] font-black text-[#94A3B8] tracking-widest">Discounts</TableHead>
-                                                <TableHead className="text-right uppercase text-[9px] font-black text-emerald-500 tracking-widest">Alloc. Amt</TableHead>
-                                                <TableHead className="text-right pr-4 sm:pr-8 uppercase text-[9px] font-black text-[#0EA5E9] tracking-widest text-[#0EA5E9]">Net Total</TableHead>
+                                                <TableHead className="text-right uppercase text-[9px] font-black text-[#94A3B8] tracking-widest">Gross Total</TableHead>
+                                                <TableHead className="text-center uppercase text-[9px] font-black text-rose-500 tracking-widest w-[80px]">Discount</TableHead>
+                                                <TableHead className="text-center uppercase text-[9px] font-black text-[#94A3B8] tracking-widest">Type</TableHead>
+                                                <TableHead className="text-right uppercase text-[9px] font-black text-[#0EA5E9] tracking-widest text-[#0EA5E9]">Net Total</TableHead>
+                                                <TableHead className="text-right pr-4 sm:pr-8 uppercase text-[9px] font-black text-emerald-500 tracking-widest">Alloc Amt</TableHead>
                                             </TableRow>
                                         </TableHeader>
                                         <TableBody>
@@ -454,7 +470,6 @@ export function SalesOrderDetailsModal({
                                             ) : (
                                                 details.map((li, idx) => {
                                                     // Direct DB Fetches for accuracy (Ordered vs Allocated)
-                                                    const isAllocated = Number(li.allocated_quantity || 0) > 0;
                                                     const itemGross = Number(li.gross_amount) || (Number(li.unit_price) * Number(li.ordered_quantity) || 0);
                                                     const itemNet = Number(li.net_amount) || (itemGross - Number(li.discount_amount || 0));
                                                     const itemAllocAmount = Number(li.allocated_amount) || 0;
@@ -486,16 +501,27 @@ export function SalesOrderDetailsModal({
                                                             <TableCell className="text-right font-bold text-slate-950 font-mono text-[12px] sm:text-sm tabular-nums">
                                                                 {formatCurrency(itemGross)}
                                                             </TableCell>
+                                                            <TableCell className="text-center font-bold text-rose-500 font-mono text-[11px] tabular-nums">
+                                                                {li.discount_amount && Number(li.discount_amount) > 0 ? `-${formatCurrency(li.discount_amount)}` : "—"}
+                                                            </TableCell>
                                                             <TableCell className="text-center">
-                                                                <span className="inline-flex px-1.5 py-0.5 rounded bg-rose-50 text-rose-500 font-black text-[9px] border border-rose-100">
-                                                                    {isAllocated ? (li.discount_type || "none") : "none"}
-                                                                </span>
+                                                                {li.discount_type ? (
+                                                                    <Badge variant="outline" className="text-[8px] sm:text-[9px] uppercase font-black bg-rose-50/50 text-rose-600 border-rose-100 px-1 py-0 leading-none h-4">
+                                                                        {li.discount_type}
+                                                                    </Badge>
+                                                                ) : li.discount_amount && Number(li.discount_amount) > 0 ? (
+                                                                    <Badge variant="outline" className="text-[8px] sm:text-[9px] uppercase font-black bg-slate-50 text-slate-400 border-slate-100 px-1 py-0 leading-none h-4">
+                                                                        Discounted
+                                                                    </Badge>
+                                                                ) : (
+                                                                    <span className="text-[8px] sm:text-[9px] font-bold text-slate-300 uppercase tracking-widest">—</span>
+                                                                )}
                                                             </TableCell>
-                                                            <TableCell className="text-right font-black text-emerald-600 font-mono text-[11px] sm:text-xs tabular-nums">
-                                                                {formatCurrency(itemAllocAmount)}
-                                                            </TableCell>
-                                                            <TableCell className="text-right pr-4 sm:pr-8 font-black text-[#0EA5E9] font-mono text-[13px] sm:text-base tabular-nums">
+                                                            <TableCell className="text-right font-black text-[#0EA5E9] font-mono text-[13px] sm:text-base tabular-nums">
                                                                 {formatCurrency(itemNet)}
+                                                            </TableCell>
+                                                            <TableCell className="text-right pr-4 sm:pr-8 font-black text-emerald-600 font-mono text-[11px] sm:text-xs tabular-nums">
+                                                                {formatCurrency(itemAllocAmount)}
                                                             </TableCell>
                                                         </TableRow>
                                                     );
@@ -541,12 +567,23 @@ export function SalesOrderDetailsModal({
                                                     <p className="text-[8px] sm:text-[9px] text-rose-400 uppercase font-black tracking-widest leading-none">Total Discount</p>
                                                     <p className="text-[12px] sm:text-[14px] font-bold text-rose-500 tabular-nums">-{formatCurrency(totalDiscount)}</p>
                                                 </div>
-                                                <div className="flex flex-col gap-0.5 min-w-0">
-                                                    <p className="text-[8px] sm:text-[9px] text-[#0EA5E9] uppercase font-black tracking-widest leading-none">Net Amount</p>
-                                                    <div className="flex items-baseline gap-1 leading-none">
-                                                        <span className="text-[10px] sm:text-[14px] font-black text-[#0EA5E9] tabular-nums tracking-tighter">
-                                                            {formatCurrency(totalNet)}
-                                                        </span>
+                                                <div className="flex items-center gap-3">
+                                                    <div className="flex flex-col gap-0.5 min-w-0 bg-sky-50 px-3 py-1.5 rounded-lg border border-sky-100">
+                                                        <p className="text-[8px] sm:text-[9px] text-sky-500 uppercase font-black tracking-widest leading-none">Net Amount</p>
+                                                        <div className="flex items-baseline gap-1 leading-none">
+                                                            <span className="text-[10px] sm:text-[14px] font-black text-sky-600 tabular-nums tracking-tighter">
+                                                                {formatCurrency(totalNet)}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="flex flex-col gap-0.5 min-w-0 bg-emerald-50 px-3 py-1.5 rounded-lg border border-emerald-100">
+                                                        <p className="text-[8px] sm:text-[9px] text-emerald-500 uppercase font-black tracking-widest leading-none">Allocated Total</p>
+                                                        <div className="flex items-baseline gap-1 leading-none">
+                                                            <span className="text-[10px] sm:text-[14px] font-black text-emerald-600 tabular-nums tracking-tighter">
+                                                                {formatCurrency(details.reduce((sum, li) => sum + (Number(li.allocated_amount) || 0), 0))}
+                                                            </span>
+                                                        </div>
                                                     </div>
                                                 </div>
 

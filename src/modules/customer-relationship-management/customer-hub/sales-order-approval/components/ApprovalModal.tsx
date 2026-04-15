@@ -78,7 +78,7 @@ export function ApprovalModal({
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [discountTypes, setDiscountTypes] = useState<Record<number, string>>({});
 
-    const activeOrder = freshOrder || order;
+    const activeOrder = freshOrder ? { ...order, ...freshOrder } : order;
     const isInvoiceStatus = ["For Loading", "For Shipping", "En Route", "Delivered"].includes(activeOrder?.order_status || "");
 
     useEffect(() => {
@@ -175,46 +175,52 @@ export function ApprovalModal({
     };
 
     const getLineNet = (item: OrderDetail) => {
-        // Target: database value if present (Requested Net)
-        if (item.net_amount !== undefined && item.net_amount !== null) {
+        // 1. Target: database value if present (Requested Net)
+        if (item.net_amount !== undefined && item.net_amount !== null && Number(item.net_amount) > 0) {
             return Number(item.net_amount);
         }
 
-        // Final fallback calculation
-        const discount = getLineDiscount(item);
-        return (Number(item.ordered_quantity || 0) * Number(item.unit_price || 0)) - discount;
-    };
-
-    const getLineAllocated = (item: OrderDetail) => {
-        // Preference: Recalculated value from current session
-        if (item.allocated_quantity !== undefined) {
-            const discount = getLineDiscount(item);
-            const gross = (Number(item.allocated_quantity || 0) * Number(item.unit_price || 0));
-            return gross - discount;
+        // 2. Fallback: Recalculated value
+        if (item.ordered_quantity !== undefined) {
+            const disc = getLineDiscount(item);
+            const gross = (Number(item.ordered_quantity || 0) * Number(item.unit_price || 0));
+            return gross - disc;
         }
 
-        // Target: database value if present
-        if (item.allocated_amount !== undefined && item.allocated_amount !== null) {
-            return Number(item.allocated_amount);
-        }
-
-        // Final fallback: standard calculation
-        const discount = getLineDiscount(item);
-        return (Number(item.allocated_quantity || 0) * Number(item.unit_price || 0)) - discount;
+        return 0;
     };
 
     const getLineGross = (item: OrderDetail) => {
-        // If manually changed, use new calculation
-        if (item._recalculated_gross !== undefined) return item._recalculated_gross;
+        // 1. Target: database value if present
+        if (item.gross_amount !== undefined && item.gross_amount !== null && Number(item.gross_amount) > 0) {
+            return Number(item.gross_amount);
+        }
 
-        // Otherwise use database value
-        return Number(item.gross_amount || 0);
+        // 2. Fallback: Recalculated value
+        return (Number(item.ordered_quantity || 0) * Number(item.unit_price || 0));
+    };
+
+    const getLineAllocated = (item: OrderDetail) => {
+        // 1. Target: database value if present
+        if (item.allocated_amount !== undefined && item.allocated_amount !== null && Number(item.allocated_amount) > 0) {
+            return Number(item.allocated_amount);
+        }
+
+        // 2. Check if it has allocated quantity but zero amount (maybe not yet calculated)
+        if (item.allocated_quantity !== undefined && Number(item.allocated_quantity) > 0) {
+            const discount = getLineDiscount(item);
+            const gross = (Number(item.allocated_quantity || 0) * Number(item.unit_price || 0));
+            return Math.max(0, gross - discount);
+        }
+
+        return 0;
     };
 
     const calculatedGross = details.reduce((sum, item) => sum + getLineGross(item), 0);
     const calculatedDiscount = details.reduce((sum, item) => sum + getLineDiscount(item), 0);
     const calculatedOrderedTotal = details.reduce((sum, item) => sum + getLineNet(item), 0);
     const calculatedAllocatedTotal = details.reduce((sum, item) => sum + getLineAllocated(item), 0);
+    const isFullyUnallocated = details.length > 0 && details.every(li => (li.allocated_quantity || 0) <= 0);
 
     const handleSaveAndAction = async (action: "approve" | "hold" | "cancel") => {
         setIsSubmitting(true);
@@ -339,7 +345,7 @@ export function ApprovalModal({
                         </div>
 
                         {/* Summary Row - Compact Micro Cards */}
-                        <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mt-5 mb-1">
+                        <div className="grid grid-cols-2 md:grid-cols-6 gap-3 mt-5 mb-1">
                             <div className="bg-white dark:bg-slate-900/50 border border-slate-100 dark:border-slate-800 rounded-xl p-3 shadow-sm flex flex-col gap-1 transition-all hover:border-slate-200">
                                 <p className="text-[9px] text-slate-500 uppercase font-black tracking-widest leading-none">Order Date</p>
                                 <p className="font-bold text-[13px] text-slate-900 dark:text-slate-100 leading-none mt-0.5">
@@ -358,10 +364,16 @@ export function ApprovalModal({
                                     {activeOrder.payment_terms ? `${activeOrder.payment_terms} Days` : "COD"}
                                 </p>
                             </div>
+                            <div className="bg-indigo-50/50 dark:bg-indigo-950/20 border border-indigo-100 dark:border-indigo-900/50 rounded-xl p-3 shadow-sm flex flex-col gap-1 transition-all hover:border-indigo-200">
+                                <p className="text-[9px] text-indigo-600 dark:text-indigo-400 uppercase font-black tracking-widest leading-none">Price Type</p>
+                                <p className="font-bold text-[13px] text-indigo-700 dark:text-indigo-300 leading-none mt-0.5">
+                                    {activeOrder.price_type_name || "Standard"}
+                                </p>
+                            </div>
                             <div className="bg-white dark:bg-slate-900/50 border border-slate-100 dark:border-slate-800 rounded-xl p-3 shadow-sm flex flex-col gap-1 transition-all hover:border-slate-200">
                                 <p className="text-[9px] text-slate-500 uppercase font-black tracking-widest leading-none">Ordered Total</p>
                                 <p className="font-bold text-[13px] text-slate-900 dark:text-slate-100 leading-none mt-0.5">
-                                    {formatCurrency(activeOrder.net_amount)}
+                                    {formatCurrency(activeOrder.net_amount || calculatedOrderedTotal)}
                                 </p>
                             </div>
                             <div className="bg-sky-50 dark:bg-sky-950/30 border border-sky-100 dark:border-sky-900/50 rounded-xl p-3 shadow-[0_2px_12px_rgba(14,165,233,0.06)] flex flex-col gap-1 transition-all hover:border-sky-200">
@@ -369,7 +381,7 @@ export function ApprovalModal({
                                     {isInvoiceStatus ? "Invoice Total" : "Total Allocated"}
                                 </p>
                                 <p className="font-black text-lg text-sky-600 dark:text-sky-400 tabular-nums leading-none mt-1">
-                                    {formatCurrency(isInvoiceStatus ? (invoiceData?.invoice?.net_amount || 0) : calculatedAllocatedTotal)}
+                                    {formatCurrency(isInvoiceStatus ? (invoiceData?.invoice?.net_amount || 0) : (activeOrder.allocated_amount || calculatedAllocatedTotal))}
                                 </p>
                             </div>
                         </div>
@@ -465,10 +477,10 @@ export function ApprovalModal({
                                                 <TableHead className="text-right h-10 uppercase text-[9px] font-black text-muted-foreground tracking-widest whitespace-nowrap">Unit Price</TableHead>
                                                 <TableHead className="text-center h-10 uppercase text-[9px] font-black text-muted-foreground tracking-widest whitespace-nowrap">Ordered Qty</TableHead>
                                                 <TableHead className="text-center h-10 uppercase text-[9px] font-black text-muted-foreground tracking-widest whitespace-nowrap bg-sky-50/50">Available</TableHead>
-                                                <TableHead className="text-center h-10 uppercase text-[9px] font-black text-muted-foreground tracking-widest w-[120px] whitespace-nowrap">Allocated Qty</TableHead>
+                                                <TableHead className="text-center h-10 uppercase text-[9px] font-black text-muted-foreground tracking-widest w-[120px] whitespace-nowrap">Alloc Qty</TableHead>
                                                 <TableHead className="text-right h-10 uppercase text-[9px] font-black text-muted-foreground tracking-widest">Discount</TableHead>
                                                 <TableHead className="text-center h-10 uppercase text-[9px] font-black text-muted-foreground tracking-widest whitespace-nowrap">Discount Type</TableHead>
-                                                <TableHead className="text-right pr-4 sm:pr-8 h-10 uppercase text-[9px] font-black text-muted-foreground tracking-widest whitespace-nowrap">Allocated Total</TableHead>
+                                                <TableHead className="text-right pr-4 sm:pr-8 h-10 uppercase text-[9px] font-black text-muted-foreground tracking-widest whitespace-nowrap">Alloc Total</TableHead>
                                             </TableRow>
                                         </TableHeader>
                                         <TableBody>
@@ -623,14 +635,31 @@ export function ApprovalModal({
                                             On Hold
                                         </Button>
                                     )}
-                                    <Button
-                                        className="h-9 sm:h-12 px-6 sm:px-10 font-bold uppercase tracking-widest text-[10px] sm:text-xs rounded-xl bg-success hover:bg-success/90 text-success-foreground shadow-lg border-none transition-all hover:scale-[1.02] active:scale-[0.98]"
-                                        disabled={isSubmitting}
-                                        onClick={() => handleSaveAndAction("approve")}
-                                    >
-                                        {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                                        Approve
-                                    </Button>
+                                    {isFullyUnallocated ? (
+                                        <div className="flex items-center gap-3 px-4 py-2 bg-amber-50 dark:bg-amber-950/20 border border-amber-100 dark:border-amber-900/50 rounded-xl animate-in fade-in slide-in-from-right-2 duration-300">
+                                            <AlertCircle className="h-5 w-5 text-amber-600 dark:text-amber-400 shrink-0" />
+                                            <div className="flex flex-col">
+                                                <span className="text-[10px] font-black uppercase text-amber-700 dark:text-amber-300 tracking-tight leading-tight">
+                                                    All items are unallocated.
+                                                </span>
+                                                <span className="text-[9px] font-bold uppercase text-amber-600/80 dark:text-amber-400/80 tracking-tight leading-tight">
+                                                    Please allocate at least one item
+                                                </span>
+                                                <span className="text-[9px] font-bold uppercase text-amber-600/80 dark:text-amber-400/80 tracking-tight leading-tight">
+                                                    before approving order.
+                                                </span>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <Button
+                                            className="h-9 sm:h-12 px-6 sm:px-10 font-bold uppercase tracking-widest text-[10px] sm:text-xs rounded-xl bg-success hover:bg-success/90 text-success-foreground shadow-lg border-none transition-all hover:scale-[1.02] active:scale-[0.98]"
+                                            disabled={isSubmitting}
+                                            onClick={() => handleSaveAndAction("approve")}
+                                        >
+                                            {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                                            Approve
+                                        </Button>
+                                    )}
                                 </div>
                             )}
                         </div>

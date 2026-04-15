@@ -258,7 +258,11 @@ export function SalesOrderHeader({
                     <Popover open={openSupplier} onOpenChange={setOpenSupplier}>
                         <PopoverTrigger asChild>
                             <Button variant="outline" className="w-full justify-between font-normal h-9 text-xs" disabled={!selectedCustomer || loadingSuppliers}>
-                                <span className="truncate">{selectedSupplier ? selectedSupplier.supplier_name : "Select Supplier..."}</span>
+                                <span className="truncate">
+                                    {selectedSupplier 
+                                        ? `${selectedSupplier.supplier_name}${selectedSupplier.supplier_shortcut ? ` (${selectedSupplier.supplier_shortcut})` : ""}` 
+                                        : "Select Supplier..."}
+                                </span>
                                 <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                             </Button>
                         </PopoverTrigger>
@@ -269,9 +273,13 @@ export function SalesOrderHeader({
                                     <CommandEmpty>No supplier found.</CommandEmpty>
                                     <CommandGroup>
                                         {suppliers.map(s => (
-                                            <CommandItem key={s.id} value={s.supplier_name} onSelect={() => { onSupplierChange(s.id.toString()); setOpenSupplier(false); }}>
+                                            <CommandItem 
+                                                key={s.id} 
+                                                value={`${s.supplier_name} ${s.supplier_shortcut}`} 
+                                                onSelect={() => { onSupplierChange(s.id.toString()); setOpenSupplier(false); }}
+                                            >
                                                 <Check className={cn("mr-2 h-4 w-4", selectedSupplier?.id === s.id ? "opacity-100" : "opacity-0")} />
-                                                {s.supplier_name}
+                                                {s.supplier_name} {s.supplier_shortcut && `(${s.supplier_shortcut})`}
                                             </CommandItem>
                                         ))}
                                     </CommandGroup>
@@ -306,7 +314,14 @@ export function SalesOrderHeader({
                     <label className="text-xs font-bold uppercase text-muted-foreground">Due Date <span className="text-red-500">*</span></label>
                     <div className="relative">
                         <CalendarIcon className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
-                        <Input type="date" value={dueDate || ""} onChange={(e) => onDueDateChange(e.target.value)} className="pl-9 h-9 text-xs" required />
+                        <Input 
+                            type="date" 
+                            value={dueDate || ""} 
+                            onChange={(e) => onDueDateChange(e.target.value)} 
+                            className="pl-9 h-9 text-xs bg-slate-50/50 opacity-80 cursor-not-allowed" 
+                            disabled 
+                            required 
+                        />
                     </div>
                 </div>
 
