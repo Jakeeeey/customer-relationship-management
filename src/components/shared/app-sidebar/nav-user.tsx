@@ -41,10 +41,10 @@ type NavUserProps = {
      * Optional override. If not provided, NavUser will perform:
      * POST /api/auth/logout -> router.replace("/login") -> router.refresh()
      */
-    onLogoutAction?: () => void
+    onLogout?: () => void
 }
 
-export function NavUser({ user, onLogoutAction }: NavUserProps) {
+export function NavUser({ user, onLogout }: NavUserProps) {
     const { isMobile } = useSidebar()
     const router = useRouter()
     const [loggingOut, setLoggingOut] = React.useState(false)
@@ -77,19 +77,20 @@ export function NavUser({ user, onLogoutAction }: NavUserProps) {
 
         try {
             // If a parent provided a handler, use it.
-            if (onLogoutAction) {
-                await Promise.resolve(onLogoutAction())
+            if (onLogout) {
+                await Promise.resolve(onLogout())
                 return
             }
 
             // Default wiring: clear HttpOnly cookie via Next route
             await fetch("/api/auth/logout", { method: "POST" })
         } finally {
+            // Always redirect to login + refresh UI
             router.replace("/login")
             router.refresh()
             setLoggingOut(false)
         }
-    }, [loggingOut, onLogoutAction, router])
+    }, [loggingOut, onLogout, router])
 
     return (
         <SidebarMenu>
@@ -140,28 +141,28 @@ export function NavUser({ user, onLogoutAction }: NavUserProps) {
                             </DropdownMenuItem>
 
                             <DropdownMenuItem asChild>
-                                <Link href="/crm/my-profile" className="cursor-pointer">
+                                <Link href="/hrm/my-profile" className="cursor-pointer">
                                     <User className="mr-2 size-4" />
                                     My Profile
                                 </Link>
                             </DropdownMenuItem>
 
                             <DropdownMenuItem asChild>
-                                <Link href="/crm/change-password" className="cursor-pointer">
+                                <Link href="/hrm/change-password" className="cursor-pointer">
                                     <KeyRound className="mr-2 size-4" />
                                     Change Password
                                 </Link>
                             </DropdownMenuItem>
 
                             <DropdownMenuItem asChild>
-                                <Link href="/crm/login-activity" className="cursor-pointer">
+                                <Link href="/hrm/login-activity" className="cursor-pointer">
                                     <ShieldCheck className="mr-2 size-4" />
                                     Login Activity
                                 </Link>
                             </DropdownMenuItem>
 
                             <DropdownMenuItem asChild>
-                                <Link href="/crm/settings" className="cursor-pointer">
+                                <Link href="/hrm/settings" className="cursor-pointer">
                                     <Settings className="mr-2 size-4" />
                                     Settings
                                 </Link>
