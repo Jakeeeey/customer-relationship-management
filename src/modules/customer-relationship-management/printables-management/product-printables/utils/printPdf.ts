@@ -1,4 +1,11 @@
 import type { MatrixRow, PriceType, Unit, Supplier } from "../types";
+import { PdfEngine } from "@/components/pdf-layout-design/PdfEngine";
+import { PdfTemplate } from "@/components/pdf-layout-design/services/pdf-template";
+import { PdfData } from "@/components/pdf-layout-design/types";
+// @ts-ignore - jspdf types can be problematic in some build environments
+import jsPDF from "jspdf";
+// @ts-ignore - jspdf-autotable types can be problematic in some build environments
+import autoTable from "jspdf-autotable";
 
 type MatrixOptions = {
     paper?: "a4" | "legal" | "a3";
@@ -53,8 +60,7 @@ function money(v: unknown): string {
 }
 
 export async function generateProductMatrixPdf(rows: MatrixRow[], options: MatrixOptions = {}) {
-    const { default: jsPDF } = await import("jspdf");
-    const { default: autoTable } = await import("jspdf-autotable");
+    const { drawPageNumbers } = await import("@/components/pdf-layout-design/PdfGenerator");
     const {
         paper = "a3",
         orientation = "landscape",
@@ -206,8 +212,7 @@ export async function generateProductMatrixPdf(rows: MatrixRow[], options: Matri
             1: { cellWidth: 80 },
             2: { cellWidth: 80 }
         },
-        margin: { left: 40, right: 40 },
-        didParseCell: (data) => {
+        didParseCell: (data: any) => {
             if (data.section === "body" && data.column.index >= 3) {
                 const tierIdx = Math.floor((data.column.index - 3) / uomCount);
                 const tier = TIERS[tierIdx];
@@ -217,10 +222,15 @@ export async function generateProductMatrixPdf(rows: MatrixRow[], options: Matri
                 }
             }
         },
-        didDrawPage: (data) => {
-            const str = "Page " + doc.getCurrentPageInfo().pageNumber;
-            doc.setFontSize(8);
-            doc.text(str, data.settings.margin.left, doc.internal.pageSize.getHeight() - 10);
+        didDrawPage: (data: any) => {
+            // Draw page numbers from template if available
+            if (selectedTemplate?.config?.pageNumber?.show) {
+                drawPageNumbers(doc, selectedTemplate.config);
+            } else {
+                const str = "Page " + doc.getCurrentPageInfo().pageNumber;
+                doc.setFontSize(8);
+                doc.text(str, data.settings.margin.left, doc.internal.pageSize.getHeight() - 4);
+            }
         }
     });
 
