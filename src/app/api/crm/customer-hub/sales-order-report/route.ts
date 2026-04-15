@@ -563,7 +563,7 @@ export async function GET(req: NextRequest) {
             safeFetch(`${BASE_URL}/customer?limit=-1&fields=id,customer_code,customer_name,store_name,city,province`, "customer"),
             safeFetch(`${BASE_URL}/salesman?limit=-1&fields=id,salesman_code,salesman_name,truck_plate`, "salesman"),
             safeFetch(`${BASE_URL}/branches?limit=-1&fields=id,branch_code,branch_name`, "branches"),
-            safeFetch(`${BASE_URL}/suppliers?limit=-1&fields=id,supplier_shortcut`, "suppliers"),
+            safeFetch(`${BASE_URL}/suppliers?limit=-1&fields=id,supplier_shortcut,supplier_name`, "suppliers"),
             safeFetch(`${BASE_URL}/sales_order?aggregate[sum]=total_amount,allocated_amount${filterParam}`, "aggregates"),
         ]);
 

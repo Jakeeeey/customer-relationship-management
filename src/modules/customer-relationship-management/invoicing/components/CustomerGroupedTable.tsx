@@ -226,7 +226,11 @@ export const CustomerGroupedTable: React.FC<CustomerGroupedTableProps> = ({ grou
                                                                             </div>
                                                                         </TableCell>
                                                                         <TableCell className="text-xs py-3">{order.po_no || "—"}</TableCell>
-                                                                        <TableCell className="text-xs py-3 font-medium text-foreground/80">{order.supplier_id?.supplier_shortcut || "—"}</TableCell>
+                                                                        <TableCell className="text-xs py-3 font-medium text-foreground/80">
+                                                                            {order.supplier_id?.supplier_name 
+                                                                                ? `${order.supplier_id.supplier_name} (${order.supplier_id.supplier_shortcut})` 
+                                                                                : (order.supplier_id?.supplier_shortcut || "—")}
+                                                                        </TableCell>
                                                                         <TableCell className="text-xs py-3">
                                                                             <div className="flex flex-col">
                                                                                 <span className="font-semibold text-foreground/90">{order.salesman_id?.salesman_name || "—"}</span>

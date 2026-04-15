@@ -19,15 +19,16 @@ interface SalesOrderCheckoutProps {
     allocatedQuantities: Record<string, number>;
     updateAllocatedQty: (id: string, qty: number) => void;
     summary: {
-        totalAmount: number;
-        netAmount: number;
-        discountAmount: number;
-        allocatedAmount: number;
+        totalAmount: number;     // Ordered Gross
+        netAmount: number;       // Ordered Net
+        discountAmount: number;  // Ordered Discount
         orderedGross: number;
         orderedNet: number;
+        orderedDiscount: number;
         allocatedGross: number;
         allocatedNet: number;
         allocatedDiscount: number;
+        allocatedAmount: number; // Allocated Net
         vattableSales: number;
         vatAmount: number;
     };
@@ -64,7 +65,13 @@ export function SalesOrderCheckout({
 
     const handleConfirmClick = () => {
         if (hasZeroAllocation) {
-            setShowConfirmDialog(true);
+            const isCurrentlyDraft = existingOrderStatus?.toLowerCase() === "draft";
+            if (isExistingOrder && isCurrentlyDraft) {
+                // If it's already a draft and still has 0 allocation, auto-save as Draft. Hide dialog.
+                onConfirm("Draft");
+            } else {
+                setShowConfirmDialog(true);
+            }
         } else {
             onConfirm("For Approval");
         }
@@ -122,7 +129,7 @@ export function SalesOrderCheckout({
                                     <div className="flex flex-col">
                                         <span className="text-[10px] font-black text-muted-foreground uppercase tracking-wider mb-1">Receipt Type</span>
                                         <span className="text-xs font-bold text-emerald-600">
-                                            {header.receiptType?.shortcut ? `${header.receiptType.shortcut} - ` : ""}
+                                            {/* {header.receiptType?.shortcut ? `${header.receiptType.shortcut} - ` : ""} */}
                                             {header.receiptType?.type || "Standard"}
                                         </span>
                                     </div>
@@ -285,26 +292,29 @@ export function SalesOrderCheckout({
                                         <Calculator className="w-4 h-4" />
                                         Payment Summary
                                     </div>
-                                    <div className="flex flex-col md:flex-row md:items-center gap-10">
+                                    <div className="flex flex-col md:flex-row md:items-center gap-8">
                                         <div className="flex flex-col">
-                                            <span className="text-xs text-slate-400 font-bold uppercase tracking-wider">Gross Amount</span>
-                                            <span className="text-xl font-bold tabular-nums">{formatCurrency(summary.orderedGross)}</span>
+                                            <span className="text-[10px] text-slate-400 font-black uppercase tracking-widest mb-1 opacity-60">Ordered Gross</span>
+                                            <span className="text-xl font-black tabular-nums text-slate-400 tracking-tight">{formatCurrency(summary.orderedGross)}</span>
                                         </div>
                                         <div className="flex flex-col">
                                             <div className="flex flex-col">
-                                                <span className="text-xs text-amber-500 font-bold uppercase tracking-wider">Total</span>
-                                                <span className="text-[10px] text-slate-500 font-bold uppercase">Discount</span>
+                                                <span className="text-[10px] text-amber-500 font-black uppercase tracking-widest mb-1">Discount</span>
                                             </div>
-                                            <span className="text-xl font-bold tabular-nums text-amber-500">-{formatCurrency(summary.allocatedDiscount)}</span>
+                                            <span className="text-xl font-black tabular-nums text-amber-500 tracking-tight">-{formatCurrency(summary.orderedDiscount)}</span>
                                         </div>
                                         <div className="flex flex-col">
-                                            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider opacity-60">VAT</span>
-                                            <span className="text-lg font-bold tabular-nums opacity-60">{formatCurrency(summary.vatAmount)}</span>
+                                            <span className="text-[10px] text-slate-300 font-black uppercase tracking-widest mb-1 opacity-90">Net Amount</span>
+                                            <span className="text-xl font-black tabular-nums text-slate-300 tracking-tight">{formatCurrency(summary.orderedNet)}</span>
                                         </div>
-                                        <div className="flex flex-col ml-auto bg-primary/10 p-5 rounded-2xl border border-primary/20 backdrop-blur-xl">
-                                            <span className="text-[10px] text-primary font-black uppercase tracking-[0.2em] mb-1">Net Amount</span>
+                                        <div className="flex flex-col">
+                                            <span className="text-[10px] text-slate-400 font-black uppercase tracking-widest mb-1 opacity-60">VAT</span>
+                                            <span className="text-lg font-black tabular-nums opacity-60 tracking-tight">{formatCurrency(summary.vatAmount)}</span>
+                                        </div>
+                                        <div className="flex flex-col ml-auto bg-emerald-500/10 p-5 rounded-2xl border border-emerald-500/20 backdrop-blur-xl">
+                                            <span className="text-[10px] text-emerald-400 font-black uppercase tracking-[0.2em] mb-1">Allocated Amount</span>
                                             <span className="text-4xl font-black text-emerald-400 tabular-nums tracking-tighter tabular-nums underline underline-offset-[12px] decoration-emerald-500/30">
-                                                {formatCurrency(summary.allocatedNet)}
+                                                {formatCurrency(summary.allocatedAmount)}
                                             </span>
                                         </div>
                                     </div>

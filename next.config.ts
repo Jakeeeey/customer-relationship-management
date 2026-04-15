@@ -1,9 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // allowedDevOrigins:[
-  //   "http://[IP_ADDRESS]",
-  // ]
+  /* config options here */
+  allowedDevOrigins: ['msi-andrie', 'msi-4', '100.81.225.79', '100.124.104.46'],
 };
 
 export default nextConfig;

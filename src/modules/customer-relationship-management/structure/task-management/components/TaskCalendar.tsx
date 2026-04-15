@@ -13,7 +13,7 @@ interface TaskCalendarProps {
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
-export const TaskCalendar: React.FC<TaskCalendarProps> = ({
+const TaskCalendarComponent: React.FC<TaskCalendarProps> = ({
     days,
     getTasksForDay,
     onDayClick,
@@ -106,3 +106,6 @@ export const TaskCalendar: React.FC<TaskCalendarProps> = ({
         </div>
     );
 };
+
+export const TaskCalendar = React.memo(TaskCalendarComponent);
+TaskCalendar.displayName = "TaskCalendar";

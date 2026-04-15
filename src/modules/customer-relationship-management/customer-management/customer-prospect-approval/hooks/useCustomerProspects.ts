@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef } from "react";
-import type { CustomerProspect, CustomerProspectsAPIResponse, DiscountType, Salesman, StoreType, PaymentTerm } from "../types";
+import type { CustomerProspect, CustomerProspectsAPIResponse, DiscountType, Salesman, StoreType, PaymentTerm, CustomerClassification } from "../types";
 
 interface UseCustomerProspectsReturn {
     prospects: CustomerProspect[];
@@ -9,6 +9,7 @@ interface UseCustomerProspectsReturn {
     salesmen: Salesman[];
     storeTypes: StoreType[];
     paymentTerms: PaymentTerm[];
+    classifications: CustomerClassification[];
     isLoading: boolean;
     isError: boolean;
     error: Error | null;
@@ -26,6 +27,7 @@ interface UseCustomerProspectsReturn {
     refetch: () => Promise<void>;
     approveProspect: (id: number) => Promise<void>;
     rejectProspect: (id: number) => Promise<void>;
+    updateProspect: (id: number, data: Partial<CustomerProspect>) => Promise<void>;
 }
 
 export function useCustomerProspects(): UseCustomerProspectsReturn {
@@ -34,6 +36,7 @@ export function useCustomerProspects(): UseCustomerProspectsReturn {
     const [salesmen, setSalesmen] = useState<Salesman[]>([]);
     const [storeTypes, setStoreTypes] = useState<StoreType[]>([]);
     const [paymentTerms, setPaymentTerms] = useState<PaymentTerm[]>([]);
+    const [classifications, setClassifications] = useState<CustomerClassification[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isError, setIsError] = useState(false);
     const [error, setError] = useState<Error | null>(null);
@@ -86,11 +89,12 @@ export function useCustomerProspects(): UseCustomerProspectsReturn {
 
             // Fetch References (Discount Types, Salesmen, Store Types) once or on manual refetch
             if (discountTypes.length === 0 || salesmen.length === 0 || storeTypes.length === 0) {
-                const [dtRes, slRes, stRes, ptRes] = await Promise.all([
+                const [dtRes, slRes, stRes, ptRes, clRes] = await Promise.all([
                     fetch('/api/crm/customer/references?type=discount_type'),
                     fetch('/api/crm/customer/references?type=salesman'),
                     fetch('/api/crm/customer/references?type=store_type'),
-                    fetch('/api/crm/customer/references?type=payment_term')
+                    fetch('/api/crm/customer/references?type=payment_term'),
+                    fetch('/api/crm/customer/references?type=classification')
                 ]);
 
                 if (dtRes.ok) {
@@ -108,6 +112,10 @@ export function useCustomerProspects(): UseCustomerProspectsReturn {
                 if (ptRes.ok) {
                     const ptData = await ptRes.json();
                     setPaymentTerms(ptData.data || []);
+                }
+                if (clRes.ok) {
+                    const clData = await clRes.json();
+                    setClassifications(clData.data || []);
                 }
             }
 
@@ -152,6 +160,27 @@ export function useCustomerProspects(): UseCustomerProspectsReturn {
 
     const approveProspect = (id: number) => handleAction(id, "Approve");
     const rejectProspect = (id: number) => handleAction(id, "Reject");
+
+    const updateProspect = useCallback(async (id: number, data: Partial<CustomerProspect>) => {
+        try {
+            const res = await fetch("/api/crm/customer-prospect", {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ id, ...data }),
+            });
+
+            if (!res.ok) {
+                const errorData = await res.json().catch(() => ({}));
+                throw new Error(errorData.message || `Update failed: ${res.status}`);
+            }
+
+            await fetchData(true);
+        } catch (err) {
+            console.error("Update prospect error:", err);
+            throw err;
+        }
+    }, [fetchData]);
+
     const refetch = useCallback(() => fetchData(true), [fetchData]);
 
     return {
@@ -160,6 +189,7 @@ export function useCustomerProspects(): UseCustomerProspectsReturn {
         salesmen,
         storeTypes,
         paymentTerms,
+        classifications,
         isLoading,
         isError,
         error,
@@ -176,6 +206,7 @@ export function useCustomerProspects(): UseCustomerProspectsReturn {
         setSalesmanFilter,
         refetch,
         approveProspect,
-        rejectProspect
+        rejectProspect,
+        updateProspect
     };
 }
