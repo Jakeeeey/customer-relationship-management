@@ -82,7 +82,7 @@ export function SalesOrderFormFields({ appliedFilters, onSearch, salesmen, branc
                             <Input
                                 id="unifiedSearch"
                                 className="pl-9 h-9 text-sm shadow-sm focus-visible:ring-primary/50"
-                                placeholder="Order No, Customer Code... (Press Enter to Search)"
+                                placeholder="Order No, Customer Name, Code... (Press Enter)"
                                 value={draftFilters.search}
                                 onChange={(e) => handleInputChange("search", e.target.value)}
                                 onKeyDown={handleKeyDown}

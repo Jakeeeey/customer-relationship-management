@@ -484,13 +484,49 @@ export async function GET(req: NextRequest) {
         const filters: Record<string, string | number | boolean | object>[] = [];
 
         if (search) {
-            filters.push({
-                "_or": [
-                    { "order_no": { "_icontains": search } },
-                    { "customer_code": { "_icontains": search } },
-                    { "po_no": { "_icontains": search } }
-                ]
-            });
+            // ------------------------------------------------------------------
+            // KEY CONCEPT: The sales_order table only has `customer_code` (an ID),
+            // NOT the customer's name. To enable name-based search, we must first
+            // query the `customer` table for matching names, collect their codes,
+            // and add those codes to the filter. This is a "manual join" pattern
+            // commonly needed in APIs that don't support cross-table search.
+            // ------------------------------------------------------------------
+            const orConditions: Record<string, object>[] = [
+                { "order_no": { "_icontains": search } },
+                { "customer_code": { "_icontains": search } },
+                { "po_no": { "_icontains": search } }
+            ];
+
+            // Look up customer codes by customer_name or store_name
+            try {
+                const customerSearchFilter = JSON.stringify({
+                    "_or": [
+                        { "customer_name": { "_icontains": search } },
+                        { "store_name": { "_icontains": search } }
+                    ]
+                });
+                const customerSearchUrl = `${BASE_URL}/customer?filter=${encodeURIComponent(customerSearchFilter)}&fields=customer_code&limit=-1`;
+                const custRes = await fetch(customerSearchUrl, { headers });
+
+                if (custRes.ok) {
+                    const custJson = await custRes.json();
+                    const matchingCodes: string[] = (custJson.data || [])
+                        .map((c: { customer_code: string }) => c.customer_code)
+                        .filter(Boolean);
+
+                    if (matchingCodes.length > 0) {
+                        // Add an _in filter for all matching customer codes
+                        orConditions.push({
+                            "customer_code": { "_in": matchingCodes }
+                        });
+                    }
+                }
+            } catch (err) {
+                // If customer lookup fails, we still have the basic search
+                console.error("[DEBUG] Customer name lookup failed:", err);
+            }
+
+            filters.push({ "_or": orConditions });
         }
 
         if (dateCreated) {

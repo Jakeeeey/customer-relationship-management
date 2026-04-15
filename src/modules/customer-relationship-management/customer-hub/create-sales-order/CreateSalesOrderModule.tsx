@@ -27,7 +27,7 @@ export default function CreateSalesOrderModule({ documentViewerUrl }: { document
         summary,
         isCheckout, setIsCheckout, orderNo, previewOrderNo, enterCheckout, allocatedQuantities, updateAllocatedQty,
         orderRemarks, setOrderRemarks,
-        paymentTerms, setPaymentTerms,
+        paymentTerms, paymentTermsList,
         handlePriceTypeIdChange,
         handleSubmitOrder, submitting,
         existingOrderId, existingOrderStatus
@@ -105,7 +105,8 @@ export default function CreateSalesOrderModule({ documentViewerUrl }: { document
                         dueDate,
                         deliveryDate,
                         poNo,
-                        paymentTerms
+                        paymentTerms,
+                        paymentTermsList
                     }}
                 />
             ) : (
@@ -162,7 +163,7 @@ export default function CreateSalesOrderModule({ documentViewerUrl }: { document
                         onPriceTypeChange={handlePriceTypeIdChange}
                         previewOrderNo={previewOrderNo}
                         paymentTerms={paymentTerms}
-                        onPaymentTermsChange={setPaymentTerms}
+                        paymentTermsList={paymentTermsList}
                     />
 
                     {/* Encoding & Cart Section */}

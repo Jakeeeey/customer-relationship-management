@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { ArrowLeft, CheckCircle2, Package, Calculator, AlertCircle, Loader2, MessageSquare } from "lucide-react";
 import { formatCurrency, calculateChainNetPrice } from "../utils/priceCalc";
-import { LineItem, Salesman, Customer, Supplier, ReceiptType, SalesType, Branch } from "../types";
+import { LineItem, Salesman, Customer, Supplier, ReceiptType, SalesType, Branch, PaymentTerm } from "../types";
 
 import { OrderConfirmationDialog } from "./OrderConfirmationDialog";
 import { useState } from "react";
@@ -51,6 +51,7 @@ interface SalesOrderCheckoutProps {
         deliveryDate: string;
         poNo: string;
         paymentTerms?: number | null;
+        paymentTermsList?: PaymentTerm[];
     };
 }
 
@@ -155,7 +156,9 @@ export function SalesOrderCheckout({
                                     {header.paymentTerms !== undefined && header.paymentTerms !== null && (
                                         <div className="flex flex-col">
                                             <span className="text-[10px] font-black text-sky-600 uppercase tracking-wider mb-1">Terms</span>
-                                            <span className="text-xs font-bold text-sky-700">{header.paymentTerms} Days</span>
+                                            <span className="text-xs font-bold text-sky-700">
+                                                {header.paymentTermsList?.find(pt => Number(pt.id) === Number(header.paymentTerms))?.payment_name || `${header.paymentTerms} Days`}
+                                            </span>
                                         </div>
                                     )}
                                 </div>

@@ -279,6 +279,11 @@ export async function GET(req: NextRequest) {
             return NextResponse.json((await res.json()).data || []);
         }
 
+        if (action === "payment_terms") {
+            const res = await fetch(`${DIRECTUS_URL}/items/payment_terms?limit=-1`, { headers: fetchHeaders });
+            return NextResponse.json((await res.json()).data || []);
+        }
+
 
 
         if (action === "products") {

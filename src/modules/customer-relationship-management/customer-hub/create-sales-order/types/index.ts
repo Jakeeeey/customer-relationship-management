@@ -16,6 +16,13 @@ export interface Salesman {
     linked_account_ids?: (number | string)[];
 }
 
+export interface PaymentTerm {
+    id: number;
+    payment_name: string;
+    payment_days: number;
+    payment_description?: string;
+}
+
 export interface Customer {
     id: number | string;
     customer_code: string;
