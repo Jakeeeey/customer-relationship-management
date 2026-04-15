@@ -474,10 +474,11 @@ export function useSalesOrder() {
                 const masterUser = salesmen.find(s => (s.user_id || s.id)?.toString() === id);
                 if (masterUser && masterUser.linked_account_ids && masterUser.linked_account_ids.length === 1) {
                     const linkedId = masterUser.linked_account_ids[0].toString();
+                    const linkedAccount = data.find((a: Salesman) => a.id.toString() === linkedId);
                     console.log(`[handleSalesmanChange] Master User ${id} has one linked account for this customer: ${linkedId}. Auto-selecting...`);
                     
-                    // We call handleAccountChange directly to trigger cascading side-effects (Price Type, Branch)
-                    handleAccountChange(linkedId);
+                    // PASS THE FRESH DATA DIRECTLY to avoid React state delay
+                    handleAccountChange(linkedId, linkedAccount);
                 }
             } catch (e) {
                 console.error(e);
@@ -487,11 +488,11 @@ export function useSalesOrder() {
         }
     };
 
-    const handleAccountChange = async (id: string) => {
+    const handleAccountChange = async (id: string, providedAccount?: Salesman) => {
         setSelectedAccountId(id);
         // Do not clear customer selection
 
-        const account = accounts.find(a => a.id.toString() === id);
+        const account = providedAccount || accounts.find(a => a.id.toString() === id);
         if (account) {
             setPriceType(account.price_type || "A");
             setPriceTypeId(account.price_type_id || null);
@@ -564,8 +565,9 @@ export function useSalesOrder() {
                         // --- AUTO-SELECT ACCOUNT: If this user has exactly one account linked to this customer ---
                         if (sm.linked_account_ids && sm.linked_account_ids.length === 1) {
                             const aid = sm.linked_account_ids[0].toString();
+                            const linkedAccount = acctsData.find((a: Salesman) => a.id.toString() === aid);
                             console.log(`[handleCustomerChange] Single account link detected: ${aid}. Auto-selecting Account...`);
-                            handleAccountChange(aid);
+                            handleAccountChange(aid, linkedAccount);
                         }
                     }
                 } 

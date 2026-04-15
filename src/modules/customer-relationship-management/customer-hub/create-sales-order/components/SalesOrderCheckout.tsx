@@ -61,18 +61,21 @@ export function SalesOrderCheckout({
 }: SalesOrderCheckoutProps) {
     const [showConfirmDialog, setShowConfirmDialog] = useState(false);
 
+    const allAllocationsZero = lineItems.every(item => (allocatedQuantities[item.id] ?? 0) === 0);
     const hasZeroAllocation = lineItems.some(item => (allocatedQuantities[item.id] ?? 0) === 0);
 
     const handleConfirmClick = () => {
-        if (hasZeroAllocation) {
-            const isCurrentlyDraft = existingOrderStatus?.toLowerCase() === "draft";
-            if (isExistingOrder && isCurrentlyDraft) {
-                // If it's already a draft and still has 0 allocation, auto-save as Draft. Hide dialog.
-                onConfirm("Draft");
-            } else {
-                setShowConfirmDialog(true);
-            }
+        if (allAllocationsZero) {
+            // 🚀 Hard rule: If absolute zero is allocated, it MUST be a Draft. Skip modal.
+            console.log("[Checkout] All allocations are zero. Auto-saving to Draft.");
+            onConfirm("Draft");
+        } else if (hasZeroAllocation) {
+            // ⚖️ Partial allocation detected. Always show modal to let user choose target status.
+            console.log("[Checkout] Partial allocation detected. Showing workflow selection modal.");
+            setShowConfirmDialog(true);
         } else {
+            // ✅ Full allocation. Proceed directly to Approval.
+            console.log("[Checkout] Full allocation detected. Proceeding to Approval.");
             onConfirm("For Approval");
         }
     };
