@@ -5,18 +5,18 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Search } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { targetSettingsProvider } from "@/modules/customer-relationship-management/target-settings/providers/fetchProvider";
-import { 
-    SalesmanWithTarget, 
-    TacticalSKU, 
-    ProductSummary, 
+import { targetSettingsProvider } from "@/modules/customer-relationship-management/structure/target-settings/providers/fetchProvider";
+import {
+    SalesmanWithTarget,
+    TacticalSKU,
+    ProductSummary,
     ProductPricing,
     CustomerRecord,
     SupplierRecord,
     CustomerTarget,
     SupplierTarget
-} from "@/modules/customer-relationship-management/target-settings/types";
-import { TargetFormDialog } from "@/modules/customer-relationship-management/target-settings/components/TargetFormDialog";
+} from "@/modules/customer-relationship-management/structure/target-settings/types";
+import { TargetFormDialog } from "@/modules/customer-relationship-management/structure/target-settings/components/TargetFormDialog";
 import { toast } from "sonner";
 import { StatsCards } from "./components/StatsCards";
 import { SalesmanCard } from "./components/SalesmanCard";

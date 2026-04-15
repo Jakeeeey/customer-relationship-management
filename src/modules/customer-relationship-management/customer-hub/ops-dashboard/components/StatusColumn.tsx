@@ -1,12 +1,13 @@
 "use client"
 
-import { STATUS_COLORS, StatusGroupedOrders } from "../types";
+import { STATUS_COLORS, StatusGroupedOrders, BulkAction } from "../types";
 import { CustomerGroup } from "./CustomerGroup";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
 interface StatusColumnProps {
     statusGroup: StatusGroupedOrders;
+    bulkAction: BulkAction;
 }
 
 const colorToTailwindMap: Record<string, string> = {
@@ -23,7 +24,7 @@ const colorToTailwindMap: Record<string, string> = {
     slate: "border-b-slate-500",
 };
 
-export function StatusColumn({ statusGroup }: StatusColumnProps) {
+export function StatusColumn({ statusGroup, bulkAction }: StatusColumnProps) {
     const totalOrders = statusGroup.customerGroups.reduce(
         (acc, group) => acc + group.orders.length,
         0
@@ -49,7 +50,12 @@ export function StatusColumn({ statusGroup }: StatusColumnProps) {
                 <div className="pr-2 pb-10">
                 {statusGroup.customerGroups.length > 0 ? (
                     statusGroup.customerGroups.map((group) => (
-                        <CustomerGroup key={group.customerName} group={group} status={statusGroup.status} />
+                        <CustomerGroup 
+                            key={group.customerName} 
+                            group={group} 
+                            status={statusGroup.status} 
+                            bulkAction={bulkAction}
+                        />
                     ))
                 ) : (
                     <div className="h-full flex flex-col items-center justify-center opacity-20 py-20 pointer-events-none select-none">

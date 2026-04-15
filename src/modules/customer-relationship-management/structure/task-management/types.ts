@@ -48,6 +48,17 @@ export interface Customer {
     customer_code: string;
     city?: string | null;
     province?: string | null;
+    barangay?: string | null;
+}
+
+export interface MonthlyCoveragePlan {
+    id: number;
+    month: number;
+    year: number;
+    salesman_id: number;
+    created_by: number;
+    created_at: string;
+    status: "pending" | "approved" | "rejected";
 }
 
 export interface Task {
@@ -62,10 +73,10 @@ export interface Task {
     created_at: string;
     created_by: number;
     task_type_id: number | null;
-    customer_id?: number | null; // Added based on requirement logic
-    salesman_id?: number | null; // Added based on requirement logic
-    employee_id?: number | null; // Added based on requirement logic
-    remarks?: string | null;     // Added based on requirement logic
+    customer_id?: number | null;
+    salesman_id?: number | null;
+    employee_id?: number | null;
+    remarks?: string | null;
     isSalesman?: number | null;
 }
 
@@ -76,7 +87,15 @@ export interface DailyActionPlan {
     priority_level: "high" | "mid" | "low";
     date: string;
     is_completed: number;
+    approval_status: "pending" | "approved" | "rejected";
+    reviewed_by?: number | null;
+    reviewed_at?: string | null;
     additional_description: string | null;
+    province: string | null;
+    city: string | null;
+    barangay: string | null;
+    sales_amount: number | null;
+    collection_amount: number | null;
     customer_id: number | null;
     salesman_id: number | null;
     employee_id?: number | null;
@@ -106,6 +125,7 @@ export interface TaskManagementData {
     tasks: Task[];
     actionPlans: DailyActionPlan[];
     attachments: DailyActionPlanAttachment[];
+    monthlyCoveragePlans: MonthlyCoveragePlan[];
 }
 
 export interface TaskManagementState {

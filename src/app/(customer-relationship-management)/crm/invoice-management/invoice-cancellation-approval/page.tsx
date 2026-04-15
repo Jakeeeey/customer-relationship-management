@@ -11,7 +11,7 @@ import { SidebarTrigger } from "@/components/ui/sidebar";
 
 import InvoiceCancellationApprovalPage from "@/modules/customer-relationship-management/invoice-cancellation-approval/InvoiceCancellationApprovalPage";
 import { cookies } from "next/headers";
-import NavUser from "../../_components/nav-user";
+import { NavUser } from "@/components/shared/app-sidebar/nav-user";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
