@@ -1357,7 +1357,7 @@ export const ConvertToInvoiceModal: React.FC<ConvertToInvoiceModalProps> = ({
 
         {/* RECEIPT PREVIEW MODAL */}
         <Dialog open={isPreviewOpen} onOpenChange={setIsPreviewOpen}>
-            <DialogContent className={cn("max-h-[95vh] overflow-y-auto p-0 border-none shadow-2xl bg-zinc-100 dark:bg-zinc-950 flex flex-col", previewDialogWidthClass)}>
+            <DialogContent showCloseButton={false} className={cn("max-h-[95vh] overflow-y-auto p-0 border-none shadow-2xl bg-zinc-100 dark:bg-zinc-950 flex flex-col", previewDialogWidthClass)}>
                 <DialogTitle className="sr-only">Receipt Preview</DialogTitle>
                 <DialogHeader className="p-4 bg-zinc-50 dark:bg-zinc-900/50 border-b border-zinc-200 dark:border-zinc-800 flex flex-row items-center justify-between flex-shrink-0">
                     <DialogTitle className="text-xs font-black uppercase tracking-widest flex items-center gap-2 text-zinc-800 dark:text-zinc-200">
