@@ -93,8 +93,10 @@ export function TargetFormDialog({
         new_accounts: salesman.current_target?.new_accounts || 0,
         productive_outlets: salesman.current_target?.productive_outlets || 0,
         line_sales: salesman.current_target?.line_sales || 0,
+        line_sales_target: salesman.current_target?.line_sales_target || 0,
         frequency: salesman.current_target?.frequency || 0,
         basket_count: salesman.current_target?.basket_count || 0,
+        basket_count_target: salesman.current_target?.basket_count_target || 0,
         reach: salesman.current_target?.reach || 0,
     });
 
@@ -143,8 +145,10 @@ export function TargetFormDialog({
                 new_accounts: salesman.current_target?.new_accounts || 0,
                 productive_outlets: salesman.current_target?.productive_outlets || 0,
                 line_sales: salesman.current_target?.line_sales || 0,
+                line_sales_target: salesman.current_target?.line_sales_target || 0,
                 frequency: salesman.current_target?.frequency || 0,
                 basket_count: salesman.current_target?.basket_count || 0,
+                basket_count_target: salesman.current_target?.basket_count_target || 0,
                 reach: salesman.current_target?.reach || 0,
             });
 
@@ -492,13 +496,28 @@ export function TargetFormDialog({
                                         <Label className="text-sm font-black text-slate-700 flex items-center gap-2">
                                             <BarChart3 className="w-4 h-4 text-emerald-500" /> Line Sales
                                         </Label>
-                                        <Input
-                                            type="number"
-                                            value={targetData.line_sales || ""}
-                                            onChange={(e) => handleInputChange('line_sales', e.target.value)}
-                                            className="bg-white border-slate-200 h-11 font-bold text-lg rounded-xl focus:ring-slate-900 shadow-sm hover:border-slate-300 transition-all"
-                                            placeholder="Enter line sales target"
-                                        />
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <div className="space-y-1">
+                                                <Label className="text-[10px] uppercase text-slate-400 font-black">No. Sku</Label>
+                                                <Input
+                                                    type="number"
+                                                    value={targetData.line_sales || ""}
+                                                    onChange={(e) => handleInputChange('line_sales', e.target.value)}
+                                                    className="bg-white border-slate-200 h-10 font-bold text-base rounded-xl focus:ring-slate-900 shadow-sm transition-all"
+                                                    placeholder="0"
+                                                />
+                                            </div>
+                                            <div className="space-y-1">
+                                                <Label className="text-[10px] uppercase text-slate-400 font-black">No. Customer</Label>
+                                                <Input
+                                                    type="number"
+                                                    value={targetData.line_sales_target || ""}
+                                                    onChange={(e) => handleInputChange('line_sales_target', e.target.value)}
+                                                    className="bg-white border-slate-200 h-10 font-bold text-base rounded-xl focus:ring-slate-900 shadow-sm transition-all"
+                                                    placeholder="0"
+                                                />
+                                            </div>
+                                        </div>
                                     </div>
 
                                     {/* 5. Frequency */}
@@ -520,13 +539,28 @@ export function TargetFormDialog({
                                         <Label className="text-sm font-black text-slate-700 flex items-center gap-2">
                                             <ShoppingBag className="w-4 h-4 text-rose-500" /> Basket Count
                                         </Label>
-                                        <Input
-                                            type="number"
-                                            value={targetData.basket_count || ""}
-                                            onChange={(e) => handleInputChange('basket_count', e.target.value)}
-                                            className="bg-white border-slate-200 h-11 font-bold text-lg rounded-xl focus:ring-slate-900 shadow-sm hover:border-slate-300 transition-all"
-                                            placeholder="Enter basket count target"
-                                        />
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <div className="space-y-1">
+                                                <Label className="text-[10px] uppercase text-slate-400 font-black">Min</Label>
+                                                <Input
+                                                    type="number"
+                                                    value={targetData.basket_count || ""}
+                                                    onChange={(e) => handleInputChange('basket_count', e.target.value)}
+                                                    className="bg-white border-slate-200 h-10 font-bold text-base rounded-xl focus:ring-slate-900 shadow-sm transition-all"
+                                                    placeholder="0"
+                                                />
+                                            </div>
+                                            <div className="space-y-1">
+                                                <Label className="text-[10px] uppercase text-slate-400 font-black">No. Customer</Label>
+                                                <Input
+                                                    type="number"
+                                                    value={targetData.basket_count_target || ""}
+                                                    onChange={(e) => handleInputChange('basket_count_target', e.target.value)}
+                                                    className="bg-white border-slate-200 h-10 font-bold text-base rounded-xl focus:ring-slate-900 shadow-sm transition-all"
+                                                    placeholder="0"
+                                                />
+                                            </div>
+                                        </div>
                                     </div>
 
                                     {/* 7. Reach */}

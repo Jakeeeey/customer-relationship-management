@@ -12,6 +12,7 @@ export interface DiscountType {
 export interface Salesman {
     id: number;
     salesman_name: string;
+    salesman_code?: string;
 }
 
 export interface StoreType {
@@ -23,6 +24,11 @@ export interface PaymentTerm {
     id: number;
     payment_name: string;
     payment_days: number;
+}
+
+export interface CustomerClassification {
+    id: number;
+    classification_name: string;
 }
 
 export interface CustomerProspect {
@@ -61,6 +67,8 @@ export interface CustomerProspect {
     prospect_status: 'Pending' | 'Approved' | 'Rejected';
     // Joined data
     salesman_name?: string;
+    salesman_code?: string;
+    updated_by_name?: string | null;
 }
 
 export interface CustomerProspectsAPIResponse {

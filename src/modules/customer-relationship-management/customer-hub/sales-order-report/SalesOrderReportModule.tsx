@@ -227,6 +227,7 @@ export default function SalesOrderReportModule() {
                 customers={customers}
                 salesmen={salesmen}
                 branches={branches}
+                suppliers={suppliers}
             />
 
             <div className="h-8" /> {/* Spacer */}

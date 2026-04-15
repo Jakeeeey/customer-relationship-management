@@ -118,7 +118,7 @@ export default function CallSheetModule() {
                             <SearchableSelect
                                 options={[
                                     { value: "", label: "All Salesmen" },
-                                    ...(filterOptions?.salesmen.map(s => ({ value: s.id.toString(), label: s.salesman_name })) || [])
+                                    ...(filterOptions?.salesmen.map(s => ({ value: s.id.toString(), label: `${s.salesman_name} (${s.salesman_code})` })) || [])
                                 ]}
                                 value={salesmanId}
                                 onValueChange={(val) => {
