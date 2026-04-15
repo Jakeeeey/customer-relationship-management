@@ -152,7 +152,6 @@ export default function TaskManagementApprovalModule() {
                     // Mirroring basic update logic if supervisor adds a task manually
                     return false; // Creation not primary focus here
                 }}
-                onDelete={handleDeleteTask}
                 initialData={editingTask}
                 selectedDate={selectedDate}
                 tasks={data?.tasks || []}
@@ -166,7 +165,6 @@ export default function TaskManagementApprovalModule() {
                 isOpen={isViewDialogOpen}
                 onClose={() => setIsViewDialogOpen(false)}
                 dayTasks={selectedDate ? getTasksForDay(selectedDate) : []}
-                attachments={data?.attachments || []}
                 tasks={data?.tasks || []}
                 customers={data?.customers || []}
                 selectedDate={selectedDate}

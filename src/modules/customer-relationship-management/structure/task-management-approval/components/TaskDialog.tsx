@@ -16,7 +16,6 @@ interface TaskDialogProps {
     isOpen: boolean;
     onClose: () => void;
     onSubmit: (data: Partial<DailyActionPlan>) => Promise<boolean>;
-    onDelete?: (id: number) => Promise<boolean>;
     initialData?: DailyActionPlan | null;
     selectedDate: Date | null;
     tasks: Task[];
@@ -29,7 +28,6 @@ export const TaskDialog: React.FC<TaskDialogProps> = ({
     isOpen,
     onClose,
     onSubmit,
-    onDelete,
     initialData,
     selectedDate,
     tasks,
@@ -61,7 +59,6 @@ export const TaskDialog: React.FC<TaskDialogProps> = ({
                             if (success) onClose();
                             return success;
                         }}
-                        onDelete={onDelete}
                     />
                 </div>
             </DialogContent>

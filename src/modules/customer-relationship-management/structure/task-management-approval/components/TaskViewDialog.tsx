@@ -173,11 +173,6 @@ export const TaskViewDialog: React.FC<TaskViewDialogProps> = ({
                                         selectedEmployeeId={selectedEmployeeId}
                                         selectedDate={selectedDate}
                                         onSubmit={async (p) => await onUpdateTask(selectedTask.id, p)}
-                                        onDelete={async (id) => {
-                                            const success = await onDeleteTask(id);
-                                            if (success) setSelectedTaskId(null);
-                                            return success;
-                                        }}
                                         onApprove={async (id) => {
                                             const success = await onApproveTask(id);
                                             if (success) {
