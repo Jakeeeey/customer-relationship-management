@@ -1,3 +1,2 @@
-import InventoryReportModule from "./InventoryReportModule";
-
-export default InventoryReportModule;
+export { default } from "./InventoryReportModule";
+export * from "./type";
