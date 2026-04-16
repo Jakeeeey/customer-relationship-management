@@ -1,7 +1,8 @@
 "use client";
 
 import React from "react";
-import { FileText, PlusCircle, ExternalLink, Clock, CheckCircle2, XCircle, Download, RefreshCw } from "lucide-react";
+import { format } from "date-fns";
+import { FileText, PlusCircle, ExternalLink, Clock, CheckCircle2, XCircle, Download, RefreshCw, Calendar } from "lucide-react";
 import {
     Table,
     TableBody,
@@ -116,6 +117,7 @@ export function CallSheetTable({
                                 <TableHead className="w-[180px] font-bold text-foreground capitalize">Sales Executive</TableHead>
                                 <TableHead className="font-bold text-foreground capitalize">Customer Hub</TableHead>
                                 <TableHead className="w-[200px] font-bold text-foreground capitalize">Filing Reference</TableHead>
+                                <TableHead className="w-[150px] font-bold text-foreground capitalize">Created Date</TableHead>
                                 <TableHead className="w-[120px] text-center font-bold text-foreground capitalize">Status</TableHead>
                                 <TableHead className="w-[200px] text-right font-bold text-foreground capitalize pr-6">Workflow</TableHead>
                             </TableRow>
@@ -139,7 +141,7 @@ export function CallSheetTable({
                                 ))
                             ) : data.length === 0 ? (
                                 <TableRow>
-                                    <TableCell colSpan={6} className="h-64 text-center">
+                                    <TableCell colSpan={7} className="h-64 text-center">
                                         <div className="flex flex-col items-center justify-center space-y-3 opacity-60">
                                             <div className="h-16 w-16 rounded-full bg-muted flex items-center justify-center">
                                                 <FileText className="h-8 w-8 text-muted-foreground" />
@@ -235,6 +237,19 @@ export function CallSheetTable({
                                                             No attachment
                                                         </span>
                                                     )}
+                                                </div>
+                                            </TableCell>
+                                            <TableCell>
+                                                <div className="flex flex-col">
+                                                    <div className="flex items-center gap-1.5">
+                                                        <Calendar className="h-3 w-3 text-muted-foreground/60" />
+                                                        <span className="text-xs font-medium text-muted-foreground">
+                                                            {row.created_date ? format(new Date(row.created_date), "MMM d, yyyy") : "—"}
+                                                        </span>
+                                                    </div>
+                                                    <span className="text-[10px] text-muted-foreground font-mono">
+                                                        {row.created_date ? format(new Date(row.created_date), "h:mm a") : ""}
+                                                    </span>
                                                 </div>
                                             </TableCell>
                                             <TableCell className="text-center">

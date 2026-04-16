@@ -319,13 +319,6 @@ export function ApprovalModal({
                                 >
                                     {activeOrder.order_status?.toUpperCase()}
                                 </Badge>
-                                <button
-                                    onClick={onClose}
-                                    className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors shrink-0"
-                                    aria-label="Close"
-                                >
-                                    <X className="h-4 w-4" />
-                                </button>
                             </div>
                         </div>
 
@@ -596,15 +589,6 @@ export function ApprovalModal({
                         </div>
 
                         <div className="flex items-center gap-2 sm:gap-3">
-                            <Button
-                                variant="outline"
-                                onClick={onClose}
-                                disabled={isSubmitting}
-                                className="h-9 sm:h-12 px-4 sm:px-8 font-bold uppercase tracking-widest text-[10px] sm:text-xs rounded-xl border-border bg-background hover:bg-muted text-foreground transition-all shadow-sm"
-                            >
-                                Close
-                            </Button>
-
                             {isInvoiceStatus && invoiceData?.pdf && (
                                 <Button
                                     onClick={() => setIsPdfOpen(true)}

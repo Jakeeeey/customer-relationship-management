@@ -8,7 +8,7 @@ import {
 } from "@/components/ui/breadcrumb";
 import { Separator } from "@/components/ui/separator";
 import { SidebarTrigger } from "@/components/ui/sidebar";
-import { NavUser } from "../../_components/nav-user";
+import { NavUser } from "@/components/shared/app-sidebar/nav-user";
 
 import { cookies } from "next/headers";
 
@@ -90,7 +90,7 @@ export default async function Page(props: {
         const DIRECTUS_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
         const DIRECTUS_TOKEN = process.env.DIRECTUS_STATIC_TOKEN;
         const headers = { Authorization: `Bearer ${DIRECTUS_TOKEN}`, "Content-Type": "application/json" };
-        
+
         let targetFileId: string | null = null;
         let targetFileName: string | null = null;
 
