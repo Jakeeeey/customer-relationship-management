@@ -51,6 +51,22 @@ export interface Customer {
     barangay?: string | null;
 }
 
+export interface CustomerTarget {
+    id: number;
+    target_setting_id: number;
+    customer_id: number;
+    target_amount: number;
+    created_at: string;
+}
+
+export interface TargetSetting {
+    id: number;
+    salesman_id: number;
+    date_range_from: string;
+    date_range_to: string;
+    created_at: string;
+}
+
 export interface MonthlyCoveragePlan {
     id: number;
     month: number;
@@ -126,5 +142,7 @@ export interface TaskManagementData {
     actionPlans: DailyActionPlan[];
     attachments: DailyActionPlanAttachment[];
     monthlyCoveragePlans: MonthlyCoveragePlan[];
+    targetSettings: TargetSetting[];
+    customerTargets: CustomerTarget[];
     currentUserId?: number;
 }

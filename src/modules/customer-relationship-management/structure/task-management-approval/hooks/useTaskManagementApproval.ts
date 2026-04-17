@@ -211,7 +211,15 @@ export const useTaskManagementApproval = () => {
         currentMonth: getMonth(currentDate),
         currentYear: getYear(currentDate),
         // Mirrored update/delete just in case
-        handleUpdateTask: updateDailyActionPlan,
-        handleDeleteTask: deleteDailyActionPlan,
+        handleUpdateTask: async (id: number, payload: any) => {
+            const success = await updateDailyActionPlan(id, payload);
+            if (success) fetchTasks(true);
+            return success;
+        },
+        handleDeleteTask: async (id: number) => {
+            const success = await deleteDailyActionPlan(id);
+            if (success) fetchTasks(true);
+            return success;
+        },
     };
 };

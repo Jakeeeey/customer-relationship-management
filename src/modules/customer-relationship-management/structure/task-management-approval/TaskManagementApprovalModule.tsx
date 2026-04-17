@@ -98,7 +98,7 @@ export default function TaskManagementApprovalModule() {
     }
 
     return (
-        <div className="flex flex-col min-h-full max-w-[1200px] mx-auto w-full pb-20 relative px-4">
+        <div className="flex flex-col min-h-full max-w-[1600px] mx-auto w-full pb-20 relative px-4">
             {isRefreshing && (
                 <div className="absolute top-4 right-8 z-50 flex items-center gap-3 bg-white/80 backdrop-blur-xl border border-primary/20 px-4 py-2 rounded-full shadow-2xl animate-in fade-in slide-in-from-top-4">
                     <Loader2 className="w-4 h-4 animate-spin text-primary" />
@@ -106,23 +106,24 @@ export default function TaskManagementApprovalModule() {
                 </div>
             )}
 
-            <FilterSection
-                users={filteredEmployees}
-                salesmen={filteredSalesmen}
-                selectedEmployeeId={selectedEmployeeId}
-                onEmployeeChange={(id) => {
-                    setSelectedEmployeeId(id);
-                    setSelectedSalesmanId("all");
-                }}
-                selectedSalesmanId={selectedSalesmanId}
-                onSalesmanChange={setSelectedSalesmanId}
-                currentMonth={currentMonth}
-                currentYear={currentYear}
-                onMonthChange={setMonth}
-                onYearChange={setYear}
-            />
+            {/* Main Content Area */}
+            <div className="flex flex-col gap-8 pb-32 animate-in fade-in duration-700">
+                <FilterSection
+                    users={filteredEmployees}
+                    salesmen={filteredSalesmen}
+                    selectedEmployeeId={selectedEmployeeId}
+                    onEmployeeChange={(id) => {
+                        setSelectedEmployeeId(id);
+                        setSelectedSalesmanId("all");
+                    }}
+                    selectedSalesmanId={selectedSalesmanId}
+                    onSalesmanChange={setSelectedSalesmanId}
+                    currentMonth={currentMonth}
+                    currentYear={currentYear}
+                    onMonthChange={setMonth}
+                    onYearChange={setYear}
+                />
 
-            <div className="space-y-8">
                 <CalendarHeader
                     monthName={months[currentMonth]}
                     year={currentYear}
@@ -130,7 +131,7 @@ export default function TaskManagementApprovalModule() {
                     salesmanAccount={salesmanAccount}
                 />
 
-                <div key={`${currentMonth}-${currentYear}`} className="animate-in fade-in zoom-in-95 duration-500">
+                <div key={`${currentMonth}-${currentYear}`}>
                     <TaskCalendar
                         days={daysInMonth}
                         getTasksForDay={getTasksForDay}

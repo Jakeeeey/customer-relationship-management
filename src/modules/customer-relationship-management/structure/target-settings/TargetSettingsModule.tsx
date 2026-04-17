@@ -109,11 +109,11 @@ export function TargetSettingsModule() {
 
         const metrics = [];
         if (salesman.operation === 1) { // Booking
-            metrics.push(calculateProgress(salesman.current_volume || 0, salesman.current_target.volume));
-            metrics.push(calculateProgress(salesman.current_frequency || 0, salesman.current_target.frequency));
+            metrics.push(calculateProgress(salesman.current_volume || 0, salesman.current_target.volume || 0));
+            metrics.push(calculateProgress(salesman.current_frequency || 0, salesman.current_target.frequency || 0));
         } else { // Site Sales
-            metrics.push(calculateProgress(salesman.current_volume || 0, salesman.current_target.volume));
-            metrics.push(calculateProgress(salesman.current_new_accounts || 0, salesman.current_target.new_accounts));
+            metrics.push(calculateProgress(salesman.current_volume || 0, salesman.current_target.volume || 0));
+            metrics.push(calculateProgress(salesman.current_new_accounts || 0, salesman.current_target.new_accounts || 0));
         }
 
         const average = metrics.reduce((a, b) => a + b, 0) / (metrics.length || 1);

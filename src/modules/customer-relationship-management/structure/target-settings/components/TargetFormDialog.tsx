@@ -348,13 +348,13 @@ export function TargetFormDialog({
         const dateTo = `${year}-${String(month).padStart(2, '0')}-${lastDay} 23:59:59`;
 
         if (totalAllocatedCustomer > targetData.volume) {
-            toast.error(`Total customer allocation (₱${totalAllocatedCustomer.toLocaleString()}) exceeds total volume (₱${targetData.volume.toLocaleString()})`);
+            toast.error(`Total customer allocation (₱${(totalAllocatedCustomer || 0).toLocaleString()}) exceeds total volume (₱${(targetData.volume || 0).toLocaleString()})`);
             setLoading(false);
             return;
         }
 
         if (totalAllocatedSupplier > targetData.volume) {
-            toast.error(`Total supplier allocation (₱${totalAllocatedSupplier.toLocaleString()}) exceeds total volume (₱${targetData.volume.toLocaleString()})`);
+            toast.error(`Total supplier allocation (₱${(totalAllocatedSupplier || 0).toLocaleString()}) exceeds total volume (₱${(targetData.volume || 0).toLocaleString()})`);
             setLoading(false);
             return;
         }
@@ -593,13 +593,13 @@ export function TargetFormDialog({
                                         <div className="text-right">
                                             <p className="text-[10px] font-black text-slate-400 uppercase">Allocated (Customers)</p>
                                             <p className={`text-sm font-bold ${totalAllocatedCustomer > targetData.volume ? 'text-destructive' : 'text-slate-900'}`}>
-                                                ₱{totalAllocatedCustomer.toLocaleString()} / ₱{targetData.volume.toLocaleString()}
+                                                ₱{(totalAllocatedCustomer || 0).toLocaleString()} / ₱{(targetData.volume || 0).toLocaleString()}
                                             </p>
                                         </div>
                                         <div className="text-right">
                                             <p className="text-[10px] font-black text-slate-400 uppercase">Allocated (Suppliers)</p>
                                             <p className={`text-sm font-bold ${totalAllocatedSupplier > targetData.volume ? 'text-destructive' : 'text-slate-900'}`}>
-                                                ₱{totalAllocatedSupplier.toLocaleString()} / ₱{targetData.volume.toLocaleString()}
+                                                ₱{(totalAllocatedSupplier || 0).toLocaleString()} / ₱{(targetData.volume || 0).toLocaleString()}
                                             </p>
                                         </div>
                                     </div>
@@ -640,7 +640,7 @@ export function TargetFormDialog({
                                                                         <span className="text-xs font-black text-slate-900 tracking-tight uppercase">{province}</span>
                                                                     </div>
                                                                     <Badge variant="outline" className="bg-primary/5 border-primary/20 text-primary font-bold text-[10px]">
-                                                                        ₱{data.totalAllocation.toLocaleString()}
+                                                                        ₱{(data.totalAllocation || 0).toLocaleString()}
                                                                     </Badge>
                                                                 </div>
                                                             </AccordionTrigger>
@@ -658,7 +658,7 @@ export function TargetFormDialog({
                                                                                         </Badge>
                                                                                     </div>
                                                                                     <Badge variant="outline" className="bg-white border-slate-200 text-slate-500 font-bold text-[9px] h-5 shadow-sm">
-                                                                                        ₱{cityData.totalAllocation.toLocaleString()}
+                                                                                        ₱{(cityData.totalAllocation || 0).toLocaleString()}
                                                                                     </Badge>
                                                                                 </div>
                                                                             </AccordionTrigger>
@@ -770,7 +770,7 @@ export function TargetFormDialog({
                                     </div>
                                     <div className="text-right">
                                         <p className="text-[10px] font-black text-primary-foreground/60 uppercase">Available Budget</p>
-                                        <p className="text-xl font-black text-white">₱{targetData.volume.toLocaleString()}</p>
+                                        <p className="text-xl font-black text-white">₱{(targetData.volume || 0).toLocaleString()}</p>
                                     </div>
                                 </div>
                             </div>

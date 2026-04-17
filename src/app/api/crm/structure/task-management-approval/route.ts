@@ -54,7 +54,9 @@ export async function GET() {
             tasksRes,
             actionPlanRes,
             attachmentsRes,
-            mcpRes
+            mcpRes,
+            targetSettingsRes,
+            customerTargetsRes,
         ] = await Promise.all([
             fetch(`${DIRECTUS_URL}/items/user?limit=-1`, { headers: fetchHeaders }),
             fetch(`${DIRECTUS_URL}/items/salesman?limit=-1`, { headers: fetchHeaders }),
@@ -65,10 +67,25 @@ export async function GET() {
             fetch(`${DIRECTUS_URL}/items/task?limit=-1`, { headers: fetchHeaders }),
             fetch(`${DIRECTUS_URL}/items/daily_action_plan?limit=-1`, { headers: fetchHeaders }),
             fetch(`${DIRECTUS_URL}/items/daily_action_plan_attachment?limit=-1`, { headers: fetchHeaders }),
-            fetch(`${DIRECTUS_URL}/items/monthly_coverage_plan?limit=-1`, { headers: fetchHeaders })
+            fetch(`${DIRECTUS_URL}/items/monthly_coverage_plan?limit=-1`, { headers: fetchHeaders }),
+            fetch(`${DIRECTUS_URL}/items/salesman_target_setting?limit=-1`, { headers: fetchHeaders }),
+            fetch(`${DIRECTUS_URL}/items/salesman_target_customer_sales?limit=-1`, { headers: fetchHeaders })
         ]);
 
-        const [users, salesmen, mapping, supervisors, taskTypes, customers, tasks, actionPlans, attachments, monthlyCoveragePlans] = await Promise.all([
+        const [
+            users,
+            salesmen,
+            mapping,
+            supervisors,
+            taskTypes,
+            customers,
+            tasks,
+            actionPlans,
+            attachments,
+            monthlyCoveragePlans,
+            targetSettings,
+            customerTargets,
+        ] = await Promise.all([
             usersRes.json().then(j => j.data || []),
             salesmenRes.json().then(j => j.data || []),
             mappingRes.json().then(j => j.data || []),
@@ -78,7 +95,9 @@ export async function GET() {
             tasksRes.json().then(j => j.data || []),
             actionPlanRes.json().then(j => j.data || []),
             attachmentsRes.json().then(j => j.data || []),
-            mcpRes.json().then(j => j.data || [])
+            mcpRes.json().then(j => j.data || []),
+            targetSettingsRes.json().then(j => j.data || []),
+            customerTargetsRes.json().then(j => j.data || [])
         ]);
 
         return NextResponse.json({
@@ -92,6 +111,8 @@ export async function GET() {
             actionPlans,
             attachments,
             monthlyCoveragePlans,
+            targetSettings,
+            customerTargets,
             currentUserId: userId
         });
     } catch (error) {
