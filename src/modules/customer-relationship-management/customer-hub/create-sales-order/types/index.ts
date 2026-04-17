@@ -41,7 +41,7 @@ export interface Supplier {
     id: number | string;
     supplier_name: string;
     supplier_shortcut?: string;
-    trade_type?: "Trade" | "Non-Trade";
+    trade_type?: "TRADE" | "NON-TRADE";
 }
 
 export interface Product {
