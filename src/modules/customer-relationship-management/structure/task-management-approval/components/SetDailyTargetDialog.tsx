@@ -27,7 +27,6 @@ interface SetDailyTargetDialogProps {
 export const SetDailyTargetDialog: React.FC<SetDailyTargetDialogProps> = ({
     isOpen,
     onClose,
-    customerId,
     customerName,
     date,
     initialAmount = 0,
@@ -38,7 +37,10 @@ export const SetDailyTargetDialog: React.FC<SetDailyTargetDialogProps> = ({
 
     useEffect(() => {
         if (isOpen) {
-            setAmount(initialAmount > 0 ? initialAmount.toString() : "");
+            const timer = setTimeout(() => {
+                setAmount(initialAmount > 0 ? initialAmount.toString() : "");
+            }, 0);
+            return () => clearTimeout(timer);
         }
     }, [isOpen, initialAmount]);
 

@@ -22,7 +22,6 @@ import {
     useSensors 
 } from "@dnd-kit/core";
 import { SetDailyTargetDialog } from "./components/SetDailyTargetDialog";
-import { format } from "date-fns";
 
 const months = [
     "January", "February", "March", "April", "May", "June",
@@ -49,7 +48,6 @@ export default function TaskManagementApprovalModule() {
         currentYear,
         setMonth,
         setYear,
-        pendingActionPlans,
         customerAllocations,
         handleSetDailyTarget,
     } = useTaskManagementApproval();

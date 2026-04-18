@@ -1,5 +1,5 @@
 // src/modules/customer-relationship-management/structure/task-management-approval/providers/fetchProvider.ts
-import { TaskManagementData, DailyActionPlan } from "../types";
+import { TaskManagementData, DailyActionPlan, MonthlyCoveragePlan } from "../types";
 
 const API_BASE_URL = "/api/crm/structure/task-management-approval";
 
@@ -57,13 +57,13 @@ export const createDailyActionPlan = async (data: Partial<DailyActionPlan>): Pro
     return json.data;
 };
 
-export const createMCP = async (data: { salesman_id: number; employee_id: number; month: number; year: number }): Promise<any | null> => {
+export const createMCP = async (data: { salesman_id: number; employee_id: number; month: number; year: number }): Promise<MonthlyCoveragePlan | undefined> => {
     const res = await fetch(API_BASE_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ type: "MCP", ...data }),
     });
-    if (!res.ok) return null;
+    if (!res.ok) return undefined;
     const json = await res.json();
     return json.data;
 };

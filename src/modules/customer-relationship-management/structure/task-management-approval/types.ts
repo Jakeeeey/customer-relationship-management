@@ -59,6 +59,15 @@ export interface CustomerTarget {
     created_at: string;
 }
 
+export interface CustomerAllocation extends CustomerTarget {
+    customer_name: string;
+    store_name: string;
+    customer_code: string;
+    assignedAmount: number;
+    isFullyAllocated: boolean;
+    remainingAmount: number;
+}
+
 export interface TargetSetting {
     id: number;
     salesman_id: number;

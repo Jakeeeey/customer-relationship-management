@@ -19,9 +19,10 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { useDraggable } from "@dnd-kit/core";
 import { cn } from "@/lib/utils";
 import { CheckCircle2 } from "lucide-react";
+import { CustomerAllocation } from "../types";
 
 interface AllocationSidePanelProps {
-    customerAllocations: any[];
+    customerAllocations: CustomerAllocation[];
 }
 
 export const AllocationSidePanel: React.FC<AllocationSidePanelProps> = ({
@@ -128,7 +129,7 @@ export const AllocationSidePanel: React.FC<AllocationSidePanelProps> = ({
     );
 };
 
-const DraggableCustomerCard = ({ alloc }: { alloc: any }) => {
+const DraggableCustomerCard = ({ alloc }: { alloc: CustomerAllocation }) => {
     const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
         id: `customer-${alloc.customer_id}`,
     });

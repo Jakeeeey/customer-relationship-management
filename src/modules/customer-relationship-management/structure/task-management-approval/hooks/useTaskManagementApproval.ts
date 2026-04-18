@@ -15,6 +15,8 @@ import {
     TaskManagementData, 
     SalesmanPerSupervisor,
     SupervisorPerDivision,
+    CustomerAllocation,
+    DailyActionPlan,
 } from "../types";
 import { toast } from "sonner";
 import { 
@@ -188,7 +190,7 @@ export const useTaskManagementApproval = () => {
         return data.monthlyCoveragePlans.filter(mp => mp.status === "pending");
     }, [data]);
 
-    const customerAllocations = useMemo(() => {
+    const customerAllocations = useMemo((): CustomerAllocation[] => {
         if (!data || selectedSalesmanId === "all") return [];
 
         // 1. Find the target setting for the selected salesman that covers the current month
@@ -237,7 +239,7 @@ export const useTaskManagementApproval = () => {
     }, [data, selectedSalesmanId, currentDate]);
 
     const handleCreateMCP = async () => {
-        if (!selectedSalesmanId || !selectedEmployeeId) return null;
+        if (!selectedSalesmanId || !selectedEmployeeId) return undefined;
         try {
             const salesman = data?.salesmen.find(s => String(s.id) === selectedSalesmanId);
             if (!salesman) throw new Error("Salesman not found");
@@ -249,11 +251,23 @@ export const useTaskManagementApproval = () => {
                 year: getYear(currentDate)
             });
             return newMcp;
-        } catch (error) {
+        } catch {
             toast.error("Failed to create Monthly Coverage Plan");
-            return null;
+            return undefined;
         }
     };
+
+    const handleUpdateTask = useCallback(async (id: number, payload: Partial<DailyActionPlan>) => {
+        const success = await updateDailyActionPlan(id, payload);
+        if (success) fetchTasks(true);
+        return success;
+    }, [fetchTasks]);
+
+    const handleDeleteTask = useCallback(async (id: number) => {
+        const success = await deleteDailyActionPlan(id);
+        if (success) fetchTasks(true);
+        return success;
+    }, [fetchTasks]);
 
     const handleSetDailyTarget = async (customerId: number, date: string, amount: number) => {
         if (!data) return false;
@@ -292,7 +306,7 @@ export const useTaskManagementApproval = () => {
 
             // 4. Create new task
             const salesman = data.salesmen.find(s => String(s.id) === selectedSalesmanId);
-            const payload = {
+            const payload: Partial<DailyActionPlan> = {
                 mcp_id: mcp.id,
                 task_id: salesTask.id,
                 customer_id: customerId,
@@ -312,7 +326,7 @@ export const useTaskManagementApproval = () => {
                 return true;
             }
             return false;
-        } catch (error) {
+        } catch {
             toast.error("Failed to set daily target");
             return false;
         }
@@ -343,17 +357,8 @@ export const useTaskManagementApproval = () => {
         setYear: (y: number) => setCurrentDate(setYear(currentDate, y)),
         currentMonth: getMonth(currentDate),
         currentYear: getYear(currentDate),
-        // Mirrored update/delete just in case
-        handleUpdateTask: async (id: number, payload: any) => {
-            const success = await updateDailyActionPlan(id, payload);
-            if (success) fetchTasks(true);
-            return success;
-        },
-        handleDeleteTask: async (id: number) => {
-            const success = await deleteDailyActionPlan(id);
-            if (success) fetchTasks(true);
-            return success;
-        },
+        handleUpdateTask,
+        handleDeleteTask,
         handleSetDailyTarget,
     };
 };
