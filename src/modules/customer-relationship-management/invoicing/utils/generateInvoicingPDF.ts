@@ -1,4 +1,5 @@
 import jsPDF from 'jspdf';
+import JsBarcode from 'jsbarcode';
 
 import { format } from 'date-fns';
 import { ORTemplate } from '../types';
@@ -68,6 +69,98 @@ const formatCurrency = (amount: number) => {
     }).format(amount);
 };
 
+// Native CODE128-B Patterns (Modules: 1=Bar, 0=Space)
+// Each pattern is 11 bits (modules) long
+const CODE128_PATTERNS = [
+    "11011001100", "11001101100", "11001100110", "10010011000", "10010001100", "10001001100", "10011001000", "10011000100", "10001100100", "11001001000",
+    "11001000100", "11000100100", "10110011100", "10011011100", "10011001110", "10111001100", "10011101100", "10011100110", "11001110010", "11001011100",
+    "11001001110", "11011100100", "11001110100", "11101101110", "11101001100", "11101000110", "11100010110", "11101101000", "11101100100", "11101100010",
+    "11011011000", "11011000110", "11000110110", "10101111000", "10001011110", "10001011110", "10111101000", "11110101000", "11110100010", "10111011110",
+    "10111101110", "11101011110", "11110101110", "11101110110", "11101111010", "11111011010", "11101111101", "11111011110", "11111011110", "11011111010",
+    "11111101101", "11101111101", "11101111101", "11101111101", "11100100010", "11100100010", "11010001110", "11000101110", "11000111010", "11000111010",
+    "11101101110", "11101000110", "11100010110", "11101101000", "11101100100", "11101100010", "11011011000", "11011000110", "11000110110", "10101111000",
+    "10001011110", "10111101000", "11110101000", "11110100010", "10111011110", "10111101110", "11101011110", "11110101110", "11101110110", "11101111010",
+    "11111011010", "11101111101", "11111011110", "11111101101", "11101111101", "11101111101", "11010001110", "11000101110", "11000111010", "11011101110",
+    "11011111011", "11110111011", "11011011111", "11011111011", "11110110111", "11110111011", "11111011011", "11111101101", "11111011110", "11111011110",
+    "11111011110", "11111011110", "11111011110", "11011111010", "11010111110", "11011101110", "11011111011", "11110111011"
+];
+
+const drawBarcodeVector = (doc: jsPDF, text: string, x: number, y: number, config: ORFieldConfig) => {
+    if (!text || !doc) return;
+
+    try {
+        const barcodeHeight = config.barcodeHeight ?? 9;
+        const moduleWidth = config.barcodeModuleWidth ?? 0.45; // Increased from 0.35 for paper reliability
+        const showText = !config.hideBarcodeText;
+
+        // Native CODE128-B implementation (simplified for common characters)
+        // ... (bits calculation remains same)
+        let checksum = 104;
+        let bits = "11010010110"; 
+
+        for (let i = 0; i < text.length; i++) {
+            const charCode = text.charCodeAt(i);
+            const val = charCode - 32; 
+            if (val < 0 || val > 102) continue;
+            
+            bits += CODE128_PATTERNS[val];
+            checksum += (val * (i + 1));
+        }
+
+        checksum %= 103;
+        bits += CODE128_PATTERNS[checksum];
+        bits += "11000111010"; 
+        bits += "11"; 
+
+        // 1. Calculate Total Width for Background / Quiet Zone
+        const totalBarcodeWidth = bits.length * moduleWidth;
+        const quietZoneHorizontal = 4; // 4mm each side
+        const quietZoneVertical = 2;   // 2mm each side
+
+        // 2. Draw White Background (Crucial for Contrast on Scanned Backgrounds)
+        doc.setFillColor(255, 255, 255);
+        doc.rect(
+            x - quietZoneHorizontal, 
+            y - quietZoneVertical, 
+            totalBarcodeWidth + (quietZoneHorizontal * 2), 
+            barcodeHeight + (quietZoneVertical * 2) + (showText ? 5 : 0), 
+            'F'
+        );
+
+        // 3. Draw Barcode Bars (Skip if hidden)
+        if (!config.hidden) {
+            doc.setFillColor(0, 0, 0);
+
+            let currentX = x;
+            let i = 0;
+            while (i < bits.length) {
+                let j = i;
+                while (j < bits.length && bits[j] === bits[i]) {
+                    j++;
+                }
+                const count = j - i;
+                const blockWidth = moduleWidth * count;
+                
+                if (bits[i] === "1") {
+                    doc.rect(currentX, y, blockWidth, barcodeHeight, 'F');
+                }
+                
+                currentX += blockWidth;
+                i = j;
+            }
+        }
+
+        if (showText) {
+            doc.setTextColor(0, 0, 0);
+            doc.setFontSize(config.fontSize || 8);
+            doc.setFont('courier', config.fontWeight || 'normal');
+            doc.text(text, x + (totalBarcodeWidth / 2), y + barcodeHeight + 3, { align: 'center' });
+        }
+    } catch (err) {
+        console.error("Native barcode failed:", err);
+    }
+};
+
 const generateOfficialReceipt = async (data: ReceiptData, existingDoc?: jsPDF): Promise<jsPDF> => {
     const template = data.template;
     const width = template?.width || OR_WIDTH;
@@ -108,11 +201,13 @@ const generateOfficialReceipt = async (data: ReceiptData, existingDoc?: jsPDF): 
     */
 
     // Font setup
-    doc.setFont('courier', 'bold');
+    doc.setFont('courier', 'normal');
     doc.setFontSize(11);
 
     const renderField = (key: string, value: string, defaultX: number, defaultY: number, options: { align?: 'left' | 'center' | 'right' } = {}) => {
         const config = template?.fields?.[key];
+        if (config?.hidden) return; // Skip rendering hidden fields
+
         const x = config ? config.x : defaultX;
         const y = config ? config.y : defaultY;
         
@@ -126,37 +221,48 @@ const generateOfficialReceipt = async (data: ReceiptData, existingDoc?: jsPDF): 
                 doc.setCharSpace(0);
             }
         } else {
-            doc.setFont('courier', 'bold');
+            doc.setFont('courier', 'normal');
             doc.setFontSize(11);
             doc.setCharSpace(0);
         }
-        
-        const scaleX = config?.scaleX ?? 1;
-        if (scaleX !== 1) {
-            // Maximizing potential: Horizontal scaling for aesthetic compression
-            // We scale the X axis, adjust the text position accordingly, then revert.
-            // Note: Use a try-catch for scaling if specific jsPDF versions differ
-            try {
-                doc.saveGraphicsState();
-                
-                // Use a local interface extension to avoid 'any' lint error
-                interface jsPDFWithScale extends jsPDF {
-                    scale?: (x: number, y: number) => jsPDF;
+
+        const maxWidth = config?.maxWidth;
+        const lineHeightMult = config?.lineHeight ?? 1.2;
+        const fontSizePt = config?.fontSize || 10;
+        // 1 pt is approx 0.3527 mm (Conversion for vertical increment)
+        const lineStep = (fontSizePt * 0.3527) * lineHeightMult;
+
+        if (maxWidth) {
+            // MULTI-LINE / WRAPPING (Approach 2)
+            // splitTextToSize takes a string and a max width (in doc units, which is mm here)
+            const lines = doc.splitTextToSize(value, maxWidth);
+            lines.forEach((line: string, index: number) => {
+                const lineY = y + (index * lineStep);
+                doc.text(line, x, lineY, { ...options, baseline: 'top' });
+            });
+        } else {
+            // SINGLE LINE (with Potential Scaling)
+            const scaleX = config?.scaleX ?? 1;
+            if (scaleX !== 1) {
+                // Maximizing potential: Horizontal scaling for aesthetic compression
+                try {
+                    doc.saveGraphicsState();
+                    interface jsPDFWithScale extends jsPDF {
+                        scale?: (x: number, y: number) => jsPDF;
+                    }
+                    const docWithScale = doc as jsPDFWithScale;
+                    if (typeof docWithScale.scale === 'function') {
+                        docWithScale.scale(scaleX, 1);
+                    }
+                    doc.text(value, x / scaleX, y, { ...options, baseline: 'top' });
+                    doc.restoreGraphicsState();
+                } catch (err) {
+                    console.warn("Scaling failed, falling back to basic text:", err);
+                    doc.text(value, x, y, { ...options, baseline: 'top' });
                 }
-                const docWithScale = doc as jsPDFWithScale;
-                
-                if (typeof docWithScale.scale === 'function') {
-                    docWithScale.scale(scaleX, 1);
-                }
-                
-                doc.text(value, x / scaleX, y, { ...options, baseline: 'top' });
-                doc.restoreGraphicsState();
-            } catch (err) {
-                console.warn("Scaling failed, falling back to basic text:", err);
+            } else {
                 doc.text(value, x, y, { ...options, baseline: 'top' });
             }
-        } else {
-            doc.text(value, x, y, { ...options, baseline: 'top' });
         }
     };
 
@@ -199,17 +305,14 @@ const generateOfficialReceipt = async (data: ReceiptData, existingDoc?: jsPDF): 
         Object.entries(template.fields).forEach(([key, config]) => {
             // Special handling for barcode - it's rendered differently
             if (key === 'barcode') {
-                if (data.barcodeDataUrl) {
-                    try {
-                        const barcodeH = 9; // Height in mm
-                        const barcodeW = 28; // Reduced from 40 to prevent horizontal stretching
-                        doc.addImage(data.barcodeDataUrl, 'PNG', config.x, config.y, barcodeW, barcodeH);
-                    } catch (err) {
-                        console.warn("Could not add barcode to PDF:", err);
-                    }
+                if (data.receipt_no) {
+                    drawBarcodeVector(doc, data.receipt_no, config.x, config.y, config);
                 }
                 return;
             }
+
+            // Skip other hidden fields
+            if (config.hidden) return;
 
             // Normal text fields
             const value = fieldValues[key];
@@ -220,18 +323,22 @@ const generateOfficialReceipt = async (data: ReceiptData, existingDoc?: jsPDF): 
     }
 
     // -------------------------------------------------------------------------
-    // RENDER ITEMS TABLE
+    // -------------------------------------------------------------------------
+    // RENDER ITEMS TABLE (DYNAMIC ROW HEIGHT & VERTICAL CENTERING)
     // -------------------------------------------------------------------------
     const tableStartY = template?.tableSettings?.startY || 65;
-    const rowHeight = template?.tableSettings?.rowHeight || 12.2;
+    const minRowHeight = template?.tableSettings?.rowHeight || 12.2;
     const cols = template?.tableSettings?.columns;
-    const fontSize = template?.tableSettings?.fontSize || 10;
+    const tableFontSize = template?.tableSettings?.fontSize || 10;
 
-    doc.setFontSize(fontSize);
-    doc.setFont('courier', 'bold');
+    doc.setFontSize(tableFontSize);
+    doc.setFont('courier', 'normal');
 
-    (data.items || []).forEach((item, idx) => {
-        const y = tableStartY + (idx * rowHeight);
+    let currentY = tableStartY;
+    // 1 pt is approx 0.3527 mm (Standard conversion for vertical logic)
+    const tableLineStep = (tableFontSize * 0.3527) * 1.1; 
+
+    (data.items || []).forEach((item) => {
         const dt = data.discountTypes.find(d => d.id === item.discount_type);
         
         // Product Name (Multi-line Support)
@@ -240,22 +347,36 @@ const generateOfficialReceipt = async (data: ReceiptData, existingDoc?: jsPDF): 
         const productNameMaxWidth = template?.tableSettings?.product_name_width || ((cols?.quantity?.x || 105) - productNameX - 5); 
         
         const lines: string[] = doc.splitTextToSize(productName, productNameMaxWidth);
+        
+        // Calculate the actual content height for this row
+        const wrappedContentHeight = lines.length * tableLineStep;
+        const actualRowHeight = Math.max(minRowHeight, wrappedContentHeight + 1); // +1mm padding
+        
+        // Calculate vertical middle for alignment of Qty, Price, etc.
+        const midYOffset = (actualRowHeight - (tableFontSize * 0.3527)) / 2;
+
+        // Draw Product Name (Lines)
         lines.forEach((line, lineIdx) => {
-            // Render each line with a small vertical offset (approx 3.5mm line height)
-            doc.text(line, productNameX, y + (lineIdx * 3.8), { baseline: 'top' });
+            // Distribute product name lines vertically centered within the row block
+            const blockTopOffset = (actualRowHeight - wrappedContentHeight) / 2;
+            const lineY = currentY + blockTopOffset + (lineIdx * tableLineStep);
+            doc.text(line, productNameX, lineY, { baseline: 'top' });
         });
         
-        // Quantity
-        doc.text(`${item.qty} ${item.unit_shortcut}`, cols?.quantity?.x || 105, y, { align: 'center', baseline: 'top' });
+        // Quantity (Centered Vertically)
+        doc.text(`${item.qty} ${item.unit_shortcut}`, cols?.quantity?.x || 105, currentY + midYOffset, { align: 'center', baseline: 'top' });
         
-        // Unit Price
-        doc.text(formatCurrency(item.unit_price), cols?.unit_price?.x || 126, y, { align: 'right', baseline: 'top' });
+        // Unit Price (Centered Vertically)
+        doc.text(formatCurrency(item.unit_price), cols?.unit_price?.x || 126, currentY + midYOffset, { align: 'right', baseline: 'top' });
         
-        // Discount
-        doc.text(dt ? dt.discount_type.toUpperCase() : (data.is_official ? "" : "NONE"), cols?.discount?.x || 153, y, { align: 'right', baseline: 'top' });
+        // Discount (Centered Vertically)
+        doc.text(dt ? dt.discount_type.toUpperCase() : (data.is_official ? "" : "NONE"), cols?.discount?.x || 153, currentY + midYOffset, { align: 'right', baseline: 'top' });
         
-        // Net Amount
-        doc.text(formatCurrency(item.net_amount), cols?.net_amount?.x || 184, y, { align: 'right', baseline: 'top' });
+        // Net Amount (Centered Vertically)
+        doc.text(formatCurrency(item.net_amount), cols?.net_amount?.x || 184, currentY + midYOffset, { align: 'right', baseline: 'top' });
+
+        // Advance the cumulative Y pointer to the next row
+        currentY += actualRowHeight;
     });
 
     // Custom data validation for 100% working guarantee
@@ -278,7 +399,7 @@ const generateThermalReceipt = async (data: ReceiptData, existingDoc?: jsPDF): P
         });
     }
 
-    doc.setFont('courier', 'bold');
+    doc.setFont('courier', 'normal');
     doc.setFontSize(9);
 
     let y = 10;

@@ -163,6 +163,11 @@ export interface ORFieldConfig {
     label: string;
     charSpacing?: number; // spacing in points (jsPDF unit)
     scaleX?: number;      // horizontal scaling (1.0 = 100%)
+    
+    // Multi-line and Wrapping settings
+    maxWidth?: number;    // in mm
+    lineHeight?: number;  // multiplier e.g. 1.2
+    hidden?: boolean;     // visibility toggle
 }
 
 export interface ORTemplate {
