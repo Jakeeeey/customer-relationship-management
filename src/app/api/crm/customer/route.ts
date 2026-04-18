@@ -165,15 +165,6 @@ export async function GET(req: NextRequest) {
             };
         });
 
-        // 🚀 MANUALLY ENRICH CUSTOMERS WITH BANK ACCOUNTS
-        // This ensures the frontend gets bank_accounts[] inside each customer object
-        const enrichedCustomers = (customersJson.data || []).map((customer: Record<string, unknown>) => ({
-            ...customer,
-            bank_accounts: bankAccounts.filter((acc: Record<string, unknown>) => 
-                String(acc.customer_id) === String(customer.id)
-            )
-        }));
-
         return NextResponse.json({
             customers: enrichedCustomers,
             bank_accounts: bankAccounts,
@@ -208,7 +199,7 @@ export async function POST(req: NextRequest) {
         const newCustomerData = { ...body };
         delete newCustomerData.bank_accounts;
 
-        const res = await fetchWithRetry(`${DIRECTUS_URL}/items/${COLLECTIONS.CUSTOMER}`, {
+        const createRes = await fetchWithRetry(`${DIRECTUS_URL}/items/${COLLECTIONS.CUSTOMER}`, {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
