@@ -72,6 +72,7 @@ export async function GET(req: NextRequest) {
         const id = searchParams.get("id");
 
         if (id) {
+            // Fetch single customer and their bank accounts
             const [customerRes, bankRes] = await Promise.all([
                 fetchWithRetry(`${DIRECTUS_URL}/items/${COLLECTIONS.CUSTOMER}/${id}`, {
                     cache: "no-store",
@@ -87,15 +88,8 @@ export async function GET(req: NextRequest) {
             const customerData = await customerRes.json();
             const bankData = await bankRes.json();
 
-            // Format coordinates back to string for UI if it's a Point object
-            const cData = customerData.data;
-            if (cData.location && cData.location.coordinates) {
-                // UI expects "Lat, Lon"
-                cData.location = `${cData.location.coordinates[1]}, ${cData.location.coordinates[0]}`;
-            }
-
             return NextResponse.json({
-                ...cData,
+                ...customerData.data,
                 bank_accounts: bankData.data || []
             });
         }
@@ -204,18 +198,6 @@ export async function POST(req: NextRequest) {
 
         const newCustomerData = { ...body };
         delete newCustomerData.bank_accounts;
-
-        if (!newCustomerData.customer_code || newCustomerData.customer_code.trim() === "") {
-            delete newCustomerData.customer_code;
-        }
-
-        // 🚀 CRITICAL FIX: Handle Geometry formatting
-        const geoJson = parseGeometry(newCustomerData.location);
-        if (geoJson) {
-            newCustomerData.location = geoJson;
-        } else {
-            delete newCustomerData.location; // Do not send empty string to Geometry field
-        }
 
         const createRes = await fetchWithRetry(`${DIRECTUS_URL}/items/${COLLECTIONS.CUSTOMER}`, {
             method: "POST",
@@ -326,6 +308,10 @@ export async function DELETE(req: NextRequest) {
     try {
         const id = req.nextUrl.searchParams.get("id");
         if (!id) return NextResponse.json({ error: "Customer ID is required" }, { status: 400 });
+
+        if (!id) {
+            return NextResponse.json({ error: "Customer ID is required" }, { status: 400 });
+        }
 
         const res = await fetchWithRetry(`${DIRECTUS_URL}/items/${COLLECTIONS.CUSTOMER}/${id}`, {
             method: "DELETE",
