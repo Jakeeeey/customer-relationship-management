@@ -16,6 +16,7 @@ export type ProductRow = {
     priceC?: number | string | null;
     priceD?: number | string | null;
     priceE?: number | string | null;
+    cost_per_unit?: number | string | null;
 };
 
 export type VariantCell = {
@@ -80,4 +81,4 @@ export type FilterState = {
     total_pages: number;
 };
 
-export type ProductTierKey = "A" | "B" | "C" | "D" | "E";
+export type ProductTierKey = "A" | "B" | "C" | "D" | "E" | "ListPrice";

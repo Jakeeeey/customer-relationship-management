@@ -175,7 +175,7 @@ export function useCustomers(): UseCustomersReturn {
     const updateCustomer = useCallback(async (id: number, data: Partial<CustomerWithRelations>) => {
         try {
             const { bank_accounts: newAccounts, ...customerData } = data;
-            
+
             // 1. Update primary customer data
             const res = await fetch("/api/crm/customer", {
                 method: "PATCH",
@@ -196,7 +196,7 @@ export function useCustomers(): UseCustomersReturn {
 
                 // Identify Deletions
                 const toDelete = oldAccounts.filter(old => !newAccounts.some(n => n.id === old.id));
-                
+
                 // Identify POST (new) and PATCH (existing)
                 const toPost = newAccounts.filter(n => {
                     const isNew = !n.id || n.id === 0;

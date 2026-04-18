@@ -46,9 +46,9 @@ export const columns: ColumnDef<InvoiceRow>[] = [
     ),
   },
   {
-    accessorKey: "customer_code",
+    accessorKey: "customer_name",
     header: ({ column }) => (
-      <DataTableColumnHeader column={column} label="Customer Code" />
+      <DataTableColumnHeader column={column} label="Customer" />
     ),
     meta: { label: "Code" },
   },

@@ -8,7 +8,7 @@ import {
 } from "@/components/ui/breadcrumb";
 import { Separator } from "@/components/ui/separator";
 import { SidebarTrigger } from "@/components/ui/sidebar";
-import { NavUser } from "../../_components/nav-user";
+import { NavUser } from "@/components/shared/app-sidebar/nav-user";
 
 import { cookies } from "next/headers";
 
@@ -76,38 +76,48 @@ export default async function Page(props: {
     const searchParams = await props.searchParams;
     const attachmentId = searchParams.attachment_id as string | undefined;
 
+    const orderId = searchParams.orderId as string | undefined;
+
     // ✅ Next.js 16: cookies() is async
     const cookieStore = await cookies();
     const token = cookieStore.get(COOKIE_NAME)?.value ?? null;
 
     const headerUser = buildHeaderUserFromToken(token);
 
-    let fileUrl = null;
+    let documentViewerUrl: string | null = null;
 
-    if (attachmentId) {
-        try {
-            const DIRECTUS_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
-            const DIRECTUS_TOKEN = process.env.DIRECTUS_STATIC_TOKEN;
+    try {
+        const DIRECTUS_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
+        const DIRECTUS_TOKEN = process.env.DIRECTUS_STATIC_TOKEN;
+        const headers = { Authorization: `Bearer ${DIRECTUS_TOKEN}`, "Content-Type": "application/json" };
 
-            const res = await fetch(`${DIRECTUS_URL}/items/sales_order_attachment/${attachmentId}?fields=file_id,attachment_name`, {
-                headers: {
-                    Authorization: `Bearer ${DIRECTUS_TOKEN}`,
-                    "Content-Type": "application/json"
-                },
-                cache: 'no-store'
-            });
+        let targetFileId: string | null = null;
+        let targetFileName: string | null = null;
 
+        if (attachmentId) {
+            const res = await fetch(`${DIRECTUS_URL}/items/sales_order_attachment/${attachmentId}?fields=file_id,attachment_name`, { headers, cache: 'no-store' });
             if (res.ok) {
                 const json = await res.json();
-                const attachment = json.data;
-                if (attachment?.file_id) {
-                    const encodedName = encodeURIComponent(attachment.attachment_name);
-                    fileUrl = `/api/crm/customer-hub/callsheet/file?id=${attachment.file_id}&filename=${encodedName}`;
+                targetFileId = json.data?.file_id;
+                targetFileName = json.data?.attachment_name;
+            }
+        } else if (orderId) {
+            const res = await fetch(`${DIRECTUS_URL}/items/sales_order_attachment?filter[sales_order_id][_eq]=${orderId}&fields=file_id,attachment_name&limit=1`, { headers, cache: 'no-store' });
+            if (res.ok) {
+                const json = await res.json();
+                if (json.data && json.data.length > 0) {
+                    targetFileId = json.data[0].file_id;
+                    targetFileName = json.data[0].attachment_name;
                 }
             }
-        } catch (e) {
-            console.error("Failed to fetch attachment for header button:", e);
         }
+
+        if (targetFileId) {
+            documentViewerUrl = `/api/crm/customer-hub/callsheet/file?id=${targetFileId}`;
+            if (targetFileName) documentViewerUrl += `&filename=${encodeURIComponent(targetFileName)}`;
+        }
+    } catch (e) {
+        console.error("Failed to resolve file ID for Viewer:", e);
     }
 
     return (
@@ -147,7 +157,7 @@ export default async function Page(props: {
 
             {/* ✅ Only content scrolls inside RIGHT column */}
             <main className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden p-6 sm:p-8">
-                <CreateSalesOrderModule fileUrl={fileUrl} />
+                <CreateSalesOrderModule documentViewerUrl={documentViewerUrl} />
             </main>
         </div>
     );

@@ -10,7 +10,7 @@ import { Separator } from "@/components/ui/separator";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 
 import { cookies } from "next/headers";
-import NavUser from "../_components/nav-user";
+import { NavUser } from "@/components/shared/app-sidebar/nav-user";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

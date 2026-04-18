@@ -15,11 +15,11 @@ export const approvedColumns: ColumnDef<InvoiceRow>[] = [
     meta: { label: "Invoice No" },
   },
   {
-    accessorKey: "customer_code",
+    accessorKey: "customer_name",
     header: ({ column }) => (
-      <DataTableColumnHeader column={column} label="Customer Code" />
+      <DataTableColumnHeader column={column} label="Customer" />
     ),
-    meta: { label: "Customer Code" },
+    meta: { label: "Customer" },
   },
   {
     accessorKey: "total_amount",

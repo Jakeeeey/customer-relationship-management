@@ -44,9 +44,6 @@ export async function GET() {
     }
 
     try {
-        // Fetch all necessary data
-        // 1. Get supervisor link (assuming user_id is in supervisor_per_division)
-        // 2. We skip step 1 for now if we can't find the table and just fetch all to join
         const [
             usersRes,
             salesmenRes,
@@ -56,7 +53,8 @@ export async function GET() {
             customersRes,
             tasksRes,
             actionPlanRes,
-            attachmentsRes
+            attachmentsRes,
+            mcpRes
         ] = await Promise.all([
             fetch(`${DIRECTUS_URL}/items/user?limit=-1`, { headers: fetchHeaders }),
             fetch(`${DIRECTUS_URL}/items/salesman?limit=-1`, { headers: fetchHeaders }),
@@ -66,10 +64,11 @@ export async function GET() {
             fetch(`${DIRECTUS_URL}/items/customer?limit=-1`, { headers: fetchHeaders }),
             fetch(`${DIRECTUS_URL}/items/task?limit=-1`, { headers: fetchHeaders }),
             fetch(`${DIRECTUS_URL}/items/daily_action_plan?limit=-1`, { headers: fetchHeaders }),
-            fetch(`${DIRECTUS_URL}/items/daily_action_plan_attachment?limit=-1`, { headers: fetchHeaders })
+            fetch(`${DIRECTUS_URL}/items/daily_action_plan_attachment?limit=-1`, { headers: fetchHeaders }),
+            fetch(`${DIRECTUS_URL}/items/monthly_coverage_plan?limit=-1`, { headers: fetchHeaders })
         ]);
 
-        const [users, salesmen, mapping, supervisors, taskTypes, customers, tasks, actionPlans, attachments] = await Promise.all([
+        const [users, salesmen, mapping, supervisors, taskTypes, customers, tasks, actionPlans, attachments, monthlyCoveragePlans] = await Promise.all([
             usersRes.json().then(j => j.data || []),
             salesmenRes.json().then(j => j.data || []),
             mappingRes.json().then(j => j.data || []),
@@ -78,7 +77,8 @@ export async function GET() {
             customersRes.json().then(j => j.data || []),
             tasksRes.json().then(j => j.data || []),
             actionPlanRes.json().then(j => j.data || []),
-            attachmentsRes.json().then(j => j.data || [])
+            attachmentsRes.json().then(j => j.data || []),
+            mcpRes.json().then(j => j.data || [])
         ]);
 
         return NextResponse.json({
@@ -91,6 +91,7 @@ export async function GET() {
             tasks,
             actionPlans,
             attachments,
+            monthlyCoveragePlans,
             currentUserId: userId
         });
     } catch (error) {
@@ -111,12 +112,81 @@ export async function POST(req: NextRequest) {
 
     try {
         const body = await req.json();
+        const { date, salesman_id } = body;
 
-        // Save to directus daily_action_plan table
+        if (!date || !salesman_id) {
+            throw new Error("Date and Salesman ID are required");
+        }
+
+        const taskDate = new Date(date);
+        const month = taskDate.getMonth() + 1; // MySQL tinyint 1-12
+        const year = taskDate.getFullYear();
+
+        // 1. Fetch current user role to determine initial status for both MCP and DAP
+        const userRes = await fetch(`${DIRECTUS_URL}/items/user/${userId}?fields=role,user_position`, { headers: fetchHeaders });
+        const userResData = await userRes.json();
+        const currentUser = userResData.data || {};
+        
+        const isSupervisorOrAdmin = 
+            currentUser.role === "ADMIN" || 
+            (currentUser.user_position && /supervisor/i.test(currentUser.user_position));
+
+        const initialStatus = isSupervisorOrAdmin ? "approved" : "pending";
+
+        // 2. Check if MCP exists
+        const mcpCheckRes = await fetch(
+            `${DIRECTUS_URL}/items/monthly_coverage_plan?filter[salesman_id][_eq]=${salesman_id}&filter[month][_eq]=${month}&filter[year][_eq]=${year}`,
+            { headers: fetchHeaders }
+        );
+        const mcpCheckData = await mcpCheckRes.json();
+        let mcp_id: number;
+
+        if (mcpCheckData.data && mcpCheckData.data.length > 0) {
+            mcp_id = mcpCheckData.data[0].id;
+            
+            // If supervisor is adding to a pending plan, auto-approve the plan itself
+            if (isSupervisorOrAdmin && mcpCheckData.data[0].status === "pending") {
+                await fetch(`${DIRECTUS_URL}/items/monthly_coverage_plan/${mcp_id}`, {
+                    method: "PATCH",
+                    headers: fetchHeaders,
+                    body: JSON.stringify({ status: "approved" })
+                });
+            }
+        } else {
+            // 3. Create MCP
+            const createMcpRes = await fetch(`${DIRECTUS_URL}/items/monthly_coverage_plan`, {
+                method: "POST",
+                headers: fetchHeaders,
+                body: JSON.stringify({
+                    month,
+                    year,
+                    salesman_id,
+                    created_by: userId,
+                    created_at: new Date().toISOString().slice(0, 19).replace('T', ' '),
+                    status: initialStatus
+                }),
+            });
+
+            if (!createMcpRes.ok) {
+                const err = await createMcpRes.text();
+                throw new Error(`Failed to create Monthly Plan: ${err}`);
+            }
+
+            const newMcp = await createMcpRes.json();
+            mcp_id = newMcp.data.id;
+        }
+
+        // 4. Save to directus daily_action_plan table
         const res = await fetch(`${DIRECTUS_URL}/items/daily_action_plan`, {
             method: "POST",
             headers: fetchHeaders,
-            body: JSON.stringify(body),
+            body: JSON.stringify({
+                ...body,
+                mcp_id,
+                approval_status: initialStatus, // Always approve if creator is supervisor
+                created_by: userId,
+                created_at: new Date().toISOString().slice(0, 19).replace('T', ' ')
+            }),
         });
 
         if (!res.ok) {

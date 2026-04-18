@@ -13,6 +13,14 @@ export interface Salesman {
     price_type_id?: number | null;
     branch_code?: number | null;
     status?: string;
+    linked_account_ids?: (number | string)[];
+}
+
+export interface PaymentTerm {
+    id: number;
+    payment_name: string;
+    payment_days: number;
+    payment_description?: string;
 }
 
 export interface Customer {
@@ -33,7 +41,7 @@ export interface Supplier {
     id: number | string;
     supplier_name: string;
     supplier_shortcut?: string;
-    trade_type?: "Trade" | "Non-Trade";
+    trade_type?: "TRADE" | "NON-TRADE";
 }
 
 export interface Product {

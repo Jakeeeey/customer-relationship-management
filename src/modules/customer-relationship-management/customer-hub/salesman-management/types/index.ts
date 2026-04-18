@@ -49,8 +49,7 @@ export interface User {
     user_email: string;
     user_position: string;
 }
-// Add this to the bottom of your types.ts
-// Add this to the bottom of your types.ts
+
 export interface Customer {
     id: number;
     customer_code: string;
@@ -60,12 +59,14 @@ export interface Customer {
     city?: string;
     province?: string;
     contact_number?: string;
-    payment_term?: number;
+
+    // 🚀 FIXED: Allow payment_term to be an object so we can read payment_name!
+    payment_term?: number | { id?: number; payment_name?: string; payment_days?: number };
+
     price_type?: string;
     credit_type?: number;
     isVAT?: number | boolean;
     isEWT?: number | boolean;
-    // 🚀 FIX: Safely handle both expanded objects and raw integers
     store_type?: number | { id?: number; store_type?: string };
     classification?: number | { id?: number; classification_name?: string };
     junction_id?: number;

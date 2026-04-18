@@ -9,7 +9,6 @@ import {
     DropdownMenuContent,
     DropdownMenuItem,
     DropdownMenuLabel,
-    DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
@@ -18,7 +17,6 @@ import {
     Building2,
     Mail,
     Phone,
-    CreditCard,
 } from "lucide-react";
 import {
     Tooltip,
@@ -30,16 +28,16 @@ import { CustomerWithRelations } from "../types";
 interface CustomerRowProps {
     customer: CustomerWithRelations;
     onEdit: (customer: CustomerWithRelations) => void;
-    onManageBanks: (customer: CustomerWithRelations) => void;
-    userMapping?: Record<number, string>;
 }
 
 export const CustomerRow = memo(function CustomerRow({
                                                          customer,
                                                          onEdit,
-                                                         onManageBanks,
-                                                         userMapping = {},
                                                      }: CustomerRowProps) {
+    // 🚀 Extract the newly attached salesman data from the API response
+    const salesmanName = (customer as CustomerWithRelations & { salesman_name?: string; salesman_code?: string }).salesman_name || "N/A";
+    const salesmanCode = (customer as CustomerWithRelations & { salesman_name?: string; salesman_code?: string }).salesman_code;
+
     return (
         <TableRow className="hover:bg-muted/40 transition-colors group">
             <TableCell className="font-semibold text-xs text-primary px-4 py-3">
@@ -81,15 +79,19 @@ export const CustomerRow = memo(function CustomerRow({
                     {customer.type}
                 </Badge>
             </TableCell>
+
+            {/* 🚀 Render the new Salesman Name and Code */}
             <TableCell className="px-4 py-3">
-                <div className="text-xs font-medium text-muted-foreground max-w-[120px] truncate">
-                    {customer.user_id ? (
-                        <span className="text-foreground">{userMapping[customer.user_id] || `#${customer.user_id}`}</span>
-                    ) : (
-                        "Unassigned"
+                <div className="flex flex-col">
+                    <span className="font-semibold text-xs text-foreground truncate max-w-[140px]">
+                        {salesmanName}
+                    </span>
+                    {salesmanCode && (
+                        <span className="text-[10px] text-muted-foreground mt-0.5">Code: {salesmanCode}</span>
                     )}
                 </div>
             </TableCell>
+
             <TableCell className="px-4 py-3">
                 <div className="flex flex-col gap-1 text-xs">
                     {customer.customer_email && (
@@ -136,11 +138,6 @@ export const CustomerRow = memo(function CustomerRow({
                         <DropdownMenuItem onClick={() => onEdit(customer)}>
                             <Pencil className="mr-2 h-4 w-4 text-muted-foreground" />
                             Edit Details
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem onClick={() => onManageBanks(customer)}>
-                            <CreditCard className="mr-2 h-4 w-4 text-muted-foreground" />
-                            Manage Bank Accounts
                         </DropdownMenuItem>
                     </DropdownMenuContent>
                 </DropdownMenu>

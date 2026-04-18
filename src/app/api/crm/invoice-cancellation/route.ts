@@ -9,9 +9,11 @@ interface RawInvoice {
   invoice_id?: string;
   invoiceNo?: string;
   invoice_no?: string;
-  customer?: { customerCode?: string };
+  customer?: { customerCode?: string; customerName?: string };
   customerCode?: string;
   customer_code?: string;
+  customerName?: string;
+  customer_name?: string;
   totalAmount?: number;
   total_amount?: number;
   transactionStatus?: string;
@@ -22,7 +24,6 @@ interface RawInvoice {
   orderNo?: string;
   order_no?: string;
 }
-
 const getSpringBaseUrl = () => {
   const url = process.env.SPRING_API_BASE_URL;
   if (!url) {
@@ -70,6 +71,7 @@ export async function GET() {
       invoice_id: inv.invoiceId || inv.invoice_id,
       invoice_no: inv.invoiceNo || inv.invoice_no || "N/A",
       customer_code: inv.customer?.customerCode || inv.customerCode || inv.customer_code || "N/A",
+      customer_name: inv.customer?.customerName || inv.customerName || inv.customer_name || "Unknown Customer",
       total_amount: inv.totalAmount || inv.total_amount || 0,
       transaction_status: inv.transactionStatus || inv.transaction_status || "Unknown",
       order_id: inv.salesOrder?.orderNo || inv.orderId || inv.order_id || inv.orderNo || inv.order_no || "N/A",
