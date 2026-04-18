@@ -161,3 +161,43 @@ export async function PATCH(req: NextRequest) {
         return NextResponse.json({ ok: false, message: error instanceof Error ? error.message : "Internal Server Error" }, { status: 500 });
     }
 }
+
+// Creation (POST)
+export async function POST(req: NextRequest) {
+    const cookieStore = await cookies();
+    const token = cookieStore.get("vos_access_token")?.value;
+    const userId = token ? decodeUserIdFromJwt(token) : null;
+    
+    if (!userId) {
+        return NextResponse.json({ ok: false, message: "Unauthorized" }, { status: 401 });
+    }
+
+    try {
+        const body = await req.json();
+        const { type, ...data } = body;
+
+        if (!type) throw new Error("Type is required for creation");
+        
+        const itemTable = type === "MCP" ? "monthly_coverage_plan" : "daily_action_plan";
+        
+        const res = await fetch(`${DIRECTUS_URL}/items/${itemTable}`, {
+            method: "POST",
+            headers: fetchHeaders,
+            body: JSON.stringify({
+                ...data,
+                created_by: userId,
+                status: type === "MCP" ? "approved" : "pending" // Auto-approve supervisor-created MCPs
+            }),
+        });
+
+        if (!res.ok) {
+            const err = await res.text();
+            throw new Error(`Failed to create ${type}: ${err}`);
+        }
+
+        const result = await res.json();
+        return NextResponse.json({ ok: true, data: result.data });
+    } catch (error) {
+        return NextResponse.json({ ok: false, message: error instanceof Error ? error.message : "Internal Server Error" }, { status: 500 });
+    }
+}

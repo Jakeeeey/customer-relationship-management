@@ -22,7 +22,9 @@ import {
     updateActionPlanStatus, 
     updateMonthlyPlanStatus,
     updateDailyActionPlan,
-    deleteDailyActionPlan 
+    deleteDailyActionPlan,
+    createDailyActionPlan,
+    createMCP
 } from "../providers/fetchProvider";
 
 export const useTaskManagementApproval = () => {
@@ -186,6 +188,136 @@ export const useTaskManagementApproval = () => {
         return data.monthlyCoveragePlans.filter(mp => mp.status === "pending");
     }, [data]);
 
+    const customerAllocations = useMemo(() => {
+        if (!data || selectedSalesmanId === "all") return [];
+
+        // 1. Find the target setting for the selected salesman that covers the current month
+        const targetSetting = data.targetSettings.find(ts => {
+            if (String(ts.salesman_id) !== selectedSalesmanId) return false;
+            
+            const from = new Date(ts.date_range_from);
+            const to = new Date(ts.date_range_to);
+            const calendarMonthStart = startOfMonth(currentDate);
+            const calendarMonthEnd = endOfMonth(currentDate);
+            
+            // Overlap check
+            return (from <= calendarMonthEnd && to >= calendarMonthStart);
+        });
+
+        if (!targetSetting) return [];
+
+        // 2. Get targets
+        const targets = data.customerTargets.filter(ct => ct.target_setting_id === targetSetting.id);
+
+        // 3. Get assignments for the current month to calculate progress
+        const currentMonthActions = data.actionPlans.filter(ap => {
+            const date = new Date(ap.date);
+            return String(ap.salesman_id) === selectedSalesmanId &&
+                   date.getMonth() === getMonth(currentDate) &&
+                   date.getFullYear() === getYear(currentDate);
+        });
+
+        // 4. Map with details and progress
+        return targets.map(t => {
+            const customer = data.customers.find(c => c.id === t.customer_id);
+            const assignedAmount = currentMonthActions
+                .filter(ap => ap.customer_id === t.customer_id)
+                .reduce((sum, ap) => sum + (ap.sales_amount || 0), 0);
+            
+            return {
+                ...t,
+                customer_name: customer?.customer_name || "Unknown Customer",
+                store_name: customer?.store_name || "Unknown Store",
+                customer_code: customer?.customer_code || "N/A",
+                assignedAmount,
+                isFullyAllocated: assignedAmount >= t.target_amount && t.target_amount > 0,
+                remainingAmount: Math.max(0, t.target_amount - assignedAmount)
+            };
+        });
+    }, [data, selectedSalesmanId, currentDate]);
+
+    const handleCreateMCP = async () => {
+        if (!selectedSalesmanId || !selectedEmployeeId) return null;
+        try {
+            const salesman = data?.salesmen.find(s => String(s.id) === selectedSalesmanId);
+            if (!salesman) throw new Error("Salesman not found");
+
+            const newMcp = await createMCP({
+                salesman_id: parseInt(selectedSalesmanId),
+                employee_id: salesman.employee_id,
+                month: getMonth(currentDate) + 1,
+                year: getYear(currentDate)
+            });
+            return newMcp;
+        } catch (error) {
+            toast.error("Failed to create Monthly Coverage Plan");
+            return null;
+        }
+    };
+
+    const handleSetDailyTarget = async (customerId: number, date: string, amount: number) => {
+        if (!data) return false;
+
+        try {
+            // 1. Identify "Sales" Task ID
+            const salesTask = data.tasks.find(t => t.name.toLowerCase() === "sales");
+            if (!salesTask) {
+                toast.error("Required task type 'Sales' not found in system");
+                return false;
+            }
+
+            // 2. Check for existing task on that day for this customer
+            const existing = data.actionPlans.find(ap => 
+                ap.customer_id === customerId && 
+                ap.date === date && 
+                ap.task_id === salesTask.id &&
+                String(ap.salesman_id) === selectedSalesmanId
+            );
+
+            if (existing) {
+                return await handleUpdateTask(existing.id, { sales_amount: amount });
+            }
+
+            // 3. Ensure MCP exists
+            let mcp = data.monthlyCoveragePlans.find(mp => 
+                String(mp.salesman_id) === selectedSalesmanId && 
+                mp.month === (getMonth(new Date(date)) + 1) && 
+                mp.year === getYear(new Date(date))
+            );
+
+            if (!mcp) {
+                mcp = await handleCreateMCP();
+                if (!mcp) return false;
+            }
+
+            // 4. Create new task
+            const salesman = data.salesmen.find(s => String(s.id) === selectedSalesmanId);
+            const payload = {
+                mcp_id: mcp.id,
+                task_id: salesTask.id,
+                customer_id: customerId,
+                salesman_id: parseInt(selectedSalesmanId),
+                employee_id: salesman?.employee_id,
+                date: date,
+                sales_amount: amount,
+                approval_status: "approved", // Supervisors' assignments are auto-approved
+                priority_level: "mid",
+                additional_description: "Sales Target Allocation"
+            };
+
+            const result = await createDailyActionPlan(payload);
+            if (result) {
+                toast.success("Sales target assigned");
+                fetchTasks(true);
+                return true;
+            }
+            return false;
+        } catch (error) {
+            toast.error("Failed to set daily target");
+            return false;
+        }
+    };
+
     return {
         data,
         isLoading,
@@ -206,6 +338,7 @@ export const useTaskManagementApproval = () => {
         handleRejectMonthlyPlan,
         pendingActionPlans,
         pendingMonthlyPlans,
+        customerAllocations,
         setMonth: (m: number) => setCurrentDate(setMonth(currentDate, m)),
         setYear: (y: number) => setCurrentDate(setYear(currentDate, y)),
         currentMonth: getMonth(currentDate),
@@ -221,5 +354,6 @@ export const useTaskManagementApproval = () => {
             if (success) fetchTasks(true);
             return success;
         },
+        handleSetDailyTarget,
     };
 };
