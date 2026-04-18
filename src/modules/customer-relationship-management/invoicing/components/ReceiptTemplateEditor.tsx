@@ -26,21 +26,21 @@ const DEFAULT_TEMPLATE: ORTemplate = {
     width: 210,
     height: 265,
     fields: {
-        customer_name: { x: 33, y: 30, fontSize: 11, fontFamily: 'courier', fontWeight: 'bold', label: 'Customer Name' },
-        date: { x: 180, y: 30, fontSize: 11, fontFamily: 'courier', fontWeight: 'bold', label: 'Date' },
-        store_name: { x: 45, y: 38, fontSize: 11, fontFamily: 'courier', fontWeight: 'bold', label: 'Store Name' },
-        payment_name: { x: 180, y: 38, fontSize: 11, fontFamily: 'courier', fontWeight: 'bold', label: 'Terms' },
-        customer_tin: { x: 20, y: 46, fontSize: 11, fontFamily: 'courier', fontWeight: 'bold', label: 'TIN' },
-        address: { x: 33, y: 55, fontSize: 11, fontFamily: 'courier', fontWeight: 'bold', label: 'Address' },
-        vatable_sales: { x: 180, y: 145, fontSize: 10, fontFamily: 'courier', fontWeight: 'bold', label: 'Vatable Sales' },
-        vat_amount: { x: 180, y: 151, fontSize: 10, fontFamily: 'courier', fontWeight: 'bold', label: 'VAT Amount' },
-        gross_total: { x: 180, y: 157, fontSize: 11, fontFamily: 'courier', fontWeight: 'bold', label: 'Gross Total' },
-        discount_total: { x: 180, y: 163, fontSize: 10, fontFamily: 'courier', fontWeight: 'bold', label: 'Discount Total' },
-        net_total: { x: 180, y: 175, fontSize: 12, fontFamily: 'courier', fontWeight: 'bold', label: 'Net Total' },
-        po_no: { x: 10, y: 185, fontSize: 10, fontFamily: 'courier', fontWeight: 'bold', label: 'PO Number' },
-        salesman: { x: 10, y: 191, fontSize: 10, fontFamily: 'courier', fontWeight: 'bold', label: 'Salesman Name' },
-        total_amount_due: { x: 180, y: 200, fontSize: 12, fontFamily: 'courier', fontWeight: 'bold', label: 'Total Amount Due' },
-        barcode: { x: 170, y: 5, fontSize: 12, fontFamily: 'courier', fontWeight: 'bold', label: 'Barcode' },
+        customer_name: { x: 33, y: 30, fontSize: 11, fontFamily: 'courier', fontWeight: 'normal', label: 'Customer Name' },
+        date: { x: 180, y: 30, fontSize: 11, fontFamily: 'courier', fontWeight: 'normal', label: 'Date' },
+        store_name: { x: 45, y: 38, fontSize: 11, fontFamily: 'courier', fontWeight: 'normal', label: 'Store Name' },
+        payment_name: { x: 180, y: 38, fontSize: 11, fontFamily: 'courier', fontWeight: 'normal', label: 'Terms' },
+        customer_tin: { x: 20, y: 46, fontSize: 11, fontFamily: 'courier', fontWeight: 'normal', label: 'TIN' },
+        address: { x: 33, y: 55, fontSize: 11, fontFamily: 'courier', fontWeight: 'normal', label: 'Address' },
+        vatable_sales: { x: 180, y: 145, fontSize: 10, fontFamily: 'courier', fontWeight: 'normal', label: 'Vatable Sales' },
+        vat_amount: { x: 180, y: 151, fontSize: 10, fontFamily: 'courier', fontWeight: 'normal', label: 'VAT Amount' },
+        gross_total: { x: 180, y: 157, fontSize: 11, fontFamily: 'courier', fontWeight: 'normal', label: 'Gross Total' },
+        discount_total: { x: 180, y: 163, fontSize: 10, fontFamily: 'courier', fontWeight: 'normal', label: 'Discount Total' },
+        net_total: { x: 180, y: 175, fontSize: 12, fontFamily: 'courier', fontWeight: 'normal', label: 'Net Total' },
+        po_no: { x: 10, y: 185, fontSize: 10, fontFamily: 'courier', fontWeight: 'normal', label: 'PO Number' },
+        salesman: { x: 10, y: 191, fontSize: 10, fontFamily: 'courier', fontWeight: 'normal', label: 'Salesman Name' },
+        total_amount_due: { x: 180, y: 200, fontSize: 12, fontFamily: 'courier', fontWeight: 'normal', label: 'Total Amount Due' },
+        barcode: { x: 170, y: 5, fontSize: 12, fontFamily: 'courier', fontWeight: 'normal', label: 'Barcode' },
     },
     tableSettings: {
         startY: 65,
@@ -366,50 +366,145 @@ export const ReceiptTemplateEditor: React.FC<Props> = ({ isOpen, onClose, onSave
                                         </div>
                                         {activeField === key && (
                                             <div className="grid grid-cols-2 gap-2 mt-2">
-                                                <div className="space-y-1">
-                                                    <Label className="text-[10px]">Font Size</Label>
-                                                    <Input 
-                                                        type="number" 
-                                                        bs-size="sm"
-                                                        value={config.fontSize} 
-                                                        onChange={e => updateField(key, { fontSize: Number(e.target.value) })} 
-                                                    />
-                                                </div>
-                                                <div className="space-y-1">
-                                                    <Label className="text-[10px]">Weight</Label>
-                                                    <Select 
-                                                        value={config.fontWeight} 
-                                                        onValueChange={v => updateField(key, { fontWeight: v as "normal" | "bold" })}
-                                                    >
-                                                        <SelectTrigger className="h-8">
-                                                            <SelectValue />
-                                                        </SelectTrigger>
-                                                        <SelectContent>
-                                                            <SelectItem value="normal">Normal</SelectItem>
-                                                            <SelectItem value="bold">Bold</SelectItem>
-                                                        </SelectContent>
-                                                    </Select>
-                                                </div>
-                                                <div className="space-y-1">
-                                                    <Label className="text-[10px]">Spacing</Label>
-                                                    <Input 
-                                                        type="number" 
-                                                        step="0.1"
-                                                        value={config.charSpacing ?? 0} 
-                                                        onChange={e => updateField(key, { charSpacing: Number(e.target.value) })} 
-                                                        className="h-8 text-xs"
-                                                    />
-                                                </div>
-                                                <div className="space-y-1">
-                                                    <Label className="text-[10px]">ScaleX</Label>
-                                                    <Input 
-                                                        type="number" 
-                                                        step="0.05"
-                                                        value={config.scaleX ?? 1} 
-                                                        onChange={e => updateField(key, { scaleX: Number(e.target.value) })} 
-                                                        className="h-8 text-xs"
-                                                    />
-                                                </div>
+                                                {key === 'barcode' ? (
+                                                    // SPECIALIZED BARCODE SETTINGS
+                                                    <>
+                                                        <div className="space-y-1">
+                                                            <Label className="text-[10px]">Font Size (pt)</Label>
+                                                            <Input 
+                                                                type="number" 
+                                                                value={config.fontSize} 
+                                                                onChange={e => updateField(key, { fontSize: Number(e.target.value) })} 
+                                                                className="h-8 text-xs font-mono"
+                                                            />
+                                                        </div>
+                                                        <div className="space-y-1">
+                                                            <Label className="text-[10px]">Text Weight</Label>
+                                                            <Select 
+                                                                value={config.fontWeight} 
+                                                                onValueChange={v => updateField(key, { fontWeight: v as "normal" | "bold" })}
+                                                            >
+                                                                <SelectTrigger className="h-8 text-xs">
+                                                                    <SelectValue />
+                                                                </SelectTrigger>
+                                                                <SelectContent>
+                                                                    <SelectItem value="normal">Normal</SelectItem>
+                                                                    <SelectItem value="bold">Bold</SelectItem>
+                                                                </SelectContent>
+                                                            </Select>
+                                                        </div>
+                                                        <div className="space-y-1">
+                                                            <Label className="text-[10px]">Bar Height (mm)</Label>
+                                                            <Input 
+                                                                type="number" 
+                                                                step="0.5"
+                                                                value={config.barcodeHeight ?? 9} 
+                                                                onChange={e => updateField(key, { barcodeHeight: Number(e.target.value) })} 
+                                                                className="h-8 text-xs font-mono"
+                                                            />
+                                                        </div>
+                                                        <div className="space-y-1">
+                                                            <Label className="text-[10px]">Bar Thickness (mm)</Label>
+                                                            <Input 
+                                                                type="number" 
+                                                                step="0.01"
+                                                                value={config.barcodeModuleWidth ?? 0.35} 
+                                                                onChange={e => updateField(key, { barcodeModuleWidth: Number(e.target.value) })} 
+                                                                className="h-8 text-xs font-mono"
+                                                            />
+                                                        </div>
+                                                        <div className="col-span-2 space-y-2 py-1">
+                                                            <div className="flex items-center gap-2">
+                                                                <input 
+                                                                    type="checkbox" 
+                                                                    id={`hide-field-${key}`}
+                                                                    checked={config.hidden ?? false}
+                                                                    onChange={e => updateField(key, { hidden: e.target.checked })}
+                                                                    className="w-3 h-3 rounded border-zinc-300 pointer-events-auto"
+                                                                />
+                                                                <Label htmlFor={`hide-field-${key}`} className="text-[10px] cursor-pointer font-bold text-red-600">Hide Barcode Lines</Label>
+                                                            </div>
+                                                            <div className="flex items-center gap-2">
+                                                                <input 
+                                                                    type="checkbox" 
+                                                                    id={`hide-text-${key}`}
+                                                                    checked={config.hideBarcodeText ?? false}
+                                                                    onChange={e => updateField(key, { hideBarcodeText: e.target.checked })}
+                                                                    className="w-3 h-3 rounded border-zinc-300 pointer-events-auto"
+                                                                />
+                                                                <Label htmlFor={`hide-text-${key}`} className="text-[10px] cursor-pointer">Hide Text Below</Label>
+                                                            </div>
+                                                        </div>
+                                                    </>
+                                                ) : (
+                                                    // NORMAL FIELD SETTINGS
+                                                    <>
+                                                        <div className="space-y-1">
+                                                            <Label className="text-[10px]">Font Size</Label>
+                                                            <Input 
+                                                                type="number" 
+                                                                bs-size="sm"
+                                                                value={config.fontSize} 
+                                                                onChange={e => updateField(key, { fontSize: Number(e.target.value) })} 
+                                                            />
+                                                        </div>
+                                                        <div className="space-y-1">
+                                                            <Label className="text-[10px]">Weight</Label>
+                                                            <Select 
+                                                                value={config.fontWeight} 
+                                                                onValueChange={v => updateField(key, { fontWeight: v as "normal" | "bold" })}
+                                                            >
+                                                                <SelectTrigger className="h-8">
+                                                                    <SelectValue />
+                                                                </SelectTrigger>
+                                                                <SelectContent>
+                                                                    <SelectItem value="normal">Normal</SelectItem>
+                                                                    <SelectItem value="bold">Bold</SelectItem>
+                                                                </SelectContent>
+                                                            </Select>
+                                                        </div>
+                                                        <div className="space-y-1">
+                                                            <Label className="text-[10px]">Max Width (mm)</Label>
+                                                            <Input 
+                                                                type="number" 
+                                                                value={config.maxWidth ?? ""} 
+                                                                placeholder="Auto"
+                                                                onChange={e => updateField(key, { maxWidth: e.target.value === "" ? undefined : Number(e.target.value) })} 
+                                                                className="h-8 text-xs font-mono"
+                                                            />
+                                                        </div>
+                                                        <div className="space-y-1">
+                                                            <Label className="text-[10px]">Line Height</Label>
+                                                            <Input 
+                                                                type="number" 
+                                                                step="0.1"
+                                                                value={config.lineHeight ?? 1.2} 
+                                                                onChange={e => updateField(key, { lineHeight: Number(e.target.value) })} 
+                                                                className="h-8 text-xs font-mono"
+                                                            />
+                                                        </div>
+                                                        <div className="space-y-1">
+                                                            <Label className="text-[10px]">Spacing</Label>
+                                                            <Input 
+                                                                type="number" 
+                                                                step="0.1"
+                                                                value={config.charSpacing ?? 0} 
+                                                                onChange={e => updateField(key, { charSpacing: Number(e.target.value) })} 
+                                                                className="h-8 text-xs"
+                                                            />
+                                                        </div>
+                                                        <div className="space-y-1">
+                                                            <Label className="text-[10px]">ScaleX</Label>
+                                                            <Input 
+                                                                type="number" 
+                                                                step="0.05"
+                                                                value={config.scaleX ?? 1} 
+                                                                onChange={e => updateField(key, { scaleX: Number(e.target.value) })} 
+                                                                className="h-8 text-xs"
+                                                            />
+                                                        </div>
+                                                    </>
+                                                )}
                                             </div>
                                         )}
                                     </div>
@@ -500,22 +595,29 @@ export const ReceiptTemplateEditor: React.FC<Props> = ({ isOpen, onClose, onSave
                                 />
                             )}
 
-                            {Object.entries(template.fields).map(([key, config]) => (
+                            {Object.entries(template.fields).map(([key, config]) => {
+                                // Special rule for barcode: hidden only hides sticks, not the element itself (unless text is also hidden)
+                                if (config.hidden && key !== 'barcode') return null;
+                                if (key === 'barcode' && config.hidden && config.hideBarcodeText) return null;
+                                
+                                return (
                                 <div
                                     key={key}
                                     onMouseDown={(e) => {
                                         setActiveField(key);
                                         handleDrag(key, e);
                                     }}
-                                    className={`absolute cursor-move border border-dashed p-0.5 whitespace-nowrap select-none transition-shadow text-zinc-900 ${
+                                    className={`absolute cursor-move border border-dashed p-0.5 select-none transition-shadow text-zinc-900 ${
                                         activeField === key ? 'border-primary ring-1 ring-primary z-50' : 'border-slate-300 z-10'
-                                    }`}
+                                    } ${config.maxWidth ? 'whitespace-pre-wrap' : 'whitespace-nowrap'}`}
                                     style={{
                                         left: `${config.x}mm`,
                                         top: `${config.y}mm`,
+                                        width: config.maxWidth ? `${config.maxWidth}mm` : 'auto',
                                         fontSize: `${config.fontSize}pt`,
                                         fontFamily: config.fontFamily === 'courier' ? 'monospace' : config.fontFamily,
                                         fontWeight: config.fontWeight,
+                                        lineHeight: config.lineHeight ?? 1.2,
                                         letterSpacing: `${config.charSpacing ?? 0}pt`,
                                         transform: `scaleX(${config.scaleX ?? 1})`,
                                         transformOrigin: 'left center',
@@ -523,22 +625,31 @@ export const ReceiptTemplateEditor: React.FC<Props> = ({ isOpen, onClose, onSave
                                     }}
                                 >
                                     {key === 'barcode' ? (
-                                        <div style={{ opacity: 0.8 }}>
-                                            <Barcode 
-                                                value="12345678"
-                                                height={30}
-                                                width={1.2}
-                                                fontSize={10}
-                                                margin={0}
-                                                background="transparent"
-                                                renderer="canvas"
-                                            />
+                                        <div className="flex flex-col items-center">
+                                            {!config.hidden ? (
+                                                <Barcode 
+                                                    value="12345678"
+                                                    height={(config.barcodeHeight ?? 9) * 3.78} 
+                                                    width={(config.barcodeModuleWidth ?? 0.35) * 3.78} 
+                                                    fontSize={config.fontSize}
+                                                    displayValue={!config.hideBarcodeText}
+                                                    fontOptions={config.fontWeight}
+                                                    margin={0}
+                                                    background="transparent"
+                                                    renderer="canvas"
+                                                />
+                                            ) : (
+                                                <div className="text-center w-full">
+                                                    {!config.hideBarcodeText && "12345678"}
+                                                </div>
+                                            )}
                                         </div>
                                     ) : (
                                         config.label
                                     )}
                                 </div>
-                            ))}
+                                );
+                            })}
 
                             {/* Table Start Visualization (Draggable) */}
                             <div 

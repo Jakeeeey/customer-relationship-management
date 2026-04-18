@@ -3,23 +3,80 @@
 import { useOPSDashboard } from "./hooks/useOPSDashboard";
 import { StatusColumn } from "./components/StatusColumn";
 import { Button } from "@/components/ui/button";
-import { RefreshCcw, LayoutDashboard, Clock, AlertCircle, Play, Pause } from "lucide-react";
+import { RefreshCcw, LayoutDashboard, Clock, AlertCircle, Play, Pause, ChevronsUpDown, ChevronsDownUp, Timer } from "lucide-react";
 import { format } from "date-fns";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { cn } from "@/lib/utils";
+import { BulkAction } from "./types";
 
 export default function OPSDashboardModule() {
     const { data, isLoading, lastUpdated, error, refresh } = useOPSDashboard();
     const [isAutoScrolling, setIsAutoScrolling] = useState(false);
+    const [isPaused, setIsPaused] = useState(false);
+    const [resumeCountdown, setResumeCountdown] = useState(0);
+    const [bulkAction, setBulkAction] = useState<BulkAction>(null);
     const scrollRef = useRef<HTMLDivElement>(null);
     const scrollDirection = useRef(1); // 1 = right, -1 = left
+    const pauseTimerRef = useRef<NodeJS.Timeout | null>(null);
+    const countdownIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+    const triggerPause = useCallback(() => {
+        if (!isAutoScrolling) return;
+
+        setIsPaused(true);
+        setResumeCountdown(10);
+
+        if (pauseTimerRef.current) clearTimeout(pauseTimerRef.current);
+        if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
+
+        countdownIntervalRef.current = setInterval(() => {
+            setResumeCountdown((prev) => {
+                if (prev <= 1) {
+                    if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
+                    return 0;
+                }
+                return prev - 1;
+            });
+        }, 1000);
+
+        pauseTimerRef.current = setTimeout(() => {
+            setIsPaused(false);
+            if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
+        }, 10000);
+    }, [isAutoScrolling]);
+
+    // Handle global keyboard interactions
+    useEffect(() => {
+        const handleKeyDown = () => {
+            if (isAutoScrolling) triggerPause();
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [isAutoScrolling, triggerPause]);
+
+    // Reset pause state when auto-scroll is manually toggled
+    useEffect(() => {
+        if (!isAutoScrolling) {
+            // Use setTimeout to avoid synchronous setState in effect warning
+            const timer = setTimeout(() => {
+                setIsPaused(false);
+                setResumeCountdown(0);
+            }, 0);
+            
+            if (pauseTimerRef.current) clearTimeout(pauseTimerRef.current);
+            if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
+            
+            return () => clearTimeout(timer);
+        }
+    }, [isAutoScrolling]);
 
     useEffect(() => {
         let interval: NodeJS.Timeout;
-        if (isAutoScrolling && scrollRef.current) {
+        if (isAutoScrolling && !isPaused && scrollRef.current) {
             interval = setInterval(() => {
                 if (scrollRef.current) {
                     const { scrollLeft, scrollWidth, clientWidth } = scrollRef.current;
@@ -36,7 +93,7 @@ export default function OPSDashboardModule() {
             }, 30);
         }
         return () => clearInterval(interval);
-    }, [isAutoScrolling]);
+    }, [isAutoScrolling, isPaused]);
 
     if (error) {
         return (
@@ -77,20 +134,50 @@ export default function OPSDashboardModule() {
                 </div>
 
                 <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1.5 mr-2 px-3 py-1 bg-secondary/30 rounded-full border border-border/50">
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setBulkAction({ type: 'expand', id: Date.now() })}
+                            className="font-black text-[10px] h-7 px-2 hover:bg-primary/10 hover:text-primary transition-all active:scale-95 flex items-center gap-1"
+                        >
+                            <ChevronsUpDown className="h-3.5 w-3.5" />
+                            EXPAND ALL
+                        </Button>
+                        <div className="w-[1px] h-3 bg-border/50" />
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setBulkAction({ type: 'collapse', id: Date.now() })}
+                            className="font-black text-[10px] h-7 px-2 hover:bg-destructive/10 hover:text-destructive transition-all active:scale-95 flex items-center gap-1"
+                        >
+                            <ChevronsDownUp className="h-3.5 w-3.5" />
+                            COLLAPSE ALL
+                        </Button>
+                    </div>
+
                     <Button
                         variant={isAutoScrolling ? "default" : "outline"}
                         size="sm"
                         onClick={() => setIsAutoScrolling(!isAutoScrolling)}
                         className={cn(
-                            "font-black h-10 px-4 border-2 shadow-sm transition-all hover:scale-102 active:scale-95",
-                            isAutoScrolling && "bg-primary text-primary-foreground animate-pulse"
+                            "font-black h-10 px-4 border-2 shadow-sm transition-all hover:scale-102 active:scale-95 min-w-[160px]",
+                            isAutoScrolling && !isPaused && "bg-primary text-primary-foreground animate-pulse",
+                            isAutoScrolling && isPaused && "bg-amber-500 border-amber-600 text-white animate-none"
                         )}
                     >
                         {isAutoScrolling ? (
-                            <>
-                                <Pause className="mr-2 h-4 w-4 fill-current" />
-                                STOP AUTO-SCROLL
-                            </>
+                            isPaused ? (
+                                <>
+                                    <Timer className="mr-2 h-4 w-4" />
+                                    PAUSED ({resumeCountdown}s)
+                                </>
+                            ) : (
+                                <>
+                                    <Pause className="mr-2 h-4 w-4 fill-current" />
+                                    STOP AUTO-SCROLL
+                                </>
+                            )
                         ) : (
                             <>
                                 <Play className="mr-2 h-4 w-4 fill-current" />
@@ -113,11 +200,19 @@ export default function OPSDashboardModule() {
             </header>
 
             {/* Kanban Board */}
-            <div className="flex-1 relative overflow-hidden">
+            <div 
+                className="flex-1 relative overflow-hidden"
+                onWheel={triggerPause}
+                onMouseDown={triggerPause}
+            >
                 <div 
                     ref={scrollRef}
                     className="absolute inset-0 overflow-x-auto overflow-y-hidden flex scroll-smooth selection:bg-transparent"
                     style={{ scrollbarWidth: 'thin' }}
+                    onScroll={() => {
+                        // Only trigger pause on manual scroll (when not being scrolled by auto-scroll)
+                        // This is hard to detect perfectly without tracking delta, but onWheel handles most mouse cases.
+                    }}
                 >
                     <div className="flex h-full w-fit">
                         {isLoading && data.length === 0 ? (
@@ -126,7 +221,11 @@ export default function OPSDashboardModule() {
                             ))
                         ) : (
                             data.map((statusGroup) => (
-                                <StatusColumn key={statusGroup.status} statusGroup={statusGroup} />
+                                <StatusColumn 
+                                    key={statusGroup.status} 
+                                    statusGroup={statusGroup} 
+                                    bulkAction={bulkAction}
+                                />
                             ))
                         )}
                     </div>

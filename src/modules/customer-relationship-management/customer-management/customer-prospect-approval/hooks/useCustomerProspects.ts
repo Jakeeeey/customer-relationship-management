@@ -27,6 +27,7 @@ interface UseCustomerProspectsReturn {
     refetch: () => Promise<void>;
     approveProspect: (id: number) => Promise<void>;
     rejectProspect: (id: number) => Promise<void>;
+    updateProspect: (id: number, data: Partial<CustomerProspect>) => Promise<void>;
 }
 
 export function useCustomerProspects(): UseCustomerProspectsReturn {
@@ -159,6 +160,27 @@ export function useCustomerProspects(): UseCustomerProspectsReturn {
 
     const approveProspect = (id: number) => handleAction(id, "Approve");
     const rejectProspect = (id: number) => handleAction(id, "Reject");
+
+    const updateProspect = useCallback(async (id: number, data: Partial<CustomerProspect>) => {
+        try {
+            const res = await fetch("/api/crm/customer-prospect", {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ id, ...data }),
+            });
+
+            if (!res.ok) {
+                const errorData = await res.json().catch(() => ({}));
+                throw new Error(errorData.message || `Update failed: ${res.status}`);
+            }
+
+            await fetchData(true);
+        } catch (err) {
+            console.error("Update prospect error:", err);
+            throw err;
+        }
+    }, [fetchData]);
+
     const refetch = useCallback(() => fetchData(true), [fetchData]);
 
     return {
@@ -184,6 +206,7 @@ export function useCustomerProspects(): UseCustomerProspectsReturn {
         setSalesmanFilter,
         refetch,
         approveProspect,
-        rejectProspect
+        rejectProspect,
+        updateProspect
     };
 }

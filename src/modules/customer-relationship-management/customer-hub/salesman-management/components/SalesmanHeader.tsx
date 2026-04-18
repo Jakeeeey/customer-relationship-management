@@ -1,13 +1,8 @@
 "use client";
 
-import { Button } from "@/components/ui/button";
-import { Plus, Users } from "lucide-react";
+import { Users } from "lucide-react";
 
-interface SalesmanHeaderProps {
-    onCreateClick: () => void;
-}
-
-export function SalesmanHeader({ onCreateClick }: SalesmanHeaderProps) {
+export function SalesmanHeader() {
     return (
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="flex items-center gap-3">
@@ -19,17 +14,10 @@ export function SalesmanHeader({ onCreateClick }: SalesmanHeaderProps) {
                         Salesman Management
                     </h1>
                     <p className="text-sm text-muted-foreground font-medium">
-                        Configure salesmen, logistics, and account succession
+                        Configure logistics, territory access, and account succession
                     </p>
                 </div>
             </div>
-            <Button
-                className="font-bold uppercase tracking-wider h-11 px-6 shadow-md transition-all"
-                onClick={onCreateClick}
-            >
-                <Plus className="w-4 h-4 mr-2" />
-                New Salesman
-            </Button>
         </div>
     );
 }

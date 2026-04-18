@@ -12,6 +12,7 @@ export interface DiscountType {
 export interface Salesman {
     id: number;
     salesman_name: string;
+    salesman_code?: string;
 }
 
 export interface StoreType {
@@ -66,6 +67,7 @@ export interface CustomerProspect {
     prospect_status: 'Pending' | 'Approved' | 'Rejected';
     // Joined data
     salesman_name?: string;
+    salesman_code?: string;
     updated_by_name?: string | null;
 }
 
