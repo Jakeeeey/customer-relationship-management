@@ -168,6 +168,11 @@ export interface ORFieldConfig {
     maxWidth?: number;    // in mm
     lineHeight?: number;  // multiplier e.g. 1.2
     hidden?: boolean;     // visibility toggle
+
+    // Barcode settings
+    barcodeHeight?: number;
+    barcodeModuleWidth?: number;
+    hideBarcodeText?: boolean;
 }
 
 export interface ORTemplate {
