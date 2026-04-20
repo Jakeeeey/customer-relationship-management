@@ -186,7 +186,7 @@ export function TargetFormDialog({
             setSupplierSearch("");
             setLoading(false);
         }
-    }, [isOpen, salesman, month, year]);
+    }, [isOpen, salesman, month, year, allProducts]);
 
     // --- Customer Filter Logic ---
     const salesmanCustomerIds = useMemo(() => {

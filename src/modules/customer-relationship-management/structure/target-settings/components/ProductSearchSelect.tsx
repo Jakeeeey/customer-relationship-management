@@ -69,7 +69,7 @@ export function ProductSearchSelect({
                     <CommandInput placeholder={`Search ${placeholder.toLowerCase()}...`} className="h-10" />
                     <CommandList 
                         className="max-h-[300px] overflow-y-auto"
-                        onWheel={(e) => e.stopPropagation()}
+                        onWheel={(_e) => _e.stopPropagation()}
                     >
                         <CommandEmpty>No results found.</CommandEmpty>
                         <CommandGroup>
