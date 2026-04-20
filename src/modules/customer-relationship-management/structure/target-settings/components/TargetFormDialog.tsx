@@ -38,7 +38,7 @@ import {
     MapPin,
     Map
 } from "lucide-react";
-import { SearchableSelect } from "@/components/ui/searchable-select";
+import { ProductSearchSelect } from "./ProductSearchSelect";
 import {
     Accordion,
     AccordionContent,
@@ -153,16 +153,19 @@ export function TargetFormDialog({
             });
 
             setTacticalSkus(
-                salesman.current_target?.tactical_skus?.map(ts => ({
-                    id: ts.id,
-                    product_id: ts.product_id,
-                    target_quantity: ts.target_quantity,
-                    target_value: ts.target_value,
-                    achieved_quantity: ts.achieved_quantity || 0,
-                    achieved_volume: ts.achieved_volume || 0,
-                    product_name: ts.product_name,
-                    product_code: ts.product_code
-                })) || []
+                salesman.current_target?.tactical_skus?.map(ts => {
+                    const prod = allProducts.find(p => p.product_id === ts.product_id);
+                    return {
+                        id: ts.id,
+                        product_id: ts.product_id,
+                        target_quantity: ts.target_quantity,
+                        target_value: ts.target_value,
+                        achieved_quantity: ts.achieved_quantity || 0,
+                        achieved_volume: ts.achieved_volume || 0,
+                        product_name: ts.product_name || prod?.product_name || "Unknown Product",
+                        product_code: ts.product_code || prod?.product_code || `P${ts.product_id}`
+                    };
+                }) || []
             );
 
             setCustomerTargets(
@@ -183,7 +186,7 @@ export function TargetFormDialog({
             setSupplierSearch("");
             setLoading(false);
         }
-    }, [isOpen, salesman, month, year]);
+    }, [isOpen, salesman, month, year, allProducts]);
 
     // --- Customer Filter Logic ---
     const salesmanCustomerIds = useMemo(() => {
@@ -285,6 +288,13 @@ export function TargetFormDialog({
     const handleAddSku = () => {
         if (!newItem.product_id || newItem.target_quantity <= 0) {
             toast.error("Please select a product and enter a valid quantity");
+            return;
+        }
+
+        // Check for duplicates
+        const isDuplicate = tacticalSkus.some(ts => ts.product_id === newItem.product_id);
+        if (isDuplicate) {
+            toast.error("This product has already been added to the tactical SKU list");
             return;
         }
 
@@ -789,8 +799,11 @@ export function TargetFormDialog({
                             <div className="grid grid-cols-1 md:grid-cols-12 gap-8 p-8 border-2 border-slate-100 rounded-3xl bg-slate-50/30">
                                 <div className="md:col-span-9 space-y-2.5">
                                     <Label className="text-xs font-black uppercase tracking-widest text-slate-500">Select Product</Label>
-                                    <SearchableSelect
-                                        options={allProducts.map(p => ({ value: String(p.product_id), label: `${p.product_code || 'N/A'} - ${p.product_name}` }))}
+                                    <ProductSearchSelect
+                                        options={allProducts
+                                            .filter(p => !tacticalSkus.some(ts => ts.product_id === p.product_id))
+                                            .map(p => ({ value: String(p.product_id), label: `${p.product_code || 'N/A'} - ${p.product_name}` }))
+                                        }
                                         value={String(newItem.product_id)}
                                         onValueChange={(val) => setNewItem(prev => ({ ...prev, product_id: Number(val) }))}
                                     />
