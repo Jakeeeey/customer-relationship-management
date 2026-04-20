@@ -3,6 +3,7 @@
 import React from "react";
 import { Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
     Select,
     SelectContent,
@@ -52,43 +53,53 @@ export function FilterHeader({
                     <p className="text-sm text-muted-foreground font-medium">Manage and track salesman targets and performance</p>
                 </div>
 
-                <div className="flex items-center gap-3">
-                    <div className="flex items-center bg-white rounded-lg border shadow-sm px-4 h-10">
-                        <Select value={month} onValueChange={(val) => onFilterChange(val, year)}>
-                            <SelectTrigger className="w-[120px] border-none focus:ring-0 shadow-none text-sm font-medium">
-                                <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {months.map(m => (
-                                    <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
+                <div className="flex items-end gap-3">
+                    <div className="flex flex-col gap-1.5">
+                        <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider px-0.5">Month</Label>
+                        <div className="flex items-center bg-white rounded-lg border shadow-sm px-4 h-10">
+                            <Select value={month} onValueChange={(val) => onFilterChange(val, year)}>
+                                <SelectTrigger className="w-[120px] border-none focus:ring-0 shadow-none text-sm font-medium">
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {months.map(m => (
+                                        <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
                     </div>
-                    <div className="flex items-center bg-white rounded-lg border shadow-sm px-1 h-10">
-                        <Select value={year} onValueChange={(val) => onFilterChange(month, val)}>
-                            <SelectTrigger className="w-[80px] border-none focus:ring-0 shadow-none text-sm font-medium">
-                                <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {years.map(y => (
-                                    <SelectItem key={y} value={y}>{y}</SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
+
+                    <div className="flex flex-col gap-1.5">
+                        <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider px-0.5">Year</Label>
+                        <div className="flex items-center bg-white rounded-lg border shadow-sm px-1 h-10">
+                            <Select value={year} onValueChange={(val) => onFilterChange(month, val)}>
+                                <SelectTrigger className="w-[80px] border-none focus:ring-0 shadow-none text-sm font-medium">
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {years.map(y => (
+                                        <SelectItem key={y} value={y}>{y}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
                     </div>
                 </div>
             </header>
 
             <div className="flex items-center gap-4">
-                <div className="relative flex-1 max-w-sm">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                    <Input
-                        placeholder="Enter salesman name or code..."
-                        className="pl-9 h-10 bg-white border-muted/60"
-                        value={searchTerm}
-                        onChange={(e) => onSearchChange(e.target.value)}
-                    />
+                <div className="flex flex-col gap-1.5 flex-1 max-w-sm">
+                    <Label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider px-0.5">Search Salesman</Label>
+                    <div className="relative">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                        <Input
+                            placeholder="Enter salesman name or code..."
+                            className="pl-9 h-10 bg-white border-muted/60"
+                            value={searchTerm}
+                            onChange={(e) => onSearchChange(e.target.value)}
+                        />
+                    </div>
                 </div>
             </div>
         </div>
