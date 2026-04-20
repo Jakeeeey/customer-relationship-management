@@ -60,7 +60,7 @@ export function ProductSearchSelect({
             <PopoverContent 
                 className="w-[--radix-popover-trigger-width] p-0 border-slate-200 shadow-xl rounded-xl" 
                 align="start"
-                onPointerDownOutside={(e) => {
+                onPointerDownOutside={() => {
                     // Prevent closing when clicking outside if needed, 
                     // but default is usually fine for a search select.
                 }}
@@ -69,7 +69,7 @@ export function ProductSearchSelect({
                     <CommandInput placeholder={`Search ${placeholder.toLowerCase()}...`} className="h-10" />
                     <CommandList 
                         className="max-h-[300px] overflow-y-auto"
-                        onWheel={(_e) => _e.stopPropagation()}
+                        onWheel={(e) => e.stopPropagation()}
                     >
                         <CommandEmpty>No results found.</CommandEmpty>
                         <CommandGroup>
