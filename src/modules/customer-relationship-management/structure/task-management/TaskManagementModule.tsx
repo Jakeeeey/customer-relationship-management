@@ -48,10 +48,10 @@ export default function TaskManagementModule() {
 
     const handleDayClick = (day: Date) => {
         if (selectedEmployeeId === "all" || selectedSalesmanId === "all") {
-            toast.warning("Please select an Employee and a Salesman account first.");
+            toast.warning("Please select an Salesman and a Salesman Code first.");
             return;
         }
-        
+
         const dayTasks = getTasksForDay(day);
         setSelectedDate(day);
 
@@ -126,7 +126,7 @@ export default function TaskManagementModule() {
                 onYearChange={setYear}
             />
 
-            <CalendarHeader 
+            <CalendarHeader
                 monthName={months[currentMonth]}
                 year={currentYear}
                 employeeName={employeeName}

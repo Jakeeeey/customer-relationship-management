@@ -11,7 +11,7 @@ import { Check, ChevronsUpDown, Calendar as CalendarIcon, Hash, Clock } from "lu
 import { cn } from "@/lib/utils";
 
 
-import { Salesman, Customer, Supplier, Branch, PriceTypeModel } from "../types";
+import { Salesman, Customer, Supplier, Branch, PriceTypeModel, PaymentTerm } from "../types";
 
 interface SalesOrderHeaderProps {
     salesmen: Salesman[];
@@ -63,7 +63,7 @@ interface SalesOrderHeaderProps {
     priceTypeModels?: PriceTypeModel[];
     previewOrderNo?: string;
     paymentTerms: number | null;
-    onPaymentTermsChange: (val: number | null) => void;
+    paymentTermsList: PaymentTerm[];
     onPriceTypeChange: (id: string) => void;
 }
 
@@ -82,7 +82,7 @@ export function SalesOrderHeader({
     priceTypeId, priceTypeModels,
     onPriceTypeChange,
     previewOrderNo,
-    paymentTerms, onPaymentTermsChange
+    paymentTerms, paymentTermsList
 }: SalesOrderHeaderProps) {
     const [openSalesman, setOpenSalesman] = useState(false);
     const [openAccount, setOpenAccount] = useState(false);
@@ -129,8 +129,8 @@ export function SalesOrderHeader({
                         <PopoverTrigger asChild>
                             <Button variant="outline" className="w-full justify-between font-normal h-9 text-xs" disabled={loadingCustomers}>
                                 <span className="truncate">
-                                    {selectedCustomer 
-                                        ? `${selectedCustomer.customer_name}${selectedCustomer.city || selectedCustomer.province ? ` (${[selectedCustomer.city, selectedCustomer.province].filter(Boolean).join(", ")})` : ""}` 
+                                    {selectedCustomer
+                                        ? `${selectedCustomer.customer_name}${selectedCustomer.city || selectedCustomer.province ? ` (${[selectedCustomer.city, selectedCustomer.province].filter(Boolean).join(", ")})` : ""}`
                                         : "Select Customer..."}
                                 </span>
                                 <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
@@ -138,8 +138,8 @@ export function SalesOrderHeader({
                         </PopoverTrigger>
                         <PopoverContent className="w-[350px] p-0" align="start">
                             <Command shouldFilter={false}>
-                                <CommandInput 
-                                    placeholder="Search customer..." 
+                                <CommandInput
+                                    placeholder="Search customer..."
                                     value={customerSearch}
                                     onValueChange={onCustomerSearchChange}
                                 />
@@ -150,7 +150,7 @@ export function SalesOrderHeader({
                                         <>
                                             <CommandEmpty>No customer found.</CommandEmpty>
                                             <CommandGroup>
-                                                <div 
+                                                <div
                                                     className="max-h-[300px] overflow-y-auto custom-scrollbar p-1"
                                                     onScroll={(e) => {
                                                         const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
@@ -172,13 +172,13 @@ export function SalesOrderHeader({
                                                             </div>
                                                         </CommandItem>
                                                     ))}
-                                                    
+
                                                     {loadingMoreCustomers && (
                                                         <div className="py-2 text-center text-[10px] text-muted-foreground animate-pulse font-bold uppercase tracking-widest">
                                                             Loading more...
                                                         </div>
                                                     )}
-                                                    
+
                                                     {!hasMoreCustomers && customers.length > 0 && (
                                                         <div className="py-2 text-center text-[9px] text-muted-foreground/50 italic">
                                                             End of results
@@ -259,8 +259,8 @@ export function SalesOrderHeader({
                         <PopoverTrigger asChild>
                             <Button variant="outline" className="w-full justify-between font-normal h-9 text-xs" disabled={!selectedCustomer || loadingSuppliers}>
                                 <span className="truncate">
-                                    {selectedSupplier 
-                                        ? `${selectedSupplier.supplier_name}${selectedSupplier.supplier_shortcut ? ` (${selectedSupplier.supplier_shortcut})` : ""}` 
+                                    {selectedSupplier
+                                        ? `${selectedSupplier.supplier_name}${selectedSupplier.supplier_shortcut ? ` (${selectedSupplier.supplier_shortcut})` : ""}`
                                         : "Select Supplier..."}
                                 </span>
                                 <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
@@ -273,9 +273,9 @@ export function SalesOrderHeader({
                                     <CommandEmpty>No supplier found.</CommandEmpty>
                                     <CommandGroup>
                                         {suppliers.map(s => (
-                                            <CommandItem 
-                                                key={s.id} 
-                                                value={`${s.supplier_name} ${s.supplier_shortcut}`} 
+                                            <CommandItem
+                                                key={s.id}
+                                                value={`${s.supplier_name} ${s.supplier_shortcut}`}
                                                 onSelect={() => { onSupplierChange(s.id.toString()); setOpenSupplier(false); }}
                                             >
                                                 <Check className={cn("mr-2 h-4 w-4", selectedSupplier?.id === s.id ? "opacity-100" : "opacity-0")} />
@@ -314,13 +314,13 @@ export function SalesOrderHeader({
                     <label className="text-xs font-bold uppercase text-muted-foreground">Due Date <span className="text-red-500">*</span></label>
                     <div className="relative">
                         <CalendarIcon className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
-                        <Input 
-                            type="date" 
-                            value={dueDate || ""} 
-                            onChange={(e) => onDueDateChange(e.target.value)} 
-                            className="pl-9 h-9 text-xs bg-slate-50/50 opacity-80 cursor-not-allowed" 
-                            disabled 
-                            required 
+                        <Input
+                            type="date"
+                            value={dueDate || ""}
+                            onChange={(e) => onDueDateChange(e.target.value)}
+                            className="pl-9 h-9 text-xs bg-slate-50/50 opacity-80 cursor-not-allowed"
+                            disabled
+                            required
                         />
                     </div>
                 </div>
@@ -383,15 +383,15 @@ export function SalesOrderHeader({
                 </div>
 
                 <div className="flex flex-col gap-1.5">
-                    <label className="text-xs font-bold uppercase text-muted-foreground">Payment Terms (Days)</label>
+                    <label className="text-xs font-bold uppercase text-muted-foreground">Payment Terms</label>
                     <div className="relative">
                         <Clock className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-sky-500" />
-                        <Input 
-                            type="number" 
-                            placeholder="Days" 
-                            value={paymentTerms ?? ""} 
-                            onChange={(e) => onPaymentTermsChange(e.target.value ? parseInt(e.target.value) : null)} 
-                            className="pl-9 h-9 text-xs border-sky-100 bg-sky-50/20 focus-visible:ring-sky-500 opacity-80 cursor-not-allowed" 
+                        <Input
+                            type="text"
+                            placeholder="Terms"
+                            value={paymentTermsList.find(pt => Number(pt.id) === Number(paymentTerms))?.payment_name || "N/A"}
+                            className="pl-9 h-9 text-xs border-sky-100 bg-sky-50/20 focus-visible:ring-sky-500 opacity-80 cursor-not-allowed font-bold text-sky-700"
+                            readOnly
                             disabled
                         />
                     </div>

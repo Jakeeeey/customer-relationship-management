@@ -1,12 +1,15 @@
-import { STATUS_COLORS, CustomerGroupedOrders, OPSStatus } from "../types";
+import { useState, useEffect } from "react";
+import { STATUS_COLORS, CustomerGroupedOrders, OPSStatus, BulkAction } from "../types";
 import { OrderCard } from "./OrderCard";
 import { Badge } from "@/components/ui/badge";
-import { User2 } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { User2, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface CustomerGroupProps {
     group: CustomerGroupedOrders;
     status: OPSStatus;
+    bulkAction: BulkAction;
 }
 
 const colorToGradientMap: Record<string, string> = {
@@ -23,28 +26,56 @@ const colorToGradientMap: Record<string, string> = {
     slate: "bg-gradient-to-r from-slate-500 to-slate-600",
 };
 
-export function CustomerGroup({ group, status }: CustomerGroupProps) {
+export function CustomerGroup({ group, status, bulkAction }: CustomerGroupProps) {
+    const [isOpen, setIsOpen] = useState(false);
     const gradientClass = colorToGradientMap[STATUS_COLORS[status]] || "bg-muted";
 
+    // Handle bulk expand/collapse
+    useEffect(() => {
+        if (!bulkAction) return;
+        
+        // Use setTimeout to avoid synchronous setState in effect warning
+        const timer = setTimeout(() => {
+            if (bulkAction.type === 'expand') {
+                setIsOpen(true);
+            } else if (bulkAction.type === 'collapse') {
+                setIsOpen(false);
+            }
+        }, 0);
+
+        return () => clearTimeout(timer);
+    }, [bulkAction]);
+
     return (
-        <div className="mb-4 last:mb-0">
-            <div className={cn(
-                "flex items-center gap-2 mb-2 px-2 sticky top-0 z-10 py-1.5 rounded-t-lg shadow-sm text-white",
-                gradientClass
-            )}>
-                <User2 className="h-3.5 w-3.5 shrink-0 mt-0.5 text-white/90" />
-                <span className="text-sm font-black tracking-tight py-0.5 break-words min-w-0 uppercase">
-                    {group.customerName}
-                </span>
-                <Badge variant="secondary" className="ml-auto text-[11px] px-1.5 h-5 min-w-6 flex items-center justify-center font-black bg-white/20 text-white border-none shadow-inner">
-                    {group.orders.length}
-                </Badge>
-            </div>
-            <div className="space-y-2">
+        <Collapsible
+            open={isOpen}
+            onOpenChange={setIsOpen}
+            className="mb-4 last:mb-0"
+        >
+            <CollapsibleTrigger asChild>
+                <div className={cn(
+                    "flex items-center gap-1.5 mb-2 px-2 sticky top-0 z-10 py-1.5 rounded-t-lg shadow-sm text-white cursor-pointer hover:brightness-110 active:scale-[0.98] transition-all group",
+                    gradientClass
+                )}>
+                    <ChevronRight className={cn(
+                        "h-3.5 w-3.5 shrink-0 transition-transform duration-200",
+                        isOpen && "rotate-90"
+                    )} />
+                    <User2 className="h-3.5 w-3.5 shrink-0 mt-0.5 text-white/90" />
+                    <span className="text-[11px] font-black tracking-tight py-0.5 break-words min-w-0 uppercase flex-1 leading-tight">
+                        {group.customerName}
+                    </span>
+                    <Badge variant="secondary" className="ml-auto text-[10px] px-1.5 h-4.5 min-w-5 flex items-center justify-center font-black bg-white/20 text-white border-none shadow-inner shrink-0">
+                        {group.orders.length}
+                    </Badge>
+                </div>
+            </CollapsibleTrigger>
+            
+            <CollapsibleContent className="space-y-2 overflow-hidden px-1">
                 {group.orders.map((order) => (
                     <OrderCard key={order.salesOrderNo} order={order} />
                 ))}
-            </div>
-        </div>
+            </CollapsibleContent>
+        </Collapsible>
     );
 }

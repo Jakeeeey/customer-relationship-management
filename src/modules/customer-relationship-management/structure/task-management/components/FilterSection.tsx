@@ -95,14 +95,14 @@ export const FilterSection: React.FC<FilterSectionProps> = ({
                         <div className="space-y-2">
                             <Label className="text-xs font-semibold text-primary/80 uppercase tracking-widest flex items-center gap-2">
                                 <div className="w-1.5 h-1.5 rounded-full bg-primary" />
-                                Employee
+                                Salesman
                             </Label>
                             <Select value={selectedEmployeeId} onValueChange={onEmployeeChange}>
                                 <SelectTrigger className="bg-background/40 border-primary/10 hover:border-primary/30 transition-all h-11">
-                                    <SelectValue placeholder="Select Employee" />
+                                    <SelectValue placeholder="Select Salesman" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="all">All Employees</SelectItem>
+                                    <SelectItem value="all">All Salesman</SelectItem>
                                     {users.map((u) => (
                                         <SelectItem key={u.user_id} value={String(u.user_id)}>
                                             {u.user_fname} {u.user_lname}
@@ -115,7 +115,7 @@ export const FilterSection: React.FC<FilterSectionProps> = ({
                         <div className="space-y-2">
                             <Label className="text-xs font-semibold text-primary/80 uppercase tracking-widest flex items-center gap-2">
                                 <div className="w-1.5 h-1.5 rounded-full bg-primary" />
-                                Salesman Account
+                                Salesman Code
                             </Label>
                             <Select 
                                 value={selectedSalesmanId} 
@@ -126,7 +126,7 @@ export const FilterSection: React.FC<FilterSectionProps> = ({
                                     <SelectValue placeholder={!selectedEmployeeId || selectedEmployeeId === "all" ? "Select employee first" : "Select Salesman"} />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="all">All Salesman Accounts</SelectItem>
+                                    <SelectItem value="all">Please Select Salesman Code</SelectItem>
                                     {salesmen.map((s) => (
                                         <SelectItem key={s.id} value={String(s.id)}>
                                             {s.salesman_name} ({s.salesman_code})

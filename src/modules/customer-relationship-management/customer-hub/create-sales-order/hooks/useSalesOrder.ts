@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useSearchParams } from "next/navigation";
-import { LineItem, Salesman, Customer, Supplier, Product, ReceiptType, SalesType, Branch, PriceTypeModel } from "../types";
+import { LineItem, Salesman, Customer, Supplier, Product, ReceiptType, SalesType, Branch, PriceTypeModel, PaymentTerm } from "../types";
 import { salesOrderProvider } from "../providers/fetchProvider";
 import { calculateChainNetPrice } from "../utils/priceCalc";
 import { toast } from "sonner";
@@ -70,18 +70,20 @@ export function useSalesOrder() {
     const [existingOrderId, setExistingOrderId] = useState<number | null>(null);
     const [existingOrderStatus, setExistingOrderStatus] = useState<string>("");
     const [paymentTerms, setPaymentTerms] = useState<number | null>(null);
+    const [paymentTermsList, setPaymentTermsList] = useState<PaymentTerm[]>([]);
 
     // --- AUTO-DATE CALCULATION ---
     useEffect(() => {
-        // If paymentTerms is a number (including 0 for COD), calculate due date relative to deliveryDate
-        if (paymentTerms !== null && paymentTerms !== undefined && deliveryDate) {
-            const baseDate = new Date(deliveryDate);
-            if (!isNaN(baseDate.getTime())) {
-                const futureDate = new Date(baseDate.getTime() + (paymentTerms * 24 * 60 * 60 * 1000));
-                setDueDate(futureDate.toISOString().split('T')[0]);
-            }
-        }
-    }, [paymentTerms, deliveryDate]);
+        // Find payment days from the selected payment term ID
+        const selectedTerm = paymentTermsList.find(pt => Number(pt.id) === Number(paymentTerms));
+        const days = selectedTerm?.payment_days || 0;
+
+        // User clarified: due date is based on order date (today), not delivery date
+        const baseDate = new Date();
+        const futureDate = new Date(baseDate.getTime() + (days * 24 * 60 * 60 * 1000));
+        setDueDate(futureDate.toISOString().split('T')[0]);
+
+    }, [paymentTerms, paymentTermsList]);
 
     const selectedSalesman = useMemo(() => Array.isArray(salesmen) ? salesmen.find(s => (s.user_id || s.id)?.toString() === selectedSalesmanId) : undefined, [salesmen, selectedSalesmanId]);
     const selectedAccount = useMemo(() => Array.isArray(accounts) ? accounts.find(a => a.id.toString() === selectedAccountId) : undefined, [accounts, selectedAccountId]);
@@ -104,13 +106,14 @@ export function useSalesOrder() {
     // Initial Data Fetch
     useEffect(() => {
         const init = async () => {
-            const [sm, sup, br, pt, rec, ops] = await Promise.all([
+            const [sm, sup, br, pt, rec, ops, pterms] = await Promise.all([
                 salesOrderProvider.getSalesmen(),
                 salesOrderProvider.getSuppliers(),
                 salesOrderProvider.getBranches(),
                 salesOrderProvider.getPriceTypes(),
                 fetch("/api/crm/customer-hub/create-sales-order?action=invoice_types").then(r => r.json()),
-                fetch("/api/crm/customer-hub/create-sales-order?action=operations").then(r => r.json())
+                fetch("/api/crm/customer-hub/create-sales-order?action=operations").then(r => r.json()),
+                fetch("/api/crm/customer-hub/create-sales-order?action=payment_terms").then(r => r.json())
             ]);
 
             const smArray = Array.isArray(sm) ? sm : [];
@@ -121,6 +124,7 @@ export function useSalesOrder() {
             setPriceTypeModels(Array.isArray(pt) ? pt : []);
             setReceiptTypes(Array.isArray(rec) ? rec : []);
             setSalesTypes(Array.isArray(ops) ? ops : []);
+            setPaymentTermsList(Array.isArray(pterms) ? pterms : []);
 
             if (Array.isArray(rec) && rec.length > 0) setSelectedReceiptTypeId(rec[0].id.toString());
             if (Array.isArray(ops) && ops.length > 0) setSelectedSalesTypeId(ops[0].id.toString());
@@ -194,7 +198,7 @@ export function useSalesOrder() {
                                         setSelectedSalesmanId(uidStr);
                                         const accts = await fetch(`${salesOrderProvider.API_BASE}?action=accounts&user_id=${uidStr}`).then(r => r.json());
                                         setAccounts(accts);
-                                        
+
                                         if (sIdStr) {
                                             setSelectedAccountId(sIdStr);
                                             console.log(`[useSalesOrder] Auto-selected Account ID from attachment: ${sIdStr}`);
@@ -274,7 +278,7 @@ export function useSalesOrder() {
                                         setAccounts(accts);
                                         setSelectedAccountId(header.salesman_id.toString());
                                     }
-                                    
+
                                     // If the order header lacks a price_type_id, fallback to the salesman's assigned price type
                                     if (!header.price_type_id && smUser.price_type_id) {
                                         header.price_type_id = smUser.price_type_id;
@@ -291,7 +295,7 @@ export function useSalesOrder() {
                             }
 
                             if (header.payment_terms !== undefined) setPaymentTerms(header.payment_terms);
-                            
+
                             if (header.price_type_id) {
                                 const pTIdNum = Number(header.price_type_id);
                                 setPriceTypeId(pTIdNum);
@@ -476,7 +480,6 @@ export function useSalesOrder() {
                     const linkedId = masterUser.linked_account_ids[0].toString();
                     const linkedAccount = data.find((a: Salesman) => a.id.toString() === linkedId);
                     console.log(`[handleSalesmanChange] Master User ${id} has one linked account for this customer: ${linkedId}. Auto-selecting...`);
-                    
                     // PASS THE FRESH DATA DIRECTLY to avoid React state delay
                     handleAccountChange(linkedId, linkedAccount);
                 }
@@ -553,10 +556,10 @@ export function useSalesOrder() {
                     const uid = (sm.user_id || sm.id)?.toString();
                     if (uid && (!selectedSalesmanId || !isCurrentValid)) {
                         console.log(`[handleCustomerChange] Single salesman detected: ${uid}. Auto-selecting...`);
-                        
+
                         // Set Master User
                         setSelectedSalesmanId(uid);
-                        
+
                         // Fetch all accounts for this user so the dropdown is ready
                         const res = await fetch(`/api/crm/customer-hub/create-sales-order?action=accounts&user_id=${uid}`);
                         const acctsData = await res.json();
@@ -570,7 +573,7 @@ export function useSalesOrder() {
                             handleAccountChange(aid, linkedAccount);
                         }
                     }
-                } 
+                }
                 // --- SCENARIO B: Current user no longer valid or multiple options ---
                 else if (!isCurrentValid) {
                     setSelectedSalesmanId("");
@@ -591,7 +594,7 @@ export function useSalesOrder() {
             setAccounts([]);
         }
     };
-    
+
     const handlePriceTypeIdChange = (id: string) => {
         const nid = id ? Number(id) : null;
         setPriceTypeId(nid);
@@ -1009,7 +1012,7 @@ export function useSalesOrder() {
         summary, isValidAllocation,
         isCheckout, setIsCheckout, orderNo, previewOrderNo, enterCheckout, allocatedQuantities, updateAllocatedQty,
         orderRemarks, setOrderRemarks,
-        paymentTerms, setPaymentTerms,
+        paymentTerms, setPaymentTerms, paymentTermsList,
         handlePriceTypeIdChange,
         handleSubmitOrder, submitting,
         existingOrderId, existingOrderStatus
