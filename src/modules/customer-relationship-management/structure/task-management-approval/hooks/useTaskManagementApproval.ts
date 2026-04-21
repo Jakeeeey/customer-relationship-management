@@ -222,18 +222,20 @@ export const useTaskManagementApproval = () => {
         // 4. Map with details and progress
         return targets.map(t => {
             const customer = data.customers.find(c => c.id === t.customer_id);
+            const targetAmount = Number(t.target_amount || 0);
             const assignedAmount = currentMonthActions
                 .filter(ap => ap.customer_id === t.customer_id)
-                .reduce((sum, ap) => sum + (ap.sales_amount || 0), 0);
+                .reduce((sum, ap) => sum + Number(ap.sales_amount || 0), 0);
             
             return {
                 ...t,
+                target_amount: targetAmount,
                 customer_name: customer?.customer_name || "Unknown Customer",
                 store_name: customer?.store_name || "Unknown Store",
                 customer_code: customer?.customer_code || "N/A",
                 assignedAmount,
-                isFullyAllocated: assignedAmount >= t.target_amount && t.target_amount > 0,
-                remainingAmount: Math.max(0, t.target_amount - assignedAmount)
+                isFullyAllocated: assignedAmount >= targetAmount && targetAmount > 0,
+                remainingAmount: Math.max(0, targetAmount - assignedAmount)
             };
         });
     }, [data, selectedSalesmanId, currentDate]);
@@ -248,7 +250,8 @@ export const useTaskManagementApproval = () => {
                 salesman_id: parseInt(selectedSalesmanId),
                 employee_id: salesman.employee_id,
                 month: getMonth(currentDate) + 1,
-                year: getYear(currentDate)
+                year: getYear(currentDate),
+                created_by: data.currentUserId!
             });
             return newMcp;
         } catch {
@@ -314,9 +317,12 @@ export const useTaskManagementApproval = () => {
                 employee_id: salesman?.employee_id,
                 date: date,
                 sales_amount: amount,
-                approval_status: "approved", // Supervisors' assignments are auto-approved
+                approval_status: "pending", // Supervisors' assignments are pending for final review/visibility
                 priority_level: "mid",
-                additional_description: "Sales Target Allocation"
+                additional_description: "Sales Target Allocation",
+                is_completed: 0,
+                created_at: new Date().toISOString(),
+                created_by: data.currentUserId
             };
 
             const result = await createDailyActionPlan(payload);

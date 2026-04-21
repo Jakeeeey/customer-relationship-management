@@ -129,6 +129,77 @@ export const AllocationSidePanel: React.FC<AllocationSidePanelProps> = ({
     );
 };
 
+export const CustomerTargetCard = ({ alloc, isDragging }: { alloc: CustomerAllocation; isDragging?: boolean }) => {
+    return (
+        <div
+            className={cn(
+                "group/item relative p-3 rounded-xl border transition-all duration-300",
+                isDragging ? "ring-2 ring-primary bg-background shadow-2xl scale-105" : "bg-background/40 hover:bg-background/60",
+                alloc.isFullyAllocated 
+                    ? "border-emerald-500/50 bg-emerald-500/10 hover:bg-emerald-500/20 shadow-lg shadow-emerald-500/5" 
+                    : "border-primary/5 hover:border-primary/20"
+            )}
+        >
+            <div className="flex justify-between items-start gap-3">
+                <div className="flex flex-col min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5">
+                        <span className={cn(
+                            "text-[10px] font-black uppercase leading-[1.3] line-clamp-2 flex-1",
+                            alloc.isFullyAllocated ? "text-emerald-700 dark:text-emerald-400" : "text-foreground"
+                        )}>
+                            {alloc.store_name}
+                        </span>
+                        {alloc.isFullyAllocated && (
+                            <CheckCircle2 className="w-3 h-3 text-emerald-500 shrink-0 mt-0.5" />
+                        )}
+                    </div>
+                    <span className="text-[8px] font-bold text-muted-foreground/60 uppercase tracking-tighter mt-1">
+                        {alloc.customer_code}
+                    </span>
+                    
+                    {/* Progress indicator */}
+                    <div className="mt-3 space-y-1.5">
+                        <div className="flex justify-between items-end text-[7px] font-black uppercase tracking-widest">
+                            <div className="flex flex-col gap-0.5">
+                                <span className="text-muted-foreground/40 text-[6px]">Current Allocation</span>
+                                <span className={alloc.isFullyAllocated ? "text-emerald-600" : "text-foreground/80"}>
+                                    ₱{alloc.assignedAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                </span>
+                            </div>
+                            {!alloc.isFullyAllocated && alloc.remainingAmount > 0 && (
+                                <div className="text-right flex flex-col gap-0.5">
+                                    <span className="text-primary/40 text-[6px]">Remaining</span>
+                                    <span className="text-primary">
+                                        ₱{alloc.remainingAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                    </span>
+                                </div>
+                            )}
+                        </div>
+                        <div className="w-full h-1.5 bg-black/5 rounded-full overflow-hidden border border-black/5">
+                            <div 
+                                className={cn(
+                                    "h-full transition-all duration-700 ease-out",
+                                    alloc.isFullyAllocated ? "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]" : "bg-primary/40"
+                                )}
+                                style={{ width: `${Math.min(100, (alloc.assignedAmount / alloc.target_amount) * 100)}%` }}
+                            />
+                        </div>
+                    </div>
+                </div>
+                <div className="text-right shrink-0 flex flex-col items-end pt-0.5">
+                    <span className="text-[6px] font-black text-muted-foreground/30 uppercase tracking-[0.2em] mb-0.5">Target</span>
+                    <span className={cn(
+                        "text-[10px] font-black italic whitespace-nowrap",
+                        alloc.isFullyAllocated ? "text-emerald-600" : "text-primary"
+                    )}>
+                        ₱{alloc.target_amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                    </span>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 const DraggableCustomerCard = ({ alloc }: { alloc: CustomerAllocation }) => {
     const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
         id: `customer-${alloc.customer_id}`,
@@ -145,62 +216,11 @@ const DraggableCustomerCard = ({ alloc }: { alloc: CustomerAllocation }) => {
             {...listeners}
             {...attributes}
             className={cn(
-                "group/item relative p-3 rounded-xl border transition-all duration-300 cursor-grab active:cursor-grabbing",
-                isDragging ? "opacity-30 z-50 ring-2 ring-primary bg-background shadow-2xl scale-105" : "bg-background/40 hover:bg-background/60",
-                alloc.isFullyAllocated 
-                    ? "border-emerald-500/50 bg-emerald-500/10 hover:bg-emerald-500/20 shadow-lg shadow-emerald-500/5" 
-                    : "border-primary/5 hover:border-primary/20"
+                "cursor-grab active:cursor-grabbing transition-opacity",
+                isDragging && "opacity-0"
             )}
         >
-            <div className="flex justify-between items-start gap-3">
-                <div className="flex flex-col min-w-0 flex-1">
-                    <div className="flex items-center gap-1.5">
-                        <span className={cn(
-                            "text-[10px] font-black uppercase leading-tight truncate",
-                            alloc.isFullyAllocated ? "text-emerald-700 dark:text-emerald-400" : "text-foreground"
-                        )}>
-                            {alloc.store_name}
-                        </span>
-                        {alloc.isFullyAllocated && (
-                            <CheckCircle2 className="w-3 h-3 text-emerald-500 shrink-0" />
-                        )}
-                    </div>
-                    <span className="text-[8px] font-bold text-muted-foreground/60 uppercase tracking-tighter mt-0.5">
-                        {alloc.customer_code}
-                    </span>
-                    
-                    {/* Progress indicator */}
-                    <div className="mt-2 space-y-1">
-                        <div className="flex justify-between text-[7px] font-bold uppercase tracking-wider">
-                            <span className={alloc.isFullyAllocated ? "text-emerald-600/60" : "text-muted-foreground/40"}>
-                                Allocated: ₱{alloc.assignedAmount.toLocaleString()}
-                            </span>
-                        </div>
-                        <div className="w-full h-1 bg-black/5 rounded-full overflow-hidden">
-                            <div 
-                                className={cn(
-                                    "h-full transition-all duration-500",
-                                    alloc.isFullyAllocated ? "bg-emerald-500" : "bg-primary/40"
-                                )}
-                                style={{ width: `${Math.min(100, (alloc.assignedAmount / alloc.target_amount) * 100)}%` }}
-                            />
-                        </div>
-                    </div>
-                </div>
-                <div className="text-right shrink-0">
-                    <span className={cn(
-                        "text-[10px] font-black italic whitespace-nowrap",
-                        alloc.isFullyAllocated ? "text-emerald-600" : "text-primary"
-                    )}>
-                        ₱{alloc.target_amount.toLocaleString()}
-                    </span>
-                    {alloc.remainingAmount > 0 && !alloc.isFullyAllocated && (
-                        <div className="text-[7px] font-black text-primary/40 mt-1 uppercase italic">
-                            -₱{alloc.remainingAmount.toLocaleString()}
-                        </div>
-                    )}
-                </div>
-            </div>
+            <CustomerTargetCard alloc={alloc} isDragging={isDragging} />
         </div>
     );
 };
