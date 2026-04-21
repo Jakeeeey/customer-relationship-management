@@ -20,7 +20,6 @@ import { useDraggable } from "@dnd-kit/core";
 import { cn } from "@/lib/utils";
 import { CheckCircle2 } from "lucide-react";
 import { CustomerAllocation } from "../types";
-import { toast } from "sonner";
 
 interface AllocationSidePanelProps {
     customerAllocations: CustomerAllocation[];
