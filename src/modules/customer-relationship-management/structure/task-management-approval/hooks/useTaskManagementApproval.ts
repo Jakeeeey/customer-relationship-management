@@ -241,9 +241,9 @@ export const useTaskManagementApproval = () => {
     }, [data, selectedSalesmanId, currentDate]);
 
     const handleCreateMCP = async () => {
-        if (!selectedSalesmanId || !selectedEmployeeId) return undefined;
+        if (!data || !data.currentUserId || !selectedSalesmanId || !selectedEmployeeId) return undefined;
         try {
-            const salesman = data?.salesmen.find(s => String(s.id) === selectedSalesmanId);
+            const salesman = data.salesmen.find(s => String(s.id) === selectedSalesmanId);
             if (!salesman) throw new Error("Salesman not found");
 
             const newMcp = await createMCP({
@@ -251,7 +251,7 @@ export const useTaskManagementApproval = () => {
                 employee_id: salesman.employee_id,
                 month: getMonth(currentDate) + 1,
                 year: getYear(currentDate),
-                created_by: data.currentUserId!
+                created_by: data.currentUserId
             });
             return newMcp;
         } catch {
