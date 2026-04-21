@@ -4,15 +4,10 @@ import { ChangePasswordService } from "@/modules/customer-relationship-managemen
 
 export const dynamic = "force-dynamic";
 
-/**
- * POST /api/hrm/change-password
- * Handles password change requests by delegating to the ChangePasswordService.
- */
 export async function POST(req: NextRequest) {
     try {
         const body = await req.json();
 
-        // 1. Validate payload
         const validation = ChangePasswordSchema.safeParse(body);
         if (!validation.success) {
             return NextResponse.json(
@@ -25,7 +20,6 @@ export async function POST(req: NextRequest) {
             );
         }
 
-        // 2. Call service
         const { oldPassword, newPassword } = validation.data;
         const result = await ChangePasswordService.changePassword({ oldPassword, newPassword });
 
