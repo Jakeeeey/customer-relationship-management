@@ -20,6 +20,7 @@ import { useDraggable } from "@dnd-kit/core";
 import { cn } from "@/lib/utils";
 import { CheckCircle2 } from "lucide-react";
 import { CustomerAllocation } from "../types";
+import { toast } from "sonner";
 
 interface AllocationSidePanelProps {
     customerAllocations: CustomerAllocation[];
@@ -136,8 +137,8 @@ export const CustomerTargetCard = ({ alloc, isDragging }: { alloc: CustomerAlloc
                 "group/item relative p-3 rounded-xl border transition-all duration-300",
                 isDragging ? "ring-2 ring-primary bg-background shadow-2xl scale-105" : "bg-background/40 hover:bg-background/60",
                 alloc.isFullyAllocated 
-                    ? "border-emerald-500/50 bg-emerald-500/10 hover:bg-emerald-500/20 shadow-lg shadow-emerald-500/5" 
-                    : "border-primary/5 hover:border-primary/20"
+                    ? "border-emerald-500/50 bg-emerald-500/5 shadow-lg shadow-emerald-500/5 cursor-not-allowed opacity-80" 
+                    : "border-primary/5 hover:border-primary/20 cursor-grab active:cursor-grabbing"
             )}
         >
             <div className="flex justify-between items-start gap-3">
@@ -149,9 +150,12 @@ export const CustomerTargetCard = ({ alloc, isDragging }: { alloc: CustomerAlloc
                         )}>
                             {alloc.store_name}
                         </span>
-                        {alloc.isFullyAllocated && (
-                            <CheckCircle2 className="w-3 h-3 text-emerald-500 shrink-0 mt-0.5" />
-                        )}
+                        {alloc.isFullyAllocated ? (
+                            <div className="flex items-center gap-1 bg-emerald-500/20 px-1.5 py-0.5 rounded-md border border-emerald-500/30">
+                                <span className="text-[7px] font-black text-emerald-600 uppercase tracking-tighter">Target Reached</span>
+                                <CheckCircle2 className="w-2.5 h-2.5 text-emerald-500 shrink-0" />
+                            </div>
+                        ) : null}
                     </div>
                     <span className="text-[8px] font-bold text-muted-foreground/60 uppercase tracking-tighter mt-1">
                         {alloc.customer_code}
@@ -203,6 +207,7 @@ export const CustomerTargetCard = ({ alloc, isDragging }: { alloc: CustomerAlloc
 const DraggableCustomerCard = ({ alloc }: { alloc: CustomerAllocation }) => {
     const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
         id: `customer-${alloc.customer_id}`,
+        disabled: alloc.isFullyAllocated
     });
 
     const style = transform ? {
@@ -216,7 +221,7 @@ const DraggableCustomerCard = ({ alloc }: { alloc: CustomerAllocation }) => {
             {...listeners}
             {...attributes}
             className={cn(
-                "cursor-grab active:cursor-grabbing transition-opacity",
+                "transition-opacity",
                 isDragging && "opacity-0"
             )}
         >

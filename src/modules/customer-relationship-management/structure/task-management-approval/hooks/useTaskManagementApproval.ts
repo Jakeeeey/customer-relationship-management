@@ -275,22 +275,40 @@ export const useTaskManagementApproval = () => {
     const handleSetDailyTarget = async (customerId: number, date: string, amount: number) => {
         if (!data) return false;
 
-        try {
-            // 1. Identify "Sales" Task ID
-            const salesTask = data.tasks.find(t => t.name.toLowerCase() === "sales");
-            if (!salesTask) {
-                toast.error("Required task type 'Sales' not found in system");
+        // 1. Identify "Sales" Task ID
+        const salesTask = data.tasks.find(t => t.name.toLowerCase() === "sales");
+        if (!salesTask) {
+            toast.error("Required task type 'Sales' not found in system");
+            return false;
+        }
+
+        // 2. Find existing task on that day for this customer (if any)
+        const existing = data.actionPlans.find(ap => 
+            ap.customer_id === customerId && 
+            ap.date === date && 
+            ap.task_id === salesTask.id &&
+            String(ap.salesman_id) === selectedSalesmanId
+        );
+
+        // 3. Validation: Check if this new amount would exceed the total target
+        const allocation = customerAllocations.find(a => a.customer_id === customerId);
+        if (allocation) {
+            // Calculate what the new total would be
+            const currentTotal = allocation.assignedAmount;
+            const existingDayAmount = existing ? Number(existing.sales_amount || 0) : 0;
+            const projectedTotal = currentTotal - existingDayAmount + amount;
+
+            if (projectedTotal > allocation.target_amount) {
+                const maxAllowedForThisDay = allocation.target_amount - (currentTotal - existingDayAmount);
+                toast.error("Target Exceeded", {
+                    description: `Total target is ₱${allocation.target_amount.toLocaleString()}. Current total elsewhere is ₱${(currentTotal - existingDayAmount).toLocaleString()}. Max you can set for this day is ₱${maxAllowedForThisDay.toLocaleString()}.`,
+                    duration: 6000
+                });
                 return false;
             }
+        }
 
-            // 2. Check for existing task on that day for this customer
-            const existing = data.actionPlans.find(ap => 
-                ap.customer_id === customerId && 
-                ap.date === date && 
-                ap.task_id === salesTask.id &&
-                String(ap.salesman_id) === selectedSalesmanId
-            );
-
+        try {
             if (existing) {
                 return await handleUpdateTask(existing.id, { sales_amount: amount });
             }
