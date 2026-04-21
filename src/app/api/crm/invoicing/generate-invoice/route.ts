@@ -128,6 +128,29 @@ export async function POST(req: NextRequest) {
             }
         }
 
+        // 1d. Resolve payment_days from source of truth (DB)
+        let verifiedPaymentDays = 0;
+        const pt = order.payment_terms;
+        const paymentTermsId = pt && typeof pt === "object" ? (pt.id || null) : (pt || null);
+
+        if (paymentTermsId) {
+            try {
+                const ptRes = await fetch(`${DIRECTUS_BASE}/items/payment_terms/${paymentTermsId}?fields=payment_days`, {
+                    headers: directusHeaders()
+                });
+                if (ptRes.ok) {
+                    const ptData = await ptRes.json();
+                    verifiedPaymentDays = ptData.data?.payment_days || 0;
+                } else {
+                    console.warn(`[PaymentTerms] Failed to fetch terms for ID ${paymentTermsId}, falling back to payload.`);
+                    verifiedPaymentDays = pt && typeof pt === "object" ? (pt.payment_days || 0) : 0;
+                }
+            } catch (e) {
+                console.warn("[PaymentTerms] Error resolving payment_days from DB, falling back to payload:", e);
+                verifiedPaymentDays = pt && typeof pt === "object" ? (pt.payment_days || 0) : 0;
+            }
+        }
+
         // Iterate through each receipt generated
         for (const receipt of receipts) {
             // ── Skip Void Reference Receipt ──
@@ -145,13 +168,8 @@ export async function POST(req: NextRequest) {
             const isReceipt = isOfficial ? 1 : 0;
             const vatAmount = isOfficial ? (netAmount / 1.12) * 0.12 : 0;
 
-            // Calculate Due Date based on payment terms (days)
-            const pt = order.payment_terms;
-            const paymentTermsId = pt && typeof pt === "object" ? (pt.id || null) : (pt || null);
-            const paymentDays = pt && typeof pt === "object" ? (pt.payment_days || 0) : 0;
-
             const dueDate = new Date();
-            dueDate.setDate(dueDate.getDate() + paymentDays);
+            dueDate.setDate(dueDate.getDate() + verifiedPaymentDays);
 
             // 2. Create or Update sales_invoice
             let targetInvoiceId = null;
@@ -186,7 +204,72 @@ export async function POST(req: NextRequest) {
                 const targetId = receipt.target_id || order.existing_invoice_no;
 
                 if (targetId) {
-                    // ── Update existing invoice (Voided or Recycled) ──
+                    // ── A. Adjust Inventory before replacing (VOID/Recycled) ──
+                    // Fetch old details to subtract from served/applied quantities and get IDs for explicit cleanup
+                    const oldDetailIds: number[] = [];
+                    try {
+                        const oldDetailsRes = await fetch(`${DIRECTUS_BASE}/items/sales_invoice_details?filter[invoice_no][_eq]=${targetId}&fields=detail_id,product_id,quantity`, {
+                            headers: directusHeaders()
+                        });
+                        if (oldDetailsRes.ok) {
+                            const oldDetailsData = await oldDetailsRes.json();
+                            const oldItems = oldDetailsData.data || [];
+
+                            for (const oldItem of oldItems) {
+                                if (oldItem.detail_id) oldDetailIds.push(oldItem.detail_id);
+                                
+                                // Subtract from sales_order_details
+                                try {
+                                    const podRes = await fetch(`${DIRECTUS_BASE}/items/sales_order_details?filter[order_id][_eq]=${order.order_id}&filter[product_id][_eq]=${oldItem.product_id}`, {
+                                        headers: directusHeaders()
+                                    });
+                                    if (podRes.ok) {
+                                        const podData = await podRes.json();
+                                        if (podData.data && podData.data.length > 0) {
+                                            const detailId = podData.data[0].detail_id;
+                                            const currentServed = podData.data[0].served_quantity || 0;
+                                            const adjustedServed = Math.max(0, currentServed - oldItem.quantity);
+                                            await fetch(`${DIRECTUS_BASE}/items/sales_order_details/${detailId}`, {
+                                                method: 'PATCH',
+                                                headers: directusHeaders(),
+                                                body: JSON.stringify({ served_quantity: adjustedServed })
+                                            });
+                                        }
+                                    }
+                                } catch (e) {
+                                    console.warn(`Failed to subtract served_quantity for product ${oldItem.product_id}:`, e);
+                                }
+
+                                // Subtract from consolidator_details
+                                if (consolidatorId) {
+                                    try {
+                                        const cdRes = await fetch(`${DIRECTUS_BASE}/items/consolidator_details?filter[consolidator_id][_eq]=${consolidatorId}&filter[product_id][_eq]=${oldItem.product_id}&limit=1`, {
+                                            headers: directusHeaders()
+                                        });
+                                        if (cdRes.ok) {
+                                            const cdData = await cdRes.json();
+                                            if (cdData.data && cdData.data.length > 0) {
+                                                const cdRecord = cdData.data[0];
+                                                const currentApplied = cdRecord.applied_quantity || 0;
+                                                const adjustedApplied = Math.max(0, currentApplied - oldItem.quantity);
+                                                await fetch(`${DIRECTUS_BASE}/items/consolidator_details/${cdRecord.id}`, {
+                                                    method: 'PATCH',
+                                                    headers: directusHeaders(),
+                                                    body: JSON.stringify({ applied_quantity: adjustedApplied })
+                                                });
+                                            }
+                                        }
+                                    } catch (e) {
+                                        console.warn(`Failed to subtract applied_quantity for product ${oldItem.product_id}:`, e);
+                                    }
+                                }
+                            }
+                        }
+                    } catch (e) {
+                        console.warn("Failed to process quantity adjustment for VOID replacement:", e);
+                    }
+
+                    // ── B. Update existing invoice (Voided or Recycled) ──
                     const patchRes = await fetch(`${DIRECTUS_BASE}/items/sales_invoice/${targetId}`, {
                         method: 'PATCH',
                         headers: directusHeaders(),
@@ -196,10 +279,19 @@ export async function POST(req: NextRequest) {
                     targetInvoiceId = targetId;
                     
                     // Clear old details for this invoice before adding new ones
-                    await fetch(`${DIRECTUS_BASE}/items/sales_invoice_details?filter[invoice_no][_eq]=${targetInvoiceId}`, {
-                        method: 'DELETE',
-                        headers: directusHeaders()
-                    });
+                    // Use explicit IDs if available, otherwise fallback to filter
+                    if (oldDetailIds.length > 0) {
+                        await fetch(`${DIRECTUS_BASE}/items/sales_invoice_details`, {
+                            method: 'DELETE',
+                            headers: directusHeaders(),
+                            body: JSON.stringify(oldDetailIds)
+                        });
+                    } else {
+                        await fetch(`${DIRECTUS_BASE}/items/sales_invoice_details?filter[invoice_no][_eq]=${targetInvoiceId}`, {
+                            method: 'DELETE',
+                            headers: directusHeaders()
+                        });
+                    }
                 } else {
                     // ── Create new invoice ──
                     invoicePayload.created_by = createdBy;

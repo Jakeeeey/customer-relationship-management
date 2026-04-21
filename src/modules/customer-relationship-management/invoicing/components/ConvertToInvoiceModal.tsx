@@ -1864,7 +1864,9 @@ export const ConvertToInvoiceModal: React.FC<ConvertToInvoiceModalProps> = ({
                         </div>
                         <h3 className="text-xl font-black uppercase tracking-widest">Confirm Print?</h3>
                         <p className="text-primary-foreground/80 text-center text-xs mt-2 font-medium">
-                            You are about to generate <span className="font-bold text-white">{receipts.length} invoice(s)</span>. This will update the order and is irreversible.
+                            You are about to generate <span className="font-bold text-white">
+                                {receipts.filter(r => !r.is_void_reference).length} invoice(s)
+                            </span>. This will update the order and is irreversible.
                         </p>
                     </div>
 
@@ -1873,7 +1875,10 @@ export const ConvertToInvoiceModal: React.FC<ConvertToInvoiceModalProps> = ({
                             <div className="flex justify-between items-center">
                                 <span className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider">Total Amount</span>
                                 <span className="font-black text-primary text-xl tracking-tighter">
-                                    ₱{conversionData?.items.reduce((sum, item) => sum + item.net_amount, 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                    ₱{receipts
+                                        .filter(r => !r.is_void_reference)
+                                        .reduce((sum, r) => sum + r.items.reduce((iSum, item) => iSum + item.net_amount, 0), 0)
+                                        .toLocaleString(undefined, { minimumFractionDigits: 2 })}
                                 </span>
                             </div>
                         </div>
