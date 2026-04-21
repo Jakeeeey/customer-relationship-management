@@ -53,8 +53,9 @@ export async function GET(req: NextRequest) {
             "salesman_id.price_type",
             "branch_id.id",
             "branch_id.branch_name",
-            "payment_terms.id",
-            "payment_terms.payment_days",
+            "payment_terms",
+            "payment_terms.*",
+            "due_date",
             "sales_type",
             "created_date",
             "total_amount",
@@ -116,7 +117,7 @@ export async function GET(req: NextRequest) {
             if (invoiceRes.ok) {
                 const invoiceData = await invoiceRes.json();
                 for (const inv of (invoiceData.data || [])) {
-                    if (inv.transaction_status === "Void") {
+                    if (inv.transaction_status?.toUpperCase() === "VOID") {
                         // Void takes priority — it's a re-invoicing situation
                         const list = voidInvoiceMap.get(inv.order_id) || [];
                         list.push({ invoice_id: inv.invoice_id, invoice_no: inv.invoice_no });

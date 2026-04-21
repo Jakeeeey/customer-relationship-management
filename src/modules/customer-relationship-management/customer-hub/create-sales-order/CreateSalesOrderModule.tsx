@@ -1,16 +1,19 @@
 "use client";
 
+import React from "react";
 import { useSalesOrder } from "./hooks/useSalesOrder";
 import { SalesOrderHeader } from "./components/SalesOrderHeader";
 import { SalesOrderEncoding } from "./components/SalesOrderEncoding";
 import { SalesOrderCheckout } from "./components/SalesOrderCheckout";
-import { Loader2, PackagePlus } from "lucide-react";
+import { Loader2, PackagePlus, FileText, ExternalLink } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
-export default function CreateSalesOrderModule() {
+export default function CreateSalesOrderModule({ documentViewerUrl }: { documentViewerUrl?: string | null }) {
     const {
         salesmen, selectedSalesmanId, handleSalesmanChange, selectedSalesman,
         accounts, handleAccountChange, selectedAccount, loadingAccounts,
         customers, selectedCustomerId, handleCustomerChange, selectedCustomer, loadingCustomers,
+        customerSearch, setCustomerSearch, hasMoreCustomers, loadingMoreCustomers, loadMoreCustomers,
         suppliers, selectedSupplierId, handleSupplierChange, selectedSupplier, loadingSuppliers,
         branches, selectedBranchId, setSelectedBranchId, selectedBranch,
         receiptTypes, selectedReceiptTypeId, setSelectedReceiptTypeId, selectedReceiptType,
@@ -18,13 +21,16 @@ export default function CreateSalesOrderModule() {
         dueDate, setDueDate,
         deliveryDate, setDeliveryDate,
         poNo, setPoNo,
-        priceType, priceTypeId, priceTypeModels,
+        priceTypeId, priceTypeModels,
         supplierProducts, loadingProducts,
         lineItems, addProduct, removeLineItem, updateLineItemQty,
-        summary, isValidAllocation,
+        summary,
         isCheckout, setIsCheckout, orderNo, previewOrderNo, enterCheckout, allocatedQuantities, updateAllocatedQty,
         orderRemarks, setOrderRemarks,
-        handleSubmitOrder, submitting
+        paymentTerms, paymentTermsList,
+        handlePriceTypeIdChange,
+        handleSubmitOrder, submitting,
+        existingOrderId, existingOrderStatus
     } = useSalesOrder();
 
     if (salesmen.length === 0 && !loadingAccounts) {
@@ -34,6 +40,11 @@ export default function CreateSalesOrderModule() {
             </div>
         );
     }
+
+    const openSourceDoc = () => {
+        if (!documentViewerUrl) return;
+        window.open(documentViewerUrl, "DocumentViewer", "width=1200,height=900,menubar=no,toolbar=no,location=no,status=no,resizable=yes,scrollbars=yes");
+    };
 
     return (
         <div className="w-full flex flex-col gap-8 animate-in slide-in-from-bottom duration-700">
@@ -45,10 +56,27 @@ export default function CreateSalesOrderModule() {
                             <PackagePlus className="h-7 w-7" />
                         </div>
                         <div>
-                            <h1 className="text-3xl font-black tracking-tighter text-slate-900">Create Sales Order</h1>
-                            <p className="text-sm text-muted-foreground font-medium">Generate new sales transactions and manage allocation</p>
+                            <h1 className="text-3xl font-black tracking-tighter text-slate-900">
+                                {existingOrderId ? "Update Sales Order" : "Create Sales Order"}
+                            </h1>
+                            <p className="text-sm text-muted-foreground font-medium">
+                                {existingOrderId ? "Refine existing order allocation and details" : "Generate new sales transactions and manage allocation"}
+                            </p>
                         </div>
                     </div>
+
+                    {documentViewerUrl && (
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-11 px-5 gap-2 shadow-sm font-bold border-primary/20 text-primary hover:bg-primary/5 transition-all active:scale-95 shrink-0"
+                            onClick={openSourceDoc}
+                        >
+                            <FileText className="h-4 w-4" />
+                            <span>View Document</span>
+                            <ExternalLink className="h-3.5 w-3.5 opacity-50" />
+                        </Button>
+                    )}
                 </div>
             )}
 
@@ -62,9 +90,10 @@ export default function CreateSalesOrderModule() {
                     onBack={() => setIsCheckout(false)}
                     onConfirm={handleSubmitOrder}
                     submitting={submitting}
-                    isValidAllocation={isValidAllocation}
                     orderRemarks={orderRemarks}
                     setOrderRemarks={setOrderRemarks}
+                    isExistingOrder={!!existingOrderId}
+                    existingOrderStatus={existingOrderStatus}
                     header={{
                         salesman: salesmen.find(s => (s.user_id || s.id)?.toString() === selectedSalesmanId) || null,
                         account: selectedAccount || null,
@@ -75,7 +104,9 @@ export default function CreateSalesOrderModule() {
                         salesType: selectedSalesType || null,
                         dueDate,
                         deliveryDate,
-                        poNo
+                        poNo,
+                        paymentTerms,
+                        paymentTermsList
                     }}
                 />
             ) : (
@@ -95,6 +126,11 @@ export default function CreateSalesOrderModule() {
                         selectedCustomer={selectedCustomer}
                         loadingCustomers={loadingCustomers}
                         onCustomerChange={handleCustomerChange}
+                        customerSearch={customerSearch}
+                        onCustomerSearchChange={setCustomerSearch}
+                        loadingMoreCustomers={loadingMoreCustomers}
+                        onLoadMoreCustomers={loadMoreCustomers}
+                        hasMoreCustomers={hasMoreCustomers}
 
                         suppliers={suppliers}
                         selectedSupplier={selectedSupplier}
@@ -122,10 +158,12 @@ export default function CreateSalesOrderModule() {
                         poNo={poNo}
                         onPoNoChange={setPoNo}
 
-                        priceType={priceType}
                         priceTypeId={priceTypeId}
                         priceTypeModels={priceTypeModels}
+                        onPriceTypeChange={handlePriceTypeIdChange}
                         previewOrderNo={previewOrderNo}
+                        paymentTerms={paymentTerms}
+                        paymentTermsList={paymentTermsList}
                     />
 
                     {/* Encoding & Cart Section */}

@@ -146,7 +146,10 @@ export async function POST(req: NextRequest) {
             const vatAmount = isOfficial ? (netAmount / 1.12) * 0.12 : 0;
 
             // Calculate Due Date based on payment terms (days)
-            const paymentDays = order.payment_terms?.payment_days || 0;
+            const pt = order.payment_terms;
+            const paymentTermsId = pt && typeof pt === "object" ? (pt.id || null) : (pt || null);
+            const paymentDays = pt && typeof pt === "object" ? (pt.payment_days || 0) : 0;
+
             const dueDate = new Date();
             dueDate.setDate(dueDate.getDate() + paymentDays);
 
@@ -161,7 +164,7 @@ export async function POST(req: NextRequest) {
                     branch_id: order.branch_id?.id || null,
                     invoice_date: now,
                     due_date: dueDate.toISOString(),
-                    payment_terms: order.payment_terms?.id || null,
+                    payment_terms: paymentTermsId,
                     transaction_status: "Prepared", 
                     payment_status: "Unpaid",
                     total_amount: totalAmount,
@@ -172,7 +175,12 @@ export async function POST(req: NextRequest) {
                     discount_amount: discountAmount,
                     net_amount: netAmount,
                     isReceipt: isReceipt,
-                    vat_amount: vatAmount
+                    vat_amount: vatAmount,
+                    modified_by: createdBy,
+                    modified_date: now,
+                    isPosted: 0,
+                    isDispatched: 0,
+                    isRemitted: 0
                 };
 
                 const targetId = receipt.target_id || order.existing_invoice_no;

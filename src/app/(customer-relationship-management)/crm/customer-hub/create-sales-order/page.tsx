@@ -8,7 +8,7 @@ import {
 } from "@/components/ui/breadcrumb";
 import { Separator } from "@/components/ui/separator";
 import { SidebarTrigger } from "@/components/ui/sidebar";
-import { NavUser } from "../../_components/nav-user";
+import { NavUser } from "@/components/shared/app-sidebar/nav-user";
 
 import { cookies } from "next/headers";
 
@@ -70,12 +70,55 @@ function buildHeaderUserFromToken(token: string | null | undefined) {
     };
 }
 
-export default async function Page() {
+export default async function Page(props: {
+    searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+}) {
+    const searchParams = await props.searchParams;
+    const attachmentId = searchParams.attachment_id as string | undefined;
+
+    const orderId = searchParams.orderId as string | undefined;
+
     // ✅ Next.js 16: cookies() is async
     const cookieStore = await cookies();
     const token = cookieStore.get(COOKIE_NAME)?.value ?? null;
 
     const headerUser = buildHeaderUserFromToken(token);
+
+    let documentViewerUrl: string | null = null;
+
+    try {
+        const DIRECTUS_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
+        const DIRECTUS_TOKEN = process.env.DIRECTUS_STATIC_TOKEN;
+        const headers = { Authorization: `Bearer ${DIRECTUS_TOKEN}`, "Content-Type": "application/json" };
+
+        let targetFileId: string | null = null;
+        let targetFileName: string | null = null;
+
+        if (attachmentId) {
+            const res = await fetch(`${DIRECTUS_URL}/items/sales_order_attachment/${attachmentId}?fields=file_id,attachment_name`, { headers, cache: 'no-store' });
+            if (res.ok) {
+                const json = await res.json();
+                targetFileId = json.data?.file_id;
+                targetFileName = json.data?.attachment_name;
+            }
+        } else if (orderId) {
+            const res = await fetch(`${DIRECTUS_URL}/items/sales_order_attachment?filter[sales_order_id][_eq]=${orderId}&fields=file_id,attachment_name&limit=1`, { headers, cache: 'no-store' });
+            if (res.ok) {
+                const json = await res.json();
+                if (json.data && json.data.length > 0) {
+                    targetFileId = json.data[0].file_id;
+                    targetFileName = json.data[0].attachment_name;
+                }
+            }
+        }
+
+        if (targetFileId) {
+            documentViewerUrl = `/api/crm/customer-hub/callsheet/file?id=${targetFileId}`;
+            if (targetFileName) documentViewerUrl += `&filename=${encodeURIComponent(targetFileName)}`;
+        }
+    } catch (e) {
+        console.error("Failed to resolve file ID for Viewer:", e);
+    }
 
     return (
         // ✅ This fills the RIGHT column provided by SidebarInset (which is now fixed-height).
@@ -114,7 +157,7 @@ export default async function Page() {
 
             {/* ✅ Only content scrolls inside RIGHT column */}
             <main className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden p-6 sm:p-8">
-                <CreateSalesOrderModule />
+                <CreateSalesOrderModule documentViewerUrl={documentViewerUrl} />
             </main>
         </div>
     );

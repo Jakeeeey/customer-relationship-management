@@ -15,11 +15,13 @@ interface UseCallSheetReturn {
     search: string;
     customerCode: string;
     salesmanId: string;
+    status: string;
     setPage: (page: number) => void;
     setPageSize: (pageSize: number) => void;
     setSearch: (search: string) => void;
     setCustomerCode: (code: string) => void;
     setSalesmanId: (id: string) => void;
+    setStatus: (status: string) => void;
     refetch: () => Promise<void>;
 }
 
@@ -44,6 +46,7 @@ export function useCallSheet(): UseCallSheetReturn {
     const [search, setSearch] = useState("");
     const [customerCode, setCustomerCode] = useState("");
     const [salesmanId, setSalesmanId] = useState("");
+    const [status, setStatus] = useState("");
 
     const hasLoadedRef = useRef(false);
 
@@ -62,6 +65,7 @@ export function useCallSheet(): UseCallSheetReturn {
                 search,
                 customer_code: customerCode,
                 salesman_id: salesmanId,
+                status,
                 t: Date.now().toString(),
             });
 
@@ -88,7 +92,7 @@ export function useCallSheet(): UseCallSheetReturn {
         } finally {
             setIsLoading(false);
         }
-    }, [page, pageSize, search, customerCode, salesmanId]);
+    }, [page, pageSize, search, customerCode, salesmanId, status]);
 
     useEffect(() => {
         fetchData(true);
@@ -114,11 +118,13 @@ export function useCallSheet(): UseCallSheetReturn {
         search,
         customerCode,
         salesmanId,
+        status,
         setPage,
         setPageSize,
         setSearch,
         setCustomerCode,
         setSalesmanId,
+        setStatus,
         refetch,
     };
 }

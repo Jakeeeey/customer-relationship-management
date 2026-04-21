@@ -13,6 +13,14 @@ export interface Salesman {
     price_type_id?: number | null;
     branch_code?: number | null;
     status?: string;
+    linked_account_ids?: (number | string)[];
+}
+
+export interface PaymentTerm {
+    id: number;
+    payment_name: string;
+    payment_days: number;
+    payment_description?: string;
 }
 
 export interface Customer {
@@ -24,13 +32,16 @@ export interface Customer {
     price_type?: PriceType;
     price_type_id?: number | null;
     discount_type_id?: number;
+    payment_term?: number | null;
+    province?: string;
+    city?: string;
 }
 
 export interface Supplier {
     id: number | string;
     supplier_name: string;
     supplier_shortcut?: string;
-    trade_type?: "Trade" | "Non-Trade";
+    trade_type?: "TRADE" | "NON-TRADE";
 }
 
 export interface Product {
@@ -56,6 +67,7 @@ export interface Product {
     parent_product_name?: string;
     available_qty?: number | null;
     unit_count?: number | null;
+    discount_type?: number | string | null;
     [key: string]: unknown;
 }
 
@@ -70,6 +82,9 @@ export interface LineItem {
     netAmount: number;
     totalAmount: number;
     discountAmount: number;
+    savedNetAmount?: number;
+    savedDiscountAmount?: number;
+    savedAllocatedQty?: number;
 }
 
 export interface SalesOrderHeader {
@@ -88,6 +103,7 @@ export interface SalesOrderHeader {
     discount_amount: number;
     net_amount: number;
     allocated_amount: number;
+    payment_terms?: number | null;
     order_no: string;
     order_status: string;
     for_approval_at: string;

@@ -49,3 +49,25 @@ export interface User {
     user_email: string;
     user_position: string;
 }
+
+export interface Customer {
+    id: number;
+    customer_code: string;
+    customer_name: string;
+    store_name: string;
+    brgy?: string;
+    city?: string;
+    province?: string;
+    contact_number?: string;
+
+    // 🚀 FIXED: Allow payment_term to be an object so we can read payment_name!
+    payment_term?: number | { id?: number; payment_name?: string; payment_days?: number };
+
+    price_type?: string;
+    credit_type?: number;
+    isVAT?: number | boolean;
+    isEWT?: number | boolean;
+    store_type?: number | { id?: number; store_type?: string };
+    classification?: number | { id?: number; classification_name?: string };
+    junction_id?: number;
+}
