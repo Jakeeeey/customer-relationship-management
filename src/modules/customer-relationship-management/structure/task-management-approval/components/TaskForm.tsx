@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/select";
 import { Task, Customer, DailyActionPlan } from "../types";
 import { Loader2, Save, AlertCircle, Check, ChevronsUpDown, CheckCircle } from "lucide-react";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import {
     Command,
@@ -238,7 +239,28 @@ export const TaskForm: React.FC<TaskFormProps> = ({
         }
     }, [initialData, reset]);
 
+    const onValidationError = () => {
+        toast.error("Please complete all required fields (*)", {
+            description: "Visible location or target fields must be filled before saving.",
+            duration: 4000,
+        });
+    };
+
     const handleFormSubmit = async (values: TaskFormValues) => {
+        // Manual validation for conditional fields
+        if (taskTypeName === "area visit" && (!values.province || !values.city || !values.barangay)) {
+            onValidationError();
+            return;
+        }
+        if (taskTypeName === "sales" && (!values.sales_amount || parseFloat(values.sales_amount) <= 0)) {
+            onValidationError();
+            return;
+        }
+        if (taskTypeName === "collection" && (!values.collection_amount || parseFloat(values.collection_amount) <= 0)) {
+            onValidationError();
+            return;
+        }
+
         // Use PSGC labels for the payload if needed, or just the codes
         const provLabel = provinces.find(p => p.value === values.province)?.label || values.province;
         const cityLabel = cities.find(c => c.value === values.city)?.label || values.city;
@@ -265,7 +287,7 @@ export const TaskForm: React.FC<TaskFormProps> = ({
     };
 
     return (
-        <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-6">
+        <form onSubmit={handleSubmit(handleFormSubmit, onValidationError)} className="space-y-6">
             {/* Header / Review Mode Info */}
             <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-4 flex items-start gap-3 mb-6">
                 <AlertCircle className="w-5 h-5 text-amber-500 mt-0.5 shrink-0" />
@@ -280,7 +302,7 @@ export const TaskForm: React.FC<TaskFormProps> = ({
                 {/* 1. Task Type */}
                 <div className="space-y-2.5">
                     <Label className="text-[11px] uppercase font-black tracking-[0.15em] text-primary/70 flex items-center gap-1.5">
-                        1. Task Type
+                        1. Task Type <span className="text-red-500 text-lg leading-none">*</span>
                     </Label>
                     <Controller
                         name="task_id"
@@ -298,8 +320,8 @@ export const TaskForm: React.FC<TaskFormProps> = ({
 
                 {/* 2. Description */}
                 <div className="space-y-2.5">
-                    <Label className="text-[11px] uppercase font-black tracking-[0.15em] text-primary/70">
-                        2. Brief Description
+                    <Label className="text-[11px] uppercase font-black tracking-[0.15em] text-primary/70 flex items-center gap-1.5">
+                        2. Brief Description <span className="text-red-500 text-lg leading-none">*</span>
                     </Label>
                     <Controller
                         name="name"
@@ -314,7 +336,9 @@ export const TaskForm: React.FC<TaskFormProps> = ({
                 {taskTypeName === "area visit" && (
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div className="space-y-2.5">
-                            <Label className="text-[11px] uppercase font-black tracking-[0.15em] text-primary/70">Province</Label>
+                            <Label className="text-[11px] uppercase font-black tracking-[0.15em] text-primary/70 flex items-center gap-1.5">
+                                Province <span className="text-red-500 text-lg leading-none">*</span>
+                            </Label>
                             <Controller
                                 name="province"
                                 control={control}
@@ -329,7 +353,9 @@ export const TaskForm: React.FC<TaskFormProps> = ({
                             />
                         </div>
                         <div className="space-y-2.5">
-                            <Label className="text-[11px] uppercase font-black tracking-[0.15em] text-primary/70">City/Municipality</Label>
+                            <Label className="text-[11px] uppercase font-black tracking-[0.15em] text-primary/70 flex items-center gap-1.5">
+                                City/Municipality <span className="text-red-500 text-lg leading-none">*</span>
+                            </Label>
                             <Controller
                                 name="city"
                                 control={control}
@@ -344,7 +370,9 @@ export const TaskForm: React.FC<TaskFormProps> = ({
                             />
                         </div>
                         <div className="space-y-2.5">
-                            <Label className="text-[11px] uppercase font-black tracking-[0.15em] text-primary/70">Barangay</Label>
+                            <Label className="text-[11px] uppercase font-black tracking-[0.15em] text-primary/70 flex items-center gap-1.5">
+                                Barangay <span className="text-red-500 text-lg leading-none">*</span>
+                            </Label>
                             <Controller
                                 name="barangay"
                                 control={control}
@@ -364,8 +392,8 @@ export const TaskForm: React.FC<TaskFormProps> = ({
                 {/* Conditional Fields: Customer (Shown for everything except Area Visit) */}
                 {taskTypeName !== "area visit" && (
                     <div className="space-y-2.5">
-                        <Label className="text-[11px] uppercase font-black tracking-[0.15em] text-primary/70">
-                            3. Target Customer
+                        <Label className="text-[11px] uppercase font-black tracking-[0.15em] text-primary/70 flex items-center gap-1.5">
+                            3. Target Customer <span className="text-red-500 text-lg leading-none">*</span>
                         </Label>
                         <Controller
                             name="customer_id"
@@ -384,8 +412,8 @@ export const TaskForm: React.FC<TaskFormProps> = ({
 
                 {/* 4. Priority */}
                 <div className="space-y-2.5">
-                    <Label className="text-[11px] uppercase font-black tracking-[0.15em] text-primary/70">
-                        4. Priority Level
+                    <Label className="text-[11px] uppercase font-black tracking-[0.15em] text-primary/70 flex items-center gap-1.5">
+                        4. Priority Level <span className="text-red-500 text-lg leading-none">*</span>
                     </Label>
                     <Controller
                         name="priority_level"
@@ -410,17 +438,21 @@ export const TaskForm: React.FC<TaskFormProps> = ({
                     <div className="grid grid-cols-2 gap-4">
                         {taskTypeName === "sales" && (
                             <div className="space-y-2.5">
-                                <Label className="text-[11px] uppercase font-black tracking-[0.15em] text-primary/70">5. Sales Target</Label>
+                                <Label className="text-[11px] uppercase font-black tracking-[0.15em] text-primary/70 flex items-center gap-1.5">
+                                    5. Sales Target <span className="text-red-500 text-lg leading-none">*</span>
+                                </Label>
                                 <Controller name="sales_amount" control={control} render={({ field }) => (
-                                    <Input {...field} type="number" step="0.01" className="bg-muted/30 border-primary/10 h-12 text-base" />
+                                    <Input {...field} type="number" step="0.01" placeholder="0.00" className="bg-muted/30 border-primary/10 h-12 text-base" />
                                 )} />
                             </div>
                         )}
                         {taskTypeName === "collection" && (
                             <div className="space-y-2.5">
-                                <Label className="text-[11px] uppercase font-black tracking-[0.15em] text-primary/70">6. Collection Target</Label>
+                                <Label className="text-[11px] uppercase font-black tracking-[0.15em] text-primary/70 flex items-center gap-1.5">
+                                    6. Collection Target <span className="text-red-500 text-lg leading-none">*</span>
+                                </Label>
                                 <Controller name="collection_amount" control={control} render={({ field }) => (
-                                    <Input {...field} type="number" step="0.01" className="bg-muted/30 border-primary/10 h-12 text-base" />
+                                    <Input {...field} type="number" step="0.01" placeholder="0.00" className="bg-muted/30 border-primary/10 h-12 text-base" />
                                 )} />
                             </div>
                         )}
