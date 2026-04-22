@@ -24,7 +24,6 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
 import { ChevronLeft, ChevronRight, MoreHorizontal, Shapes, User } from "lucide-react";
 import type { StoreTypeItem } from "../types";
 
