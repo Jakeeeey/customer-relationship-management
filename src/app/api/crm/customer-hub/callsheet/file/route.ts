@@ -88,16 +88,18 @@ export async function GET(req: NextRequest) {
                     .main { flex: 1; display: flex; align-items: center; justify-content: center; position: relative; overflow: hidden; padding: 1rem; background: radial-gradient(circle at center, #0f172a 0%, #020617 100%);}
                     
                     /* Wrapper centers the image and provides the rotation axis */
-                    .img-wrapper { display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+                    .img-wrapper { display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); cursor: grab; user-select: none; }
+                    .img-wrapper:active { cursor: grabbing; }
                     
                     /* Inner image container handles the constraints depending on rotation */
-                    img { max-width: 90vw; max-height: 80vh; object-fit: contain; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.6); border-radius: 12px; border: 1px solid rgba(255,255,255,0.05); background: #000; }
+                    img { max-width: 90vw; max-height: 80vh; object-fit: contain; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.6); border-radius: 12px; border: 1px solid rgba(255,255,255,0.05); background: #000; pointer-events: none; }
                     
                     .nav-btn { position: absolute; top: 50%; transform: translateY(-50%); width: 44px; height: 44px; border-radius: 50%; padding: 0; font-size: 18px; z-index: 10; background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(255,255,255,0.2); backdrop-filter: blur(4px); box-shadow: 0 4px 6px -1px rgba(0,0,0,0.5);}
                     .nav-btn:hover:not(:disabled) { background: rgba(30, 41, 59, 0.9); transform: translateY(-50%) scale(1.05); }
                     .prev { left: 1.5rem; }
                     .next { right: 1.5rem; }
-                    .counter { font-size: 12px; font-weight: 700; color: #94a3b8; padding: 0 16px; font-variant-numeric: tabular-nums; }
+                    .counter { font-size: 12px; font-weight: 700; color: #94a3b8; padding: 0 16px; font-variant-numeric: tabular-nums; border-right: 1px solid rgba(255,255,255,0.1); margin-right: 8px; }
+                    .zoom-label { font-size: 12px; font-weight: 700; color: #10b981; padding: 0 8px; min-width: 45px; text-align: center; }
                 </style>
             </head>
             <body>
@@ -105,6 +107,11 @@ export async function GET(req: NextRequest) {
                     <div class="title" id="titleEl">${filename}</div>
                     <div class="controls">
                         <span class="counter" id="counterEl"></span>
+                        <button onclick="changeZoom(-0.2)" title="Zoom Out">-</button>
+                        <span class="zoom-label" id="zoomEl">100%</span>
+                        <button onclick="changeZoom(0.2)" title="Zoom In">+</button>
+                        <button onclick="resetZoom()" title="Reset Zoom">1:1</button>
+                        <div style="width: 12px;"></div>
                         <button onclick="rotate(-90)" title="Rotate Left">↺ Rotate L</button>
                         <button onclick="rotate(90)" title="Rotate Right">Rotate R ↻</button>
                         <button onclick="download()" style="background: rgba(16, 185, 129, 0.15); border-color: rgba(16, 185, 129, 0.3); color: #10b981; margin-left: 8px;">Download</button>
@@ -125,27 +132,40 @@ export async function GET(req: NextRequest) {
                     if (currentIndex === -1) currentIndex = 0;
                     
                     let rotation = 0;
+                    let zoom = 1.0;
+                    let panX = 0;
+                    let panY = 0;
+                    let isDragging = false;
+                    let startX = 0;
+                    let startY = 0;
 
-                    function updateUI(smoothRotate = false) {
+                    function updateUI(smooth = true) {
                         const file = files[currentIndex];
                         
                         // Update specific DOM Elements
                         document.getElementById('titleEl').innerText = file.attachment_name || "Document";
-                        document.getElementById('imageEl').src = "?id=" + file.file_id + "&raw=true";
+                        const img = document.getElementById('imageEl');
+                        if (img.src.indexOf(file.file_id) === -1) {
+                            img.src = "?id=" + file.file_id + "&raw=true";
+                        }
                         
                         // Update Status
                         document.getElementById('counterEl').innerText = (currentIndex + 1) + " of " + files.length;
+                        document.getElementById('zoomEl').innerText = Math.round(zoom * 100) + "%";
                         document.getElementById('prevBtn').disabled = currentIndex === 0;
                         document.getElementById('nextBtn').disabled = currentIndex === files.length - 1;
                         
-                        // Apply rotation
+                        // Apply rotation, zoom, and pan
                         const wrapper = document.getElementById('imgWrapper');
-                        if (!smoothRotate) wrapper.style.transition = 'none'; // Snap reset when navigating
-                        else wrapper.style.transition = 'transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
+                        // Disable transition during drag for 1:1 response
+                        wrapper.style.transition = (smooth && !isDragging) ? 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)' : 'none';
                         
                         // Force reflow before applying transform
-                        void wrapper.offsetHeight;
-                        wrapper.style.transform = 'rotate(' + rotation + 'deg)';
+                        if (!smooth && !isDragging) void wrapper.offsetHeight;
+                        
+                        // Order: Transform -> Position -> Scale
+                        // translate applies in current coord space, usually pan should be outside
+                        wrapper.style.transform = 'translate(' + panX + 'px, ' + panY + 'px) rotate(' + rotation + 'deg) scale(' + zoom + ')';
                         
                         // Update URL silently
                         const url = new URL(window.location.href);
@@ -156,14 +176,33 @@ export async function GET(req: NextRequest) {
 
                     function rotate(deg) {
                         rotation += deg;
-                        updateUI(true); // smooth animate
+                        updateUI(true);
+                    }
+
+                    function changeZoom(delta) {
+                        const newZoom = Math.min(Math.max(0.1, zoom + delta), 8.0); // Increased max zoom
+                        if (newZoom !== zoom) {
+                            zoom = newZoom;
+                            updateUI(true);
+                        }
+                    }
+
+                    function resetZoom() {
+                        zoom = 1.0;
+                        rotation = 0;
+                        panX = 0;
+                        panY = 0;
+                        updateUI(true);
                     }
 
                     function navigate(dir) {
                         const newIdx = currentIndex + dir;
                         if (newIdx >= 0 && newIdx < files.length) {
                             currentIndex = newIdx;
-                            rotation = 0; // reset
+                            rotation = 0; 
+                            zoom = 1.0;
+                            panX = 0;
+                            panY = 0;
                             updateUI(false); // snap reset
                         }
                     }
@@ -177,8 +216,45 @@ export async function GET(req: NextRequest) {
                     document.addEventListener('keydown', (e) => {
                         if (e.key === 'ArrowLeft') navigate(-1);
                         if (e.key === 'ArrowRight') navigate(1);
-                        if (e.key === 'r') rotate(90);
+                        if (e.key === 'r' || e.key === 'R') rotate(90);
+                        if (e.key === '+' || e.key === '=') changeZoom(0.2);
+                        if (e.key === '-' || e.key === '_') changeZoom(-0.2);
+                        if (e.key === '0') resetZoom();
                     });
+
+                    // Mouse wheel zoom
+                    document.addEventListener('wheel', (e) => {
+                        e.preventDefault();
+                        const delta = e.deltaY > 0 ? -0.2 : 0.2;
+                        changeZoom(delta);
+                    }, { passive: false });
+
+                    // Panning logic
+                    const wrapper = document.getElementById('imgWrapper');
+                    wrapper.addEventListener('mousedown', (e) => {
+                        if (e.button !== 0) return; // Only left click
+                        isDragging = true;
+                        startX = e.clientX - panX;
+                        startY = e.clientY - panY;
+                        updateUI(false);
+                    });
+
+                    window.addEventListener('mousemove', (e) => {
+                        if (!isDragging) return;
+                        panX = e.clientX - startX;
+                        panY = e.clientY - startY;
+                        updateUI(false);
+                    });
+
+                    window.addEventListener('mouseup', () => {
+                        if (isDragging) {
+                            isDragging = false;
+                            updateUI(true);
+                        }
+                    });
+
+                    // Extra: Reset on double click
+                    wrapper.addEventListener('dblclick', resetZoom);
 
                     // Boot
                     updateUI(false);
