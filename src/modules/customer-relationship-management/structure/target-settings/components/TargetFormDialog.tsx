@@ -38,7 +38,7 @@ import {
     MapPin,
     Map
 } from "lucide-react";
-import { SearchableSelect } from "@/components/ui/searchable-select";
+import { ProductSearchSelect } from "./ProductSearchSelect";
 import {
     Accordion,
     AccordionContent,
@@ -153,16 +153,19 @@ export function TargetFormDialog({
             });
 
             setTacticalSkus(
-                salesman.current_target?.tactical_skus?.map(ts => ({
-                    id: ts.id,
-                    product_id: ts.product_id,
-                    target_quantity: ts.target_quantity,
-                    target_value: ts.target_value,
-                    achieved_quantity: ts.achieved_quantity || 0,
-                    achieved_volume: ts.achieved_volume || 0,
-                    product_name: ts.product_name,
-                    product_code: ts.product_code
-                })) || []
+                salesman.current_target?.tactical_skus?.map(ts => {
+                    const prod = allProducts.find(p => p.product_id === ts.product_id);
+                    return {
+                        id: ts.id,
+                        product_id: ts.product_id,
+                        target_quantity: ts.target_quantity,
+                        target_value: ts.target_value,
+                        achieved_quantity: ts.achieved_quantity || 0,
+                        achieved_volume: ts.achieved_volume || 0,
+                        product_name: ts.product_name || prod?.product_name || "Unknown Product",
+                        product_code: ts.product_code || prod?.product_code || `P${ts.product_id}`
+                    };
+                }) || []
             );
 
             setCustomerTargets(
@@ -183,7 +186,7 @@ export function TargetFormDialog({
             setSupplierSearch("");
             setLoading(false);
         }
-    }, [isOpen, salesman, month, year]);
+    }, [isOpen, salesman, month, year, allProducts]);
 
     // --- Customer Filter Logic ---
     const salesmanCustomerIds = useMemo(() => {
@@ -288,6 +291,13 @@ export function TargetFormDialog({
             return;
         }
 
+        // Check for duplicates
+        const isDuplicate = tacticalSkus.some(ts => ts.product_id === newItem.product_id);
+        if (isDuplicate) {
+            toast.error("This product has already been added to the tactical SKU list");
+            return;
+        }
+
         const product = allProducts.find(p => p.product_id === newItem.product_id);
         if (!product) return;
 
@@ -348,13 +358,13 @@ export function TargetFormDialog({
         const dateTo = `${year}-${String(month).padStart(2, '0')}-${lastDay} 23:59:59`;
 
         if (totalAllocatedCustomer > targetData.volume) {
-            toast.error(`Total customer allocation (₱${totalAllocatedCustomer.toLocaleString()}) exceeds total volume (₱${targetData.volume.toLocaleString()})`);
+            toast.error(`Total customer allocation (₱${(totalAllocatedCustomer || 0).toLocaleString()}) exceeds total volume (₱${(targetData.volume || 0).toLocaleString()})`);
             setLoading(false);
             return;
         }
 
         if (totalAllocatedSupplier > targetData.volume) {
-            toast.error(`Total supplier allocation (₱${totalAllocatedSupplier.toLocaleString()}) exceeds total volume (₱${targetData.volume.toLocaleString()})`);
+            toast.error(`Total supplier allocation (₱${(totalAllocatedSupplier || 0).toLocaleString()}) exceeds total volume (₱${(targetData.volume || 0).toLocaleString()})`);
             setLoading(false);
             return;
         }
@@ -593,13 +603,13 @@ export function TargetFormDialog({
                                         <div className="text-right">
                                             <p className="text-[10px] font-black text-slate-400 uppercase">Allocated (Customers)</p>
                                             <p className={`text-sm font-bold ${totalAllocatedCustomer > targetData.volume ? 'text-destructive' : 'text-slate-900'}`}>
-                                                ₱{totalAllocatedCustomer.toLocaleString()} / ₱{targetData.volume.toLocaleString()}
+                                                ₱{(totalAllocatedCustomer || 0).toLocaleString()} / ₱{(targetData.volume || 0).toLocaleString()}
                                             </p>
                                         </div>
                                         <div className="text-right">
                                             <p className="text-[10px] font-black text-slate-400 uppercase">Allocated (Suppliers)</p>
                                             <p className={`text-sm font-bold ${totalAllocatedSupplier > targetData.volume ? 'text-destructive' : 'text-slate-900'}`}>
-                                                ₱{totalAllocatedSupplier.toLocaleString()} / ₱{targetData.volume.toLocaleString()}
+                                                ₱{(totalAllocatedSupplier || 0).toLocaleString()} / ₱{(targetData.volume || 0).toLocaleString()}
                                             </p>
                                         </div>
                                     </div>
@@ -640,7 +650,7 @@ export function TargetFormDialog({
                                                                         <span className="text-xs font-black text-slate-900 tracking-tight uppercase">{province}</span>
                                                                     </div>
                                                                     <Badge variant="outline" className="bg-primary/5 border-primary/20 text-primary font-bold text-[10px]">
-                                                                        ₱{data.totalAllocation.toLocaleString()}
+                                                                        ₱{(data.totalAllocation || 0).toLocaleString()}
                                                                     </Badge>
                                                                 </div>
                                                             </AccordionTrigger>
@@ -658,7 +668,7 @@ export function TargetFormDialog({
                                                                                         </Badge>
                                                                                     </div>
                                                                                     <Badge variant="outline" className="bg-white border-slate-200 text-slate-500 font-bold text-[9px] h-5 shadow-sm">
-                                                                                        ₱{cityData.totalAllocation.toLocaleString()}
+                                                                                        ₱{(cityData.totalAllocation || 0).toLocaleString()}
                                                                                     </Badge>
                                                                                 </div>
                                                                             </AccordionTrigger>
@@ -770,7 +780,7 @@ export function TargetFormDialog({
                                     </div>
                                     <div className="text-right">
                                         <p className="text-[10px] font-black text-primary-foreground/60 uppercase">Available Budget</p>
-                                        <p className="text-xl font-black text-white">₱{targetData.volume.toLocaleString()}</p>
+                                        <p className="text-xl font-black text-white">₱{(targetData.volume || 0).toLocaleString()}</p>
                                     </div>
                                 </div>
                             </div>
@@ -789,8 +799,11 @@ export function TargetFormDialog({
                             <div className="grid grid-cols-1 md:grid-cols-12 gap-8 p-8 border-2 border-slate-100 rounded-3xl bg-slate-50/30">
                                 <div className="md:col-span-9 space-y-2.5">
                                     <Label className="text-xs font-black uppercase tracking-widest text-slate-500">Select Product</Label>
-                                    <SearchableSelect
-                                        options={allProducts.map(p => ({ value: String(p.product_id), label: `${p.product_code || 'N/A'} - ${p.product_name}` }))}
+                                    <ProductSearchSelect
+                                        options={allProducts
+                                            .filter(p => !tacticalSkus.some(ts => ts.product_id === p.product_id))
+                                            .map(p => ({ value: String(p.product_id), label: `${p.product_code || 'N/A'} - ${p.product_name}` }))
+                                        }
                                         value={String(newItem.product_id)}
                                         onValueChange={(val) => setNewItem(prev => ({ ...prev, product_id: Number(val) }))}
                                     />

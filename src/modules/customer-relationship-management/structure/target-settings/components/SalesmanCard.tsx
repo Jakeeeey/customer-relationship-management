@@ -26,11 +26,11 @@ export function SalesmanCard({ salesman, onEditTarget }: SalesmanCardProps) {
 
         const metrics = [];
         if (salesman.operation === 1) { // Booking
-            metrics.push(calculateProgress(salesman.current_volume || 0, salesman.current_target.volume));
-            metrics.push(calculateProgress(salesman.current_frequency || 0, salesman.current_target.frequency));
+            metrics.push(calculateProgress(salesman.current_volume || 0, salesman.current_target.volume || 0));
+            metrics.push(calculateProgress(salesman.current_frequency || 0, salesman.current_target.frequency || 0));
         } else { // Site Sales
-            metrics.push(calculateProgress(salesman.current_volume || 0, salesman.current_target.volume));
-            metrics.push(calculateProgress(salesman.current_new_accounts || 0, salesman.current_target.new_accounts));
+            metrics.push(calculateProgress(salesman.current_volume || 0, salesman.current_target.volume || 0));
+            metrics.push(calculateProgress(salesman.current_new_accounts || 0, salesman.current_target.new_accounts || 0));
         }
 
         const average = metrics.reduce((a, b) => a + b, 0) / (metrics.length || 1);
@@ -38,16 +38,16 @@ export function SalesmanCard({ salesman, onEditTarget }: SalesmanCardProps) {
     };
 
     const progress = getOverallProgress(salesman);
-    const volumeProgress = target ? calculateProgress(salesman.current_volume || 0, target.volume) : 0;
+    const volumeProgress = target ? calculateProgress(salesman.current_volume || 0, target.volume || 0) : 0;
     const secondaryProgress = target ? (
         salesman.operation === 1
-            ? calculateProgress(salesman.current_frequency || 0, target.frequency)
-            : calculateProgress(salesman.current_new_accounts || 0, target.new_accounts)
+            ? calculateProgress(salesman.current_frequency || 0, target.frequency || 0)
+            : calculateProgress(salesman.current_new_accounts || 0, target.new_accounts || 0)
     ) : 0;
 
     const secondaryLabel = salesman.operation === 1 ? "Frequency" : "New Accounts";
     const secondaryCurrent = salesman.operation === 1 ? (salesman.current_frequency || 0) : (salesman.current_new_accounts || 0);
-    const secondaryTarget = target ? (salesman.operation === 1 ? target.frequency : target.new_accounts) : 0;
+    const secondaryTarget = target ? (salesman.operation === 1 ? (target.frequency || 0) : (target.new_accounts || 0)) : 0;
 
     return (
         <Card className="shadow-sm hover:shadow-md transition-all border border-muted/60 overflow-hidden">
@@ -77,7 +77,7 @@ export function SalesmanCard({ salesman, onEditTarget }: SalesmanCardProps) {
                         <div className="flex justify-between items-center text-xs">
                             <span className="text-[10px] font-bold text-muted-foreground uppercase">Volume</span>
                             <span className="font-mono text-[10px] font-bold">
-                                {target ? `${(salesman.current_volume || 0).toLocaleString()} / ${target.volume.toLocaleString()}` : "No target"}
+                                {target ? `${(salesman.current_volume || 0).toLocaleString()} / ${(target.volume || 0).toLocaleString()}` : "No target"}
                             </span>
                         </div>
                         <Progress value={volumeProgress} className="h-1 bg-muted" />
@@ -87,7 +87,7 @@ export function SalesmanCard({ salesman, onEditTarget }: SalesmanCardProps) {
                         <div className="flex justify-between items-center text-xs">
                             <span className="text-[10px] font-bold text-muted-foreground uppercase">{secondaryLabel}</span>
                             <span className="font-mono text-[10px] font-bold">
-                                {target ? `${secondaryCurrent} / ${secondaryTarget}` : "No target"}
+                                {target ? `${secondaryCurrent.toLocaleString()} / ${secondaryTarget.toLocaleString()}` : "No target"}
                             </span>
                         </div>
                         <Progress value={secondaryProgress} className="h-1 bg-muted" />
