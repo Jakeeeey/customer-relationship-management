@@ -51,6 +51,30 @@ export async function updateSupplierDescription(
 	await parseJsonOrThrow<unknown>(res);
 }
 
+export async function uploadSupplierImage(supplierId: number, file: File): Promise<void> {
+	const formData = new FormData();
+	formData.append("action", "update-supplier-image");
+	formData.append("supplierId", String(supplierId));
+	formData.append("file", file);
+
+	const res = await fetch(API_BASE_URL, {
+		method: "POST",
+		body: formData,
+	});
+
+	await parseJsonOrThrow<unknown>(res);
+}
+
+export async function clearSupplierImage(supplierId: number): Promise<void> {
+	const res = await fetch(API_BASE_URL, {
+		method: "PATCH",
+		headers: { "Content-Type": "application/json" },
+		body: JSON.stringify({ action: "update-supplier-image", supplierId, supplierImage: "" }),
+	});
+
+	await parseJsonOrThrow<unknown>(res);
+}
+
 export async function addSupplierImage(supplierId: number, file: File): Promise<void> {
 	const formData = new FormData();
 	formData.append("action", "add-image");

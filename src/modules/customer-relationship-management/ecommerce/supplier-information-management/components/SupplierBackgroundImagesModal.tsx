@@ -22,7 +22,11 @@ type AddBackgroundImagesModalProps = {
 	images: SupplierBackgroundImageItem[];
 	isLoadingImages: boolean;
 	isUploading: boolean;
+	isUploadingSupplierImage: boolean;
+	isRemovingSupplierImage: boolean;
 	onAddImages: (file: File | null) => void;
+	onAddSupplierImage: (file: File | null) => void;
+	onRemoveSupplierImage: () => void;
 	onReplaceImage: (imageId: number, file: File | null) => void;
 	isReplacingImageId: number | null;
 	onDeleteImage: (imageId: number) => void;
@@ -37,17 +41,31 @@ export default function AddBackgroundImagesModal({
 	images,
 	isLoadingImages,
 	isUploading,
+	isUploadingSupplierImage,
+	isRemovingSupplierImage,
 	onAddImages,
+	onAddSupplierImage,
+	onRemoveSupplierImage,
 	onReplaceImage,
 	isReplacingImageId,
 	onDeleteImage,
 	isDeletingImageId,
 }: AddBackgroundImagesModalProps) {
+	const toAssetUrl = (value?: string | null) => {
+		const normalized = String(value ?? "").trim();
+		if (!normalized) return "";
+		if (/^https?:\/\//i.test(normalized)) return normalized;
+		if (normalized.startsWith("/assets/")) return `${apiBase}${normalized}`;
+		return `${apiBase}/assets/${normalized}`;
+	};
+
+	const supplierImageUrl = toAssetUrl(supplier?.supplier_image);
+
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
 			<DialogContent className="w-[95vw] max-w-3xl border border-slate-300 bg-white/95 shadow-[0_18px_40px_rgba(15,23,42,0.18)] dark:border-slate-500 dark:bg-slate-900/95 dark:shadow-[0_22px_46px_rgba(0,0,0,0.62)]">
 				<DialogHeader>
-					<DialogTitle>Add Background Images</DialogTitle>
+					<DialogTitle>Add Images</DialogTitle>
 					<DialogDescription>
 						{supplier ? `Manage images for ${supplier.supplier_name}` : "Select a supplier first"}
 					</DialogDescription>
@@ -58,7 +76,74 @@ export default function AddBackgroundImagesModal({
 				) : (
 					<div className="max-h-[75vh] space-y-4 overflow-y-auto pr-1">
 						<div className="space-y-2">
-							<Label htmlFor="background-images">Choose Image File</Label>
+							<Label htmlFor="supplier-image" className="text-xs text-muted-foreground">
+								Choose Supplier Image File
+							</Label>
+							<Input
+								id="supplier-image"
+								type="file"
+								accept="image/*"
+								className="border-slate-300 bg-white/95 text-transparent file:text-foreground dark:border-slate-500 dark:bg-slate-900/95"
+								disabled={isUploadingSupplierImage || isRemovingSupplierImage}
+								onChange={(e) => {
+									onAddSupplierImage(e.target.files?.[0] ?? null);
+									e.currentTarget.value = "";
+								}}
+							/>
+							<div className="flex items-center gap-2">
+								<ImagePlus className="h-4 w-4 text-muted-foreground" />
+								<p className="text-sm font-medium">Supplier Image</p>
+							</div>
+							{isUploadingSupplierImage && (
+								<p className="inline-flex items-center gap-2 text-sm text-muted-foreground">
+									<Loader2 className="h-4 w-4 animate-spin" />
+									Uploading supplier image...
+								</p>
+							)}
+							{supplierImageUrl ? (
+								<div className="mx-auto w-full max-w-sm">
+									<div className="space-y-2 rounded-lg border border-slate-300 bg-white/90 p-2 shadow-sm dark:border-slate-500 dark:bg-slate-900/90">
+										<div className="h-28 overflow-hidden rounded-md bg-muted/40">
+											<img
+												src={supplierImageUrl}
+												alt="Supplier"
+												className="h-full w-full object-cover object-center"
+											/>
+										</div>
+										<Button
+											type="button"
+											variant="destructive"
+											className="w-full"
+											disabled={isRemovingSupplierImage}
+											onClick={onRemoveSupplierImage}
+										>
+											{isRemovingSupplierImage ? (
+												<>
+													<Loader2 className="mr-2 h-4 w-4 animate-spin" />
+													Removing...
+												</>
+											) : (
+												<>
+													<Trash2 className="mr-2 h-4 w-4" />
+													Delete Supplier Image
+												</>
+											)}
+										</Button>
+									</div>
+								</div>
+							) : (
+								<div className="mx-auto w-full max-w-sm rounded-lg border border-dashed border-slate-300/90 bg-white/60 p-4 text-center text-sm text-muted-foreground dark:border-slate-500/80 dark:bg-slate-900/50">
+									No supplier image uploaded.
+									</div>
+							)}
+						</div>
+
+						<Separator />
+
+						<div className="space-y-2">
+							<Label htmlFor="background-images" className="text-xs text-muted-foreground">
+								Choose Background Image File
+							</Label>
 							<Input
 								id="background-images"
 								type="file"
@@ -77,8 +162,6 @@ export default function AddBackgroundImagesModal({
 								</p>
 							)}
 						</div>
-
-						<Separator />
 
 						<div className="space-y-2">
 							<div className="flex items-center gap-2">

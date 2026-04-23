@@ -12,6 +12,7 @@ type SupplierRow = {
 	supplier_shortcut?: string | null;
 	supplier_name?: string | null;
 	supplier_type?: string | null;
+	supplier_image?: string | null;
 	address?: string | null;
 	contact_person?: string | null;
 	email_address?: string | null;
@@ -143,7 +144,7 @@ export async function GET(req: NextRequest) {
 		}
 
 		const suppliersRes = await fetch(
-			`${DIRECTUS_URL}/items/suppliers?filter[supplier_type][_in]=TRADE,Trade&filter[isActive][_eq]=1&fields=id,supplier_shortcut,supplier_name,supplier_type,address,contact_person,email_address,phone_number,description&sort=supplier_name&limit=-1`,
+			`${DIRECTUS_URL}/items/suppliers?filter[supplier_type][_in]=TRADE,Trade&filter[isActive][_eq]=1&fields=id,supplier_shortcut,supplier_name,supplier_type,supplier_image,address,contact_person,email_address,phone_number,description&sort=supplier_name&limit=-1`,
 			{
 				headers: buildJsonHeaders(),
 				cache: "no-store",
@@ -222,6 +223,33 @@ export async function PATCH(req: NextRequest) {
 				method: "PATCH",
 				headers: buildJsonHeaders(),
 				body: JSON.stringify({ image_path: imagePath, is_active: 1 }),
+			});
+
+			if (!res.ok) {
+				const err = await res.text();
+				throw new Error(`Failed to update supplier image: ${err}`);
+			}
+
+			const json = await res.json();
+			return NextResponse.json({ ok: true, data: json.data });
+		}
+
+		if (action === "update-supplier-image") {
+			const supplierId = asPositiveInt(body?.supplierId);
+			const supplierImage =
+				typeof body?.supplierImage === "string" ? body.supplierImage.trim() : "";
+
+			if (!supplierId) {
+				return NextResponse.json(
+					{ ok: false, message: "Valid supplierId is required." },
+					{ status: 400 }
+				);
+			}
+
+			const res = await fetch(`${DIRECTUS_URL}/items/suppliers/${supplierId}`, {
+				method: "PATCH",
+				headers: buildJsonHeaders(),
+				body: JSON.stringify({ supplier_image: supplierImage || null }),
 			});
 
 			if (!res.ok) {
@@ -319,6 +347,23 @@ export async function POST(req: NextRequest) {
 
 			const replaceJson = await replaceRes.json();
 			return NextResponse.json({ ok: true, data: replaceJson.data });
+		}
+
+		if (action === "update-supplier-image") {
+			const uploadedFileId = await uploadFileToDirectus(file);
+			const supplierRes = await fetch(`${DIRECTUS_URL}/items/suppliers/${supplierId}`, {
+				method: "PATCH",
+				headers: buildJsonHeaders(),
+				body: JSON.stringify({ supplier_image: uploadedFileId }),
+			});
+
+			if (!supplierRes.ok) {
+				const err = await supplierRes.text();
+				throw new Error(`Failed to update supplier image: ${err}`);
+			}
+
+			const supplierJson = await supplierRes.json();
+			return NextResponse.json({ ok: true, data: supplierJson.data });
 		}
 
 		const createdRows: unknown[] = [];

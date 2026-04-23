@@ -32,11 +32,15 @@ export default function SupplierInformationManagementModule() {
 		isLoadingImages,
 		isSavingDescription,
 		isUploading,
+		isUploadingSupplierImage,
+		isRemovingSupplierImage,
 		isReplacingImageId,
 		isDeletingImageId,
 		loadSuppliers,
 		saveDescription,
 		addImage,
+		addSupplierImageFile,
+		removeSupplierImageFile,
 		replaceImage,
 		deleteImage,
 	} = useSupplierInformationData();
@@ -167,7 +171,11 @@ export default function SupplierInformationManagementModule() {
 				images={images}
 				isLoadingImages={isLoadingImages}
 				isUploading={isUploading}
+				isUploadingSupplierImage={isUploadingSupplierImage}
+				isRemovingSupplierImage={isRemovingSupplierImage}
 				onAddImages={(files) => void addImage(files)}
+				onAddSupplierImage={(file) => void addSupplierImageFile(file)}
+				onRemoveSupplierImage={() => void removeSupplierImageFile()}
 				onReplaceImage={(imageId, file) => void replaceImage(imageId, file)}
 				isReplacingImageId={isReplacingImageId}
 				onDeleteImage={(imageId) => void deleteImage(imageId)}

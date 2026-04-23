@@ -28,13 +28,23 @@ export default function ViewSupplierInformationModal({
 	images,
 	isLoadingImages,
 }: ViewSupplierInformationModalProps) {
+	const toAssetUrl = (value?: string | null) => {
+		const normalized = String(value ?? "").trim();
+		if (!normalized) return "";
+		if (/^https?:\/\//i.test(normalized)) return normalized;
+		if (normalized.startsWith("/assets/")) return `${apiBase}${normalized}`;
+		return `${apiBase}/assets/${normalized}`;
+	};
+
+	const supplierImageUrl = toAssetUrl(supplier?.supplier_image);
+
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
 			<DialogContent className="w-[95vw] max-w-3xl overflow-x-hidden border border-slate-300 bg-white/95 shadow-[0_18px_40px_rgba(15,23,42,0.18)] dark:border-slate-500 dark:bg-slate-900/95 dark:shadow-[0_22px_46px_rgba(0,0,0,0.62)]">
 				<DialogHeader>
 					<DialogTitle>View Supplier Information</DialogTitle>
 					<DialogDescription>
-						Read-only supplier details and active background images.
+						Read-only supplier details and active images.
 					</DialogDescription>
 				</DialogHeader>
 
@@ -42,6 +52,24 @@ export default function ViewSupplierInformationModal({
 					<p className="text-sm text-muted-foreground">Select a supplier from the table first.</p>
 				) : (
 					<div className="max-h-[75vh] space-y-4 overflow-y-auto pr-1">
+						<div className="space-y-2 ">
+							<div className="flex items-center gap-2">
+								<ImagePlus className="h-4 w-4 text-muted-foreground" />
+								<p className="text-sm font-medium">Supplier Images</p>
+							</div>
+							{supplierImageUrl ? (
+								<div className="flex items-center gap-2 overflow-hidden rounded-md border border-slate-300 bg-muted/40 shadow-sm dark:border-slate-500">
+									<img
+										src={supplierImageUrl}
+										alt="Supplier"
+										className="h-full w-full object-cover"
+									/>
+								</div>
+							) : (
+								<p className="text-sm font-medium">-</p>
+							)}
+						</div>
+
 						<div className="space-y-1">
 							<Label className="text-xs text-muted-foreground">Code</Label>
 							<p className="font-medium">{supplier.supplier_shortcut}</p>

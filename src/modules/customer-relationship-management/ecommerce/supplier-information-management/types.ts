@@ -3,6 +3,7 @@ export type SupplierItem = {
 	supplier_shortcut: string;
 	supplier_name: string;
 	supplier_type?: string | null;
+	supplier_image?: string | null;
 	address?: string | null;
 	contact_person?: string | null;
 	email_address?: string | null;

@@ -3,10 +3,12 @@ import { toast } from "sonner";
 
 import {
 	addSupplierImage,
+	clearSupplierImage,
 	fetchSupplierImages,
 	fetchSuppliers,
 	replaceSupplierImage,
 	softDeleteSupplierImage,
+	uploadSupplierImage,
 	updateSupplierDescription,
 } from "../providers/fetchProvider";
 import { SupplierBackgroundImageItem, SupplierItem } from "../types";
@@ -21,6 +23,8 @@ export function useSupplierInformationData() {
 	const [isLoadingImages, setIsLoadingImages] = useState(false);
 	const [isSavingDescription, setIsSavingDescription] = useState(false);
 	const [isUploading, setIsUploading] = useState(false);
+	const [isUploadingSupplierImage, setIsUploadingSupplierImage] = useState(false);
+	const [isRemovingSupplierImage, setIsRemovingSupplierImage] = useState(false);
 	const [isReplacingImageId, setIsReplacingImageId] = useState<number | null>(null);
 	const [isDeletingImageId, setIsDeletingImageId] = useState<number | null>(null);
 	const [error, setError] = useState<string | null>(null);
@@ -125,6 +129,42 @@ export function useSupplierInformationData() {
 		}
 	};
 
+	const addSupplierImageFile = async (file: File | null) => {
+		if (!selectedSupplier || !file) return;
+
+		setIsUploadingSupplierImage(true);
+		try {
+			await uploadSupplierImage(selectedSupplier.id, file);
+			await loadSuppliers();
+			toast.success("Supplier image uploaded.");
+		} catch (err) {
+			toast.error(err instanceof Error ? err.message : "Failed to upload supplier image.");
+		} finally {
+			setIsUploadingSupplierImage(false);
+		}
+	};
+
+	const removeSupplierImageFile = async () => {
+		if (!selectedSupplier) return;
+
+		setIsRemovingSupplierImage(true);
+		try {
+			await clearSupplierImage(selectedSupplier.id);
+			setSuppliers((prev) =>
+				prev.map((supplier) =>
+					supplier.id === selectedSupplier.id
+						? { ...supplier, supplier_image: null }
+						: supplier
+				)
+			);
+			toast.success("Supplier image removed.");
+		} catch (err) {
+			toast.error(err instanceof Error ? err.message : "Failed to remove supplier image.");
+		} finally {
+			setIsRemovingSupplierImage(false);
+		}
+	};
+
 	const replaceImage = async (imageId: number, file: File | null) => {
 		if (!selectedSupplier || !file) return;
 
@@ -170,11 +210,15 @@ export function useSupplierInformationData() {
 		isLoadingImages,
 		isSavingDescription,
 		isUploading,
+		isUploadingSupplierImage,
+		isRemovingSupplierImage,
 		isReplacingImageId,
 		isDeletingImageId,
 		loadSuppliers,
 		saveDescription,
 		addImage,
+		addSupplierImageFile,
+		removeSupplierImageFile,
 		replaceImage,
 		deleteImage,
 	};
