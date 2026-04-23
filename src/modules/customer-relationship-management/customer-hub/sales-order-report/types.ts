@@ -86,6 +86,7 @@ export interface Supplier {
     id: number;
     supplier_shortcut: string;
     supplier_name: string;
+    supplier_type?: string;
 }
 
 export interface InvoiceDetail {
