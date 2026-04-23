@@ -47,7 +47,7 @@ export default function NameFilterCombobox({
 					variant="outline"
 					role="combobox"
 					aria-expanded={open}
-					className="h-10 w-full justify-between border border-slate-300 bg-white/95 shadow-sm hover:bg-white dark:border-slate-500 dark:bg-slate-900/95 dark:text-slate-100 dark:hover:bg-slate-900"
+					className="h-10 w-full justify-between border border-slate-300 bg-white/95 shadow-sm hover:bg-white dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:hover:bg-zinc-900"
 				>
 					<span className="truncate text-left">{selectedLabel}</span>
 					<ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-60" />
@@ -56,7 +56,7 @@ export default function NameFilterCombobox({
 			<PopoverContent
 				align="start"
 				sideOffset={8}
-				className="w-(--radix-popover-trigger-width) border border-slate-300 bg-white p-0 text-slate-900 shadow-xl dark:border-slate-500 dark:bg-slate-900 dark:text-slate-100"
+				className="w-(--radix-popover-trigger-width) border border-slate-300 bg-white p-0 text-slate-900 shadow-xl dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
 			>
 				<Command className="bg-transparent">
 					<CommandInput placeholder="Search supplier name..." className="h-9" />

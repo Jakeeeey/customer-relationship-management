@@ -30,6 +30,7 @@ export interface Customer {
 export interface Supplier {
     id: number;
     supplier_name: string;
+    supplier_type?: string;
 }
 
 export interface Product {
