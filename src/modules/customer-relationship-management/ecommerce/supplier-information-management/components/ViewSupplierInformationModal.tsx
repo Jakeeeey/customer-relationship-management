@@ -52,6 +52,35 @@ export default function ViewSupplierInformationModal({
 							<p className="font-medium">{supplier.supplier_name}</p>
 						</div>
 
+						<div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+							<div className="space-y-1">
+								<Label className="text-xs text-muted-foreground">Supplier Type</Label>
+								<p className="text-sm font-medium">{supplier.supplier_type || "-"}</p>
+							</div>
+
+							<div className="space-y-1">
+								<Label className="text-xs text-muted-foreground">Contact Person</Label>
+								<p className="text-sm font-medium">{supplier.contact_person || "-"}</p>
+							</div>
+
+							<div className="space-y-1">
+								<Label className="text-xs text-muted-foreground">Email</Label>
+								<p className="text-sm font-medium wrap-anywhere">{supplier.email_address || "-"}</p>
+							</div>
+
+							<div className="space-y-1">
+								<Label className="text-xs text-muted-foreground">Phone Number</Label>
+								<p className="text-sm font-medium">{supplier.phone_number || "-"}</p>
+							</div>
+						</div>
+
+						<div className="space-y-1">
+							<Label className="text-xs text-muted-foreground">Address</Label>
+							<p className="max-w-full whitespace-pre-wrap wrap-anywhere rounded-md border border-slate-300 bg-white/85 px-3 py-2 text-sm shadow-sm dark:border-slate-500 dark:bg-slate-900/85">
+								{supplier.address || "-"}
+							</p>
+						</div>
+
 						<div className="space-y-1">
 							<Label className="text-xs text-muted-foreground">Description</Label>
 							<p className="max-w-full whitespace-pre-wrap wrap-anywhere rounded-md border border-slate-300 bg-white/85 px-3 py-2 text-sm shadow-sm dark:border-slate-500 dark:bg-slate-900/85">

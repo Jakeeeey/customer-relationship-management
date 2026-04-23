@@ -11,6 +11,11 @@ type SupplierRow = {
 	id: number;
 	supplier_shortcut?: string | null;
 	supplier_name?: string | null;
+	supplier_type?: string | null;
+	address?: string | null;
+	contact_person?: string | null;
+	email_address?: string | null;
+	phone_number?: string | null;
 	description?: string | null;
 };
 
@@ -138,7 +143,7 @@ export async function GET(req: NextRequest) {
 		}
 
 		const suppliersRes = await fetch(
-			`${DIRECTUS_URL}/items/suppliers?filter[supplier_type][_in]=TRADE,Trade&filter[isActive][_eq]=1&fields=id,supplier_shortcut,supplier_name,description&sort=supplier_name&limit=-1`,
+			`${DIRECTUS_URL}/items/suppliers?filter[supplier_type][_in]=TRADE,Trade&filter[isActive][_eq]=1&fields=id,supplier_shortcut,supplier_name,supplier_type,address,contact_person,email_address,phone_number,description&sort=supplier_name&limit=-1`,
 			{
 				headers: buildJsonHeaders(),
 				cache: "no-store",
