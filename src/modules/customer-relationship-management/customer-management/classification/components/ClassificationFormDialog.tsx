@@ -50,6 +50,14 @@ export function ClassificationFormDialog({
 			? "Update the selected classification type."
 			: "Review the selected classification details.";
 
+	const handleSubmit = async () => {
+		try {
+			await onSubmit(classificationName);
+		} catch {
+			// Error toast is already handled by the hook/provider flow.
+		}
+	};
+
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
 			<DialogContent
@@ -96,17 +104,10 @@ export function ClassificationFormDialog({
 				</div>
 
 				<DialogFooter className="border-t bg-muted/30 px-6 py-4">
-					<Button
-						variant="outline"
-						onClick={() => onOpenChange(false)}
-						disabled={isSubmitting}
-						className="min-w-24"
-					>
-						{isView ? "Close" : "Cancel"}
-					</Button>
+					
 					{!isView ? (
 						<Button
-							onClick={() => void onSubmit(classificationName)}
+							onClick={() => void handleSubmit()}
 							disabled={isSubmitting || !classificationName.trim()}
 							className="min-w-32 bg-gradient-to-r from-sky-600 to-cyan-600 text-white hover:from-sky-700 hover:to-cyan-700"
 						>
