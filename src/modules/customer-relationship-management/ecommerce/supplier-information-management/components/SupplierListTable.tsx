@@ -15,6 +15,7 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useState } from "react";
 
 import { SupplierItem } from "../types";
@@ -43,7 +44,7 @@ export default function SupplierListTable({
 
 	return (
 		<div className="space-y-4">
-			<div className="rounded-lg border border-input dark:border-slate-700 overflow-hidden bg-card">
+			<div className="overflow-hidden rounded-2xl border border-slate-300/90 bg-card shadow-[0_14px_34px_rgba(15,23,42,0.14)] dark:border-slate-600/80 dark:bg-slate-950/75 dark:shadow-[0_16px_36px_rgba(0,0,0,0.62)]">
 				<Table>
 					<TableHeader>
 						<TableRow className="bg-muted/40 hover:bg-muted/40 border-b border-input dark:border-slate-700">
@@ -70,7 +71,16 @@ export default function SupplierListTable({
 									<TableCell className="text-sm">{startIndex + index + 1}</TableCell>
 									<TableCell className="font-medium text-sm">{item.supplier_shortcut}</TableCell>
 									<TableCell className="text-sm">{item.supplier_name}</TableCell>
-									<TableCell className="max-w-xs truncate text-sm text-muted-foreground">{item.description || "-"}</TableCell>
+									<TableCell className="max-w-xs text-sm text-muted-foreground">
+										<Tooltip>
+											<TooltipTrigger asChild>
+												<span className="block truncate">{item.description || "-"}</span>
+											</TooltipTrigger>
+											<TooltipContent side="top" className="max-w-md wrap-break-word">
+												{item.description || "No description"}
+											</TooltipContent>
+										</Tooltip>
+									</TableCell>
 									<TableCell className="text-right">
 										<DropdownMenu>
 											<DropdownMenuTrigger asChild>

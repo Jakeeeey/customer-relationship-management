@@ -30,7 +30,7 @@ export default function ViewSupplierInformationModal({
 }: ViewSupplierInformationModalProps) {
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
-			<DialogContent className="w-[95vw] max-w-3xl border border-border dark:border-slate-700">
+			<DialogContent className="w-[95vw] max-w-3xl overflow-x-hidden border border-slate-300 bg-white/95 shadow-[0_18px_40px_rgba(15,23,42,0.18)] dark:border-slate-500 dark:bg-slate-900/95 dark:shadow-[0_22px_46px_rgba(0,0,0,0.62)]">
 				<DialogHeader>
 					<DialogTitle>View Supplier Information</DialogTitle>
 					<DialogDescription>
@@ -54,7 +54,7 @@ export default function ViewSupplierInformationModal({
 
 						<div className="space-y-1">
 							<Label className="text-xs text-muted-foreground">Description</Label>
-							<p className="whitespace-pre-wrap rounded-md border border-border bg-muted/20 px-3 py-2 text-sm dark:border-slate-700">
+							<p className="max-w-full whitespace-pre-wrap wrap-anywhere rounded-md border border-slate-300 bg-white/85 px-3 py-2 text-sm shadow-sm dark:border-slate-500 dark:bg-slate-900/85">
 								{supplier.description || "-"}
 							</p>
 						</div>
@@ -75,7 +75,7 @@ export default function ViewSupplierInformationModal({
 									{images.map((image) => (
 										<div
 											key={image.id}
-											className="space-y-2 rounded-lg border border-border p-2 dark:border-slate-700"
+											className="space-y-2 rounded-lg border border-slate-300 bg-white/90 p-2 shadow-sm dark:border-slate-500 dark:bg-slate-900/90"
 										>
 											<div className="h-28 overflow-hidden rounded-md bg-muted/40">
 												<img

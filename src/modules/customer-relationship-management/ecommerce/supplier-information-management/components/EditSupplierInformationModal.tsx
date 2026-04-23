@@ -37,7 +37,7 @@ export default function EditSupplierInformationModal({
 }: EditSupplierInformationModalProps) {
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
-			<DialogContent className="w-[95vw] max-w-3xl border border-border dark:border-slate-700">
+			<DialogContent className="w-[95vw] max-w-3xl overflow-x-hidden border border-slate-300 bg-white/95 shadow-[0_18px_40px_rgba(15,23,42,0.18)] dark:border-slate-500 dark:bg-slate-900/95 dark:shadow-[0_22px_46px_rgba(0,0,0,0.62)]">
 				<DialogHeader>
 					<DialogTitle>Edit Supplier Description</DialogTitle>
 					<DialogDescription>Update supplier details and description.</DialogDescription>
@@ -59,7 +59,7 @@ export default function EditSupplierInformationModal({
 
 						<Separator />
 
-						<div className="space-y-2 rounded-md border border-border p-3 dark:border-slate-700">
+						<div className="space-y-2 rounded-md border border-slate-300 bg-white/90 p-3 shadow-sm dark:border-slate-500 dark:bg-slate-900/90">
 							<Label htmlFor="supplier-description">Description (editable field)</Label>
 							<Textarea
 								id="supplier-description"
@@ -67,6 +67,7 @@ export default function EditSupplierInformationModal({
 								onChange={(e) => onDescriptionChange(e.target.value)}
 								rows={6}
 								placeholder="Enter supplier description"
+								className="field-sizing-fixed max-w-full resize-y wrap-anywhere border-slate-300 bg-white/95 dark:border-slate-500 dark:bg-slate-900/95"
 							/>
 						</div>
 

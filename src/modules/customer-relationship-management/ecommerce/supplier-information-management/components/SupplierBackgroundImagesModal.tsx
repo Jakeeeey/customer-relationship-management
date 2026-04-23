@@ -45,7 +45,7 @@ export default function AddBackgroundImagesModal({
 }: AddBackgroundImagesModalProps) {
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
-			<DialogContent className="w-[95vw] max-w-3xl border border-border dark:border-slate-700">
+			<DialogContent className="w-[95vw] max-w-3xl border border-slate-300 bg-white/95 shadow-[0_18px_40px_rgba(15,23,42,0.18)] dark:border-slate-500 dark:bg-slate-900/95 dark:shadow-[0_22px_46px_rgba(0,0,0,0.62)]">
 				<DialogHeader>
 					<DialogTitle>Add Background Images</DialogTitle>
 					<DialogDescription>
@@ -63,7 +63,7 @@ export default function AddBackgroundImagesModal({
 								id="background-images"
 								type="file"
 								accept="image/*"
-								className="text-transparent file:text-foreground"
+								className="border-slate-300 bg-white/95 text-transparent file:text-foreground dark:border-slate-500 dark:bg-slate-900/95"
 								disabled={isUploading}
 								onChange={(e) => {
 									onAddImages(e.target.files?.[0] ?? null);
@@ -96,7 +96,7 @@ export default function AddBackgroundImagesModal({
 									{images.map((image) => (
 										<div
 											key={image.id}
-											className="space-y-2 rounded-lg border border-border p-2 dark:border-slate-700"
+											className="space-y-2 rounded-lg border border-slate-300 bg-white/90 p-2 shadow-sm dark:border-slate-500 dark:bg-slate-900/90"
 										>
 											<div className="h-28 overflow-hidden rounded-md bg-muted/40">
 												<img

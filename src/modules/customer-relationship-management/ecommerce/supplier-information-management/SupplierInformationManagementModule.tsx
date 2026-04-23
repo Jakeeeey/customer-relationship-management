@@ -1,228 +1,60 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { AlertCircle, RefreshCw, Search, Info } from "lucide-react";
-import { toast } from "sonner";
+import { AlertCircle, RefreshCw, Search } from "lucide-react";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "@/components/ui/select";
 
 import EditSupplierInformationModal from "./components/EditSupplierInformationModal";
+import NameFilterCombobox from "./components/NameFilterCombobox";
 import SupplierListTable from "./components/SupplierListTable";
 import ViewSupplierInformationModal from "./components/ViewSupplierInformationModal";
 import AddBackgroundImagesModal from "./components/SupplierBackgroundImagesModal";
-import {
-	addSupplierImage,
-	fetchSupplierImages,
-	replaceSupplierImage,
-	fetchSuppliers,
-	updateSupplierDescription,
-	softDeleteSupplierImage,
-} from "./providers/fetchProvider";
-import { SupplierBackgroundImageItem, SupplierItem } from "./types";
+import { useSupplierFilters } from "./hooks/useSupplierFilters";
+import { useSupplierInformationData } from "./hooks/useSupplierInformationData";
+import { useSupplierModals } from "./hooks/useSupplierModals";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "";
 
 export default function SupplierInformationManagementModule() {
-	const [suppliers, setSuppliers] = useState<SupplierItem[]>([]);
-	const [selectedSupplierId, setSelectedSupplierId] = useState<number | null>(null);
-	const [descriptionDraft, setDescriptionDraft] = useState("");
-	const [images, setImages] = useState<SupplierBackgroundImageItem[]>([]);
-	const [search, setSearch] = useState("");
-	const [nameFilter, setNameFilter] = useState("all");
-	const [isViewModalOpen, setIsViewModalOpen] = useState(false);
-	const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-	const [isAddImagesModalOpen, setIsAddImagesModalOpen] = useState(false);
+	const {
+		suppliers,
+		selectedSupplier,
+		setSelectedSupplierId,
+		descriptionDraft,
+		setDescriptionDraft,
+		hasDescriptionChanged,
+		images,
+		error,
+		isLoadingSuppliers,
+		isLoadingImages,
+		isSavingDescription,
+		isUploading,
+		isReplacingImageId,
+		isDeletingImageId,
+		loadSuppliers,
+		saveDescription,
+		addImage,
+		replaceImage,
+		deleteImage,
+	} = useSupplierInformationData();
 
-	const [isLoadingSuppliers, setIsLoadingSuppliers] = useState(true);
-	const [isLoadingImages, setIsLoadingImages] = useState(false);
-	const [isSavingDescription, setIsSavingDescription] = useState(false);
-	const [isUploading, setIsUploading] = useState(false);
-	const [isReplacingImageId, setIsReplacingImageId] = useState<number | null>(null);
-	const [isDeletingImageId, setIsDeletingImageId] = useState<number | null>(null);
-	const [error, setError] = useState<string | null>(null);
+	const { search, setSearch, nameFilter, setNameFilter, supplierNames, filteredSuppliers } =
+		useSupplierFilters({ suppliers });
 
-	// Get unique supplier names for filter
-	const supplierNames = useMemo(() => {
-		const names = [...new Set(suppliers.map((s) => s.supplier_name))].sort();
-		return names;
-	}, [suppliers]);
-
-	const filteredSuppliers = useMemo(() => {
-		let result = suppliers;
-
-		// Filter by search query
-		const q = search.trim().toLowerCase();
-		if (q) {
-			result = result.filter((item) => {
-				return (
-					item.supplier_shortcut.toLowerCase().includes(q) ||
-					item.supplier_name.toLowerCase().includes(q) ||
-					(item.description ?? "").toLowerCase().includes(q)
-				);
-			});
-		}
-
-		// Filter by name filter
-		if (nameFilter !== "all") {
-			result = result.filter((item) => item.supplier_name === nameFilter);
-		}
-
-		return result;
-	}, [search, suppliers, nameFilter]);
-
-	const selectedSupplier = useMemo(() => {
-		if (!selectedSupplierId) return null;
-		return suppliers.find((item) => item.id === selectedSupplierId) ?? null;
-	}, [selectedSupplierId, suppliers]);
-
-	const hasDescriptionChanged = (selectedSupplier?.description ?? "") !== descriptionDraft;
-
-	const loadSuppliers = async () => {
-		setIsLoadingSuppliers(true);
-		setError(null);
-
-		try {
-			const rows = await fetchSuppliers();
-			setSuppliers(rows);
-
-			if (!rows.length) {
-				setSelectedSupplierId(null);
-				setDescriptionDraft("");
-				setImages([]);
-				return;
-			}
-
-			setSelectedSupplierId((prev) => {
-				if (prev && rows.some((row) => row.id === prev)) {
-					return prev;
-				}
-				return rows[0].id;
-			});
-		} catch (err) {
-			setError(err instanceof Error ? err.message : "Failed to load suppliers.");
-		} finally {
-			setIsLoadingSuppliers(false);
-		}
-	};
-
-	const loadImages = async (supplierId: number) => {
-		setIsLoadingImages(true);
-		try {
-			const rows = await fetchSupplierImages(supplierId);
-			setImages(rows);
-		} catch (err) {
-			toast.error(err instanceof Error ? err.message : "Failed to load supplier images.");
-			setImages([]);
-		} finally {
-			setIsLoadingImages(false);
-		}
-	};
-
-	useEffect(() => {
-		void loadSuppliers();
-	}, []);
-
-	useEffect(() => {
-		if (!selectedSupplier) {
-			setDescriptionDraft("");
-			setImages([]);
-			return;
-		}
-
-		setDescriptionDraft(selectedSupplier.description ?? "");
-		void loadImages(selectedSupplier.id);
-	}, [selectedSupplier]);
-
-	const handleSaveDescription = async () => {
-		if (!selectedSupplier || !hasDescriptionChanged) return;
-
-		setIsSavingDescription(true);
-		try {
-			await updateSupplierDescription(selectedSupplier.id, descriptionDraft);
-
-			setSuppliers((prev) =>
-				prev.map((item) =>
-					item.id === selectedSupplier.id ? { ...item, description: descriptionDraft } : item
-				)
-			);
-
-			toast.success("Supplier description updated.");
-		} catch (err) {
-			toast.error(err instanceof Error ? err.message : "Failed to update supplier description.");
-		} finally {
-			setIsSavingDescription(false);
-		}
-	};
-
-	const handleAddImages = async (file: File | null) => {
-		if (!selectedSupplier || !file) return;
-
-		setIsUploading(true);
-		try {
-			await addSupplierImage(selectedSupplier.id, file);
-			await loadImages(selectedSupplier.id);
-			toast.success("Uploaded 1 image.");
-		} catch (err) {
-			toast.error(err instanceof Error ? err.message : "Failed to upload image.");
-		} finally {
-			setIsUploading(false);
-		}
-	};
-
-	const handleReplaceImage = async (imageId: number, file: File | null) => {
-		if (!selectedSupplier || !file) return;
-
-		setIsReplacingImageId(imageId);
-		try {
-			await replaceSupplierImage(imageId, selectedSupplier.id, file);
-			await loadImages(selectedSupplier.id);
-			toast.success("Supplier image updated.");
-		} catch (err) {
-			toast.error(err instanceof Error ? err.message : "Failed to update supplier image.");
-		} finally {
-			setIsReplacingImageId(null);
-		}
-	};
-
-	const handleDeleteImage = async (imageId: number) => {
-		if (!selectedSupplier) return;
-
-		setIsDeletingImageId(imageId);
-		try {
-			await softDeleteSupplierImage(imageId);
-			setImages((prev) => prev.filter((image) => image.id !== imageId));
-			await loadImages(selectedSupplier.id);
-			toast.success("Supplier image deleted.");
-		} catch (err) {
-			toast.error(err instanceof Error ? err.message : "Failed to delete supplier image.");
-		} finally {
-			setIsDeletingImageId(null);
-		}
-	};
-
-	const handleOpenViewModal = (supplier: SupplierItem) => {
-		setSelectedSupplierId(supplier.id);
-		setIsViewModalOpen(true);
-	};
-
-	const handleOpenEditModal = (supplier: SupplierItem) => {
-		setSelectedSupplierId(supplier.id);
-		setIsEditModalOpen(true);
-	};
-
-	const handleOpenAddImagesModal = (supplier: SupplierItem) => {
-		setSelectedSupplierId(supplier.id);
-		setIsAddImagesModalOpen(true);
-	};
+	const {
+		isViewModalOpen,
+		setIsViewModalOpen,
+		isEditModalOpen,
+		setIsEditModalOpen,
+		isAddImagesModalOpen,
+		setIsAddImagesModalOpen,
+		openViewModal,
+		openEditModal,
+		openAddImagesModal,
+	} = useSupplierModals({ onSupplierSelect: setSelectedSupplierId });
 
 	if (error) {
 		return (
@@ -269,45 +101,41 @@ export default function SupplierInformationManagementModule() {
 				</Button>
 			</div>
 
-				{/* Search and Filters */}
-				<div className="space-y-4 px-4 md:px-6">
-					<div className="flex flex-col gap-3 sm:flex-row">
-						<div className="relative w-full sm:w-80">
-							<Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-							<Input
-								value={search}
-								onChange={(e) => setSearch(e.target.value)}
-								placeholder="Search code..."
-								className="pl-9 h-10 bg-background border border-input dark:border-slate-700"
-							/>
-						</div>
+			{/* Search and Filters */}
+			<div className="px-4 md:px-6">
+				<Card className="rounded-3xl border border-slate-300/90 bg-card/95 py-4 shadow-[0_14px_34px_rgba(15,23,42,0.14)] dark:border-slate-600/80 dark:bg-slate-950/75 dark:shadow-[0_16px_36px_rgba(0,0,0,0.62)]">
+					<CardContent className="px-4 sm:px-6">
+						<div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+							<div className="relative w-full sm:max-w-md">
+								<Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+								<Input
+									value={search}
+									onChange={(e) => setSearch(e.target.value)}
+									placeholder="Search code..."
+									className="h-10 border border-slate-300 bg-white/95 pl-9 shadow-sm focus-visible:ring-slate-400/40 dark:border-slate-500 dark:bg-slate-900/95 dark:text-slate-100 dark:placeholder:text-slate-400"
+								/>
+							</div>
 
-						<div className="w-full sm:min-w-56 sm:w-auto">
-							<Select value={nameFilter} onValueChange={setNameFilter}>
-								<SelectTrigger className="w-full h-10 bg-background border border-input dark:border-slate-700">
-									<SelectValue />
-								</SelectTrigger>
-								<SelectContent position="popper" side="bottom" sideOffset={8}>
-									<SelectItem value="all">All Suppliers</SelectItem>
-									{supplierNames.map((name) => (
-										<SelectItem key={name} value={name}>
-											{name}
-										</SelectItem>
-									))}
-								</SelectContent>
-							</Select>
+							<div className="w-full sm:w-65">
+								<NameFilterCombobox
+									value={nameFilter}
+									onValueChange={setNameFilter}
+									names={supplierNames}
+								/>
+							</div>
 						</div>
-					</div>
-				</div>
+					</CardContent>
+				</Card>
+			</div>
 
 			{/* Table Container */}
 			<div className="px-4 md:px-6">
 				<SupplierListTable
 					suppliers={filteredSuppliers}
 					isLoading={isLoadingSuppliers}
-					onViewSupplier={handleOpenViewModal}
-					onEditSupplier={handleOpenEditModal}
-					onAddImages={handleOpenAddImagesModal}
+					onViewSupplier={openViewModal}
+					onEditSupplier={openEditModal}
+					onAddImages={openAddImagesModal}
 				/>
 			</div>
 
@@ -327,7 +155,7 @@ export default function SupplierInformationManagementModule() {
 				descriptionDraft={descriptionDraft}
 				onDescriptionChange={setDescriptionDraft}
 				hasDescriptionChanged={hasDescriptionChanged}
-				onSaveDescription={() => void handleSaveDescription()}
+				onSaveDescription={() => void saveDescription()}
 				isSavingDescription={isSavingDescription}
 			/>
 
@@ -339,10 +167,10 @@ export default function SupplierInformationManagementModule() {
 				images={images}
 				isLoadingImages={isLoadingImages}
 				isUploading={isUploading}
-				onAddImages={(files) => void handleAddImages(files)}
-				onReplaceImage={(imageId, file) => void handleReplaceImage(imageId, file)}
+				onAddImages={(files) => void addImage(files)}
+				onReplaceImage={(imageId, file) => void replaceImage(imageId, file)}
 				isReplacingImageId={isReplacingImageId}
-				onDeleteImage={(imageId) => void handleDeleteImage(imageId)}
+				onDeleteImage={(imageId) => void deleteImage(imageId)}
 				isDeletingImageId={isDeletingImageId}
 			/>
 		</div>
