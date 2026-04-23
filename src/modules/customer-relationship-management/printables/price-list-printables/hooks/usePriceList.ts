@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Salesman, Supplier, PriceListItem } from "../types";
+import { Salesman, Supplier } from "../types";
 import { fetchProvider } from "../providers/fetchProvider";
 import { toast } from "sonner";
 import { generatePriceListPDF } from "../utils/generatePriceListPDF";
@@ -67,12 +67,9 @@ export function usePriceList() {
             }
 
             const salesman = salesmen.find(s => s.id === Number(selectedSalesmanId));
-            const supplier = suppliers.find(s => s.id === Number(selectedSupplierId));
 
             const doc = await generatePriceListPDF({
                 items: data,
-                salesmanName: salesman?.salesman_name || "N/A",
-                supplierName: supplier?.supplier_name || "N/A",
                 priceType: data[0]?.priceType || salesman?.price_type || "A",
                 templateName: selectedTemplateName // Pass the selected template
             });

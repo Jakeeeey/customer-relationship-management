@@ -5,16 +5,12 @@ import { PdfEngine } from "@/components/pdf-layout-design/PdfEngine";
 
 interface GenerateParams {
     items: PriceListItem[];
-    salesmanName: string;
-    supplierName: string;
     priceType: string;
     templateName: string; // Dynamic template selection
 }
 
 export async function generatePriceListPDF({ 
     items, 
-    salesmanName, 
-    supplierName, 
     priceType,
     templateName 
 }: GenerateParams): Promise<jsPDF> {
