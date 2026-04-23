@@ -55,6 +55,8 @@ export default function AddBackgroundImagesModal({
 
 	const [pendingSupplierFile, setPendingSupplierFile] = useState<File | null>(null);
 	const [pendingSupplierImageUrl, setPendingSupplierImageUrl] = useState<string | null>(null);
+	const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null);
+	const [previewImageAlt, setPreviewImageAlt] = useState("Image preview");
 	const [pendingScale, setPendingScale] = useState(1);
 	const [pendingOffset, setPendingOffset] = useState({ x: 0, y: 0 });
 	const [imageNaturalSize, setImageNaturalSize] = useState({ width: 0, height: 0 });
@@ -82,6 +84,11 @@ export default function AddBackgroundImagesModal({
 	};
 
 	const supplierImageUrl = toAssetUrl(supplier?.supplier_image);
+
+	const openImagePreview = (url: string, alt: string) => {
+		setPreviewImageUrl(url);
+		setPreviewImageAlt(alt);
+	};
 
 	const getMetricsAtScale = (scale: number) => {
 		const width = imageNaturalSize.width || PREVIEW_SIZE;
@@ -258,8 +265,9 @@ export default function AddBackgroundImagesModal({
 	};
 
 	return (
-		<Dialog open={open} onOpenChange={onOpenChange}>
-			<DialogContent className="w-[95vw] max-w-3xl border border-slate-300 bg-white/95 shadow-[0_18px_40px_rgba(15,23,42,0.18)] dark:border-zinc-700 dark:bg-zinc-950/95 dark:shadow-[0_22px_46px_rgba(0,0,0,0.62)]">
+		<>
+			<Dialog open={open} onOpenChange={onOpenChange}>
+				<DialogContent className="w-[95vw] max-w-3xl border border-slate-300 bg-white/95 shadow-[0_18px_40px_rgba(15,23,42,0.18)] dark:border-zinc-700 dark:bg-zinc-950/95 dark:shadow-[0_22px_46px_rgba(0,0,0,0.62)]">
 				<DialogHeader>
 					<DialogTitle>Add Images</DialogTitle>
 					<DialogDescription>
@@ -382,16 +390,22 @@ export default function AddBackgroundImagesModal({
 							) : supplierImageUrl ? (
 								<div className="mx-auto w-full max-w-sm">
 									<div className="space-y-2 rounded-lg border border-slate-300 bg-white/90 p-2 shadow-sm dark:border-zinc-700 dark:bg-zinc-900/90">
-										<div className="relative h-28 overflow-hidden rounded-md bg-muted/40">
-											<Image
-												src={supplierImageUrl}
-												alt="Supplier"
-												fill
-												unoptimized
-												sizes="(max-width: 640px) 100vw, 384px"
-												className="object-cover object-center"
-											/>
-										</div>
+										<button
+											type="button"
+											onClick={() => openImagePreview(supplierImageUrl, "Supplier")}
+											className="mx-auto block"
+										>
+											<div className="relative h-32 w-32 overflow-hidden rounded-full border border-slate-300 bg-muted/40 dark:border-zinc-700">
+												<Image
+													src={supplierImageUrl}
+													alt="Supplier"
+													fill
+													unoptimized
+													sizes="128px"
+													className="object-cover object-center"
+												/>
+											</div>
+										</button>
 										<Button
 											type="button"
 											variant="destructive"
@@ -463,16 +477,22 @@ export default function AddBackgroundImagesModal({
 											key={image.id}
 											className="space-y-2 rounded-lg border border-slate-300 bg-white/90 p-2 shadow-sm dark:border-zinc-700 dark:bg-zinc-900/90"
 										>
-											<div className="relative h-28 overflow-hidden rounded-md bg-muted/40">
-												<Image
-													src={`${apiBase}/assets/${image.image_path}`}
-													alt="Supplier background"
-													fill
-													unoptimized
-													sizes="(max-width: 640px) 100vw, 50vw"
-													className="object-cover"
-												/>
-											</div>
+											<button
+												type="button"
+												onClick={() => openImagePreview(`${apiBase}/assets/${image.image_path}`, "Supplier background")}
+												className="block w-full"
+											>
+												<div className="relative h-28 overflow-hidden rounded-md bg-muted/40">
+													<Image
+														src={`${apiBase}/assets/${image.image_path}`}
+														alt="Supplier background"
+														fill
+														unoptimized
+														sizes="(max-width: 640px) 100vw, 50vw"
+														className="object-cover"
+													/>
+												</div>
+											</button>
 											<Button
 												type="button"
 												variant="destructive"
@@ -501,7 +521,29 @@ export default function AddBackgroundImagesModal({
 						</div>
 					</div>
 				)}
-			</DialogContent>
-		</Dialog>
+				</DialogContent>
+			</Dialog>
+
+			<Dialog open={Boolean(previewImageUrl)} onOpenChange={(next) => !next && setPreviewImageUrl(null)}>
+				<DialogContent className="w-[95vw] max-w-4xl border border-slate-300 bg-white/95 dark:border-zinc-700 dark:bg-zinc-950/95">
+					<DialogHeader>
+						<DialogTitle>Image Preview</DialogTitle>
+						<DialogDescription>Full-size preview</DialogDescription>
+					</DialogHeader>
+					{previewImageUrl && (
+						<div className="relative aspect-4/3 w-full overflow-hidden rounded-lg bg-muted/40">
+							<Image
+								src={previewImageUrl}
+								alt={previewImageAlt}
+								fill
+								unoptimized
+								sizes="95vw"
+								className="object-contain"
+							/>
+						</div>
+					)}
+				</DialogContent>
+			</Dialog>
+		</>
 	);
 }
