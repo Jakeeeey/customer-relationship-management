@@ -1,4 +1,5 @@
 import { ImagePlus, Loader2 } from "lucide-react";
+import Image from "next/image";
 
 import {
 	Dialog,
@@ -58,11 +59,14 @@ export default function ViewSupplierInformationModal({
 								<p className="text-sm font-medium">Supplier Images</p>
 							</div>
 							{supplierImageUrl ? (
-								<div className="flex items-center gap-2 overflow-hidden rounded-md border border-slate-300 bg-muted/40 shadow-sm dark:border-slate-500">
-									<img
+								<div className="relative h-28 overflow-hidden rounded-md border border-slate-300 bg-muted/40 shadow-sm dark:border-slate-500">
+									<Image
 										src={supplierImageUrl}
 										alt="Supplier"
-										className="h-full w-full object-cover"
+										fill
+										unoptimized
+										sizes="(max-width: 640px) 100vw, 50vw"
+										className="object-cover"
 									/>
 								</div>
 							) : (
@@ -134,11 +138,14 @@ export default function ViewSupplierInformationModal({
 											key={image.id}
 											className="space-y-2 rounded-lg border border-slate-300 bg-white/90 p-2 shadow-sm dark:border-slate-500 dark:bg-slate-900/90"
 										>
-											<div className="h-28 overflow-hidden rounded-md bg-muted/40">
-												<img
+											<div className="relative h-28 overflow-hidden rounded-md bg-muted/40">
+												<Image
 													src={`${apiBase}/assets/${image.image_path}`}
 													alt="Supplier background"
-													className="h-full w-full object-cover"
+													fill
+													unoptimized
+													sizes="(max-width: 640px) 100vw, 50vw"
+													className="object-cover"
 												/>
 											</div>
 										</div>

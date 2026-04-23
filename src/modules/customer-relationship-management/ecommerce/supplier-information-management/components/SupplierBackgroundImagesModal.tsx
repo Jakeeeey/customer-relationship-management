@@ -1,4 +1,5 @@
 import { ImagePlus, Loader2, Trash2 } from "lucide-react";
+import Image from "next/image";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -27,8 +28,6 @@ type AddBackgroundImagesModalProps = {
 	onAddImages: (file: File | null) => void;
 	onAddSupplierImage: (file: File | null) => void;
 	onRemoveSupplierImage: () => void;
-	onReplaceImage: (imageId: number, file: File | null) => void;
-	isReplacingImageId: number | null;
 	onDeleteImage: (imageId: number) => void;
 	isDeletingImageId: number | null;
 };
@@ -46,8 +45,6 @@ export default function AddBackgroundImagesModal({
 	onAddImages,
 	onAddSupplierImage,
 	onRemoveSupplierImage,
-	onReplaceImage,
-	isReplacingImageId,
 	onDeleteImage,
 	isDeletingImageId,
 }: AddBackgroundImagesModalProps) {
@@ -103,11 +100,14 @@ export default function AddBackgroundImagesModal({
 							{supplierImageUrl ? (
 								<div className="mx-auto w-full max-w-sm">
 									<div className="space-y-2 rounded-lg border border-slate-300 bg-white/90 p-2 shadow-sm dark:border-slate-500 dark:bg-slate-900/90">
-										<div className="h-28 overflow-hidden rounded-md bg-muted/40">
-											<img
+										<div className="relative h-28 overflow-hidden rounded-md bg-muted/40">
+											<Image
 												src={supplierImageUrl}
 												alt="Supplier"
-												className="h-full w-full object-cover object-center"
+												fill
+												unoptimized
+												sizes="(max-width: 640px) 100vw, 384px"
+												className="object-cover object-center"
 											/>
 										</div>
 										<Button
@@ -181,11 +181,14 @@ export default function AddBackgroundImagesModal({
 											key={image.id}
 											className="space-y-2 rounded-lg border border-slate-300 bg-white/90 p-2 shadow-sm dark:border-slate-500 dark:bg-slate-900/90"
 										>
-											<div className="h-28 overflow-hidden rounded-md bg-muted/40">
-												<img
+											<div className="relative h-28 overflow-hidden rounded-md bg-muted/40">
+												<Image
 													src={`${apiBase}/assets/${image.image_path}`}
 													alt="Supplier background"
-													className="h-full w-full object-cover"
+													fill
+													unoptimized
+													sizes="(max-width: 640px) 100vw, 50vw"
+													className="object-cover"
 												/>
 											</div>
 											<Button
