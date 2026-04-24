@@ -91,7 +91,6 @@ export function usePriceList() {
 
             const doc = await generatePriceListPDF({
                 items: data,
-                priceType: data[0]?.priceType || salesman?.price_type || "A",
                 templateName: selectedTemplateName,
                 salesmanName: salesman?.salesman_name || "",
                 salesmanCode: salesman?.salesman_code || "",
