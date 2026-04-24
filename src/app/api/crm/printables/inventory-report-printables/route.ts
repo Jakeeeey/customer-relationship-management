@@ -3,7 +3,7 @@ import { cookies } from "next/headers";
 
 export const dynamic = "force-dynamic";
 
-export async function GET(req: NextRequest) {
+export async function GET(_req: NextRequest) {
     try {
         const baseUrl = process.env.SPRING_API_BASE_URL?.replace(/\/+$/, "");
         if (!baseUrl) {

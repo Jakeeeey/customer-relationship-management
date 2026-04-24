@@ -11,21 +11,21 @@ import Barcode from "react-barcode"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Skeleton } from "@/components/ui/skeleton"
 import { 
     Search, Package, Box, Hash, RefreshCcw, 
-    FileText, LayoutGrid, Layers, MapPin, 
-    TrendingUp, Boxes, Filter, Eye, Download
+    LayoutGrid, Layers, MapPin, 
+    Boxes, Eye, Download
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { InventoryReportPrintModal } from "./components/InventoryReportPrintModal"
+import { GroupedInventoryItem, InventoryUnit } from "./types"
 
 export const InventoryReportModule = ({ userName }: { userName?: string }) => {
     const { 
         data, loading, error, mode, setMode, search, setSearch, 
         selectedBranch, setSelectedBranch, selectedSupplier, setSelectedSupplier,
-        branches, suppliers, rawCount 
+        branches, suppliers
     } = useInventoryReport()
 
     const [isPrintModalOpen, setIsPrintModalOpen] = React.useState(false)
@@ -41,7 +41,7 @@ export const InventoryReportModule = ({ userName }: { userName?: string }) => {
     const activeBranches = React.useMemo(() => new Set(data.map(i => i.branch)).size, [data])
 
     const columns = React.useMemo(() => {
-        const baseColumns: ColumnDef<any>[] = [
+        const baseColumns: ColumnDef<GroupedInventoryItem>[] = [
             {
                 accessorKey: "supplier",
                 header: "Supplier",
@@ -88,7 +88,7 @@ export const InventoryReportModule = ({ userName }: { userName?: string }) => {
                         const units = row.original.units || [];
                         return (
                             <div className="divide-y divide-border/40 -my-2 -mx-4">
-                                {units.map((u: any, i: number) => (
+                                {units.map((u: InventoryUnit, i: number) => (
                                     <div key={i} className="flex flex-col px-4 py-3 hover:bg-primary/5 transition-colors h-[70px] justify-center">
                                         <div className="flex items-center gap-2">
                                             <span className="text-[13px] font-black text-foreground/90 uppercase tracking-tight">
@@ -120,12 +120,12 @@ export const InventoryReportModule = ({ userName }: { userName?: string }) => {
                 },
                 {
                     id: "stockLevel",
-                    header: () => <div className="text-right">Stock Level</div>,
+                    header: () => <div className="text-right">Available Stock</div>,
                     cell: ({ row }) => {
                         const units = row.original.units || [];
                         return (
                             <div className="divide-y divide-border/40 -my-2 -mx-4">
-                                {units.map((u: any, i: number) => (
+                                {units.map((u: InventoryUnit, i: number) => (
                                     <div key={i} className="flex flex-col items-end px-4 py-3 hover:bg-primary/5 transition-colors h-[70px] justify-center text-right">
                                         <span className="font-black text-blue-600 text-lg leading-none tracking-tighter drop-shadow-sm">
                                             {Number(u.runningInventory).toLocaleString(undefined, { 
@@ -274,7 +274,7 @@ export const InventoryReportModule = ({ userName }: { userName?: string }) => {
                                 <TabsList className="grid w-full grid-cols-3 bg-muted/40 p-1 rounded-xl h-11">
                                     <TabsTrigger value="Breakdown" className="rounded-lg text-[10px] font-black uppercase transition-all data-[state=active]:bg-background data-[state=active]:shadow-sm">
                                         <Package className="h-3 w-3 mr-1.5" />
-                                        Unit
+                                        Breakdown
                                     </TabsTrigger>
                                     <TabsTrigger value="Box" className="rounded-lg text-[10px] font-black uppercase transition-all data-[state=active]:bg-background data-[state=active]:shadow-sm">
                                         <Box className="h-3 w-3 mr-1.5" />
@@ -403,19 +403,23 @@ export const InventoryReportModule = ({ userName }: { userName?: string }) => {
     )
 }
 
-function Building2(props: any) {
+interface IconProps extends React.SVGProps<SVGSVGElement> {
+    size?: number | string;
+}
+
+function Building2({ size = 24, ...props }: IconProps) {
   return (
     <svg
-      {...props}
       xmlns="http://www.w3.org/2000/svg"
-      width="24"
-      height="24"
+      width={size}
+      height={size}
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
       strokeWidth="2"
       strokeLinecap="round"
       strokeLinejoin="round"
+      {...props}
     >
       <path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18" />
       <path d="M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2" />
