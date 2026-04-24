@@ -245,7 +245,7 @@ export const InventoryReportPrintModal = ({
         <Dialog open={isOpen} onOpenChange={onClose}>
             <DialogContent 
                 style={{ maxWidth: '95vw', width: '95vw' }}
-                className="h-[92vh] flex flex-col p-0 rounded-[2.5rem] overflow-hidden border-none shadow-2xl ring-1 ring-black/5 transition-all duration-500"
+                className="h-[92vh] flex flex-col p-0 rounded-[2.5rem] overflow-hidden border-none shadow-2xl ring-1 ring-black/5 transition-all duration-500 [&>button]:hidden"
             >
                 <DialogHeader className="p-8 bg-white border-b shrink-0">
                     <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-8">
