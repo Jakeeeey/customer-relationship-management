@@ -8,6 +8,7 @@ import { ColumnDef } from "@tanstack/react-table"
 import { Input } from "@/components/ui/input"
 import { SearchableSelect } from "@/components/ui/searchable-select"
 import Barcode from "react-barcode"
+import { toast } from "sonner"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -31,7 +32,15 @@ export const InventoryReportModule = ({ userName }: { userName?: string }) => {
     const [isPrintModalOpen, setIsPrintModalOpen] = React.useState(false)
     const [modalMode, setModalMode] = React.useState<'preview' | 'print'>('preview')
 
+    const isFiltersSelected = selectedBranch !== "all" && selectedSupplier !== "all";
+
     const handleOpenModal = (mode: 'preview' | 'print') => {
+        if (!isFiltersSelected) {
+            toast.warning("Complete the selection", {
+                description: "You must select a specific Branch and Supplier before viewing the report."
+            });
+            return;
+        }
         setModalMode(mode);
         setIsPrintModalOpen(true);
     };
@@ -297,8 +306,11 @@ export const InventoryReportModule = ({ userName }: { userName?: string }) => {
                                 options={branches} 
                                 value={selectedBranch} 
                                 onValueChange={setSelectedBranch} 
-                                placeholder="All Branches"
-                                className="h-11 rounded-xl bg-muted/20 border-border/50 focus:bg-background transition-all duration-300"
+                                placeholder="Select Branch..."
+                                className={cn(
+                                    "h-11 rounded-xl bg-muted/20 border-border/50 focus:bg-background transition-all duration-300",
+                                    selectedBranch === "all" && "border-primary/30 bg-primary/5"
+                                )}
                             />
                         </div>
 
@@ -311,8 +323,11 @@ export const InventoryReportModule = ({ userName }: { userName?: string }) => {
                                 options={suppliers} 
                                 value={selectedSupplier} 
                                 onValueChange={setSelectedSupplier} 
-                                placeholder="All Suppliers"
-                                className="h-11 rounded-xl bg-muted/20 border-border/50 focus:bg-background transition-all duration-300"
+                                placeholder="Select Supplier..."
+                                className={cn(
+                                    "h-11 rounded-xl bg-muted/20 border-border/50 focus:bg-background transition-all duration-300",
+                                    selectedSupplier === "all" && "border-primary/30 bg-primary/5"
+                                )}
                             />
                         </div>
 
@@ -337,13 +352,19 @@ export const InventoryReportModule = ({ userName }: { userName?: string }) => {
                             <Button 
                                 variant="outline" 
                                 onClick={() => handleOpenModal('preview')}
-                                className="flex-1 h-11 rounded-xl border-dashed border-primary/30 text-primary hover:bg-primary/5 font-black uppercase text-[10px] tracking-widest transition-all duration-300 shadow-sm"
+                                className={cn(
+                                    "flex-1 h-11 rounded-xl border-dashed border-primary/30 text-primary hover:bg-primary/5 font-black uppercase text-[10px] tracking-widest transition-all duration-300 shadow-sm",
+                                    !isFiltersSelected && "opacity-50 grayscale cursor-not-allowed"
+                                )}
                             >
                                 <Eye size={14} className="mr-2" /> Preview
                             </Button>
                             <Button 
                                 onClick={() => handleOpenModal('print')}
-                                className="flex-1 h-11 rounded-xl bg-primary text-primary-foreground font-black uppercase text-[10px] tracking-widest transition-all duration-300 shadow-lg shadow-primary/20"
+                                className={cn(
+                                    "flex-1 h-11 rounded-xl bg-primary text-primary-foreground font-black uppercase text-[10px] tracking-widest transition-all duration-300 shadow-lg shadow-primary/20",
+                                    !isFiltersSelected && "opacity-50 grayscale cursor-not-allowed"
+                                )}
                             >
                                 <Download size={14} className="mr-2" /> Download
                             </Button>
