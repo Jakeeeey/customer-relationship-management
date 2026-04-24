@@ -4,13 +4,13 @@ const BASE_URL = "/api/crm/printables/price-list-printables";
 
 export const fetchProvider = {
     async getSalesmen(): Promise<Salesman[]> {
-        const res = await fetch("/api/crm/invoicing/salesman");
+        const res = await fetch(`${BASE_URL}?action=salesmen`);
         if (!res.ok) throw new Error("Failed to fetch salesmen");
         return await res.json();
     },
 
     async getSuppliers(): Promise<Supplier[]> {
-        const res = await fetch("/api/crm/invoicing/suppliers");
+        const res = await fetch(`${BASE_URL}?action=suppliers`);
         if (!res.ok) throw new Error("Failed to fetch suppliers");
         return await res.json();
     },

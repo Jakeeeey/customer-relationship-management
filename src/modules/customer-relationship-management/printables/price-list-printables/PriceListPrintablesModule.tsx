@@ -18,11 +18,14 @@ import {
     Users, 
     Truck,
     Layout,
-    X
+    X,
+    Download,
+    Type
 } from "lucide-react";
 import { usePriceList } from "./hooks/usePriceList";
 import { Badge } from "@/components/ui/badge";
 import { SearchableSelect } from "@/components/ui/searchable-select";
+import { Input } from "@/components/ui/input";
 
 export function PriceListPrintablesModule() {
     const {
@@ -40,6 +43,8 @@ export function PriceListPrintablesModule() {
         closePreview,
         isLoading,
         isGenerating,
+        customFilename,
+        handleFilenameChange,
         handleGenerate
     } = usePriceList();
 
@@ -116,19 +121,35 @@ export function PriceListPrintablesModule() {
                     </div>
 
                     {/* Layout/Template Selection */}
-                    <div className="space-y-3">
-                        <Label className="text-xs font-black uppercase tracking-widest text-slate-400 flex items-center gap-2">
-                            <Layout size={14} className="text-blue-400" />
-                            PDF Template Layout
-                        </Label>
-                        <SearchableSelect
-                            options={layoutOptions}
-                            value={selectedTemplateName}
-                            onValueChange={setSelectedTemplateName}
-                            placeholder={isLoading ? "Loading layouts..." : "Select Layout"}
-                            disabled={isLoading || isGenerating}
-                            className="h-14 bg-slate-50/50 border-slate-200 rounded-2xl focus:ring-blue-500/20 px-6 font-bold text-slate-700 transition-all hover:bg-white hover:border-blue-200 shadow-sm"
-                        />
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        <div className="space-y-3">
+                            <Label className="text-xs font-black uppercase tracking-widest text-slate-400 flex items-center gap-2">
+                                <Layout size={14} className="text-blue-400" />
+                                PDF Template Layout
+                            </Label>
+                            <SearchableSelect
+                                options={layoutOptions}
+                                value={selectedTemplateName}
+                                onValueChange={setSelectedTemplateName}
+                                placeholder={isLoading ? "Loading layouts..." : "Select Layout"}
+                                disabled={isLoading || isGenerating}
+                                className="h-14 bg-slate-50/50 border-slate-200 rounded-2xl focus:ring-blue-500/20 px-6 font-bold text-slate-700 transition-all hover:bg-white hover:border-blue-200 shadow-sm"
+                            />
+                        </div>
+
+                        <div className="space-y-3">
+                            <Label className="text-xs font-black uppercase tracking-widest text-slate-400 flex items-center gap-2">
+                                <Type size={14} className="text-blue-400" />
+                                Export File Name
+                            </Label>
+                            <Input
+                                value={customFilename}
+                                onChange={(e) => handleFilenameChange(e.target.value)}
+                                placeholder="Enter custom filename..."
+                                disabled={isLoading || isGenerating}
+                                className="h-14 bg-slate-50/50 border-slate-200 rounded-2xl focus:ring-blue-500/20 px-6 font-bold text-slate-700 transition-all hover:bg-white hover:border-blue-200 shadow-sm"
+                            />
+                        </div>
                     </div>
 
                     <div className="p-6 bg-blue-50/50 rounded-3xl border border-blue-100 flex items-start gap-4">
@@ -147,19 +168,19 @@ export function PriceListPrintablesModule() {
 
                 <CardFooter className="p-8 bg-slate-50/50 border-t border-slate-100/50 flex justify-end">
                     <Button 
-                        onClick={handleGenerate}
+                        onClick={() => handleGenerate({ download: false })}
                         disabled={isGenerating || !selectedSalesmanId || !selectedSupplierId || !selectedTemplateName}
-                        className="h-14 px-10 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-black text-lg shadow-xl shadow-blue-200 transition-all active:scale-95 disabled:bg-slate-200 disabled:shadow-none"
+                        className="h-14 px-12 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-black text-lg shadow-xl shadow-blue-200 transition-all active:scale-95 disabled:bg-slate-200 disabled:shadow-none"
                     >
                         {isGenerating ? (
                             <>
                                 <Loader2 className="mr-2 animate-spin" size={20} />
-                                Creating PDF...
+                                Preparing Print...
                             </>
                         ) : (
                             <>
                                 <Printer className="mr-2" size={20} />
-                                View Print Preview
+                                Print Price List
                             </>
                         )}
                     </Button>
@@ -197,14 +218,24 @@ export function PriceListPrintablesModule() {
                         <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-white shrink-0">
                             <div>
                                 <h3 className="text-xl font-extrabold text-slate-900 tracking-tight">Print Preview</h3>
-                                <p className="text-xs text-slate-400 font-medium mt-1">Layout Template: <span className="text-blue-600 font-bold">{selectedTemplateName}</span></p>
+                                <p className="text-xs text-slate-400 font-medium mt-1">Exporting as: <span className="text-blue-600 font-bold">{customFilename}.pdf</span></p>
                             </div>
-                            <button 
-                                onClick={closePreview}
-                                className="p-2 hover:bg-slate-100 rounded-2xl transition-all text-slate-400 hover:text-red-500 active:scale-95"
-                            >
-                                <X size={24} />
-                            </button>
+                            <div className="flex items-center gap-2">
+                                <Button 
+                                    size="sm"
+                                    className="rounded-xl font-bold bg-blue-600 hover:bg-blue-700 text-white transition-all flex items-center gap-2 px-6 h-10 shadow-lg shadow-blue-200"
+                                    onClick={() => handleGenerate({ download: true })}
+                                >
+                                    <Download size={16} />
+                                    Download PDF
+                                </Button>
+                                <button 
+                                    onClick={closePreview}
+                                    className="p-2 hover:bg-slate-100 rounded-2xl transition-all text-slate-400 hover:text-red-500 active:scale-95"
+                                >
+                                    <X size={24} />
+                                </button>
+                            </div>
                         </div>
                         <div className="flex-1 bg-slate-100 p-4 md:p-8 flex items-center justify-center relative">
                             {pdfUrl ? (
