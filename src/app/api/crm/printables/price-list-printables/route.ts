@@ -32,7 +32,7 @@ export async function GET(req: NextRequest) {
 
         // 2. Handle Suppliers List
         if (action === "suppliers") {
-            const res = await fetch(`${directusUrl}/items/suppliers?limit=-1&fields=id,supplier_name,supplier_shortcut`, {
+            const res = await fetch(`${directusUrl}/items/suppliers?filter[supplier_type][_in]=TRADE,Trade&limit=-1&fields=id,supplier_name,supplier_shortcut`, {
                 headers,
                 cache: "no-store"
             });

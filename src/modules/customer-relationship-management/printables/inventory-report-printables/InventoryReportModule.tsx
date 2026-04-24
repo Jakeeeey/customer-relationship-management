@@ -6,7 +6,7 @@ import { InventoryReportMode } from "./types"
 import { DataTable } from "@/components/ui/new-data-table"
 import { ColumnDef } from "@tanstack/react-table"
 import { Input } from "@/components/ui/input"
-import { SearchableSelect } from "@/components/ui/searchable-select"
+import { LocalSearchableSelect } from "./components/LocalSearchableSelect"
 import Barcode from "react-barcode"
 import { toast } from "sonner"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -302,7 +302,7 @@ export const InventoryReportModule = ({ userName }: { userName?: string }) => {
                             <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/70 flex items-center gap-2">
                                 <MapPin size={12} className="text-primary/60" /> Branch Location
                             </label>
-                            <SearchableSelect 
+                            <LocalSearchableSelect 
                                 options={branches} 
                                 value={selectedBranch} 
                                 onValueChange={setSelectedBranch} 
@@ -319,7 +319,7 @@ export const InventoryReportModule = ({ userName }: { userName?: string }) => {
                             <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/70 flex items-center gap-2">
                                 <LayoutGrid size={12} className="text-primary/60" /> Main Supplier
                             </label>
-                            <SearchableSelect 
+                            <LocalSearchableSelect 
                                 options={suppliers} 
                                 value={selectedSupplier} 
                                 onValueChange={setSelectedSupplier} 

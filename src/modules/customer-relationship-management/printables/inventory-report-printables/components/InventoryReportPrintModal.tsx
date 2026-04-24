@@ -111,12 +111,11 @@ export const InventoryReportPrintModal = ({
                 const body: (string | number)[][] = [];
 
                 if (filters.mode === "Breakdown") {
-                    head.push(['BARCODE', 'BRANCH', 'BRAND', 'CATEGORY', 'PRODUCT', 'UNIT', 'AVAILABLE STOCK']);
+                    head.push(['BARCODE', 'BRAND', 'CATEGORY', 'PRODUCT', 'UNIT', 'AVAILABLE STOCK']);
                     data.forEach(item => {
                         item.units.forEach((u: InventoryUnit) => {
                             body.push([
                                 u.barcode || '',
-                                item.branch,
                                 item.brand,
                                 item.category,
                                 item.products,
@@ -126,10 +125,9 @@ export const InventoryReportPrintModal = ({
                         });
                     });
                 } else if (filters.mode === "Box") {
-                    head.push(['BRANCH', 'BRAND', 'CATEGORY', 'PRODUCT', 'AVAILABLE BOX']);
+                    head.push(['BRAND', 'CATEGORY', 'PRODUCT', 'AVAILABLE BOX']);
                     data.forEach(item => {
                         body.push([
-                            item.branch,
                             item.brand,
                             item.category,
                             item.products,
@@ -137,10 +135,9 @@ export const InventoryReportPrintModal = ({
                         ]);
                     });
                 } else {
-                    head.push(['BRANCH', 'BRAND', 'CATEGORY', 'PRODUCT', 'AVAILABLE PIECE']);
+                    head.push(['BRAND', 'CATEGORY', 'PRODUCT', 'AVAILABLE PIECE']);
                     data.forEach(item => {
                         body.push([
-                            item.branch,
                             item.brand,
                             item.category,
                             item.products,
@@ -163,19 +160,17 @@ export const InventoryReportPrintModal = ({
                         valign: 'middle'
                     },
                     columnStyles: filters.mode === "Breakdown" ? {
-                        0: { cellWidth: 35 }, 
-                        1: { cellWidth: 35 }, 
-                        2: { cellWidth: 15 }, 
-                        3: { cellWidth: 25 }, 
-                        4: { cellWidth: 'auto' }, 
-                        5: { cellWidth: 18 }, 
-                        6: { cellWidth: 35, halign: 'center' }, 
+                        0: { cellWidth: 35 }, // BARCODE
+                        1: { cellWidth: 20 }, // BRAND
+                        2: { cellWidth: 25 }, // CATEGORY
+                        3: { cellWidth: 'auto' }, // PRODUCT
+                        4: { cellWidth: 20 }, // UNIT
+                        5: { cellWidth: 35, halign: 'center' }, // AVAILABLE STOCK
                     } : {
-                        0: { cellWidth: 35 }, 
-                        1: { cellWidth: 20 }, 
-                        2: { cellWidth: 25 }, 
-                        3: { cellWidth: 'auto' }, 
-                        4: { cellWidth: 35, halign: 'center' }, 
+                        0: { cellWidth: 25 }, // BRAND
+                        1: { cellWidth: 30 }, // CATEGORY
+                        2: { cellWidth: 'auto' }, // PRODUCT
+                        3: { cellWidth: 35, halign: 'center' }, // AVAILABLE STOCK
                     },
                     didDrawCell: (cellData) => {
                         if (filters.mode === "Breakdown" && cellData.column.index === 0 && cellData.section === 'body' && cellData.cell.raw) {

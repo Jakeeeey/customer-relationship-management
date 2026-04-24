@@ -24,7 +24,7 @@ import {
 } from "lucide-react";
 import { usePriceList } from "./hooks/usePriceList";
 import { Badge } from "@/components/ui/badge";
-import { SearchableSelect } from "@/components/ui/searchable-select";
+import { LocalSearchableSelect } from "./components/LocalSearchableSelect";
 import { Input } from "@/components/ui/input";
 
 export function PriceListPrintablesModule() {
@@ -93,7 +93,7 @@ export function PriceListPrintablesModule() {
                                 <Users size={14} className="text-blue-400" />
                                 Salesman
                             </Label>
-                            <SearchableSelect
+                            <LocalSearchableSelect
                                 options={salesmanOptions}
                                 value={selectedSalesmanId}
                                 onValueChange={setSelectedSalesmanId}
@@ -109,7 +109,7 @@ export function PriceListPrintablesModule() {
                                 <Truck size={14} className="text-blue-400" />
                                 Supplier
                             </Label>
-                            <SearchableSelect
+                            <LocalSearchableSelect
                                 options={supplierOptions}
                                 value={selectedSupplierId}
                                 onValueChange={setSelectedSupplierId}
@@ -127,7 +127,7 @@ export function PriceListPrintablesModule() {
                                 <Layout size={14} className="text-blue-400" />
                                 PDF Template Layout
                             </Label>
-                            <SearchableSelect
+                            <LocalSearchableSelect
                                 options={layoutOptions}
                                 value={selectedTemplateName}
                                 onValueChange={setSelectedTemplateName}
