@@ -89,6 +89,7 @@ export const ConvertToInvoiceModal: React.FC<ConvertToInvoiceModalProps> = ({
     const [isHolding, setIsHolding] = useState(false);
     const [receiptTypes, setReceiptTypes] = useState<ReceiptType[]>([]);
     const [selectedTypeId, setSelectedTypeId] = useState<string>("");
+    const [isPrintConfirmOpen, setIsPrintConfirmOpen] = useState(false);
     const [selectedProductId, setSelectedProductId] = useState<number | null>(null);
     const [sourceProductIds, setSourceProductIds] = useState<Set<number> | null>(null);
 
@@ -266,7 +267,7 @@ export const ConvertToInvoiceModal: React.FC<ConvertToInvoiceModalProps> = ({
                     unit_price: item.unit_price,
                     discount_type: item.discount_type,
                     discount_amount: (item.discount_amount / ordered) * autoQty,
-                    net_amount: (item.net_amount / ordered) * autoQty,
+                    net_amount: (item.unit_price * autoQty) - ((item.discount_amount / ordered) * autoQty),
                     unit_shortcut: item.unit_shortcut,
                     ordered_qty: ordered
                 };
@@ -300,6 +301,26 @@ export const ConvertToInvoiceModal: React.FC<ConvertToInvoiceModalProps> = ({
 
     const updateReceiptNo = (id: string, no: string) => {
         setReceipts(receipts.map(r => r.id === id ? { ...r, receipt_no: no } : r));
+    };
+
+    const isILCSupplier = order?.supplier_id?.supplier_name === "ISLA LPG CORPORATION" || 
+                         order?.supplier_id?.supplier_shortcut === "ILC";
+
+    const updateItemPrice = (receiptId: string, productId: number, newPrice: number) => {
+        setReceipts(receipts.map(r => r.id === receiptId ? {
+            ...r,
+            items: r.items.map(i => {
+                if (i.product_id === productId) {
+                    const discount = i.discount_amount || 0;
+                    return {
+                        ...i,
+                        unit_price: newPrice,
+                        net_amount: (newPrice * i.qty) - discount
+                    };
+                }
+                return i;
+            })
+        } : r));
     };
 
     const updateItemQty = (receiptId: string, productId: number, newQty: number) => {
@@ -369,7 +390,7 @@ export const ConvertToInvoiceModal: React.FC<ConvertToInvoiceModalProps> = ({
                     qty: finalQty,
                     allocated_qty: convItem.allocated_quantity || 0,
                     discount_amount: (convItem.discount_amount / ordered) * finalQty,
-                    net_amount: (convItem.net_amount / ordered) * finalQty,
+                    net_amount: (i.unit_price * finalQty) - ((convItem.discount_amount / ordered) * finalQty),
                     unit_shortcut: convItem.unit_shortcut,
                     ordered_qty: ordered
                 } : i)
@@ -387,7 +408,7 @@ export const ConvertToInvoiceModal: React.FC<ConvertToInvoiceModalProps> = ({
             unit_price: convItem.unit_price,
             discount_type: convItem.discount_type,
             discount_amount: (convItem.discount_amount / ordered) * finalQty,
-            net_amount: (convItem.net_amount / ordered) * finalQty,
+            net_amount: (convItem.unit_price * finalQty) - ((convItem.discount_amount / ordered) * finalQty),
             unit_shortcut: convItem.unit_shortcut,
             ordered_qty: ordered
         };
@@ -428,10 +449,12 @@ export const ConvertToInvoiceModal: React.FC<ConvertToInvoiceModalProps> = ({
 
     const handlePreviewReceipt = async () => {
         // Validate ALL receipts before opening preview
-        for (const r of receipts) {
+        // Validate ONLY non-void receipts before opening preview
+        const validReceipts = receipts.filter(r => !r.is_void_reference);
+        for (const r of validReceipts) {
             if (!r.receipt_no.trim()) {
                 toast.error(`Receipt ${receipts.indexOf(r) + 1}: Receipt Number is required`, { duration: 4000 });
-                setActiveReceiptId(r.id); // Switch to the problematic tab
+                setActiveReceiptId(r.id); 
                 return;
             }
             if (r.items.length === 0) {
@@ -443,10 +466,8 @@ export const ConvertToInvoiceModal: React.FC<ConvertToInvoiceModalProps> = ({
 
         setIsValidating(true);
         try {
-            // Validate uniqueness of ALL replacement receipts (skip void reference AND existing recycled invoices)
-            for (const r of receipts) {
-                if (r.is_void_reference) continue; // Skip validation for the void original
-
+            // Validate uniqueness of ALL replacement receipts (ignore void references)
+            for (const r of validReceipts) {
                 // ── Skip validation if this is an existing recycled invoice that we are just patching ──
                 if (order.existing_invoice_no) continue;
 
@@ -496,14 +517,20 @@ export const ConvertToInvoiceModal: React.FC<ConvertToInvoiceModalProps> = ({
         }
     };
 
+    /**
+     * handlePrint now acts as the INITIAL validation trigger.
+     * It checks for required fields and, if valid, opens the confirmation dialog.
+     */
     const handlePrint = async () => {
         if (!order || receipts.length === 0) return;
 
-        // Validate ALL receipts before printing
-        for (const r of receipts) {
+        // 1. Basic UI Validation (Required fields)
+        // 1. Basic UI Validation (Required fields) - Skip Void References
+        const validReceipts = receipts.filter(r => !r.is_void_reference);
+        for (const r of validReceipts) {
             if (!r.receipt_no.trim()) {
                 toast.error(`Receipt ${receipts.indexOf(r) + 1}: Receipt Number is required`, { duration: 4000 });
-                setActiveReceiptId(r.id); // Switch to the problematic tab
+                setActiveReceiptId(r.id); 
                 return;
             }
             if (r.items.length === 0) {
@@ -513,13 +540,22 @@ export const ConvertToInvoiceModal: React.FC<ConvertToInvoiceModalProps> = ({
             }
         }
 
+        // 2. Open confirmation dialog
+        setIsPrintConfirmOpen(true);
+    };
+
+    /**
+     * executePrint performs the actual API submission and PDF generation.
+     * Guaranteed to run only after user confirms in the dialog.
+     */
+    const executePrint = async () => {
         setIsValidating(true);
+        setIsPrintConfirmOpen(false);
+
         try {
             // Validate uniqueness of ALL replacement receipts (skip void reference AND existing recycled invoices)
             for (const r of receipts) {
-                if (r.is_void_reference) continue; // Skip validation for the void original
-
-                // ── Skip validation if this is an existing recycled invoice that we are just patching ──
+                if (r.is_void_reference) continue; 
                 if (order.existing_invoice_no) continue;
 
                 const exists = await InvoicingService.validateReceiptNo(r.receipt_no);
@@ -550,7 +586,7 @@ export const ConvertToInvoiceModal: React.FC<ConvertToInvoiceModalProps> = ({
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     order: order,
-                    receipts: receipts,
+                    receipts: receipts.filter(r => !r.is_void_reference),
                     receipt_type_id: parseInt(selectedTypeId)
                 })
             });
@@ -582,26 +618,8 @@ export const ConvertToInvoiceModal: React.FC<ConvertToInvoiceModalProps> = ({
                 
                 archivedReceiptNos.push(r.receipt_no);
 
-                // Barcode logic
-                let currentBarcodeUrl;
-                if (isOfficialReceipt && r.receipt_no) {
-                    try {
-                        const JsBarcode = (await import('jsbarcode')).default;
-                        const offscreenCanvas = document.createElement('canvas');
-                        JsBarcode(offscreenCanvas, r.receipt_no, {
-                            format: 'CODE128',
-                            height: 35,
-                            width: 1.2,
-                            fontSize: 10,
-                            margin: 0,
-                            background: 'transparent',
-                            displayValue: true,
-                        });
-                        currentBarcodeUrl = offscreenCanvas.toDataURL('image/png');
-                    } catch (err) {
-                        console.warn("Barcode failed:", err);
-                    }
-                }
+                // Barcode logic removed - now handled via Vector in generateInvoicingPDF.ts
+                const currentBarcodeUrl = undefined;
 
                 const data: ReceiptData = {
                     receipt_no: r.receipt_no,
@@ -1223,12 +1241,12 @@ export const ConvertToInvoiceModal: React.FC<ConvertToInvoiceModalProps> = ({
                                     </div>
 
                                     <div className="flex-grow overflow-hidden flex flex-col">
-                                        <div className="grid grid-cols-12 gap-2 p-3 bg-muted/10 border-b text-[10px] font-black uppercase tracking-widest text-muted-foreground">
-                                            <div className="col-span-4">Product</div>
+                                        <div className="grid grid-cols-12 gap-2 p-3 bg-muted/10 border-b text-[10px] font-normal uppercase tracking-widest text-muted-foreground">
+                                            <div className="col-span-3">Product</div>
                                             <div className="col-span-1 text-center">Allocated</div>
                                             <div className="col-span-1 text-center">Unit</div>
                                             <div className="col-span-1 text-center">Qty</div>
-                                            <div className="col-span-1 text-right">Price</div>
+                                            <div className="col-span-2 text-center">Price</div>
                                             <div className="col-span-2 text-center">Discount Type</div>
                                             <div className="col-span-1 text-right">Total</div>
                                             <div className="col-span-1"></div>
@@ -1246,7 +1264,7 @@ export const ConvertToInvoiceModal: React.FC<ConvertToInvoiceModalProps> = ({
                                                             key={item.product_id} 
                                                             onClick={() => !r.is_void_reference && setSelectedProductId(item.product_id)}
                                                             className={cn(
-                                                                "grid grid-cols-12 gap-2 p-2 items-center rounded-lg border transition-all",
+                                                                "grid grid-cols-12 gap-2 p-3 items-center rounded-lg border transition-all",
                                                                 r.is_void_reference
                                                                     ? "bg-red-50/40 dark:bg-red-950/10 border-red-200/30 cursor-default opacity-80"
                                                                     : cn(
@@ -1257,32 +1275,45 @@ export const ConvertToInvoiceModal: React.FC<ConvertToInvoiceModalProps> = ({
                                                                     )
                                                             )}
                                                         >
-                                                            <div className="col-span-4">
-                                                                <p className="text-xs font-black text-foreground line-clamp-2">{item.product_name}</p>
+                                                            <div className="col-span-3">
+                                                                <p className="text-xs font-normal text-foreground line-clamp-2">{item.product_name}</p>
                                                             </div>
                                                             <div className="col-span-1 text-center">
-                                                                <p className="text-xs font-black text-foreground">{item.allocated_qty}</p>
+                                                                <p className="text-xs font-normal text-foreground">{item.allocated_qty}</p>
                                                             </div>
                                                             <div className="col-span-1 text-center">
-                                                                <Badge variant="outline" className="text-[9px] font-bold px-1.5 py-0 h-4 min-w-[30px] justify-center bg-primary/5 text-primary border-primary/20">
+                                                                <Badge variant="outline" className="text-[9px] font-normal px-1.5 py-0 h-4 min-w-[30px] justify-center bg-primary/5 text-primary border-primary/20">
                                                                     {item.unit_shortcut}
                                                                 </Badge>
                                                             </div>
-                                                            <div className="col-span-1 px-1">
+                                                            <div className="col-span-1 px-1 text-center">
                                                                 <Input
                                                                     type="number"
                                                                     value={item.qty}
                                                                     onChange={(e) => updateItemQty(r.id, item.product_id, parseInt(e.target.value) || 0)}
                                                                     readOnly={!!r.is_void_reference || !!order.existing_invoice_no || (!!order.void_invoices && order.void_invoices.length > 0)}
                                                                     disabled={!!r.is_void_reference || !!order.existing_invoice_no || (!!order.void_invoices && order.void_invoices.length > 0)}
-                                                                    className="h-7 w-full rounded-md text-center font-bold text-[10px] p-0"
+                                                                    className="h-7 w-full rounded-md text-center font-normal text-[10px] p-0"
                                                                 />
                                                             </div>
-                                                            <div className="col-span-1 text-right">
-                                                                <p className="text-[10px] font-medium whitespace-nowrap">{formatCurrency(item.unit_price)}</p>
+                                                            <div className="col-span-2 text-center px-1 flex items-center justify-center">
+                                                                {isILCSupplier && !r.is_void_reference && !order.existing_invoice_no ? (
+                                                                    <div className="relative group/price flex items-center justify-center w-full max-w-[110px] mx-auto">
+                                                                        <span className="absolute left-2 text-[10px] font-black text-primary/40 pointer-events-none select-none">₱</span>
+                                                                        <Input
+                                                                            type="number"
+                                                                            value={item.unit_price}
+                                                                            onChange={(e) => updateItemPrice(r.id, item.product_id, parseFloat(e.target.value) || 0)}
+                                                                            onFocus={(e) => e.target.select()}
+                                                                            className="h-8 w-full rounded-xl text-right font-normal text-xs tabular-nums pl-6 pr-2 bg-zinc-50 border-zinc-200 focus-visible:ring-primary/20 focus-visible:border-primary/40 transition-all hover:bg-white hover:border-primary/30 shadow-sm"
+                                                                        />
+                                                                    </div>
+                                                                ) : (
+                                                                    <p className="text-[10px] font-medium whitespace-nowrap mx-auto">{formatCurrency(item.unit_price)}</p>
+                                                                )}
                                                             </div>
                                                             <div className="col-span-2 text-center">
-                                                                <p className="text-[9px] font-black uppercase text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full inline-block truncate max-w-full">
+                                                                <p className="text-[9px] font-normal uppercase text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full inline-block truncate max-w-full">
                                                                     {(() => {
                                                                         const dt = discountTypes.find(d => d.id === item.discount_type);
                                                                         return dt ? dt.discount_type : "NONE";
@@ -1290,7 +1321,7 @@ export const ConvertToInvoiceModal: React.FC<ConvertToInvoiceModalProps> = ({
                                                                 </p>
                                                             </div>
                                                             <div className="col-span-1 text-right">
-                                                                <p className="text-[10px] font-black text-primary whitespace-nowrap">{formatCurrency(item.net_amount)}</p>
+                                                                <p className="text-[10px] font-normal text-primary whitespace-nowrap">{formatCurrency(item.net_amount)}</p>
                                                             </div>
                                                             <div className="col-span-1 flex justify-center">
                                                                 {!r.is_void_reference && !order.existing_invoice_no && !(order.void_invoices && order.void_invoices.length > 0) && (
@@ -1360,7 +1391,7 @@ export const ConvertToInvoiceModal: React.FC<ConvertToInvoiceModalProps> = ({
             <DialogContent showCloseButton={false} className={cn("max-h-[95vh] overflow-y-auto p-0 border-none shadow-2xl bg-zinc-100 dark:bg-zinc-950 flex flex-col", previewDialogWidthClass)}>
                 <DialogTitle className="sr-only">Receipt Preview</DialogTitle>
                 <DialogHeader className="p-4 bg-zinc-50 dark:bg-zinc-900/50 border-b border-zinc-200 dark:border-zinc-800 flex flex-row items-center justify-between flex-shrink-0">
-                    <DialogTitle className="text-xs font-black uppercase tracking-widest flex items-center gap-2 text-zinc-800 dark:text-zinc-200">
+                    <DialogTitle className="text-xs font-bold uppercase tracking-widest flex items-center gap-2 text-zinc-800 dark:text-zinc-200">
                         <div className="p-1.5 bg-primary/10 rounded-lg">
                             <Eye size={14} className="text-primary" />
                         </div>
@@ -1384,7 +1415,7 @@ export const ConvertToInvoiceModal: React.FC<ConvertToInvoiceModalProps> = ({
                                         -webkit-print-color-adjust: exact;
                                     }
                                     .header-container { position: relative; width: 100%; height: 4.3in; margin-bottom: 0in; overflow: hidden; }
-                                    .header-row { position: absolute; width: 100%; font-weight: bold; font-size: 11pt; white-space: nowrap; overflow: hidden; }
+                                    .header-row { position: absolute; width: 100%; font-weight: normal; font-size: 11pt; white-space: nowrap; overflow: hidden; }
                                     .row-1 { top: 2.45in; }
                                     .row-2 { top: 2.78in; }
                                     .row-3 { top: 3.13in; }
@@ -1439,7 +1470,7 @@ export const ConvertToInvoiceModal: React.FC<ConvertToInvoiceModalProps> = ({
                                         padding: 0 !important; /* Removed bottom padding as requested (0mm) */
                                         font-family: 'Consolas', 'Courier New', Courier, monospace !important;
                                         font-size: 9.5pt !important;
-                                        font-weight: 500 !important;
+                                        font-weight: 400 !important;
                                         line-height: 1.15 !important;
                                         margin: 0 !important; /* Strict Left to avoid driver centering */
                                         letter-spacing: -0.2px !important;
@@ -1453,7 +1484,7 @@ export const ConvertToInvoiceModal: React.FC<ConvertToInvoiceModalProps> = ({
 
                                 /* Preview Styles - Strict Border Free */
                                 .header-container { position: relative; width: 100%; height: 3.7in; margin-bottom: 0in; overflow: hidden; }
-                                .header-row { position: absolute; width: 100%; font-weight: bold; font-size: 11pt; white-space: nowrap; overflow: hidden; }
+                                .header-row { position: absolute; width: 100%; font-weight: normal; font-size: 11pt; white-space: nowrap; overflow: hidden; }
                                 .row-1 { top: 2.15in; }
                                 .row-2 { top: 2.43in; }
                                 .row-3 { top: 2.71in; }
@@ -1464,11 +1495,7 @@ export const ConvertToInvoiceModal: React.FC<ConvertToInvoiceModalProps> = ({
                                 .text-right-aligned { float: right; padding-right: 0.3in; text-align: right; }
                                 .barcode-pos { position: absolute; top: 0in; right: 0.3in; }
                                 .table-right-col { padding-right: 0.3in !important; text-align: right !important; }
-                                .totals-table td, .totals-table th, .table-container table, .table-container td, .table-container th { 
-                                    border: none !important; 
-                                    padding: 4px 10px; 
-                                    font-size: 10pt; 
-                                    font-weight: bold; 
+                                    font-weight: normal; 
                                 }
                                 .table-container { padding-top: 0; margin-top: -0.16in; }
                                 .totals-table { width: 100%; border-collapse: collapse; }
@@ -1485,26 +1512,20 @@ export const ConvertToInvoiceModal: React.FC<ConvertToInvoiceModalProps> = ({
                                     font-size: 10px;
                                     line-height: 1.15;
                                     letter-spacing: -0.2px;
-                                    font-weight: 500;
+                                    font-weight: normal;
                                 }
                             `}
                         </style>
                         <div className="preview-shell flex-col gap-8">
                             {isOfficialReceipt ? (
-                                receipts.map((currentReceipt, receiptIdx) => (
+                                receipts.filter(r => !r.is_void_reference).map((currentReceipt, receiptIdx, filteredArray) => (
                                 <div
                                     key={currentReceipt.id}
                                     style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: 32 }}
                                 >
-                                    {receipts.length > 1 && (
-                                        <div className="mb-2 px-3 py-1 bg-primary/10 border border-primary/20 rounded-full text-[10px] font-black uppercase tracking-widest text-primary">
-                                            {(() => {
-                                                const replacements = receipts.filter(rec => !rec.is_void_reference);
-                                                const replIdx = replacements.findIndex(rec => rec.id === currentReceipt.id);
-                                                return currentReceipt.is_void_reference 
-                                                    ? `Void Reference — ${currentReceipt.receipt_no}`
-                                                    : `Receipt ${replIdx + 1} of ${replacements.length} — ${currentReceipt.receipt_no}`;
-                                            })()}
+                                    {filteredArray.length > 1 && (
+                                        <div className="mb-2 px-3 py-1 bg-primary/10 border border-primary/20 rounded-full text-[10px] font-normal uppercase tracking-widest text-primary">
+                                            {`Receipt ${receiptIdx + 1} of ${filteredArray.length} — ${currentReceipt.receipt_no}`}
                                         </div>
                                     )}
                                 <div 
@@ -1561,34 +1582,51 @@ export const ConvertToInvoiceModal: React.FC<ConvertToInvoiceModalProps> = ({
 
                                         return (
                                             <>
-                                                {/* Specialized Barcode rendering */}
-                                                <div className="template-field" style={{ 
-                                                    left: orTemplate?.fields?.barcode ? `${orTemplate.fields.barcode.x}mm` : 'auto',
-                                                    right: orTemplate?.fields?.barcode ? 'auto' : '0.3in', 
-                                                    top: orTemplate?.fields?.barcode ? `${orTemplate.fields.barcode.y}mm` : '0.1in',
-                                                    display: 'flex',
-                                                    justifyContent: 'flex-start',
-                                                    width: 'auto',
-                                                    pointerEvents: 'none'
-                                                }}>
-                                                    <div className="inline-block">
-                                                        <Barcode
-                                                            value={currentReceipt.receipt_no || "N/A"}
-                                                            height={35}
-                                                            width={1.2}
-                                                            fontSize={10}
-                                                            margin={0}
-                                                            background="transparent"
-                                                            renderer="canvas"
-                                                        />
+                                                {/* Specialized Barcode rendering - Synced with Template Designer */}
+                                                {( !orTemplate?.fields?.barcode?.hidden || !orTemplate?.fields?.barcode?.hideBarcodeText ) && (
+                                                    <div className="template-field" style={{ 
+                                                        left: orTemplate?.fields?.barcode ? `${orTemplate.fields.barcode.x}mm` : 'auto',
+                                                        right: orTemplate?.fields?.barcode ? 'auto' : '0.3in', 
+                                                        top: orTemplate?.fields?.barcode ? `${orTemplate.fields.barcode.y}mm` : '0.1in',
+                                                        display: 'flex',
+                                                        justifyContent: 'center',
+                                                        width: orTemplate?.fields?.barcode?.barcodeModuleWidth ? 'auto' : 'auto',
+                                                        pointerEvents: 'none',
+                                                        zIndex: 20
+                                                    }}>
+                                                        <div className="inline-block text-center">
+                                                            {!orTemplate?.fields?.barcode?.hidden ? (
+                                                                <Barcode
+                                                                    value={currentReceipt.receipt_no || "N/A"}
+                                                                    height={(orTemplate?.fields?.barcode?.barcodeHeight ?? 9) * 3.78}
+                                                                    width={(orTemplate?.fields?.barcode?.barcodeModuleWidth ?? 0.35) * 3.78}
+                                                                    fontSize={orTemplate?.fields?.barcode?.fontSize ?? 10}
+                                                                    displayValue={!orTemplate?.fields?.barcode?.hideBarcodeText}
+                                                                    fontOptions={orTemplate?.fields?.barcode?.fontWeight || 'normal'}
+                                                                    margin={0}
+                                                                    background="transparent"
+                                                                    renderer="canvas"
+                                                                />
+                                                            ) : (
+                                                                <div 
+                                                                    style={{ 
+                                                                        fontSize: `${orTemplate?.fields?.barcode?.fontSize ?? 10}pt`,
+                                                                        fontFamily: 'monospace',
+                                                                        fontWeight: orTemplate?.fields?.barcode?.fontWeight || 'normal'
+                                                                    }}
+                                                                >
+                                                                    {!orTemplate?.fields?.barcode?.hideBarcodeText && (currentReceipt.receipt_no || "N/A")}
+                                                                </div>
+                                                            )}
+                                                        </div>
                                                     </div>
-                                                </div>
+                                                )}
 
                                                 {/* Render template defined fields */}
                                                 {orTemplate ? (
                                                     Object.entries(orTemplate.fields).map(([key, config]) => {
                                                         const val = fieldValues[key];
-                                                        if (!val) return null;
+                                                        if (!val || key === 'barcode' || config.hidden) return null;
                                                         return (
                                                             <div 
                                                                 key={key} 
@@ -1596,12 +1634,15 @@ export const ConvertToInvoiceModal: React.FC<ConvertToInvoiceModalProps> = ({
                                                                 style={{
                                                                     left: `${config.x}mm`,
                                                                     top: `${config.y}mm`,
+                                                                    width: config.maxWidth ? `${config.maxWidth}mm` : 'auto',
                                                                     fontSize: `${config.fontSize}pt`,
                                                                     fontFamily: config.fontFamily === 'courier' ? 'monospace' : config.fontFamily,
-                                                                    fontWeight: config.fontWeight,
+                                                                    fontWeight: config.fontWeight || 'normal',
+                                                                    lineHeight: config.lineHeight ?? 1.2,
                                                                     letterSpacing: `${config.charSpacing ?? 0}pt`,
                                                                     transform: `scaleX(${config.scaleX ?? 1})`,
-                                                                    transformOrigin: 'left center'
+                                                                    transformOrigin: 'left center',
+                                                                    whiteSpace: config.maxWidth ? 'pre-wrap' : 'nowrap'
                                                                 }}
                                                             >
                                                                 {val}
@@ -1642,42 +1683,43 @@ export const ConvertToInvoiceModal: React.FC<ConvertToInvoiceModalProps> = ({
                                                             return (
                                                                 <div 
                                                                     key={idx} 
-                                                                    className="relative w-full" 
+                                                                    className="relative w-full flex items-center" 
                                                                     style={{ 
-                                                                        height: `${rowHeight}mm`,
+                                                                        minHeight: `${rowHeight}mm`,
                                                                         fontFamily: 'monospace',
-                                                                        fontSize: `${fontSize}pt`
+                                                                        fontSize: `${fontSize}pt`,
+                                                                        padding: '1mm 0' // Small padding for breathability
                                                                     }}
                                                                 >
-                                                                    {/* Left Aligned */}
+                                                                    {/* Left Aligned (Relative to push container height) */}
                                                                     <div 
-                                                                        className="absolute font-bold uppercase whitespace-normal leading-[1.1]" 
+                                                                        className="relative font-normal uppercase whitespace-normal leading-[1.1]" 
                                                                         style={{ 
-                                                                            left: `${cols?.product_name?.x || 10}mm`, 
+                                                                            marginLeft: `${cols?.product_name?.x || 10}mm`, 
                                                                             width: `${orTemplate?.tableSettings?.product_name_width || w.product_name}mm` 
                                                                         }}
                                                                     >
                                                                         {item.product_name}
                                                                     </div>
                                                                     
-                                                                    {/* Center Aligned Anchor: left = x - (width/2) */}
+                                                                    {/* Center Aligned: Vertical Center using Absolute trick */}
                                                                     <div 
-                                                                        className="absolute font-bold text-center" 
+                                                                        className="absolute font-normal text-center top-1/2 -translate-y-1/2" 
                                                                         style={{ left: `${(cols?.quantity?.x || 105) - (w.quantity / 2)}mm`, width: `${w.quantity}mm` }}
                                                                     >
                                                                         {item.qty} {item.unit_shortcut}
                                                                     </div>
                                                                     
-                                                                    {/* Right Aligned Anchor: left = x - width */}
+                                                                    {/* Right Aligned: Vertical Center using Absolute trick */}
                                                                     <div 
-                                                                        className="absolute font-bold text-right" 
+                                                                        className="absolute font-normal text-right top-1/2 -translate-y-1/2" 
                                                                         style={{ left: `${(cols?.unit_price?.x || 126) - w.unit_price}mm`, width: `${w.unit_price}mm` }}
                                                                     >
                                                                         {formatCurrency(item.unit_price)}
                                                                     </div>
                                                                     
                                                                     <div 
-                                                                        className="absolute font-bold text-right uppercase" 
+                                                                        className="absolute font-normal text-right uppercase top-1/2 -translate-y-1/2" 
                                                                         style={{ left: `${(cols?.discount?.x || 153) - w.discount}mm`, width: `${w.discount}mm` }}
                                                                     >
                                                                         {(() => {
@@ -1688,7 +1730,7 @@ export const ConvertToInvoiceModal: React.FC<ConvertToInvoiceModalProps> = ({
                                                                     </div>
                                                                     
                                                                     <div 
-                                                                        className="absolute font-bold text-right" 
+                                                                        className="absolute font-normal text-right top-1/2 -translate-y-1/2" 
                                                                         style={{ left: `${(cols?.net_amount?.x || 184) - w.net_amount}mm`, width: `${w.net_amount}mm` }}
                                                                     >
                                                                         {formatCurrency(item.net_amount)}
@@ -1746,7 +1788,7 @@ export const ConvertToInvoiceModal: React.FC<ConvertToInvoiceModalProps> = ({
                         <div className="flex flex-1 gap-3">
                             <Button 
                                 variant="secondary" 
-                                className="w-full h-11 rounded-xl font-black text-[10px] uppercase tracking-[0.15em] bg-zinc-200 hover:bg-zinc-300 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-900 dark:text-zinc-100 transition-all duration-200" 
+                                className="w-full h-11 rounded-xl font-bold text-[10px] uppercase tracking-[0.15em] bg-zinc-200 hover:bg-zinc-300 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-900 dark:text-zinc-100 transition-all duration-200" 
                                 onClick={() => setIsPreviewOpen(false)}
                             >
                                 Close Preview
@@ -1808,6 +1850,49 @@ export const ConvertToInvoiceModal: React.FC<ConvertToInvoiceModalProps> = ({
                         >
                             Cancel
                         </Button>
+                    </div>
+                </DialogContent>
+            </Dialog>
+
+            {/* Print Confirmation Dialog */}
+            <Dialog open={isPrintConfirmOpen} onOpenChange={setIsPrintConfirmOpen}>
+                <DialogContent className="max-w-md rounded-2xl p-0 overflow-hidden border-none shadow-2xl">
+                    <DialogTitle className="sr-only">Confirm Print Receipt</DialogTitle>
+                    <div className="bg-primary p-6 flex flex-col items-center text-white">
+                        <div className="bg-white/20 p-4 rounded-full mb-4">
+                            <Printer size={32} className="text-white" />
+                        </div>
+                        <h3 className="text-xl font-black uppercase tracking-widest">Confirm Print?</h3>
+                        <p className="text-primary-foreground/80 text-center text-xs mt-2 font-medium">
+                            You are about to generate <span className="font-bold text-white">{receipts.length} invoice(s)</span>. This will update the order and is irreversible.
+                        </p>
+                    </div>
+
+                    <div className="p-6 bg-white dark:bg-zinc-950 flex flex-col gap-4">
+                        <div className="p-4 rounded-xl bg-zinc-50 dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800">
+                            <div className="flex justify-between items-center">
+                                <span className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider">Total Amount</span>
+                                <span className="font-black text-primary text-xl tracking-tighter">
+                                    ₱{conversionData?.items.reduce((sum, item) => sum + item.net_amount, 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                </span>
+                            </div>
+                        </div>
+
+                        <div className="flex flex-col gap-2">
+                            <Button 
+                                className="w-full h-12 rounded-xl font-black uppercase text-xs tracking-widest bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all active:scale-95"
+                                onClick={executePrint}
+                            >
+                                Confirm & Print
+                            </Button>
+                            <Button 
+                                variant="ghost" 
+                                className="w-full h-12 rounded-xl font-black uppercase text-xs tracking-widest text-muted-foreground hover:bg-muted"
+                                onClick={() => setIsPrintConfirmOpen(false)}
+                            >
+                                Cancel
+                            </Button>
+                        </div>
                     </div>
                 </DialogContent>
             </Dialog>

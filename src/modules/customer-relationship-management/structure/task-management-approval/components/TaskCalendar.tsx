@@ -5,6 +5,7 @@ import React from "react";
 import { DailyActionPlan } from "../types";
 import { cn } from "@/lib/utils";
 import { format, startOfMonth, getDay, isToday } from "date-fns";
+import { useDroppable } from "@dnd-kit/core";
 
 interface TaskCalendarProps {
     days: Date[];
@@ -34,7 +35,8 @@ const TaskCalendarComponent: React.FC<TaskCalendarProps> = ({
     };
 
     return (
-        <div className="w-full bg-card rounded-2xl border border-border/50 shadow-2xl overflow-hidden glassmorphism">
+        <div className="w-full bg-card rounded-2xl border border-border/50 shadow-2xl overflow-x-auto lg:overflow-hidden glassmorphism">
+            <div className="min-w-[700px] lg:min-w-0">
             {/* Weekday Header */}
             <div className="grid grid-cols-7 border-b border-border/50 bg-muted/30">
                 {WEEKDAYS.map((day) => (
@@ -57,47 +59,49 @@ const TaskCalendarComponent: React.FC<TaskCalendarProps> = ({
                     const isCurrentToday = isToday(day);
 
                     return (
-                        <div
-                            key={day.toISOString()}
-                            onClick={() => onDayClick(day)}
-                            className={cn(
-                                "h-28 md:h-32 p-3 bg-card transition-all cursor-pointer group relative flex flex-col justify-between hover:z-10 hover:shadow-2xl",
-                                isCurrentToday && "ring-2 ring-primary ring-inset"
-                            )}
-                        >
-                            <div className="flex justify-between items-start">
-                                <span className={cn(
-                                    "text-sm font-bold w-7 h-7 flex items-center justify-center rounded-full transition-colors",
-                                    isCurrentToday ? "bg-primary text-primary-foreground" : "text-muted-foreground group-hover:text-foreground"
-                                )}>
-                                    {format(day, "d")}
-                                </span>
-                            </div>
-
-                            {selectedEmployeeId !== "all" && selectedSalesmanId !== "all" && total > 0 && (
-                                <div className={cn(
-                                    "mt-auto rounded-lg border p-2 flex flex-col gap-1 transition-all duration-300 group-hover:translate-y-[-2px]",
-                                    colorClass
-                                )}>
-                                    <div className="text-[10px] uppercase font-heavy tracking-tighter opacity-80 leading-none">Pending</div>
-                                    <div className="text-sm font-black flex items-baseline gap-1">
-                                        <span className="text-lg">{total}</span>
-                                        <span className="opacity-50 text-xs">{total === 1 ? 'Task' : 'Tasks'}</span>
-                                    </div>
-                                    
-                                    <div className="w-full h-1 bg-black/10 rounded-full mt-1 overflow-hidden">
-                                        <div 
-                                            className="h-full bg-current opacity-80 w-full animate-pulse" 
-                                        />
-                                    </div>
+                        <DroppableCalendarDay key={day.toISOString()} day={day}>
+                            <div
+                                onClick={() => onDayClick(day)}
+                                className={cn(
+                                    "h-full w-full p-2 md:p-3 bg-card transition-all cursor-pointer group relative flex flex-col justify-between hover:z-10",
+                                    isCurrentToday && "ring-2 ring-primary ring-inset"
+                                )}
+                            >
+                                <div className="flex justify-between items-start">
+                                    <span className={cn(
+                                        "text-sm font-bold w-7 h-7 flex items-center justify-center rounded-full transition-colors",
+                                        isCurrentToday ? "bg-primary text-primary-foreground" : "text-muted-foreground group-hover:text-foreground"
+                                    )}>
+                                        {format(day, "d")}
+                                    </span>
                                 </div>
-                            )}
-                            
-                            {/* Hover micro-animation effect */}
-                            <div className="absolute inset-0 bg-primary/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-none" />
-                        </div>
+
+                                {selectedEmployeeId !== "all" && selectedSalesmanId !== "all" && total > 0 && (
+                                    <div className={cn(
+                                        "mt-auto rounded-lg border p-2 flex flex-col gap-1 transition-all duration-300 group-hover:translate-y-[-2px]",
+                                        colorClass
+                                    )}>
+                                        <div className="text-[10px] uppercase font-heavy tracking-tighter opacity-80 leading-none">Pending</div>
+                                        <div className="text-sm font-black flex items-baseline gap-1">
+                                            <span className="text-lg">{total}</span>
+                                            <span className="opacity-50 text-xs">{total === 1 ? 'Task' : 'Tasks'}</span>
+                                        </div>
+                                        
+                                        <div className="w-full h-1 bg-black/10 rounded-full mt-1 overflow-hidden">
+                                            <div 
+                                                className="h-full bg-current opacity-80 w-full animate-pulse" 
+                                            />
+                                        </div>
+                                    </div>
+                                )}
+                                
+                                {/* Hover micro-animation effect */}
+                                <div className="absolute inset-0 bg-primary/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-none" />
+                            </div>
+                        </DroppableCalendarDay>
                     );
                 })}
+            </div>
             </div>
         </div>
     );
@@ -105,3 +109,26 @@ const TaskCalendarComponent: React.FC<TaskCalendarProps> = ({
 
 export const TaskCalendar = React.memo(TaskCalendarComponent);
 TaskCalendar.displayName = "TaskCalendar";
+
+const DroppableCalendarDay = ({ day, children }: { day: Date; children: React.ReactNode }) => {
+    // Format date as yyyy-MM-dd for the ID to match task date string format
+    const dateId = format(day, "yyyy-MM-dd");
+    const { setNodeRef, isOver } = useDroppable({
+        id: dateId,
+    });
+
+    return (
+        <div
+            ref={setNodeRef}
+            className={cn(
+                "h-24 md:h-32 relative transition-all duration-200",
+                isOver && "ring-4 ring-primary ring-inset z-20 scale-[0.98] shadow-inner"
+            )}
+        >
+            {children}
+            {isOver && (
+                <div className="absolute inset-0 bg-primary/10 animate-pulse pointer-events-none" />
+            )}
+        </div>
+    );
+};

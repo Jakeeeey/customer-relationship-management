@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { CreditCard, Loader2, Users, Building2, MapPin, Receipt, Check, ChevronsUpDown, Plus, AlertCircle, ArrowRight, UploadCloud } from "lucide-react";
 import { useForm, Resolver, SubmitHandler } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -635,6 +635,7 @@ export function CustomerFormSheet({ open, onOpenChange, customer, onSubmit, defa
         }
     };
 
+    // Helper to count errors per tab
     const getTabErrorCount = (tab: string) => {
         const errorKeys = Object.keys(form.formState.errors);
         if (errorKeys.length === 0) return 0;
@@ -642,11 +643,11 @@ export function CustomerFormSheet({ open, onOpenChange, customer, onSubmit, defa
         switch (tab) {
             case "basic":
                 return errorKeys.filter(k =>
-                    ["customer_code", "customer_name", "store_type", "classification", "store_name", "store_signage", "customer_image", "otherDetails"].includes(k)
+                    ["customer_code", "customer_name", "store_type", "classification", "store_name", "store_signage"].includes(k)
                 ).length;
             case "address":
                 return errorKeys.filter(k =>
-                    ["province", "city", "brgy", "contact_number", "tel_number", "customer_email", "location"].includes(k)
+                    ["province", "city", "brgy", "contact_number", "tel_number", "customer_email"].includes(k)
                 ).length;
             case "billing":
                 return errorKeys.filter(k =>
@@ -659,11 +660,10 @@ export function CustomerFormSheet({ open, onOpenChange, customer, onSubmit, defa
         }
     };
 
-    const TabBadge = ({count}: { count: number }) => {
+    const TabBadge = ({ count }: { count: number }) => {
         if (count === 0) return null;
         return (
-            <Badge variant="destructive"
-                   className="ml-2 h-4 w-4 p-0 flex items-center justify-center text-[10px] animate-in zoom-in">
+            <Badge variant="destructive" className="ml-2 h-4 w-4 p-0 flex items-center justify-center text-[10px] animate-in zoom-in">
                 {count}
             </Badge>
         );
@@ -749,23 +749,21 @@ export function CustomerFormSheet({ open, onOpenChange, customer, onSubmit, defa
 
                             <div className="px-6 md:px-8 pt-4 shrink-0 bg-background z-10 space-y-4">
                                 {defaultTab === "bank" && hasExternalErrors && (
-                                    <Alert variant="destructive"
-                                           className="bg-destructive/5 border-destructive/20 animate-in slide-in-from-top-2 duration-300">
-                                        <AlertCircle className="h-4 w-4"/>
-                                        <AlertTitle className="text-sm font-black uppercase tracking-tight">Profile
-                                            Incomplete</AlertTitle>
+                                    <Alert variant="destructive" className="bg-destructive/5 border-destructive/20 animate-in slide-in-from-top-2 duration-300">
+                                        <AlertCircle className="h-4 w-4" />
+                                        <AlertTitle className="text-sm font-black uppercase tracking-tight">Profile Incomplete</AlertTitle>
                                         <AlertDescription className="flex items-center justify-between gap-4 mt-1">
                                             <span className="text-xs font-bold leading-relaxed">
                                                 This customer has missing required information in other sections. Please complete them to save changes.
                                             </span>
-                                            <Button
-                                                type="button"
-                                                variant="destructive"
-                                                size="sm"
+                                            <Button 
+                                                type="button" 
+                                                variant="destructive" 
+                                                size="sm" 
                                                 onClick={navigateToFirstError}
                                                 className="h-8 px-3 text-[10px] font-black uppercase tracking-widest rounded-lg shrink-0"
                                             >
-                                                Fix Issues <ArrowRight className="ml-1.5 h-3 w-3"/>
+                                                Fix Issues <ArrowRight className="ml-1.5 h-3 w-3" />
                                             </Button>
                                         </AlertDescription>
                                     </Alert>
@@ -775,29 +773,29 @@ export function CustomerFormSheet({ open, onOpenChange, customer, onSubmit, defa
                                     <TabsTrigger value="basic"
                                                  disabled={defaultTab === "bank" && getTabErrorCount("basic") === 0}
                                                  className="py-2.5 text-xs font-bold uppercase tracking-widest rounded-lg flex items-center justify-center">
-                                        <Building2 className="w-3.5 h-3.5 mr-2 hidden md:block"/>
+                                        <Building2 className="w-3.5 h-3.5 mr-2 hidden md:block" />
                                         Basic
-                                        <TabBadge count={getTabErrorCount("basic")}/>
+                                        <TabBadge count={getTabErrorCount("basic")} />
                                     </TabsTrigger>
                                     <TabsTrigger value="address"
                                                  disabled={defaultTab === "bank" && getTabErrorCount("address") === 0}
                                                  className="py-2.5 text-xs font-bold uppercase tracking-widest rounded-lg flex items-center justify-center">
-                                        <MapPin className="w-3.5 h-3.5 mr-2 hidden md:block"/>
+                                        <MapPin className="w-3.5 h-3.5 mr-2 hidden md:block" />
                                         Location
-                                        <TabBadge count={getTabErrorCount("address")}/>
+                                        <TabBadge count={getTabErrorCount("address")} />
                                     </TabsTrigger>
                                     <TabsTrigger value="billing"
                                                  disabled={defaultTab === "bank" && getTabErrorCount("billing") === 0}
                                                  className="py-2.5 text-xs font-bold uppercase tracking-widest rounded-lg flex items-center justify-center">
-                                        <Receipt className="w-3.5 h-3.5 mr-2 hidden md:block"/>
+                                        <Receipt className="w-3.5 h-3.5 mr-2 hidden md:block" />
                                         Billing
-                                        <TabBadge count={getTabErrorCount("billing")}/>
+                                        <TabBadge count={getTabErrorCount("billing")} />
                                     </TabsTrigger>
                                     <TabsTrigger value="bank"
                                                  className="py-2.5 text-xs font-bold uppercase tracking-widest rounded-lg flex items-center justify-center">
-                                        <CreditCard className="w-3.5 h-3.5 mr-2 hidden md:block"/>
+                                        <CreditCard className="w-3.5 h-3.5 mr-2 hidden md:block" />
                                         Bank
-                                        <TabBadge count={getTabErrorCount("bank")}/>
+                                        <TabBadge count={getTabErrorCount("bank")} />
                                     </TabsTrigger>
                                 </TabsList>
                             </div>

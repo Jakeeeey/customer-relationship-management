@@ -219,9 +219,9 @@ export function useCustomers(): UseCustomersReturn {
                 });
 
                 // 3. Process Synchronization Sequentially
-                // We use sequential processing instead of Promise.all to avoid
+                // We use sequential processing instead of Promise.all to avoid 
                 // overwhelming the network connection and hitting socket limits
-
+                
                 // DELETIONS
                 for (const acc of toDelete) {
                     const delRes = await fetch(`/api/crm/customer/bank-account?id=${acc.id}`, { method: "DELETE", cache: "no-store" });
