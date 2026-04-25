@@ -75,7 +75,7 @@ export async function GET(req: NextRequest) {
         }
 
         if (type === "suppliers") {
-            const res = await fetch(`${DIRECTUS_URL}/items/suppliers?filter[isActive][_eq]=1&limit=-1`, {
+            const res = await fetch(`${DIRECTUS_URL}/items/suppliers?filter[supplier_type][_in]=TRADE,Trade&filter[isActive][_eq]=1&limit=-1`, {
                 headers: fetchHeaders,
             });
             if (!res.ok) return NextResponse.json({ error: "Failed to fetch suppliers" }, { status: 500 });

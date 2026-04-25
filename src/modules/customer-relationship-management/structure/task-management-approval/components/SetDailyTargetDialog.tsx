@@ -76,8 +76,8 @@ export const SetDailyTargetDialog: React.FC<SetDailyTargetDialogProps> = ({
 
                 <div className="py-6 space-y-4">
                     <div className="space-y-2.5">
-                        <Label htmlFor="amount" className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground ml-1">
-                            Daily Target Amount (₱)
+                        <Label htmlFor="amount" className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground ml-1 flex items-center gap-1.5">
+                            Daily Target Amount (₱) <span className="text-red-500 text-sm leading-none">*</span>
                         </Label>
                         <div className="relative group">
                             <span className="absolute left-4 top-1/2 -translate-y-1/2 text-xl font-black text-primary/30 group-focus-within:text-primary transition-colors italic">₱</span>

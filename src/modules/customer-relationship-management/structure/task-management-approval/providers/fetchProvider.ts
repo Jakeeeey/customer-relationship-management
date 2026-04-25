@@ -57,7 +57,7 @@ export const createDailyActionPlan = async (data: Partial<DailyActionPlan>): Pro
     return json.data;
 };
 
-export const createMCP = async (data: { salesman_id: number; employee_id: number; month: number; year: number }): Promise<MonthlyCoveragePlan | undefined> => {
+export const createMCP = async (data: { salesman_id: number; employee_id: number; month: number; year: number; created_by: number }): Promise<MonthlyCoveragePlan | undefined> => {
     const res = await fetch(API_BASE_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
