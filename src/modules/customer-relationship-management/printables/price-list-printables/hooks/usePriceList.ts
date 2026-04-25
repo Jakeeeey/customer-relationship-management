@@ -24,6 +24,26 @@ export function usePriceList() {
     const [isLoading, setIsLoading] = useState(true);
     const [isGenerating, setIsGenerating] = useState(false);
 
+    // Filename state
+    const [customFilename, setCustomFilename] = useState<string>("");
+    const [isFilenameEdited, setIsFilenameEdited] = useState(false);
+
+    // Update default filename when supplier changes
+    useEffect(() => {
+        if (!isFilenameEdited && selectedSupplierId && suppliers.length > 0) {
+            const supplier = suppliers.find(s => s.id === Number(selectedSupplierId));
+            if (supplier) {
+                const shortcut = supplier.supplier_shortcut || supplier.supplier_name;
+                setCustomFilename(`${shortcut} Pricelist Booking`);
+            }
+        }
+    }, [selectedSupplierId, suppliers, isFilenameEdited]);
+
+    const handleFilenameChange = (val: string) => {
+        setCustomFilename(val);
+        setIsFilenameEdited(true);
+    };
+
     useEffect(() => {
         const init = async () => {
             setIsLoading(true);
@@ -51,7 +71,7 @@ export function usePriceList() {
         init();
     }, []);
 
-    const handleGenerate = async () => {
+    const handleGenerate = async (options?: { download?: boolean }) => {
         if (!selectedSalesmanId || !selectedSupplierId || !selectedTemplateName) {
             toast.warning("Please select a salesman, supplier, and layout");
             return;
@@ -67,12 +87,20 @@ export function usePriceList() {
             }
 
             const salesman = salesmen.find(s => s.id === Number(selectedSalesmanId));
+            const supplier = suppliers.find(s => s.id === Number(selectedSupplierId));
 
             const doc = await generatePriceListPDF({
                 items: data,
-                priceType: data[0]?.priceType || salesman?.price_type || "A",
-                templateName: selectedTemplateName // Pass the selected template
+                templateName: selectedTemplateName,
+                salesmanName: salesman?.salesman_name || "",
+                salesmanCode: salesman?.salesman_code || "",
+                supplierName: supplier?.supplier_name || ""
             });
+
+            // Handle Download if requested
+            if (options?.download) {
+                doc.save(`${customFilename || "PriceList"}.pdf`);
+            }
 
             const blob = doc.output('blob');
             const url = URL.createObjectURL(blob);
@@ -81,7 +109,11 @@ export function usePriceList() {
             setPdfUrl(url);
             setIsPreviewOpen(true);
             
-            toast.success("Price list generated for preview");
+            if (options?.download) {
+                toast.success("Price list downloaded and ready for preview");
+            } else {
+                toast.success("Price list generated for preview");
+            }
         } catch (error) {
             console.error("Error generating price list:", error);
             toast.error("Failed to generate price list");
@@ -113,6 +145,8 @@ export function usePriceList() {
         closePreview,
         isLoading,
         isGenerating,
+        customFilename,
+        handleFilenameChange,
         handleGenerate
     };
 }

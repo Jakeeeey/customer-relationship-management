@@ -5,14 +5,18 @@ import { PdfEngine } from "@/components/pdf-layout-design/PdfEngine";
 
 interface GenerateParams {
     items: PriceListItem[];
-    priceType: string;
     templateName: string; // Dynamic template selection
+    salesmanName: string;
+    salesmanCode: string;
+    supplierName: string;
 }
 
 export async function generatePriceListPDF({ 
     items, 
-    priceType,
-    templateName 
+    templateName,
+    salesmanName,
+    salesmanCode,
+    supplierName
 }: GenerateParams): Promise<jsPDF> {
     // 1. Fetch Company Data
     let companyData = null;
@@ -28,7 +32,27 @@ export async function generatePriceListPDF({
 
     // 2. Generate with PdfEngine
     return await PdfEngine.generateWithFrame(templateName, companyData, (doc, startY, config) => {
-        const margins = config.margins || { top: 10, bottom: 10, left: 10, right: 10 };
+        // Ensure Page Numbers are shown
+        if (!config.pageNumber) {
+            config.pageNumber = { 
+                show: true, 
+                position: 'bottom-right', 
+                fontSize: 8, 
+                fontFamily: 'helvetica',
+                color: '#64748b',
+                format: 'Page {pageNumber} of {totalPages}',
+                marginY: 12, // Move slightly higher from the absolute bottom
+                marginX: 10
+            };
+        } else {
+            config.pageNumber.show = true;
+            config.pageNumber.marginY = 12;
+            if (!config.pageNumber.fontFamily) {
+                config.pageNumber.fontFamily = 'helvetica';
+            }
+        }
+
+        const margins = config.margins || { top: 10, bottom: 25, left: 10, right: 10 };
         const pageWidth = doc.internal.pageSize.getWidth();
         const contentWidth = pageWidth - margins.left - margins.right;
 
@@ -49,6 +73,25 @@ export async function generatePriceListPDF({
         // Title 2: Official Header
         doc.setFontSize(10);
         doc.text("OFFICIAL PRICELIST FOR BOOKING", pageWidth / 2, boxY + 11, { align: 'center' });
+
+        // --- SECTION: METADATA ---
+        const metaY = boxY + boxHeight + 5;
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(8);
+        doc.setTextColor(0, 0, 0);
+
+        // Left side: Supplier, Salesman, Salesman Code
+        doc.text(`Supplier: ${supplierName}`, margins.left, metaY);
+        doc.text(`Salesman: ${salesmanName}`, margins.left, metaY + 4);
+        doc.text(`Salesman Code: ${salesmanCode}`, margins.left, metaY + 8);
+
+        // Right side: Date and time Generated
+        const now = new Date();
+        const formattedDate = now.toLocaleString('en-US', { 
+            dateStyle: 'medium', 
+            timeStyle: 'short' 
+        });
+        doc.text(`Date and time Generated: ${formattedDate}`, pageWidth - margins.right, metaY, { align: 'right' });
 
         // --- SECTION: TABLE DATA PREPARATION ---
         let lastCategory = "";
@@ -74,8 +117,8 @@ export async function generatePriceListPDF({
 
         // --- SECTION: AUTO-TABLE WITH COMPLEX HEADERS ---
         autoTable(doc, {
-            startY: boxY + boxHeight + 5,
-            margin: { ...margins, top: 10 },
+            startY: metaY + 15,
+            margin: { ...margins, top: 10, bottom: 25 }, // Explicit bottom margin for safety
             
             // Nested Headers to match the image
             head: [
@@ -84,18 +127,18 @@ export async function generatePriceListPDF({
                     { content: 'PRODUCT DESCRIPTION', rowSpan: 2, styles: { valign: 'middle', halign: 'center' } },
                     { content: 'FG CODE', rowSpan: 2, styles: { valign: 'middle' } },
                     { content: 'PCKG', rowSpan: 2, styles: { valign: 'middle' } },
-                    { content: `PRICE TYPE ${priceType}`, colSpan: 3, styles: { halign: 'center' } }
+                    { content: 'PRICE', colSpan: 3, styles: { halign: 'center' } }
                 ],
                 [
-                    { content: `Case ${priceType}`, styles: { halign: 'center' } },
-                    { content: `Bag ${priceType}`, styles: { halign: 'center' } },
-                    { content: `Piece ${priceType}`, styles: { halign: 'center' } }
+                    { content: 'Case', styles: { halign: 'center' } },
+                    { content: 'Bag', styles: { halign: 'center' } },
+                    { content: 'Piece', styles: { halign: 'center' } }
                 ]
             ],
             
             body: tableBody,
             
-            theme: 'plain',
+            theme: 'grid', // Use grid for continuous lines
             
             headStyles: {
                 fillColor: [10, 48, 93], // Dark Blue from image
@@ -103,7 +146,7 @@ export async function generatePriceListPDF({
                 fontSize: 8,
                 fontStyle: 'bold',
                 lineWidth: 0.1,
-                lineColor: [255, 255, 255]
+                lineColor: [0, 0, 0] // Black borders for header
             },
             
             columnStyles: {
@@ -117,33 +160,28 @@ export async function generatePriceListPDF({
             },
             
             styles: {
-                lineColor: [220, 220, 220],
-                lineWidth: 0,
-                valign: 'middle'
+                lineColor: [0, 0, 0], // Black grid lines
+                lineWidth: 0.1,
+                valign: 'middle',
+                textColor: [0, 0, 0]
             },
 
-            // Custom Drawing for the Price Boxes (the grid look in the image)
-            didDrawCell: (data) => {
-                // If it's one of the pricing columns in the body
-                if (data.section === 'body' && data.column.index >= 4) {
-                    const doc = data.doc;
-                    doc.setDrawColor(0, 0, 0);
-                    doc.setLineWidth(0.1);
-                    
-                    // Draw the box around the price value
-                    doc.rect(
-                        data.cell.x + 1, 
-                        data.cell.y + 1, 
-                        data.cell.width - 2, 
-                        data.cell.height - 2
-                    );
+            // Customize specific parts of the table
+            didParseCell: (data) => {
+                // Style the second header row (Sub-headers)
+                if (data.section === 'head' && data.row.index === 1) {
+                    data.cell.styles.fillColor = [230, 235, 245]; // Light Gray/Blue
+                    data.cell.styles.textColor = [0, 0, 0];       // Black text
                 }
-                
-                // Draw vertical separator before the pricing section
+            },
+
+            // Custom Drawing for the special grid look if needed
+            didDrawCell: (data) => {
+                // Draw a thicker vertical separator before the pricing section
                 if (data.section === 'body' && data.column.index === 4) {
                     const doc = data.doc;
-                    doc.setDrawColor(10, 48, 93);
-                    doc.setLineWidth(1);
+                    doc.setDrawColor(0, 0, 0); // Still black, but could be thicker
+                    doc.setLineWidth(0.3);
                     doc.line(data.cell.x, data.cell.y, data.cell.x, data.cell.y + data.cell.height);
                 }
             }
