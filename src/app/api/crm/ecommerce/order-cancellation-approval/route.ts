@@ -113,6 +113,10 @@ function normalizeSearchValue(input: string): string {
 	return input.trim().toLowerCase();
 }
 
+function fallbackRequesterLabel(requestedBy: number): string {
+	return Number.isFinite(requestedBy) && requestedBy > 0 ? `${requestedBy}` : "Unknown User";
+}
+
 export async function GET(req: NextRequest) {
 	try {
 		const search = normalizeSearchValue(req.nextUrl.searchParams.get("search") || "");
@@ -187,7 +191,7 @@ export async function GET(req: NextRequest) {
 		const usersMap = new Map(
 			(usersRes.data || []).map((user) => [
 				Number(user.user_id),
-				`${user.user_fname || ""} ${user.user_lname || ""}`.trim() || "Unknown User",
+				`${user.user_fname || ""} ${user.user_lname || ""}`.trim() || fallbackRequesterLabel(Number(user.user_id)),
 			]),
 		);
 
@@ -214,7 +218,8 @@ export async function GET(req: NextRequest) {
 				requestStatus: request.request_status,
 				requestReason: reasonsMap.get(Number(request.reason_id)) || "Unspecified Reason",
 				requestRemarks: request.remarks || "",
-				requestedByName: usersMap.get(Number(request.requested_by)) || "Unknown User",
+				requestedByName:
+					usersMap.get(Number(request.requested_by)) || fallbackRequesterLabel(Number(request.requested_by)),
 				requestedAt: request.requested_at || null,
 			};
 		});
