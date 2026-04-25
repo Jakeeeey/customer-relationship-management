@@ -11,6 +11,7 @@ export interface InventoryFilters {
   supplier?: string | string[];
   category?: string | string[];
   brand?: string | string[];
+  product?: string | string[];
   // Optional flag used by the upstream API to request "current" allocation
   current?: string;
 }
@@ -52,11 +53,20 @@ export interface BrandOption {
   [key: string]: unknown;
 }
 
+export interface ProductOption {
+  id?: string | number;
+  product_id?: string | number;
+  product_name?: string;
+  productName?: string;
+  [key: string]: unknown;
+}
+
 export type LookupOptions = {
   branches: BranchOption[];
   suppliers: SupplierOption[];
   categories: CategoryOption[];
   brands: BrandOption[];
+  products?: ProductOption[];
 };
 
 // Inventory row - backend systems use slightly different field names depending

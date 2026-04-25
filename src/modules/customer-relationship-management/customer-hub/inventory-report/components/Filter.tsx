@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import {
@@ -18,23 +18,27 @@ import type {
   SupplierOption,
   CategoryOption,
   BrandOption,
+  ProductOption,
 } from "../type";
 
 interface Props {
   filters: InventoryFilters;
-  setFilters: (f: InventoryFilters) => void;
   // onApply now receives the buffered filters to apply
   onApply: (f: InventoryFilters) => void;
-  // onClear is kept for compatibility but will not trigger a refresh
-  onClear: () => void;
   onExport?: () => void;
   options: LookupOptions;
-  // optional global search controlled by parent
-  search?: string;
-  onSearchChange?: (v: string) => void;
+  // NOTE: search moved to InventoryReportTable; Filter no longer renders global search
 }
 
-// MultiSelect component declared at module level to avoid creating components during render
+// Lightweight local shape used inside this component for predictable state
+type LocalFilters = {
+  branch: string[];
+  supplier: string[];
+  category: string[];
+  brand: string[];
+  product: string[]; // selected product names (or fallback ids)
+};
+
 function MultiSelect({
   opts,
   values,
@@ -46,12 +50,12 @@ function MultiSelect({
   onChange: (v: string[]) => void;
   placeholder?: string;
 }) {
-  const selectedLabels = opts
-    .filter((o) => values.includes(o.value))
-    .map((o) => o.label);
-
+  // Keep selected values unique and derive labels from the first matching option
+  const uniqValues = Array.from(new Set(values));
+  const selectedLabels = uniqValues
+    .map((v) => opts.find((o) => o.value === v)?.label ?? String(v))
+    .filter(Boolean);
   const [query, setQuery] = React.useState("");
-
   const lower = query.trim().toLowerCase();
   const filtered = lower
     ? opts.filter(
@@ -79,7 +83,7 @@ function MultiSelect({
           </span>
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-(--radix-popover-trigger-width) p-3 ">
+      <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-3">
         <div className="flex flex-col">
           <Input
             placeholder={`Search ${placeholder?.toLowerCase() ?? "options"}...`}
@@ -92,7 +96,9 @@ function MultiSelect({
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => onChange(opts.map((o) => o.value))}
+              onClick={() =>
+                onChange(Array.from(new Set(opts.map((o) => o.value))))
+              }
             >
               Select all
             </Button>
@@ -105,22 +111,27 @@ function MultiSelect({
             {filtered.length === 0 ? (
               <div className="text-sm text-muted-foreground">No results.</div>
             ) : (
-              filtered.map((opt) => {
+              filtered.map((opt, idx) => {
                 const checked = values.includes(opt.value);
                 return (
                   <label
-                    key={opt.value}
+                    key={`${String(opt.value)}-${idx}`}
                     className="flex items-center gap-2 p-1 rounded hover:bg-accent"
                   >
                     <Checkbox
                       checked={checked}
                       onCheckedChange={(c) => {
                         const isChecked = Boolean(c);
-                        if (isChecked) onChange([...values, opt.value]);
-                        else onChange(values.filter((v) => v !== opt.value));
+                        if (isChecked) {
+                          // add value if not already present
+                          if (!values.includes(opt.value))
+                            onChange([...values, opt.value]);
+                        } else {
+                          onChange(values.filter((v) => v !== opt.value));
+                        }
                       }}
                     />
-                    <span className="text-sm">{opt.label}</span>
+                    <span className="truncate text-sm">{opt.label}</span>
                   </label>
                 );
               })
@@ -161,97 +172,135 @@ function categoryLabel(c?: CategoryOption) {
 
 function categoryValue(c?: CategoryOption) {
   if (!c) return "";
-  return String(c.category_name ?? c.category_id ?? c.id ?? "");
+  return String(c.category_name ?? c.categoryName ?? c.id ?? "");
 }
 
 function brandLabel(b?: BrandOption) {
   if (!b) return "";
-  return String(b.brand_name ?? b.brandName ?? b.id ?? "");
+  return String(b.brand_name ?? b.brandName ?? b.brand ?? b.id ?? "");
 }
 
 function brandValue(b?: BrandOption) {
   if (!b) return "";
-  return String(b.brand_name ?? b.brand_id ?? b.id ?? "");
+  return String(b.brand_name ?? b.brandName ?? b.id ?? "");
 }
 
-export function Filter({
-  filters,
-  setFilters,
-  onApply,
-  onClear,
-  onExport,
-  options,
-  search,
-  onSearchChange,
-}: Props) {
-  // Local buffer for filters so changes don't trigger immediate refresh
-  const toArray = (v?: string | string[] | undefined) => {
-    if (!v) return [] as string[];
-    if (Array.isArray(v)) return v as string[];
-    const s = String(v);
-    if (s.toLowerCase() === "all") return [] as string[];
-    return [s];
-  };
+function productLabel(p?: ProductOption) {
+  if (!p) return "";
+  const name = String(p.product_name ?? p.productName ?? "").trim();
+  const fallback = String(
+    (p as Record<string, unknown>).product_id ??
+      (p as Record<string, unknown>).id ??
+      "",
+  ).trim();
+  // Show only the product name to the user. If name is missing, fall back to id.
+  return name || fallback || "";
+}
 
-  const [localFilters, setLocalFilters] = React.useState<InventoryFilters>(
+function productValue(p?: ProductOption) {
+  if (!p) return "";
+  // Use product name as the option value when available so the dropdown shows names only;
+  // fall back to id/product_id if name missing.
+  return String(p.product_name ?? p.productName ?? p.id ?? p.product_id ?? "");
+}
+
+export default function Filter({ filters, onApply, onExport, options }: Props) {
+  const initialLocalFilters = React.useMemo<LocalFilters>(
     () => ({
-      branch: toArray(filters.branch),
-      supplier: toArray(filters.supplier),
-      category: toArray(filters.category),
-      brand: toArray(filters.brand),
+      branch: Array.isArray(filters.branch)
+        ? (filters.branch as string[])
+        : filters.branch
+          ? [String(filters.branch)]
+          : [],
+      supplier: Array.isArray(filters.supplier)
+        ? (filters.supplier as string[])
+        : filters.supplier
+          ? [String(filters.supplier)]
+          : [],
+      category: Array.isArray(filters.category)
+        ? (filters.category as string[])
+        : filters.category
+          ? [String(filters.category)]
+          : [],
+      brand: Array.isArray(filters.brand)
+        ? (filters.brand as string[])
+        : filters.brand
+          ? [String(filters.brand)]
+          : [],
+      product: Array.isArray(filters.product)
+        ? (filters.product as string[])
+        : filters.product
+          ? [String(filters.product)]
+          : [],
     }),
+    [filters],
   );
 
-  // Keep local buffer in sync when parent filters change (e.g. external reset)
-  React.useEffect(() => {
+  const [localFilters, setLocalFilters] =
+    React.useState<LocalFilters>(initialLocalFilters);
+
+  React.useEffect(
+    () => setLocalFilters(initialLocalFilters),
+    [initialLocalFilters],
+  );
+
+  const handleClear = React.useCallback(() => {
     setLocalFilters({
-      branch: toArray(filters.branch),
-      supplier: toArray(filters.supplier),
-      category: toArray(filters.category),
-      brand: toArray(filters.brand),
+      branch: [],
+      supplier: [],
+      category: [],
+      brand: [],
+      product: [],
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filters]);
+  }, []);
+
+  const handleApply = React.useCallback(() => {
+    onApply({
+      branch: localFilters.branch,
+      supplier: localFilters.supplier,
+      category: localFilters.category,
+      brand: localFilters.brand,
+      product: localFilters.product,
+    });
+  }, [localFilters, onApply]);
+
+  // Build product options deduped by product name (case-insensitive). If multiple
+  // items share the same name, only the first is shown. Unnamed products fall back to id.
+  const productOpts = React.useMemo(() => {
+    const seen = new Map<string, ProductOption>();
+    const list = options?.products ?? [];
+    for (const raw of list) {
+      const p = raw as ProductOption;
+      const name = String(p.product_name ?? p.productName ?? "").trim();
+      const key = name.toLowerCase();
+      if (key) {
+        if (!seen.has(key)) seen.set(key, p);
+      } else {
+        const id = String(p.id ?? p.product_id ?? "").trim();
+        if (id && !seen.has(`__id__${id}`)) seen.set(`__id__${id}`, p);
+      }
+    }
+    return Array.from(seen.values()).map((p) => ({
+      value: productValue(p),
+      label: productLabel(p),
+    }));
+  }, [options?.products]);
+
   return (
-    <Card className="border   shadow-sm border-muted-foreground/10 overflow-hidden p-0">
-      <CardHeader className="text-[12px] bg-slate-50/50 dark:bg-card p-4 px-4 font-black    flex items-center justify-between border-b uppercase text-slate-400 tracking-widest">
-        Filters
-      </CardHeader>
-      <CardContent className="flex flex-col gap-4 p-4">
-        {onSearchChange !== undefined && (
-          <div>
-            <Input
-              placeholder="Search products..."
-              value={search ?? ""}
-              onChange={(e) =>
-                onSearchChange?.((e.target as HTMLInputElement).value)
-              }
-              className="mb-2"
-              title="Global search across product name/code/brand/category/supplier/branch"
-            />
-          </div>
-        )}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+    <Card>
+      <CardContent>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <Label className="text-[10px] font-black uppercase text-slate-400 mb-1.5 block px-1">
-              Branch
+              Product
             </Label>
             <MultiSelect
-              opts={(options.branches || []).map((b) => ({
-                value: branchValue(b as BranchOption),
-                label: branchLabel(b as BranchOption),
-              }))}
-              values={
-                Array.isArray(localFilters.branch)
-                  ? (localFilters.branch as string[])
-                  : localFilters.branch
-                    ? [String(localFilters.branch)]
-                    : []
-              }
+              opts={productOpts}
+              values={localFilters.product}
               onChange={(vals) =>
-                setLocalFilters({ ...localFilters, branch: vals })
+                setLocalFilters({ ...localFilters, product: vals })
               }
-              placeholder="All branches"
+              placeholder="All products"
             />
           </div>
 
@@ -264,17 +313,30 @@ export function Filter({
                 value: supplierValue(s as SupplierOption),
                 label: supplierLabel(s as SupplierOption),
               }))}
-              values={
-                Array.isArray(localFilters.supplier)
-                  ? (localFilters.supplier as string[])
-                  : localFilters.supplier
-                    ? [String(localFilters.supplier)]
-                    : []
-              }
+              values={localFilters.supplier}
               onChange={(vals) =>
                 setLocalFilters({ ...localFilters, supplier: vals })
               }
               placeholder="All suppliers"
+            />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
+          <div>
+            <Label className="text-[10px] font-black uppercase text-slate-400 mb-1.5 block px-1">
+              Branch
+            </Label>
+            <MultiSelect
+              opts={(options.branches || []).map((b) => ({
+                value: branchValue(b as BranchOption),
+                label: branchLabel(b as BranchOption),
+              }))}
+              values={localFilters.branch}
+              onChange={(vals) =>
+                setLocalFilters({ ...localFilters, branch: vals })
+              }
+              placeholder="All branches"
             />
           </div>
 
@@ -287,13 +349,7 @@ export function Filter({
                 value: categoryValue(c as CategoryOption),
                 label: categoryLabel(c as CategoryOption),
               }))}
-              values={
-                Array.isArray(localFilters.category)
-                  ? (localFilters.category as string[])
-                  : localFilters.category
-                    ? [String(localFilters.category)]
-                    : []
-              }
+              values={localFilters.category}
               onChange={(vals) =>
                 setLocalFilters({ ...localFilters, category: vals })
               }
@@ -310,13 +366,7 @@ export function Filter({
                 value: brandValue(b as BrandOption),
                 label: brandLabel(b as BrandOption),
               }))}
-              values={
-                Array.isArray(localFilters.brand)
-                  ? (localFilters.brand as string[])
-                  : localFilters.brand
-                    ? [String(localFilters.brand)]
-                    : []
-              }
+              values={localFilters.brand}
               onChange={(vals) =>
                 setLocalFilters({ ...localFilters, brand: vals })
               }
@@ -326,48 +376,10 @@ export function Filter({
         </div>
 
         <div className="flex justify-end gap-2 mt-4">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() =>
-              setLocalFilters({
-                branch: [],
-                supplier: [],
-                category: [],
-                brand: [],
-              })
-            }
-          >
+          <Button variant="ghost" size="sm" onClick={handleClear}>
             Clear
           </Button>
-          <Button
-            size="sm"
-            onClick={() => {
-              // Only apply when user clicks Apply: notify parent with buffered filters
-              onApply({
-                branch: Array.isArray(localFilters.branch)
-                  ? localFilters.branch
-                  : localFilters.branch
-                    ? [String(localFilters.branch)]
-                    : [],
-                supplier: Array.isArray(localFilters.supplier)
-                  ? localFilters.supplier
-                  : localFilters.supplier
-                    ? [String(localFilters.supplier)]
-                    : [],
-                category: Array.isArray(localFilters.category)
-                  ? localFilters.category
-                  : localFilters.category
-                    ? [String(localFilters.category)]
-                    : [],
-                brand: Array.isArray(localFilters.brand)
-                  ? localFilters.brand
-                  : localFilters.brand
-                    ? [String(localFilters.brand)]
-                    : [],
-              });
-            }}
-          >
+          <Button size="sm" onClick={handleApply}>
             Apply
           </Button>
           {onExport && (
@@ -380,5 +392,3 @@ export function Filter({
     </Card>
   );
 }
-
-export default Filter;

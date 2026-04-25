@@ -1,3 +1,4 @@
+//src\modules\customer-relationship-management\customer-hub\inventory-report\components\InventoryReportTable.tsx
 "use client";
 
 import React, { useMemo } from "react";
@@ -21,27 +22,52 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import {
+  ArrowDown,
+  ArrowUp,
+  ArrowUpDown,
+  ChevronLeft,
+  ChevronRight,
+} from "lucide-react";
 import type { InventoryRow } from "../type";
 
 interface Props {
   rows: InventoryRow[];
   page: number;
   pageSize: number;
-  total: number;
   onPageChange: (p: number) => void;
   onPageSizeChange: (s: number) => void;
   isLoading?: boolean;
   sortBy:
     | "product"
     | "branch"
+    | "brand"
     | "category"
+    | "supplier"
     | "current"
     | "allocated"
-    | "available";
+    | "available"
+    | "inbound"
+    | "projected";
   sortDir: "asc" | "desc";
-  onSort: (by: Props["sortBy"]) => void;
+  onSort: (
+    by:
+      | "product"
+      | "supplier"
+      | "category"
+      | "branch"
+      | "brand"
+      | "current"
+      | "allocated"
+      | "available"
+      | "inbound"
+      | "projected",
+  ) => void;
+  // optional global search controlled by parent
+  search?: string;
+  onSearchChange?: (v: string) => void;
 }
 
 function getString(r: InventoryRow, keys: string[]) {
@@ -61,6 +87,109 @@ function getNumber(r: InventoryRow, keys: string[]) {
     if (!Number.isNaN(n)) return n;
   }
   return 0;
+}
+
+// type Primitive = string | number | null | undefined;
+
+type DeepRecord = Record<string, unknown>;
+
+export function getObjectString(
+  v: unknown,
+  keys: string[]
+): string {
+  if (v == null) return "";
+
+  if (typeof v === "string" || typeof v === "number") {
+    return String(v).trim();
+  }
+
+  if (typeof v !== "object") return "";
+
+  const obj = v as DeepRecord;
+
+  // prioritized key lookup
+  if (keys?.length) {
+    for (const k of keys) {
+      const candidate = obj[k];
+
+      if (candidate == null) continue;
+
+      if (typeof candidate === "string" || typeof candidate === "number") {
+        const s = String(candidate).trim();
+        if (s) return s;
+      }
+
+      if (typeof candidate === "object") {
+        const s = getObjectString(candidate, []);
+        if (s) return s;
+      }
+    }
+  }
+
+  // fallback deep scan
+  for (const k in obj) {
+    const candidate = obj[k];
+
+    if (candidate == null) continue;
+
+    if (typeof candidate === "string" || typeof candidate === "number") {
+      const s = String(candidate).trim();
+      if (s) return s;
+    }
+
+    if (typeof candidate === "object") {
+      const s = getObjectString(candidate, []);
+      if (s) return s;
+    }
+  }
+
+  return "";
+}
+
+function getUnitLabel(r: InventoryRow) {
+  const row = r as Record<string, unknown>;
+  const directCandidates = [
+    row["unit"],
+    row["uom"],
+    row["unit_of_measurement"],
+    row["unitOfMeasurement"],
+    row["uom_name"],
+    row["unit_name"],
+    row["unitName"],
+  ];
+
+  for (const candidate of directCandidates) {
+    const direct = getObjectString(candidate, []);
+    if (direct) return direct;
+  }
+
+  const nestedCandidates = [
+    row["unit_of_measurement"],
+    row["unitOfMeasurement"],
+    row["unit"],
+    row["uom"],
+  ];
+
+  for (const candidate of nestedCandidates) {
+    const nested = getObjectString(candidate, [
+      "unit_name",
+      "unitName",
+      "uom_name",
+      "uom",
+      "name",
+      "label",
+      "abbreviation",
+      "short_name",
+      "shortName",
+      "description",
+      "unit_of_measurement",
+      "unitOfMeasurement",
+      "value",
+    ]);
+    if (nested) return nested;
+  }
+
+  return "";
 }
 
 function normalizeUnit(u?: unknown) {
@@ -163,13 +292,12 @@ function HoverPopover({
 }
 
 function formatBoxes(v: number) {
-  // 4 decimal places, trim trailing zeros but keep leading zero for <1
-  const fixed = Number.isFinite(v) ? v.toFixed(4) : "0.0000";
-  // remove trailing zeros and optional dot
-  let s = fixed.replace(/\.0+$|(?<=\.\d*?)0+$/g, (m) => (m === ".0" ? "" : ""));
-  // fallback for 0.0000
-  if (s === "") s = "0";
-  return s;
+  // Use a fixed 4-decimal rendering then parseFloat to trim trailing zeros
+  if (!Number.isFinite(v)) return "0";
+  const fixed = v.toFixed(4);
+  const n = parseFloat(fixed);
+  if (Number.isNaN(n)) return "0";
+  return n.toString();
 }
 
 function formatPcs(v: number) {
@@ -191,29 +319,205 @@ function formatMoney(v: number) {
   }
 }
 
+function analyzeGroup(items: InventoryRow[]) {
+  let totalPiecesCurrent = 0;
+  let totalPiecesAllocated = 0;
+  let totalPiecesInbound = 0;
+
+  // raw per-row unit info
+  const unitInfoRaw: {
+    unit: string;
+    unitType: string;
+    unitCount: number;
+    rawCurrent: number;
+    rawAllocated: number;
+    rawInbound: number;
+    costPerUnit: number;
+  }[] = [];
+
+  for (const r of items) {
+    const unit = getUnitLabel(r).trim();
+    const unitType = normalizeUnit(unit);
+    const unitCount =
+      getNumber(r, ["unitCount", "unit_count", "unitcount"]) || 1;
+
+    const rawCurrent =
+      getNumber(r, [
+        "current",
+        "onhand",
+        "on_hand",
+        "onHand",
+        "quantity",
+        "qty",
+      ]) || 0;
+    const rawAllocated =
+      getNumber(r, [
+        "allocated",
+        "allocated_qty",
+        "allocatedQuantity",
+        "current_allocated",
+      ]) || 0;
+    const rawInbound =
+      getNumber(r, [
+        "projected",
+        "inboxProjected",
+        "inbox_projected",
+        "inbox",
+        "inbound",
+      ]) || 0;
+
+    const costPerUnit =
+      getNumber(r as InventoryRow, ["costPerUnit", "cost_per_unit", "price"]) ||
+      0;
+
+    unitInfoRaw.push({
+      unit,
+      unitType,
+      unitCount,
+      rawCurrent,
+      rawAllocated,
+      rawInbound,
+      costPerUnit,
+    });
+
+    totalPiecesCurrent += rawCurrent * unitCount;
+    totalPiecesAllocated += rawAllocated * unitCount;
+    totalPiecesInbound += rawInbound * unitCount;
+  }
+
+  // Aggregate by unit name (case-insensitive) to avoid duplicate unit rows in popover
+  const agg = new Map<
+    string,
+    {
+      unit: string;
+      unitType: string;
+      unitCount: number;
+      rawCurrent: number;
+      rawAllocated: number;
+      rawInbound: number;
+      costPerUnit: number; // weighted average per unit
+    }
+  >();
+
+  for (const u of unitInfoRaw) {
+    const key = `${(u.unit || "unit").toLowerCase().trim()}::${Math.max(
+      1,
+      Number(u.unitCount || 1),
+    )}`;
+    const existing = agg.get(key);
+    if (!existing) {
+      agg.set(key, { ...u });
+      continue;
+    }
+
+    // merge sums
+    const merged = {
+      unit: existing.unit || u.unit,
+      unitType: existing.unitType || u.unitType,
+      unitCount: Math.max(existing.unitCount || 1, u.unitCount || 1),
+      rawCurrent: (existing.rawCurrent || 0) + (u.rawCurrent || 0),
+      rawAllocated: (existing.rawAllocated || 0) + (u.rawAllocated || 0),
+      rawInbound: (existing.rawInbound || 0) + (u.rawInbound || 0),
+      costPerUnit: 0,
+    };
+
+    // compute weighted cost per unit where possible (weight by current pieces)
+    const existingPieces =
+      (existing.rawCurrent || 0) * (existing.unitCount || 1);
+    const newPieces = (u.rawCurrent || 0) * (u.unitCount || 1);
+    if ((existing.costPerUnit || 0) > 0 && (u.costPerUnit || 0) > 0) {
+      const totalWeight = existingPieces + newPieces;
+      if (totalWeight > 0) {
+        const existingSum = (existing.costPerUnit || 0) * existingPieces;
+        const newSum = (u.costPerUnit || 0) * newPieces;
+        merged.costPerUnit = (existingSum + newSum) / totalWeight;
+      } else {
+        // fallback: if no pieces, prefer any non-zero cost
+        merged.costPerUnit = existing.costPerUnit || u.costPerUnit || 0;
+      }
+    } else {
+      merged.costPerUnit = existing.costPerUnit || u.costPerUnit || 0;
+    }
+
+    agg.set(key, merged);
+  }
+
+  const unitInfo = Array.from(agg.values());
+
+  // pick box unitCount: prefer explicit box row, else largest unitCount
+  const boxRow = unitInfo.find((u) => u.unitType === "box" && u.unitCount > 0);
+  const boxUnitCount = boxRow
+    ? boxRow.unitCount
+    : unitInfo.reduce((acc, it) => Math.max(acc, it.unitCount), 1);
+
+  // cost per box: prefer box row cost, else derive from piece cost
+  let costPerBox = 0;
+  if (boxRow && boxRow.costPerUnit > 0) costPerBox = boxRow.costPerUnit;
+  else {
+    const anyCost = unitInfo.find((u) => u.costPerUnit > 0);
+    if (anyCost) costPerBox = anyCost.costPerUnit * boxUnitCount;
+  }
+
+  const boxesCurrent = totalPiecesCurrent / boxUnitCount;
+  const boxesAllocated = totalPiecesAllocated / boxUnitCount;
+  const boxesInbound = totalPiecesInbound / boxUnitCount;
+  const availableBoxes = boxesCurrent - boxesAllocated;
+  const projectedBoxes = boxesCurrent - boxesAllocated + boxesInbound;
+
+  return {
+    totalPiecesCurrent,
+    totalPiecesAllocated,
+    totalPiecesInbound,
+    boxUnitCount,
+    costPerBox,
+    boxesCurrent,
+    boxesAllocated,
+    boxesInbound,
+    availableBoxes,
+    projectedBoxes,
+    unitInfo,
+  };
+}
+
 export default function InventoryReportTable({
   rows,
   page,
   pageSize,
-  total,
   onPageChange,
   onPageSizeChange,
   isLoading = false,
   sortBy,
   sortDir,
   onSort,
+  search,
+  onSearchChange,
 }: Props) {
   // Group rows by product key (prefer productDescription/product name)
   const groups = useMemo(() => {
     const m = new Map<string, InventoryRow[]>();
+
+    const canonical = (s: string) =>
+      s
+        ? s
+            .normalize("NFKD")
+            .replace(/[\u0300-\u036f]/g, "")
+            .replace(/[^\w\s-]/g, "")
+            .replace(/\s+/g, " ")
+            .trim()
+            .toLowerCase()
+        : "";
+
     for (const r of rows) {
-      const skuKey = (
+      const name =
         getString(r, ["productDescription", "product_description"]) ||
-        getString(r, ["product_name", "productName", "name", "item"]) ||
-        getString(r, ["productCode", "product_code", "code", "sku"]) ||
-        String(getNumber(r as InventoryRow, ["productId", "id"])) ||
-        JSON.stringify(r).slice(0, 64)
-      ).trim();
+        getString(r, ["product_name", "productName", "name", "item"]);
+      const code = getString(r, ["productCode", "product_code", "code", "sku"]);
+      const id = getString(r, ["productId", "product_id", "id"]);
+
+      let skuKeySource = name || code || id || JSON.stringify(r).slice(0, 64);
+      skuKeySource = String(skuKeySource).trim();
+      const skuKey = canonical(skuKeySource) || skuKeySource;
+
       const arr = m.get(skuKey) ?? [];
       arr.push(r);
       m.set(skuKey, arr);
@@ -222,163 +526,173 @@ export default function InventoryReportTable({
     return Array.from(m.entries()).map(([key, items]) => ({ key, items }));
   }, [rows]);
 
-  const pageCount = Math.max(1, Math.ceil(groups.length / pageSize));
-  const visible = groups.slice(
+  const sortedGroups = useMemo(() => {
+    const to4 = (v: number) => (Number.isFinite(v) ? Number(v.toFixed(4)) : 0);
+
+    const decorated = groups.map((g) => {
+      const first = g.items[0];
+      const analysis = analyzeGroup(g.items);
+      return {
+        ...g,
+        analysis,
+        productName: getString(first, [
+          "productDescription",
+          "product_description",
+          "product_name",
+          "productName",
+          "name",
+          "item",
+        ]),
+        brand: getString(first, ["brand", "brand_name", "brandName"]),
+        category: getString(first, ["category", "category_name"]),
+        branch: getString(first, ["branch", "branch_name"]),
+        supplier: getString(first, ["supplier", "supplier_name"]),
+      };
+    });
+
+    decorated.sort((a, b) => {
+      let res = 0;
+      switch (sortBy) {
+        case "product":
+          res = a.productName.localeCompare(b.productName);
+          break;
+        case "branch":
+          res = a.branch.localeCompare(b.branch);
+          break;
+        case "category":
+          res = a.category.localeCompare(b.category);
+          break;
+        case "brand":
+          res = a.brand.localeCompare(b.brand);
+          break;
+        case "supplier":
+          res = a.supplier.localeCompare(b.supplier);
+          break;
+        case "current":
+          res = to4(a.analysis.boxesCurrent) - to4(b.analysis.boxesCurrent);
+          break;
+        case "allocated":
+          res = to4(a.analysis.boxesAllocated) - to4(b.analysis.boxesAllocated);
+          break;
+        case "inbound":
+          res = to4(a.analysis.boxesInbound) - to4(b.analysis.boxesInbound);
+          break;
+        case "projected":
+          res = to4(a.analysis.projectedBoxes) - to4(b.analysis.projectedBoxes);
+          break;
+        case "available":
+        default:
+          res = to4(a.analysis.availableBoxes) - to4(b.analysis.availableBoxes);
+          break;
+      }
+
+      if (res === 0) {
+        res = a.productName.localeCompare(b.productName);
+      }
+
+      return sortDir === "asc" ? res : -res;
+    });
+
+    return decorated;
+  }, [groups, sortBy, sortDir]);
+
+  const pageCount = Math.max(1, Math.ceil(sortedGroups.length / pageSize));
+  const visible = sortedGroups.slice(
     (page - 1) * pageSize,
     (page - 1) * pageSize + pageSize,
   );
 
-  function analyzeGroup(items: InventoryRow[]) {
-    let totalPiecesCurrent = 0;
-    let totalPiecesAllocated = 0;
-    let totalPiecesInbound = 0;
-
-    const unitInfo: {
-      unit: string;
-      unitType: string;
-      unitCount: number;
-      rawCurrent: number;
-      rawAllocated: number;
-      rawInbound: number;
-      costPerUnit: number;
-    }[] = [];
-
-    for (const r of items) {
-      const unit = getString(r, ["unit", "uom", "unit_of_measurement"]).trim();
-      const unitType = normalizeUnit(unit || (r as any).unit);
-      const unitCount =
-        getNumber(r, ["unitCount", "unit_count", "unitcount"]) || 1;
-
-      const rawCurrent =
-        getNumber(r, [
-          "current",
-          "onhand",
-          "on_hand",
-          "onHand",
-          "quantity",
-          "qty",
-        ]) || 0;
-      const rawAllocated =
-        getNumber(r, [
-          "allocated",
-          "allocated_qty",
-          "allocatedQuantity",
-          "current_allocated",
-        ]) || 0;
-      // inbound / projected raw (use projected/inboxProjected/inbox)
-      const rawInbound =
-        getNumber(r, [
-          "projected",
-          "inboxProjected",
-          "inbox_projected",
-          "inbox",
-          "inbound",
-        ]) || 0;
-
-      const costPerUnit =
-        getNumber(r as InventoryRow, [
-          "costPerUnit",
-          "cost_per_unit",
-          "price",
-        ]) || 0;
-
-      unitInfo.push({
-        unit,
-        unitType,
-        unitCount,
-        rawCurrent,
-        rawAllocated,
-        rawInbound,
-        costPerUnit,
-      });
-
-      totalPiecesCurrent += rawCurrent * unitCount;
-      totalPiecesAllocated += rawAllocated * unitCount;
-      totalPiecesInbound += rawInbound * unitCount;
+  const renderSortIcon = (key: Props["sortBy"]) => {
+    if (sortBy !== key) {
+      return <ArrowUpDown className="h-3.5 w-3.5 text-muted-foreground/70" />;
     }
 
-    // pick box unitCount: prefer explicit box row, else largest unitCount
-    const boxRow = unitInfo.find(
-      (u) => u.unitType === "box" && u.unitCount > 0,
-    );
-    const boxUnitCount = boxRow
-      ? boxRow.unitCount
-      : unitInfo.reduce((acc, it) => Math.max(acc, it.unitCount), 1);
-
-    // cost per box: prefer box row cost, else derive from piece cost
-    let costPerBox = 0;
-    if (boxRow && boxRow.costPerUnit > 0) costPerBox = boxRow.costPerUnit;
-    else {
-      const anyCost = unitInfo.find((u) => u.costPerUnit > 0);
-      if (anyCost) costPerBox = anyCost.costPerUnit * boxUnitCount;
+    if (sortDir === "asc") {
+      return <ArrowUp className="h-3.5 w-3.5 text-foreground" />;
     }
 
-    const boxesCurrent = totalPiecesCurrent / boxUnitCount;
-    const boxesAllocated = totalPiecesAllocated / boxUnitCount;
-    const boxesInbound = totalPiecesInbound / boxUnitCount;
-    const availableBoxes = boxesCurrent - boxesAllocated;
-    const projectedBoxes = boxesCurrent - boxesAllocated + boxesInbound;
+    return <ArrowDown className="h-3.5 w-3.5 text-foreground" />;
+  };
 
-    return {
-      totalPiecesCurrent,
-      totalPiecesAllocated,
-      totalPiecesInbound,
-      boxUnitCount,
-      costPerBox,
-      boxesCurrent,
-      boxesAllocated,
-      boxesInbound,
-      availableBoxes,
-      projectedBoxes,
-      unitInfo,
-    };
-  }
+  const renderSortableHeader = (
+    label: string,
+    key: Props["sortBy"],
+    align: "left" | "right" = "left",
+  ) => (
+    <button
+      type="button"
+      onClick={() => onSort(key)}
+      className={`inline-flex w-full items-center gap-1.5 font-bold uppercase tracking-wide text-[11px] ${align === "right" ? "justify-end" : "justify-start"}`}
+      aria-label={`Sort by ${label.toLowerCase()}`}
+    >
+      <span>{label}</span>
+      {renderSortIcon(key)}
+    </button>
+  );
 
   return (
     <div className="flex flex-col gap-3">
+      
+      <div  className="text-[12px]  font-black    flex items-center justify-between  uppercase text-slate-400 tracking-widest">
+        Inventory Report Table
+      </div>
+      <div>
+        
+        {onSearchChange !== undefined && (
+          <div>
+            <Input
+              placeholder="Search products..."
+              value={search ?? ""}
+              onChange={(e) =>
+                onSearchChange?.((e.target as HTMLInputElement).value)
+              }
+              className="mb-2"
+              // title="Global search across product name/code/brand/category/supplier/branch"
+            />
+          </div>
+        )}
+      </div>
       <div className="rounded-md border border-border overflow-auto bg-background">
         <Table>
           <TableHeader className="bg-muted/50 border-b">
             <TableRow>
-              <TableHead
-                className="font-bold min-w-75 text-foreground cursor-pointer"
-                onClick={() => onSort("product")}
-              >
-                PRODUCT
+              <TableHead className="font-bold whitespace-nowrap text-foreground w-40">
+                {renderSortableHeader("SUPPLIER", "supplier")}
               </TableHead>
-              <TableHead
-                className="font-bold text-right whitespace-nowrap text-foreground cursor-pointer"
-                onClick={() => onSort("available")}
-              >
-                AVAILABLE
+              <TableHead className="font-bold whitespace-nowrap text-foreground w-40">
+                {renderSortableHeader("CATEGORY", "category")}
               </TableHead>
-              <TableHead
-                className="font-bold text-right whitespace-nowrap text-foreground cursor-pointer"
-                onClick={() => onSort("current")}
-              >
-                CURRENT
+              <TableHead className="font-bold whitespace-nowrap text-foreground w-40">
+                {renderSortableHeader("BRAND", "brand")}
               </TableHead>
-              <TableHead
-                className="font-bold text-right whitespace-nowrap text-foreground cursor-pointer"
-                onClick={() => onSort("allocated")}
-              >
-                ALLOCATED
+              <TableHead className="font-bold min-w-75 text-foreground">
+                {renderSortableHeader("PRODUCT", "product")}
               </TableHead>
-              <TableHead className="font-bold text-right whitespace-nowrap text-foreground">
-                INBOUND
+              <TableHead className="font-bold text-right whitespace-nowrap text-foreground w-35">
+                {renderSortableHeader("AVAILABLE", "available", "right")}
               </TableHead>
-              <TableHead className="font-bold text-right whitespace-nowrap text-foreground">
-                PROJECTED
+              <TableHead className="font-bold text-right whitespace-nowrap text-foreground w-35">
+                {renderSortableHeader("CURRENT", "current", "right")}
               </TableHead>
-              <TableHead className="font-bold whitespace-nowrap text-foreground">
-                CATEGORY
+              <TableHead className="font-bold text-right whitespace-nowrap text-foreground w-35">
+                {renderSortableHeader("ALLOCATED", "allocated", "right")}
+              </TableHead>
+              <TableHead className="font-bold text-right whitespace-nowrap text-foreground w-35">
+                {renderSortableHeader("INBOUND", "inbound", "right")}
+              </TableHead>
+              <TableHead className="font-bold text-right whitespace-nowrap text-foreground w-40">
+                {renderSortableHeader(
+                  "PROJECTED INVENTORY",
+                  "projected",
+                  "right",
+                )}
               </TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading && (
               <TableRow>
-                <TableCell colSpan={7}>
+                <TableCell colSpan={9}>
                   <div className="p-4">
                     <Skeleton className="h-6 w-full" />
                   </div>
@@ -388,61 +702,99 @@ export default function InventoryReportTable({
 
             {!isLoading &&
               visible.map((g, idx) => {
-                const items = g.items;
-                const productName = getString(items[0], [
-                  "productDescription",
-                  "product_description",
-                  "product_name",
-                  "productName",
-                  "name",
-                  "item",
-                ]);
-                const category = getString(items[0], [
-                  "category",
-                  "category_name",
-                ]);
-
-                const a = analyzeGroup(items);
+                const a = g.analysis;
 
                 function buildPopover(
-                  metric: "current" | "allocated" | "available" | "projected",
+                  metric:
+                    | "current"
+                    | "allocated"
+                    | "available"
+                    | "inbound"
+                    | "projected",
                 ) {
-                  const unitTypes = Array.from(
-                    new Set(a.unitInfo.map((u) => u.unitType)),
+                  // Build distinct unit columns from the aggregated unitInfo
+                  // preserve uniqueness by unit label + unitCount
+                  const unitMap = new Map(
+                    a.unitInfo.map((u) => [
+                      `${(u.unit || "").toString().toLowerCase().trim()}::${Math.max(
+                        1,
+                        Number(u.unitCount || 1),
+                      )}`,
+                      u,
+                    ]),
                   );
-                  const columns: string[] = [];
-                  if (unitTypes.includes("box")) columns.push("Boxes");
-                  if (unitTypes.includes("pack")) columns.push("Packs");
-                  if (unitTypes.includes("pcs") || unitTypes.includes("other"))
-                    columns.push("Pcs");
 
-                  const sumByUnitType = (type: string) =>
+                  const unitCols = Array.from(unitMap.values());
+
+                  // Normalize into column descriptors and sort: boxes, packs, pcs, others
+                  const columns = unitCols
+                    .map((u) => ({
+                      key: `${(u.unit || "").toString().toLowerCase().trim()}::${Math.max(
+                        1,
+                        Number(u.unitCount || 1),
+                      )}`,
+                      label:
+                        (u.unit && String(u.unit).trim()) ||
+                        (u.unitType === "box"
+                          ? "Boxes"
+                          : u.unitType === "pack"
+                            ? "Packs"
+                            : "Pcs"),
+                      unitCount: Math.max(1, Number(u.unitCount || 1)),
+                      unitType: u.unitType,
+                    }))
+                    .sort((x, y) => {
+                      const order = (t: string) =>
+                        t === "box"
+                          ? 0
+                          : t === "pack"
+                            ? 1
+                            : t === "pcs"
+                              ? 2
+                              : 3;
+                      return order(x.unitType || "") - order(y.unitType || "");
+                    });
+
+                  const sumForColumn = (col: {
+                    key: string;
+                    label: string;
+                    unitCount: number;
+                    unitType: string;
+                  }) =>
                     a.unitInfo
-                      .filter((u) => u.unitType === type)
+                      .filter(
+                        (u) =>
+                          `${(u.unit || "").toString().toLowerCase().trim()}::${Math.max(
+                            1,
+                            Number(u.unitCount || 1),
+                          )}` === col.key,
+                      )
                       .reduce((s, u) => {
                         const val =
                           metric === "current"
                             ? u.rawCurrent
                             : metric === "allocated"
                               ? u.rawAllocated
-                              : metric === "projected"
+                              : metric === "inbound"
                                 ? u.rawInbound
-                                : 0;
+                                : metric === "available"
+                                  ? u.rawCurrent - u.rawAllocated
+                                  : u.rawCurrent -
+                                    u.rawAllocated +
+                                    u.rawInbound;
                         return s + (Number(val) || 0);
                       }, 0);
 
-                  const apiRowValues = columns.map((col) => {
-                    if (col === "Boxes") return String(sumByUnitType("box"));
-                    if (col === "Packs") return String(sumByUnitType("pack"));
-                    return String(
-                      sumByUnitType("pcs") || sumByUnitType("other") || 0,
-                    );
-                  });
+                  const apiRowValues = columns.map((c) =>
+                    String(sumForColumn(c)),
+                  );
 
                   let totalPieces = 0;
                   if (metric === "current") totalPieces = a.totalPiecesCurrent;
                   else if (metric === "allocated")
                     totalPieces = a.totalPiecesAllocated;
+                  else if (metric === "inbound")
+                    totalPieces = a.totalPiecesInbound;
                   else if (metric === "projected")
                     totalPieces =
                       a.totalPiecesCurrent -
@@ -451,18 +803,10 @@ export default function InventoryReportTable({
                   else if (metric === "available")
                     totalPieces = a.totalPiecesCurrent - a.totalPiecesAllocated;
 
-                  const calcRowValues = columns.map((col) => {
-                    if (col === "Boxes")
-                      return formatBoxes(totalPieces / a.boxUnitCount);
-                    if (col === "Packs") {
-                      const pack = a.unitInfo.find(
-                        (u) => u.unitType === "pack",
-                      );
-                      const packUnitCount = pack
-                        ? pack.unitCount
-                        : a.boxUnitCount;
-                      return formatBoxes(totalPieces / packUnitCount);
-                    }
+                  const calcRowValues = columns.map((c) => {
+                    // Show converted value into the column's unit
+                    if ((c.unitCount || 1) > 1)
+                      return formatBoxes(totalPieces / c.unitCount);
                     return formatPcs(totalPieces);
                   });
 
@@ -470,7 +814,13 @@ export default function InventoryReportTable({
                     (totalPieces / a.boxUnitCount) * (a.costPerBox || 0);
 
                   const colsClass =
-                    columns.length === 3 ? "grid-cols-3" : "grid-cols-2";
+                    columns.length === 1
+                      ? "grid-cols-1"
+                      : columns.length === 2
+                        ? "grid-cols-2"
+                        : columns.length === 3
+                          ? "grid-cols-3"
+                          : "grid-cols-4";
 
                   return (
                     <div className="text-xs">
@@ -483,10 +833,10 @@ export default function InventoryReportTable({
                       >
                         {columns.map((c) => (
                           <div
-                            key={c}
+                            key={c.key}
                             className="text-muted-foreground text-[12px]"
                           >
-                            {c}
+                            {c.label}
                           </div>
                         ))}
                       </div>
@@ -506,7 +856,6 @@ export default function InventoryReportTable({
                       >
                         {calcRowValues.map((v, i) => (
                           <div key={`calc-${i}`} className="text-right">
-                            {" "}
                             {v}
                           </div>
                         ))}
@@ -525,8 +874,35 @@ export default function InventoryReportTable({
                     key={g.key + idx}
                     className="text-xs border-border hover:bg-muted/30"
                   >
-                    <TableCell className="max-w-75 truncate">
-                      {productName}
+                    <TableCell
+                      className="whitespace-nowrap"
+                      title={
+                        getString(g.items[0] as InventoryRow, [
+                          "supplier",
+                          "supplier_name",
+                          "supplier_shortcut",
+                        ]) || "-"
+                      }
+                    >
+                      {getString(g.items[0] as InventoryRow, [
+                        "supplier",
+                        "supplier_name",
+                        "supplier_shortcut",
+                      ]) || "-"}
+                    </TableCell>
+
+                    <TableCell className="whitespace-nowrap" title={g.category}>
+                      {g.category}
+                    </TableCell>
+
+                    <TableCell className="whitespace-nowrap" title={g.brand}>
+                      {g.brand || "-"}
+                    </TableCell>
+
+                    <TableCell className="max-w-75">
+                      <div className="truncate text-sm" title={g.productName}>
+                        {g.productName || "-"}
+                      </div>
                     </TableCell>
 
                     <TableCell className="text-right font-mono">
@@ -576,7 +952,7 @@ export default function InventoryReportTable({
 
                     <TableCell className="text-right font-mono">
                       <HoverPopover
-                        content={buildPopover("projected")}
+                        content={buildPopover("inbound")}
                         align="end"
                         className="p-3 shadow-lg border-border bg-popover"
                         showDelay={0}
@@ -590,11 +966,18 @@ export default function InventoryReportTable({
                     </TableCell>
 
                     <TableCell className="text-right font-mono font-bold text-primary">
-                      {formatBoxes(a.projectedBoxes)}
-                    </TableCell>
-
-                    <TableCell className="whitespace-nowrap">
-                      {category}
+                      <HoverPopover
+                        content={buildPopover("projected")}
+                        align="end"
+                        className="p-3 shadow-lg border-border bg-popover"
+                        showDelay={0}
+                        hideDelay={240}
+                        duration={160}
+                      >
+                        <button className="font-mono text-right w-full text-sm font-bold text-primary">
+                          {formatBoxes(a.projectedBoxes)}
+                        </button>
+                      </HoverPopover>
                     </TableCell>
                   </TableRow>
                 );
@@ -607,10 +990,10 @@ export default function InventoryReportTable({
         <div className="text-sm text-muted-foreground">
           Showing{" "}
           <span className="font-bold text-foreground">
-            {Math.min(groups.length, (page - 1) * pageSize + 1)} -{" "}
-            {Math.min(groups.length, page * pageSize)}
+            {Math.min(sortedGroups.length, (page - 1) * pageSize + 1)} -{" "}
+            {Math.min(sortedGroups.length, page * pageSize)}
           </span>{" "}
-          of {groups.length} products
+          of {sortedGroups.length} products
         </div>
 
         <div className="flex items-center gap-6">

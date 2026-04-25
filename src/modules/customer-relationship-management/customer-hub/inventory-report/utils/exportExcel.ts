@@ -1,141 +1,139 @@
+// src/modules/customer-relationship-management/customer-hub/inventory-report/utils/exportExcel.ts
 import * as XLSX from "xlsx";
+import { groupInventoryRows, formatBoxQty } from "./groupInventory";
+import type { InventoryRow } from "../type";
 
 /**
- * Export an array of records to an Excel file using a stable column order.
- * If the common inventory export columns exist they will be placed first
- * in the order: Product, Status, Available, Current, Allocated, Inbound, Projected, Category
- * Any additional keys found across rows will be appended after these.
+ * Export inventory data to Excel.
+ *
+ * Values for Available / Current / Allocated / Inbound / Projected are derived
+ * from the same groupInventoryRows() + analyzeGroup() pipeline used by
+ * InventoryReportTable, so the exported numbers always match what the user sees
+ * on screen.
  */
 export function exportToExcel(
-  rows: Array<Record<string, unknown>>,
+  rows: InventoryRow[],
   filename = "inventory-report.xlsx",
-  opts?: { filters?: unknown },
+  opts?: { filters?: unknown; generatedBy?: string; generatedDate?: string },
 ) {
+  // -------------------------------------------------------------------------
+  // Determine which columns to hide based on active filters (same logic as PDF)
+  // -------------------------------------------------------------------------
+  const filtersObj = opts?.filters as Record<string, unknown> | undefined;
+
+  const isFilterActive = (key: string): boolean => {
+    if (!filtersObj) return false;
+    const val = filtersObj[key];
+    if (val === undefined || val === null) return false;
+    if (Array.isArray(val)) {
+      return (val as unknown[])
+        .map((v) => String(v).trim().toLowerCase())
+        .some((v) => v !== "" && v !== "all");
+    }
+    const s = String(val).trim().toLowerCase();
+    return s !== "" && s !== "all";
+  };
+
+  const hideBranch = isFilterActive("branch");
+  const hideSupplier = isFilterActive("supplier");
+  const hideCategory = isFilterActive("category");
+  // When brand filter is active, hide both Brand and Unit columns (mirrors PDF exporter)
+  const hideBrandAndUnit = isFilterActive("brand");
+
+  // -------------------------------------------------------------------------
+  // Group rows exactly as the table does, then flatten to one row per product
+  // -------------------------------------------------------------------------
+  const groups = groupInventoryRows(rows);
+
+  type ExportRow = Record<string, string | number | null>;
+  const data: ExportRow[] = groups.map((g) => {
+    const a = g.analysis;
+    const row: ExportRow = {};
+
+    row["Product"] = g.productName || "-";
+    if (!hideBrandAndUnit) row["Unit"] = g.unit || "-";
+    if (!hideBranch) row["Branch"] = g.branch || "-";
+    if (!hideSupplier) row["Supplier"] = g.supplier || "-";
+    if (!hideCategory) row["Category"] = g.category || "-";
+    if (!hideBrandAndUnit) row["Brand"] = g.brand || "-";
+
+    // Numeric columns — using the same box-converted values as the table
+    row["Available"] = parseFloat(formatBoxQty(a.availableBoxes));
+    row["Current"] = parseFloat(formatBoxQty(a.boxesCurrent));
+    row["Allocated"] = parseFloat(formatBoxQty(a.boxesAllocated));
+    // NOTE: column labels match the UI headers intentionally:
+    //   "Inbound" label  → boxesInbound  (what flows in)
+    //   "Projected"      → projectedBoxes (current - allocated + inbound)
+    row["Inbound"] = parseFloat(formatBoxQty(a.boxesInbound));
+    row["Projected"] = parseFloat(formatBoxQty(a.projectedBoxes));
+
+    return row;
+  });
+
+  // Preferred column order (only include columns that weren't hidden)
   const preferredOrder = [
     "Product",
+    ...(!hideBrandAndUnit ? ["Unit"] : []),
+    ...(!hideBranch ? ["Branch"] : []),
+    ...(!hideSupplier ? ["Supplier"] : []),
+    ...(!hideCategory ? ["Category"] : []),
+    ...(!hideBrandAndUnit ? ["Brand"] : []),
     "Available",
     "Current",
     "Allocated",
     "Inbound",
     "Projected",
-    "Unit",
-    "Brand",
-    "Category",
-    "Branch",
-    "Supplier",
   ];
 
-  // Collect all keys present in the data
-  const allKeys = new Set<string>();
-  for (const r of rows) Object.keys(r || {}).forEach((k) => allKeys.add(k));
+  // -------------------------------------------------------------------------
+  // Build array-of-arrays with metadata header rows
+  // -------------------------------------------------------------------------
+  const generatedBy = opts?.generatedBy ?? "System";
+  const generatedDate =
+    opts?.generatedDate ??
+    new Date().toLocaleString("en-US", {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
 
-  // Build final column order: preferred keys first (if present), then remaining keys sorted
-  const preferredPresent = preferredOrder.filter((k) => allKeys.has(k));
-  const remaining = Array.from(allKeys).filter(
-    (k) => !preferredPresent.includes(k),
-  );
-  // keep remaining stable by sorting alphabetically
-  remaining.sort((a, b) => a.localeCompare(b));
-  const finalOrder = [...preferredPresent, ...remaining];
-
-  // Determine if a category filter is active in the provided filters. If the
-  // user has filtered by category we can omit the Category column from the
-  // exported sheet because every row will belong to that category.
-  const filtersObj = opts?.filters as Record<string, unknown> | undefined;
-  let categoryFilterActive = false;
-  if (filtersObj && filtersObj.category !== undefined && filtersObj.category !== null) {
-    const cf = filtersObj.category;
-    if (Array.isArray(cf)) {
-      categoryFilterActive = cf.length > 0 && !cf.map(String).includes("All");
-    } else {
-      const s = String(cf).trim().toLowerCase();
-      categoryFilterActive = s !== "" && s !== "all";
-    }
-  }
-
-  const finalOrderToUse = categoryFilterActive
-    ? finalOrder.filter((k) => String(k).toLowerCase() !== "category")
-    : finalOrder;
-
-  // Normalize rows to objects that only contain finalOrder keys (ensures consistent columns)
-  const data = rows.map((r) => {
-    const out: Record<string, string | number | boolean | null> = {};
-    for (const k of finalOrder) {
-      const v = r ? (r as Record<string, unknown>)[k] : undefined;
-      if (v === null || v === undefined) {
-        out[k] = null;
-      } else if (typeof v === "object") {
-        try {
-          out[k] = JSON.stringify(v);
-        } catch {
-          out[k] = String(v);
-        }
-      } else if (typeof v === "number" || typeof v === "boolean") {
-        out[k] = v as number | boolean;
-      } else {
-        out[k] = String(v);
-      }
-    }
-    return out;
-  });
-
-  // Build an array-of-arrays so we can inject metadata rows at the top of the
-  // Inventory sheet (so active filters are visible when the sheet is opened).
   const rowsAoA: Array<Array<unknown>> = [];
+  rowsAoA.push(["Generated By:", generatedBy]);
+  rowsAoA.push(["Generated Date:", generatedDate]);
 
-  // If filters provided, push a vertical list of the filters so the Inventory
-  // sheet will show each active filter on its own row (like the user's
-  // reference screenshot). Leave a blank spacer row before the header.
   if (opts?.filters) {
     rowsAoA.push(["Filters:"]);
-    for (const [k, v] of Object.entries(opts.filters)) {
-      rowsAoA.push([
-        `${k} = ${Array.isArray(v) ? v.join(", ") : String(v ?? "All")}`,
-      ]);
+    for (const [k, v] of Object.entries(opts.filters as Record<string, unknown>)) {
+      rowsAoA.push([`${k} = ${Array.isArray(v) ? (v as unknown[]).join(", ") : String(v ?? "All")}`]);
     }
-    // blank spacer row
-    rowsAoA.push([]);
+    rowsAoA.push([]); // blank spacer before header
   }
 
-  // header row
-  rowsAoA.push(finalOrderToUse);
+  // Column header row
+  rowsAoA.push(preferredOrder);
 
-  // data rows
+  // Data rows
   for (const r of data) {
-    const rowArr = finalOrderToUse.map((k) => {
-      const v = (r as Record<string, unknown>)[k];
-      if (v === null || v === undefined) return null;
-      return typeof v === "object" ? JSON.stringify(v) : v;
-    });
-    rowsAoA.push(rowArr as Array<unknown>);
+    rowsAoA.push(preferredOrder.map((k) => r[k] ?? null));
   }
 
+  // -------------------------------------------------------------------------
+  // Build worksheet
+  // -------------------------------------------------------------------------
   const ws = XLSX.utils.aoa_to_sheet(rowsAoA);
   const sheet = ws as unknown as Record<string, unknown>;
 
-  // No merges required when filters are displayed vertically.
-
-  // set sensible column widths: product wide, category medium, numeric columns narrower
-  const colWidths = finalOrderToUse.map((k) => {
-    const key = String(k).toLowerCase();
-    if (key.includes("product")) return { wch: 50 };
-    if (key === "status") return { wch: 20 };
-    if (
-      ["available", "current", "allocated", "inbound", "projected"].includes(
-        String(k).toLowerCase(),
-      )
-    )
-      return { wch: 12 };
-    if (key.includes("category") || key === "brand" || key === "supplier")
-      return { wch: 30 };
-    if (key === "unit" || key === "branch") return { wch: 20 };
-    return { wch: 15 };
+  // Column widths
+  const numericCols = new Set(["Available", "Current", "Allocated", "Inbound", "Projected"]);
+  sheet["!cols"] = preferredOrder.map((k) => {
+    if (k === "Product") return { wch: 40 };
+    if (numericCols.has(k)) return { wch: 14 };
+    if (k === "Unit" || k === "Branch") return { wch: 16 };
+    return { wch: 22 };
   });
-  sheet["!cols"] = colWidths;
 
-  // Ensure the sheet is set to fit to page width when printing / exporting PDF
-  // from Excel: set pageSetup to fitToWidth:1. This helps when users choose
-  // "Fit Sheet on One Page" or print; Excel respects this value.
   sheet["!pageSetup"] = {
     fitToWidth: 1,
     fitToHeight: 1,
@@ -145,18 +143,14 @@ export function exportToExcel(
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Inventory");
 
-  // if filters provided, add a Filters sheet with key/value rows
+  // Optional Filters sheet
   if (opts?.filters) {
-    const entries = Object.entries(opts.filters).map(([k, v]) => [
+    const entries = Object.entries(opts.filters as Record<string, unknown>).map(([k, v]) => [
       k,
-      Array.isArray(v) ? v.join(", ") : String(v ?? ""),
+      Array.isArray(v) ? (v as unknown[]).join(", ") : String(v ?? ""),
     ]);
-    const filterSheet = XLSX.utils.aoa_to_sheet([
-      ["Filter", "Value"],
-      ...entries,
-    ]);
-    const fSheet = filterSheet as unknown as Record<string, unknown>;
-    fSheet["!cols"] = [{ wch: 30 }, { wch: 50 }];
+    const filterSheet = XLSX.utils.aoa_to_sheet([["Filter", "Value"], ...entries]);
+    (filterSheet as unknown as Record<string, unknown>)["!cols"] = [{ wch: 30 }, { wch: 50 }];
     XLSX.utils.book_append_sheet(wb, filterSheet, "Filters");
   }
 

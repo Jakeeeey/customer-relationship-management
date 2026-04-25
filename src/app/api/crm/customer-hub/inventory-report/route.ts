@@ -130,22 +130,29 @@ export async function GET(req: NextRequest) {
     const category = searchParams.getAll("category");
     const supplier = searchParams.getAll("supplier");
     const brand = searchParams.getAll("brand");
+    const productDescription = searchParams.getAll("productDescription");
 
-    if (branch && branch.length > 0) {
-      branch.forEach((b) => url.searchParams.append("branch", b));
-    }
+    // Preserve multi-select values by forwarding each filter dimension as a
+    // comma-separated list while still sending a single query key per
+    // dimension (compatible with backends that reject repeated keys).
+    const appendFilterValues = (name: string, values: string[]) => {
+      const normalized = Array.from(
+        new Set(
+          values
+            .map((v) => String(v ?? "").trim())
+            .filter((v) => v.length > 0 && v.toLowerCase() !== "all"),
+        ),
+      );
 
-    if (category && category.length > 0) {
-      category.forEach((c) => url.searchParams.append("category", c));
-    }
+      if (normalized.length === 0) return;
+      url.searchParams.append(name, normalized.join(","));
+    };
 
-    if (supplier && supplier.length > 0) {
-      supplier.forEach((s) => url.searchParams.append("supplier", s));
-    }
-
-    if (brand && brand.length > 0) {
-      brand.forEach((b) => url.searchParams.append("brand", b));
-    }
+    appendFilterValues("branch", branch);
+    appendFilterValues("category", category);
+    appendFilterValues("supplier", supplier);
+    appendFilterValues("brand", brand);
+    appendFilterValues("productDescription", productDescription);
 
     const response = await fetch(url.toString(), {
       headers: {

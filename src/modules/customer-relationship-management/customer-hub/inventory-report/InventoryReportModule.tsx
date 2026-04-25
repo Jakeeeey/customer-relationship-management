@@ -18,13 +18,6 @@ import exportToExcel from "./utils/exportExcel";
 import exportInventoryReportPdf from "./utils/exportPdf";
 import { toast } from "sonner";
 import type { InventoryRow, InventoryFilters } from "./type";
-// import {
-//   findNumericFieldWithKey,
-//   toPieces,
-//   getConversionConfig,
-//   type ConversionConfig,
-// } from "./utils/units";
-import { Skeleton } from "@/components/ui/skeleton";
 import {
   Dialog,
   DialogContent,
@@ -33,7 +26,6 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import {
   Select,
   SelectContent,
@@ -41,8 +33,77 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  getString,
+  getNumber,
+  groupInventoryRows,
+  formatBoxQty,
+} from "./utils/groupInventory";
+import type { ProductGroup } from "./utils/groupInventory";
 
-export default function InventoryReportModule() {
+type InventoryReportModuleProps = {
+  userName: string;
+};
+
+// ---------------------------------------------------------------------------
+// Local helper: decode display name from JWT cookie (lightweight, client-only)
+// ---------------------------------------------------------------------------
+function getLoggedInUserName(): string | null {
+  try {
+    if (typeof document === "undefined") return null;
+    const m = document.cookie.match(/(^|; )vos_access_token=([^;]+)/);
+    const token = m?.[2] ? decodeURIComponent(m[2]) : null;
+    if (!token) return null;
+    const parts = token.split(".");
+    if (parts.length < 2) return null;
+    let base64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+    while (base64.length % 4) base64 += "=";
+    const payload = JSON.parse(atob(base64));
+    return (
+      [payload.FirstName, payload.LastName].filter(Boolean).join(" ") ||
+      payload.email ||
+      payload.sub ||
+      null
+    );
+  } catch {
+    return null;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Deep object → string scan (used only for the module-level search haystack)
+// ---------------------------------------------------------------------------
+function getObjectString(v: unknown, keys: string[] = []): string {
+  if (v == null) return "";
+  if (typeof v === "string" || typeof v === "number") return String(v).trim();
+  if (typeof v !== "object") return "";
+  const obj = v as Record<string, unknown>;
+  for (const k of keys) {
+    const cand = obj[k];
+    if (cand == null) continue;
+    if (typeof cand === "string" || typeof cand === "number") {
+      const s = String(cand).trim();
+      if (s) return s;
+    }
+  }
+  for (const k of Object.keys(obj)) {
+    const cand = obj[k];
+    if (cand == null) continue;
+    if (typeof cand === "string" || typeof cand === "number") {
+      const s = String(cand).trim();
+      if (s) return s;
+    }
+    if (typeof cand === "object") {
+      const s = getObjectString(cand, []);
+      if (s) return s;
+    }
+  }
+  return "";
+}
+
+export default function InventoryReportModule({
+  userName,
+}: InventoryReportModuleProps) {
   const {
     rows,
     loading,
@@ -51,204 +112,93 @@ export default function InventoryReportModule() {
     setPage,
     setPageSize,
     filters,
-    setFilters,
     applyFilters,
-    clearFilters,
     options,
   } = useInventoryReport(1, 20);
 
-  // UI state: search, sorting
+  // UI state
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [sortBy, setSortBy] = useState<
-    "product" | "branch" | "category" | "current" | "allocated" | "available"
-  >("available");
-  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+    | "product" | "branch" | "brand" | "category" | "supplier"
+    | "current" | "allocated" | "available" | "inbound" | "projected"
+  >("current");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
 
-  // debounce global search
   useEffect(() => {
-    const t = setTimeout(
-      () => setDebouncedSearch(search.trim().toLowerCase()),
-      300,
-    );
+    const t = setTimeout(() => setDebouncedSearch(search.trim().toLowerCase()), 300);
     return () => clearTimeout(t);
   }, [search]);
 
-  // normalization helpers
-  const getString = (r: InventoryRow, keys: string[]) => {
-    for (const k of keys) {
-      const v = (r as Record<string, unknown>)[k];
-      if (v == null) continue;
-      return String(v);
-    }
-    return "";
-  };
+  // ------------------------------------------------------------------
+  // Filter rows by global search, then pass raw rows to InventoryReportTable.
+  // The table handles grouping + sorting internally via groupInventoryRows().
+  // ------------------------------------------------------------------
+  const filteredRows = useMemo<InventoryRow[]>(() => {
+    if (!debouncedSearch) return rows;
+    const tokens = debouncedSearch.split(/\s+/).filter(Boolean);
+    return rows.filter((r) => {
+      let hay = [
+        getString(r, ["product_name", "productName", "name", "item", "description", "product_description"]),
+        getString(r, ["product_code", "productCode", "code", "sku"]),
+        getString(r, ["brand", "brand_name"]),
+        getString(r, ["category", "category_name"]),
+        getString(r, ["supplier", "supplier_name"]),
+        getString(r, ["branch", "branch_name"]),
+      ].join(" ").toLowerCase();
 
-  const getNumber = (r: InventoryRow, keys: string[]) => {
-    for (const k of keys) {
-      const v = (r as Record<string, unknown>)[k];
-      if (v == null) continue;
-      const n = Number(v);
-      if (!Number.isNaN(n)) return n;
-    }
-    return 0;
-  };
+      // include any nested "product*" fields
+      try {
+        for (const k of Object.keys(r as Record<string, unknown>)) {
+          if (k.toLowerCase().startsWith("product")) {
+            const extra = getObjectString((r as Record<string, unknown>)[k], [
+              "product_description", "productDescription",
+              "product_name", "productName", "name", "description", "item", "value",
+            ]);
+            if (extra) hay += " " + extra.toLowerCase();
+          }
+        }
+      } catch { /* ignore */ }
 
-  // derive available and search/filter/sort
-  const processed = useMemo(() => {
-    // apply global search client-side against product description/name
-    const filtered = rows.filter((r) => {
-      if (!debouncedSearch) return true;
-      const hay = (
-        getString(r, [
-          "product_name",
-          "productName",
-          "name",
-          "item",
-          "description",
-          "product_description",
-        ]) +
-        " " +
-        getString(r, ["product_code", "productCode", "code", "sku"]) +
-        " " +
-        getString(r, ["brand", "brand_name"]) +
-        " " +
-        getString(r, ["category", "category_name"]) +
-        " " +
-        getString(r, ["supplier", "supplier_name"]) +
-        " " +
-        getString(r, ["branch", "branch_name"])
-      ).toLowerCase();
-      return hay.includes(debouncedSearch);
+      return tokens.every((t) => hay.includes(t));
     });
+  }, [rows, debouncedSearch]);
 
-    const mapped = filtered.map((r) => {
-      const current = getNumber(r, [
-        "current",
-        "onhand",
-        "on_hand",
-        "onHand",
-        "quantity",
-        "qty",
-      ]);
-      const allocated = getNumber(r, [
-        "allocated",
-        "allocated_qty",
-        "allocatedQuantity",
-        "current_allocated",
-      ]);
-      const available = current - allocated;
-      return { r, current, allocated, available };
-    });
+  // ------------------------------------------------------------------
+  // Groups — used for KPIs and the export preview
+  // ------------------------------------------------------------------
+  const groups = useMemo<ProductGroup[]>(
+    () => groupInventoryRows(filteredRows),
+    [filteredRows],
+  );
 
-    mapped.sort((a, b) => {
-      let res = 0;
-      switch (sortBy) {
-        case "product":
-          res = getString(a.r, [
-            "product_name",
-            "productName",
-            "name",
-          ]).localeCompare(
-            getString(b.r, ["product_name", "productName", "name"]),
-          );
-          break;
-        case "branch":
-          res = getString(a.r, ["branch", "branch_name"]).localeCompare(
-            getString(b.r, ["branch", "branch_name"]),
-          );
-          break;
-        case "category":
-          res = getString(a.r, ["category", "category_name"]).localeCompare(
-            getString(b.r, ["category", "category_name"]),
-          );
-          break;
-        case "current":
-          res = a.current - b.current;
-          break;
-        case "allocated":
-          res = a.allocated - b.allocated;
-          break;
-        case "available":
-        default:
-          res = a.available - b.available;
-          break;
-      }
-      return sortDir === "asc" ? res : -res;
-    });
-
-    return mapped;
-  }, [rows, debouncedSearch, sortBy, sortDir]);
-
-  const totalFiltered = processed.length;
-
-  // pagination is handled inside InventoryReportTable; avoid allocating
-  // intermediate paginated arrays here.
-
-  // KPI calculations (aggregated by product identifier to avoid duplicate counting)
+  // ------------------------------------------------------------------
+  // KPI calculations — derived from grouped data so they match the table
+  // ------------------------------------------------------------------
   const KPIs = useMemo(() => {
-    const agg = new Map<
-      string,
-      { current: number; allocated: number; projected: number }
-    >();
-    for (const m of processed) {
-      const r = m.r as InventoryRow;
-      const skuKey = (
-        getString(r as InventoryRow, [
-          "productCode",
-          "product_code",
-          "code",
-          "sku",
-        ]) ||
-        getString(r as InventoryRow, [
-          "product_name",
-          "productName",
-          "productDescription",
-          "product_description",
-          "name",
-          "item",
-        ]) ||
-        getString(r as InventoryRow, ["productId", "id"]) ||
-        JSON.stringify(r).slice(0, 64)
-      ).trim();
-
-      const curr = Number(m.current || 0);
-      const alloc = Number(m.allocated || 0);
-      const proj = Number(getNumber(r as InventoryRow, ["projected"])) || 0;
-
-      const existing = agg.get(skuKey);
-      if (existing) {
-        existing.current += curr;
-        existing.allocated += alloc;
-        existing.projected += proj;
-      } else {
-        agg.set(skuKey, { current: curr, allocated: alloc, projected: proj });
-      }
-    }
-
     let totalCurrent = 0;
     let totalAllocated = 0;
     let totalProjected = 0;
     let stockOut = 0;
+    let inStockSum = 0;
+    let issuesSum = 0;
 
-    for (const v of agg.values()) {
-      totalCurrent += v.current;
-      totalAllocated += v.allocated;
-      totalProjected += v.projected;
-      if (v.current === 0) stockOut++;
+    for (const g of groups) {
+      const a = g.analysis;
+      totalCurrent += a.boxesCurrent;
+      totalAllocated += a.boxesAllocated;
+      totalProjected += a.projectedBoxes;
+
+      if (a.boxesCurrent === 0) stockOut++;
+      if (a.boxesCurrent > 0) inStockSum += a.boxesCurrent;
+      else issuesSum += Math.abs(a.boxesCurrent);
     }
 
-    const totalSKUs = agg.size;
-    const netAvailable = totalCurrent - totalAllocated;
+    const totalSKUs = groups.length;
+    const netAvailable = inStockSum - totalAllocated;
     const outOfStockRate = totalSKUs > 0 ? stockOut / totalSKUs : 0;
-    const inStock = Math.max(0, totalCurrent);
-    const issues = Math.abs(Math.min(0, totalCurrent));
     const inventoryHealth =
-      totalCurrent < 0
-        ? "CRITICAL"
-        : outOfStockRate > 0.3
-          ? "HIGH RISK"
-          : "HEALTHY";
+      issuesSum > 0 ? "CRITICAL" : outOfStockRate > 0.3 ? "HIGH RISK" : "HEALTHY";
 
     return {
       totalSKUs,
@@ -258,11 +208,11 @@ export default function InventoryReportModule() {
       netAvailable,
       stockOut,
       outOfStockRate,
-      inStock,
-      issues,
+      inStock: inStockSum,
+      issues: issuesSum,
       inventoryHealth,
     };
-  }, [processed]);
+  }, [groups]);
 
   const formatNumber = (v: number) => {
     try {
@@ -273,124 +223,51 @@ export default function InventoryReportModule() {
   };
 
   const handleApply = useCallback(
-    (nextFilters: InventoryFilters) => {
-      applyFilters(nextFilters);
-    },
+    (nextFilters: InventoryFilters) => applyFilters(nextFilters),
     [applyFilters],
   );
 
-  const handleClear = useCallback(() => {
-    clearFilters();
-  }, [clearFilters]);
-
-  // Preview / Export UI state
+  // ------------------------------------------------------------------
+  // Export preview state — paginate over groups (not raw rows)
+  // ------------------------------------------------------------------
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [previewPage, setPreviewPage] = useState(1);
   const [previewRowsPerPage, setPreviewRowsPerPage] = useState(20);
 
-  const filteredData = processed.map((m) => m.r);
-
-  const paginatedPreviewData = filteredData.slice(
+  const previewTotalPages = Math.max(1, Math.ceil(groups.length / previewRowsPerPage));
+  const paginatedPreviewGroups = groups.slice(
     (previewPage - 1) * previewRowsPerPage,
-    (previewPage - 1) * previewRowsPerPage + previewRowsPerPage,
-  );
-
-  const previewTotalPages = Math.max(
-    1,
-    Math.ceil(filteredData.length / previewRowsPerPage),
+    previewPage * previewRowsPerPage,
   );
 
   const handleExport = useCallback(() => {
-    // open preview instead of immediate export
     setPreviewPage(1);
     setIsPreviewOpen(true);
-  }, [setIsPreviewOpen]);
+  }, []);
 
+  // ------------------------------------------------------------------
+  // Excel download — pass raw filtered rows; exportToExcel groups them internally
+  // ------------------------------------------------------------------
   const handleDownload = useCallback(() => {
     try {
-      const currentFilteredData = processed.map((m) => m.r);
-
-      if (currentFilteredData.length === 0) {
+      if (filteredRows.length === 0) {
         toast.error("No data to export");
         return;
       }
-
-      const dataToExport = currentFilteredData.map((r) => {
-        const onHand =
-          getNumber(r, [
-            "current",
-            "onhand",
-            "on_hand",
-            "onHand",
-            "quantity",
-            "qty",
-          ]) || 0;
-        const allocated =
-          getNumber(r, [
-            "allocated",
-            "allocated_qty",
-            "allocatedQuantity",
-            "current_allocated",
-          ]) || 0;
-        const inbox =
-          getNumber(r, ["inboxCurrent", "inbox_current", "inbound", "inbox"]) ||
-          0;
-        const projected = getNumber(r, ["projected"]) || 0;
-
-        // derive status label same as table logic
-        const statusKey =
-          onHand === 0
-            ? "OUT_OF_STOCK"
-            : onHand - allocated <= 0
-              ? "CRITICAL"
-              : onHand < 0.3 * (onHand + inbox)
-                ? "RISK"
-                : "HEALTHY";
-        const statusLabelMap: Record<string, string> = {
-          OUT_OF_STOCK: "Out of stock",
-          CRITICAL: "Critical",
-          RISK: "Risk",
-          HEALTHY: "Healthy",
-        };
-
-        return {
-          // use the same product key fallbacks as the table so product names are populated
-          Product:
-            getString(r, [
-              "product_name",
-              "productName",
-              "productDescription",
-              "product_description",
-              "name",
-              "item",
-            ]) || "",
-          Status: statusLabelMap[statusKey] || "",
-          Available: onHand - allocated,
-          Current: onHand,
-          Allocated: allocated,
-          Inbound: inbox,
-          Projected: projected,
-          Unit: getString(r, ["uom", "unit", "unit_of_measurement"]) || "",
-          Brand: getString(r, ["brand", "brand_name"]) || "",
-          Category: getString(r, ["category", "category_name"]) || "",
-          Branch: getString(r, ["branch", "branch_name"]) || "",
-          Supplier: getString(r, ["supplier", "supplier_name"]) || "",
-        };
+      exportToExcel(filteredRows, "inventory-report.xlsx", {
+        filters,
+        generatedBy: userName || getLoggedInUserName() || undefined,
+        generatedDate: new Date().toLocaleString("en-US", {
+          year: "numeric", month: "long", day: "numeric",
+          hour: "2-digit", minute: "2-digit",
+        }),
       });
-
-      exportToExcel(
-        dataToExport as unknown as InventoryRow[],
-        "inventory-report.xlsx",
-        {
-          filters,
-        },
-      );
       toast.success("Export started");
-    } catch (err: unknown) {
+    } catch (err) {
       console.error(err);
       toast.error("Export failed");
     }
-  }, [processed, filters]);
+  }, [filteredRows, filters, userName]);
 
   return (
     <div className="space-y-5 animate-in fade-in duration-500">
@@ -400,9 +277,7 @@ export default function InventoryReportModule() {
             <Download className="h-4 w-4" />
           </div>
           <div>
-            <h1 className="text-xl font-bold tracking-tight leading-tight">
-              Inventory Report
-            </h1>
+            <h1 className="text-xl font-bold tracking-tight leading-tight">Inventory Report</h1>
             <p className="text-[10px] text-muted-foreground uppercase font-medium tracking-wider">
               Customer Relationship Management
             </p>
@@ -410,36 +285,16 @@ export default function InventoryReportModule() {
         </div>
       </div>
 
-      <section className="rounded-lg ">
-        {/* Alert for negative total current */}
-        {KPIs.totalCurrent < 0 && (
-          <div className="mb-3">
-            <Alert variant="destructive">
-              <AlertTitle>Inventory anomaly detected</AlertTitle>
-              <AlertDescription>
-                Inventory anomaly detected: Total Current is negative. Data
-                validation or stock reconciliation required.
-              </AlertDescription>
-            </Alert>
-          </div>
-        )}
-        {/* KPI Cards */}
+      <section className="rounded-lg">
         <KPICards KPIs={KPIs} loading={loading} formatNumber={formatNumber} />
-
         <div className="py-4">
-          <Filter
-            filters={filters}
-            setFilters={setFilters}
-            onApply={handleApply}
-            onClear={handleClear}
-            onExport={handleExport}
-            options={options}
-            search={search}
-            onSearchChange={setSearch}
-          />
+          <Filter filters={filters} onApply={handleApply} onExport={handleExport} options={options} />
         </div>
       </section>
-      {/* Export Preview Dialog */}
+
+      {/* ------------------------------------------------------------------ */}
+      {/* Export Preview Dialog — shows grouped values, matching the table    */}
+      {/* ------------------------------------------------------------------ */}
       <Dialog open={isPreviewOpen} onOpenChange={setIsPreviewOpen}>
         <DialogContent className="max-w-[98vw] sm:max-w-[95vw] w-full h-[75vh] flex flex-col p-0 overflow-hidden">
           <DialogHeader className="p-4 border-b bg-muted/20">
@@ -448,14 +303,9 @@ export default function InventoryReportModule() {
                 <Download className="w-5 h-5 text-primary" />
                 Export Preview
               </div>
-              <div className="flex items-center gap-3">
-                <Badge
-                  variant="outline"
-                  className="font-mono px-3 py-1 bg-primary/10 text-primary border-primary/20"
-                >
-                  {filteredData.length} TOTAL ROWS
-                </Badge>
-              </div>
+              <Badge variant="outline" className="font-mono px-3 py-1 bg-primary/10 text-primary border-primary/20">
+                {groups.length} PRODUCTS
+              </Badge>
             </DialogTitle>
           </DialogHeader>
 
@@ -464,113 +314,31 @@ export default function InventoryReportModule() {
               <Table>
                 <TableHeader className="bg-muted/50 border-b">
                   <TableRow>
-                    <TableHead className="font-bold min-w-75 text-foreground">
-                      PRODUCT
-                    </TableHead>
-                    {/* <TableHead className="font-bold whitespace-nowrap text-foreground">
-                      STATUS
-                    </TableHead> */}
-                    <TableHead className="font-bold text-right whitespace-nowrap text-foreground">
-                      AVAILABLE
-                    </TableHead>
-                    <TableHead className="font-bold text-right whitespace-nowrap text-foreground">
-                      CURRENT
-                    </TableHead>
-                    <TableHead className="font-bold text-right whitespace-nowrap text-foreground">
-                      ALLOCATED
-                    </TableHead>
-                    <TableHead className="font-bold text-right whitespace-nowrap text-foreground">
-                      INBOUND
-                    </TableHead>
-                    <TableHead className="font-bold text-right whitespace-nowrap text-foreground">
-                      PROJECTED
-                    </TableHead>
-                    <TableHead className="font-bold whitespace-nowrap text-foreground">
-                      CATEGORY
-                    </TableHead>
+                    <TableHead className="font-bold whitespace-nowrap text-foreground">SUPPLIER</TableHead>
+                    <TableHead className="font-bold whitespace-nowrap text-foreground">CATEGORY</TableHead>
+                    <TableHead className="font-bold whitespace-nowrap text-foreground">BRAND</TableHead>
+                    <TableHead className="font-bold min-w-75 text-foreground">PRODUCT</TableHead>
+                    <TableHead className="font-bold text-right whitespace-nowrap text-foreground">AVAILABLE</TableHead>
+                    <TableHead className="font-bold text-right whitespace-nowrap text-foreground">CURRENT</TableHead>
+                    <TableHead className="font-bold text-right whitespace-nowrap text-foreground">ALLOCATED</TableHead>
+                    <TableHead className="font-bold text-right whitespace-nowrap text-foreground">INBOUND</TableHead>
+                    <TableHead className="font-bold text-right whitespace-nowrap text-foreground">PROJECTED INVENTORY</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {paginatedPreviewData.map((item, i) => {
-                    const onHand =
-                      getNumber(item as InventoryRow, [
-                        "current",
-                        "onhand",
-                        "on_hand",
-                        "onHand",
-                        "quantity",
-                        "qty",
-                      ]) || 0;
-                    const allocated =
-                      getNumber(item as InventoryRow, [
-                        "allocated",
-                        "allocated_qty",
-                        "allocatedQuantity",
-                        "current_allocated",
-                      ]) || 0;
-                    const inbox =
-                      getNumber(item as InventoryRow, [
-                        "inboxCurrent",
-                        "inbox_current",
-                        "inbound",
-                        "inbox",
-                      ]) || 0;
-                    const projected =
-                      getNumber(item as InventoryRow, ["projected"]) || 0;
-                    const available = onHand - allocated;
-                    // const statusKey =
-                    //   onHand === 0
-                    //     ? "OUT_OF_STOCK"
-                    //     : onHand - allocated <= 0
-                    //       ? "CRITICAL"
-                    //       : onHand < 0.3 * (onHand + inbox)
-                    //         ? "RISK"
-                    //         : "HEALTHY";
-                    // const statusLabelMap: Record<string, string> = {
-                    //   OUT_OF_STOCK: "Out of stock",
-                    //   CRITICAL: "Critical",
-                    //   RISK: "Risk",
-                    //   HEALTHY: "Healthy",
-                    // };
-
+                  {paginatedPreviewGroups.map((g, i) => {
+                    const a = g.analysis;
                     return (
-                      <TableRow
-                        key={i}
-                        className="text-xs border-border hover:bg-muted/30"
-                      >
-                        <TableCell className="max-w-75 truncate">
-                          {getString(item as InventoryRow, [
-                            "product_name",
-                            "productName",
-                            "productDescription",
-                            "product_description",
-                            "name",
-                          ])}
-                        </TableCell>
-                        {/* <TableCell className="whitespace-nowrap">
-                          {statusLabelMap[statusKey]}
-                        </TableCell> */}
-                        <TableCell className="text-right font-mono">
-                          {available}
-                        </TableCell>
-                        <TableCell className="text-right font-mono font-semibold">
-                          {onHand}
-                        </TableCell>
-                        <TableCell className="text-right font-mono text-muted-foreground">
-                          {allocated}
-                        </TableCell>
-                        <TableCell className="text-right font-mono">
-                          {inbox}
-                        </TableCell>
-                        <TableCell className="text-right font-mono font-bold text-primary">
-                          {projected}
-                        </TableCell>
-                        <TableCell className="whitespace-nowrap">
-                          {getString(item as InventoryRow, [
-                            "category",
-                            "category_name",
-                          ])}
-                        </TableCell>
+                      <TableRow key={g.key + i} className="text-xs border-border hover:bg-muted/30">
+                        <TableCell className="whitespace-nowrap">{g.supplier || "-"}</TableCell>
+                        <TableCell className="whitespace-nowrap">{g.category || "-"}</TableCell>
+                        <TableCell className="whitespace-nowrap">{g.brand || "-"}</TableCell>
+                        <TableCell className="max-w-75 truncate">{g.productName || "-"}</TableCell>
+                        <TableCell className="text-right font-mono">{formatBoxQty(a.availableBoxes)}</TableCell>
+                        <TableCell className="text-right font-mono font-semibold">{formatBoxQty(a.boxesCurrent)}</TableCell>
+                        <TableCell className="text-right font-mono text-muted-foreground">{formatBoxQty(a.boxesAllocated)}</TableCell>
+                        <TableCell className="text-right font-mono">{formatBoxQty(a.boxesInbound)}</TableCell>
+                        <TableCell className="text-right font-mono font-bold text-primary">{formatBoxQty(a.projectedBoxes)}</TableCell>
                       </TableRow>
                     );
                   })}
@@ -582,39 +350,26 @@ export default function InventoryReportModule() {
               <div className="text-sm text-muted-foreground">
                 Showing{" "}
                 <span className="font-bold text-foreground">
-                  {Math.min(
-                    filteredData.length,
-                    (previewPage - 1) * previewRowsPerPage + 1,
-                  )}{" "}
-                  -{" "}
-                  {Math.min(
-                    filteredData.length,
-                    previewPage * previewRowsPerPage,
-                  )}
+                  {Math.min(groups.length, (previewPage - 1) * previewRowsPerPage + 1)}
+                  {" – "}
+                  {Math.min(groups.length, previewPage * previewRowsPerPage)}
                 </span>{" "}
-                of {filteredData.length} rows in preview
+                of {groups.length} products
               </div>
 
               <div className="flex items-center gap-6">
                 <div className="flex items-center gap-2">
-                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                    Preview Rows:
-                  </span>
+                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Preview Rows:</span>
                   <Select
                     value={previewRowsPerPage.toString()}
-                    onValueChange={(v) => {
-                      setPreviewRowsPerPage(Number(v));
-                      setPreviewPage(1);
-                    }}
+                    onValueChange={(v) => { setPreviewRowsPerPage(Number(v)); setPreviewPage(1); }}
                   >
                     <SelectTrigger className="w-20 h-9 bg-background border-primary/20">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
                       {[20, 50, 100].map((v) => (
-                        <SelectItem key={v} value={v.toString()}>
-                          {v}
-                        </SelectItem>
+                        <SelectItem key={v} value={v.toString()}>{v}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -629,16 +384,12 @@ export default function InventoryReportModule() {
                     <ChevronLeft className="h-4 w-4" />
                   </button>
                   <div className="w-20 text-center font-mono text-sm">
-                    {previewPage}{" "}
-                    <span className="text-muted-foreground mx-1">/</span>{" "}
-                    {previewTotalPages}
+                    {previewPage} <span className="text-muted-foreground mx-1">/</span> {previewTotalPages}
                   </div>
                   <button
                     className="h-9 w-9 rounded border"
                     disabled={previewPage >= previewTotalPages}
-                    onClick={() =>
-                      setPreviewPage((p) => Math.min(previewTotalPages, p + 1))
-                    }
+                    onClick={() => setPreviewPage((p) => Math.min(previewTotalPages, p + 1))}
                   >
                     <ChevronRight className="h-4 w-4" />
                   </button>
@@ -648,30 +399,25 @@ export default function InventoryReportModule() {
           </div>
 
           <DialogFooter className="p-4 border-t bg-muted/20 gap-2">
-            <button
-              className="btn btn-ghost"
-              onClick={() => setIsPreviewOpen(false)}
-            >
+            <button className="btn btn-ghost" onClick={() => setIsPreviewOpen(false)}>
               Close
             </button>
             <button
-              onClick={() => {
+              onClick={async () => {
                 try {
-                  const currentFilteredData = processed.map((m) => m.r);
-                  if (currentFilteredData.length === 0) {
-                    toast.error("No data to export");
-                    return;
-                  }
-                  exportInventoryReportPdf(
-                    currentFilteredData,
+                  if (filteredRows.length === 0) { toast.error("No data to export"); return; }
+                  await exportInventoryReportPdf(
+                    filteredRows,
                     "inventory-report.pdf",
                     filters,
+                    userName || getLoggedInUserName() || undefined,
                   );
-                  toast.success("PDF export started");
-                  setIsPreviewOpen(false);
-                } catch (err: unknown) {
+                  toast.success("PDF export completed");
+                } catch (err) {
                   console.error(err);
                   toast.error("PDF export failed");
+                } finally {
+                  setIsPreviewOpen(false);
                 }
               }}
               className="bg-white/10 hover:opacity-90 min-w-40 text-primary border px-4 py-2 rounded"
@@ -680,10 +426,7 @@ export default function InventoryReportModule() {
               Download PDF
             </button>
             <button
-              onClick={() => {
-                handleDownload();
-                setIsPreviewOpen(false);
-              }}
+              onClick={() => { handleDownload(); setIsPreviewOpen(false); }}
               className="bg-primary hover:opacity-90 min-w-40 text-white px-4 py-2 rounded"
             >
               <Download className="w-4 h-4 mr-2 inline-block" />
@@ -696,24 +439,21 @@ export default function InventoryReportModule() {
       <section className="bg-card rounded-lg border shadow-sm overflow-hidden">
         <div className="p-4">
           <InventoryReportTable
-            rows={processed.map((m) => m.r)}
+            rows={filteredRows}
             page={page}
             pageSize={pageSize}
-            total={totalFiltered}
             onPageChange={(p) => setPage(p)}
             onPageSizeChange={(s) => setPageSize(s)}
             isLoading={loading}
             sortBy={sortBy}
             sortDir={sortDir}
             onSort={(by) => {
-              if (sortBy === by)
-                setSortDir((d) => (d === "asc" ? "desc" : "asc"));
-              else {
-                setSortBy(by);
-                setSortDir("asc");
-              }
+              if (sortBy === by) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+              else { setSortBy(by); setSortDir("asc"); }
               setPage(1);
             }}
+            search={search}
+            onSearchChange={setSearch}
           />
         </div>
       </section>

@@ -13,8 +13,7 @@ async function parseJsonSafely(res: Response): Promise<InventoryApiResponse> {
 }
 
 export const fetchInventoryData = async (
-  page: number = 1,
-  pageSize: number = 20,
+
   filters: Record<string, string | undefined> | InventoryFilters = {},
   signal?: AbortSignal,
 ): Promise<InventoryApiResponse> => {
