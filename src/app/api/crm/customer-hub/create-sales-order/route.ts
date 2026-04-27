@@ -80,6 +80,18 @@ interface DirectusItem {
     id: number | string;
 }
 
+interface ExpandedCategory {
+    category_id?: number;
+    id?: number;
+    category_name?: string;
+}
+
+interface ExpandedBrand {
+    brand_id?: number;
+    id?: number;
+    brand_name?: string;
+}
+
 interface ProductItem extends DirectusItem {
     product_id: number;
     product_name?: string;
@@ -88,8 +100,8 @@ interface ProductItem extends DirectusItem {
     parent_id?: number | null;
     isActive?: number | boolean;
     unit_of_measurement?: number | string;
-    product_category?: number;
-    product_brand?: number;
+    product_category?: number | ExpandedCategory;
+    product_brand?: number | ExpandedBrand;
     [key: string]: unknown;
 }
 
@@ -433,18 +445,18 @@ export async function GET(req: NextRequest) {
                 }
                 // --- End Inventory Fetch ---
 
-                const initialProducts = await fetchInChunks<ProductItem>(`${DIRECTUS_URL}/items/products?filter[isActive][_eq]=1&fields=*,product_category.category_name,product_brand.brand_name`, linkedProductIds, "product_id");
+                const initialProducts = await fetchInChunks<ProductItem>(`${DIRECTUS_URL}/items/products?filter[isActive][_eq]=1&fields=*,product_category.category_id,product_category.category_name,product_brand.brand_id,product_brand.brand_name`, linkedProductIds, "product_id");
 
                 const directParentIds = initialProducts.map(p => p.parent_id).filter((id): id is number => !!id);
                 const selfParentIds = initialProducts.filter(p => !p.parent_id).map(p => Number(p.product_id));
                 const allFamilyAnchorIds = Array.from(new Set([...directParentIds, ...selfParentIds]));
 
                 const familyMembers = allFamilyAnchorIds.length > 0
-                    ? await fetchInChunks<ProductItem>(`${DIRECTUS_URL}/items/products?filter[isActive][_eq]=1&fields=*,product_category.category_name,product_brand.brand_name`, allFamilyAnchorIds, "parent_id")
+                    ? await fetchInChunks<ProductItem>(`${DIRECTUS_URL}/items/products?filter[isActive][_eq]=1&fields=*,product_category.category_id,product_category.category_name,product_brand.brand_id,product_brand.brand_name`, allFamilyAnchorIds, "parent_id")
                     : [];
 
                 const anchors = allFamilyAnchorIds.length > 0
-                    ? await fetchInChunks<ProductItem>(`${DIRECTUS_URL}/items/products?filter[isActive][_eq]=1&fields=*,product_category.category_name,product_brand.brand_name`, allFamilyAnchorIds, "product_id")
+                    ? await fetchInChunks<ProductItem>(`${DIRECTUS_URL}/items/products?filter[isActive][_eq]=1&fields=*,product_category.category_id,product_category.category_name,product_brand.brand_id,product_brand.brand_name`, allFamilyAnchorIds, "product_id")
                     : [];
 
                 const unitsRes = await fetch(`${DIRECTUS_URL}/items/units?limit=-1`, { headers: fetchHeaders });
@@ -519,12 +531,19 @@ export async function GET(req: NextRequest) {
                     if (l1) { winId = l1.discount_type; price = Number(l1.unit_price) || price; level = "Customer-Specific Price Override"; }
 
                     if (!winId) {
-                        const l2 = l2Items.find((item: DiscountItem) => item.category_id === p.product_category || !item.category_id || item.category_id === 0);
+                        // Extract raw numeric ID from Directus expanded object
+                        const rawCatId = typeof p.product_category === 'object' && p.product_category !== null
+                            ? (p.product_category as ExpandedCategory).category_id || (p.product_category as ExpandedCategory).id
+                            : p.product_category;
+                        const l2 = l2Items.find((item: DiscountItem) => Number(item.category_id) === Number(rawCatId) || !item.category_id || item.category_id === 0);
                         if (l2) { winId = l2.discount_type; level = "Supplier Category Discount"; }
                     }
 
                     if (!winId) {
-                        const l4 = l4Items.find((item: DiscountItem) => item.brand_id === p.product_brand);
+                        const rawBrandId = typeof p.product_brand === 'object' && p.product_brand !== null
+                            ? (p.product_brand as ExpandedBrand).brand_id || (p.product_brand as ExpandedBrand).id
+                            : p.product_brand;
+                        const l4 = l4Items.find((item: DiscountItem) => Number(item.brand_id) === Number(rawBrandId));
                         if (l4) { winId = l4.discount_type_id; level = "Customer Brand Discount"; }
                     }
 
