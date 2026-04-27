@@ -57,7 +57,6 @@ export default function OrderCancellationApprovalModule() {
 
 			<OrderCancellationApprovalStats
 				queueCount={stats.queueCount}
-				visibleCount={stats.visibleCount}
 				visibleAmount={stats.visibleAmount}
 			/>
 

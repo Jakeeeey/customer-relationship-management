@@ -44,10 +44,10 @@ export default function SupplierListTable({
 
 	return (
 		<div className="space-y-4">
-			<div className="overflow-hidden rounded-2xl border border-slate-300/90 bg-card shadow-[0_14px_34px_rgba(15,23,42,0.14)] dark:border-slate-600/80 dark:bg-slate-950/75 dark:shadow-[0_16px_36px_rgba(0,0,0,0.62)]">
+			<div className="overflow-hidden rounded-2xl border border-slate-300/90 bg-card shadow-[0_14px_34px_rgba(15,23,42,0.14)] dark:border-zinc-700/80 dark:bg-zinc-950/90 dark:shadow-[0_16px_36px_rgba(0,0,0,0.62)]">
 				<Table>
 					<TableHeader>
-						<TableRow className="bg-muted/40 hover:bg-muted/40 border-b border-input dark:border-slate-700">
+						<TableRow className="bg-muted/40 hover:bg-muted/40 border-b border-input dark:border-zinc-700">
 							<TableHead className="w-16 font-semibold">NO.</TableHead>
 							<TableHead className="w-32 font-semibold">CODE</TableHead>
 							<TableHead className="font-semibold">NAME</TableHead>
@@ -57,7 +57,7 @@ export default function SupplierListTable({
 					</TableHeader>
 					<TableBody>
 						{isLoading ? (
-							<TableRow className="border-b border-input dark:border-slate-700 hover:bg-muted/30">
+							<TableRow className="border-b border-input dark:border-zinc-700 hover:bg-muted/30">
 								<TableCell colSpan={5} className="py-10 text-center text-muted-foreground">
 									<span className="inline-flex items-center gap-2">
 										<Loader2 className="h-4 w-4 animate-spin" />
@@ -67,7 +67,7 @@ export default function SupplierListTable({
 							</TableRow>
 						) : paginatedSuppliers.length ? (
 							paginatedSuppliers.map((item, index) => (
-								<TableRow key={item.id} className="border-b border-input dark:border-slate-700 hover:bg-muted/50">
+								<TableRow key={item.id} className="border-b border-input dark:border-zinc-700 hover:bg-muted/50">
 									<TableCell className="text-sm">{startIndex + index + 1}</TableCell>
 									<TableCell className="font-medium text-sm">{item.supplier_shortcut}</TableCell>
 									<TableCell className="text-sm">{item.supplier_name}</TableCell>
@@ -107,7 +107,7 @@ export default function SupplierListTable({
 								</TableRow>
 							))
 						) : (
-							<TableRow className="border-b border-input dark:border-slate-700 hover:bg-muted/30">
+							<TableRow className="border-b border-input dark:border-zinc-700 hover:bg-muted/30">
 								<TableCell colSpan={5} className="py-10 text-center text-muted-foreground">
 									No suppliers found.
 								</TableCell>

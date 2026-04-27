@@ -105,7 +105,7 @@ export default function SupplierInformationManagementModule() {
 
 			{/* Search and Filters */}
 			<div className="px-4 md:px-6">
-				<Card className="rounded-3xl border border-slate-300/90 bg-card/95 py-4 shadow-[0_14px_34px_rgba(15,23,42,0.14)] dark:border-slate-600/80 dark:bg-slate-950/75 dark:shadow-[0_16px_36px_rgba(0,0,0,0.62)]">
+				<Card className="rounded-3xl border border-slate-300/90 bg-card/95 py-4 shadow-[0_14px_34px_rgba(15,23,42,0.14)] dark:border-zinc-700/80 dark:bg-zinc-950/90 dark:shadow-[0_16px_36px_rgba(0,0,0,0.62)]">
 					<CardContent className="px-4 sm:px-6">
 						<div className="flex flex-col gap-3 sm:flex-row sm:items-center">
 							<div className="relative w-full sm:max-w-md">
@@ -114,7 +114,7 @@ export default function SupplierInformationManagementModule() {
 									value={search}
 									onChange={(e) => setSearch(e.target.value)}
 									placeholder="Search code..."
-									className="h-10 border border-slate-300 bg-white/95 pl-9 shadow-sm focus-visible:ring-slate-400/40 dark:border-slate-500 dark:bg-slate-900/95 dark:text-slate-100 dark:placeholder:text-slate-400"
+									className="h-10 border border-slate-300 bg-white/95 pl-9 shadow-sm focus-visible:ring-slate-400/40 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:placeholder:text-zinc-400"
 								/>
 							</div>
 
