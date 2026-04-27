@@ -1,12 +1,13 @@
 // src/modules/customer-relationship-management/customer-hub/inventory-report/utils/exportPdf.ts
 import autoTable from "jspdf-autotable";
+import type { Styles, HAlignType } from "jspdf-autotable";
 import { PdfEngine } from "@/components/pdf-layout-design/PdfEngine";
 import { PAPER_SIZES } from "@/components/pdf-layout-design/constants";
 import {
   pdfTemplateService,
   type PdfTemplate,
 } from "@/components/pdf-layout-design/services/pdf-template";
-import { groupInventoryRows, formatBoxQty } from "./groupInventory";
+import { groupInventoryRows } from "./groupInventory";
 import type { InventoryFilters, InventoryRow } from "../type";
 
 // ---------------------------------------------------------------------------
@@ -44,7 +45,9 @@ async function fetchCompanyData(): Promise<CompanyData | null> {
   }
 }
 
-function normalizeFilterValue(value: string | string[] | undefined): string | null {
+function normalizeFilterValue(
+  value: string | string[] | undefined,
+): string | null {
   if (!value) return null;
   if (Array.isArray(value)) {
     const normalized = value
@@ -80,10 +83,13 @@ const TEMPLATE_NAME = "Legal - Landscape";
 function resolveTemplateName(templates: PdfTemplate[]): string {
   const exact = templates.find((t) => t.name === TEMPLATE_NAME);
   if (exact) return exact.name;
-  const ci = templates.find((t) => t.name.toLowerCase() === TEMPLATE_NAME.toLowerCase());
+  const ci = templates.find(
+    (t) => t.name.toLowerCase() === TEMPLATE_NAME.toLowerCase(),
+  );
   if (ci) return ci.name;
   const byConfig = templates.find(
-    (t) => t.config?.paperSize === "Legal" && t.config?.orientation === "landscape",
+    (t) =>
+      t.config?.paperSize === "Legal" && t.config?.orientation === "landscape",
   );
   if (byConfig) return byConfig.name;
   return TEMPLATE_NAME;
@@ -157,11 +163,11 @@ export default async function exportInventoryReportPdf(
 
     // Numeric columns — box-converted, formatted to 4dp
     rowCells.push(
-      formatNumber(a.availableBoxes),  // available
-      formatNumber(a.boxesCurrent),    // current
-      formatNumber(a.boxesAllocated),  // allocated
-      formatNumber(a.projectedBoxes),  // projected
-      formatNumber(a.boxesInbound),    // inbound
+      formatNumber(a.availableBoxes), // available
+      formatNumber(a.boxesCurrent), // current
+      formatNumber(a.boxesAllocated), // allocated
+      formatNumber(a.projectedBoxes), // projected
+      formatNumber(a.boxesInbound), // inbound
     );
 
     return rowCells;
@@ -170,7 +176,11 @@ export default async function exportInventoryReportPdf(
   if (tableBody.length === 0) {
     tableBody.push(
       columns.map((c) =>
-        ["available", "current", "allocated", "projected", "inbound"].includes(c) ? "0" : "-",
+        ["available", "current", "allocated", "projected", "inbound"].includes(
+          c,
+        )
+          ? "0"
+          : "-",
       ),
     );
   }
@@ -191,7 +201,12 @@ export default async function exportInventoryReportPdf(
     templateName,
     companyData,
     (pdf, startY, config) => {
-      const margins = config.margins || { top: 10, right: 10, bottom: 10, left: 10 };
+      const margins = config.margins || {
+        top: 10,
+        right: 10,
+        bottom: 10,
+        left: 10,
+      };
       const pageWidth = pdf.internal.pageSize.getWidth();
       const usableWidth = pageWidth - margins.left - margins.right;
 
@@ -212,7 +227,10 @@ export default async function exportInventoryReportPdf(
       pdf.setFont("helvetica", "bold");
       pdf.setFontSize(13);
       pdf.setTextColor(20, 20, 20);
-      pdf.text("Inventory Report", pageWidth / 2, y, { align: "center", baseline: "top" });
+      pdf.text("Inventory Report", pageWidth / 2, y, {
+        align: "center",
+        baseline: "top",
+      });
 
       y += 7;
       pdf.setFont("helvetica", "normal");
@@ -223,7 +241,10 @@ export default async function exportInventoryReportPdf(
       const rightX = margins.left + usableWidth;
       const lineH = 5;
 
-      const filterLines = pdf.splitTextToSize(activeFiltersText, usableWidth * 0.6);
+      const filterLines = pdf.splitTextToSize(
+        activeFiltersText,
+        usableWidth * 0.6,
+      );
       pdf.text(filterLines, leftX, y, { baseline: "top" });
 
       const generatedLines = [
@@ -232,13 +253,17 @@ export default async function exportInventoryReportPdf(
       ];
       pdf.text(generatedLines, rightX, y, { align: "right", baseline: "top" });
 
-      y += lineH * Math.max(1, Math.max(filterLines.length, generatedLines.length));
+      y +=
+        lineH *
+        Math.max(1, Math.max(filterLines.length, generatedLines.length));
 
       pdf.setFont("helvetica", "bold");
       pdf.setFontSize(8.4);
       pdf.setTextColor(20, 20, 20);
       // Row count = number of unique products after grouping
-      pdf.text(`Total Products: ${groups.length}`, leftX, y, { baseline: "top" });
+      pdf.text(`Total Products: ${groups.length}`, leftX, y, {
+        baseline: "top",
+      });
 
       y += 5;
       pdf.setFont("helvetica", "normal");
@@ -269,7 +294,9 @@ export default async function exportInventoryReportPdf(
 
       const baseSum = columns.reduce((s, c) => s + (baseColWidths[c] || 22), 0);
       const scale = usableWidth / baseSum;
-      const scaledWidths = columns.map((c) => Math.max(12, (baseColWidths[c] || 22) * scale));
+      const scaledWidths = columns.map((c) =>
+        Math.max(12, (baseColWidths[c] || 22) * scale),
+      );
 
       // NOTE: "Inbound" and "Projected" header labels are intentionally swapped
       // here to match the UI column labelling convention.
@@ -282,22 +309,30 @@ export default async function exportInventoryReportPdf(
         available: "Available",
         current: "Current",
         allocated: "Allocated",
-        inbound: "Projected",   // intentional label swap (matches UI)
-        projected: "Unbound",  // intentional label swap (matches UI)
+        inbound: "Projected", // intentional label swap (matches UI)
+        projected: "Unbound", // intentional label swap (matches UI)
       };
 
       const headRow = columns.map((c) => headerLabelMap[c] || c);
 
-      const columnStyles: Record<number, { cellWidth?: number; halign?: string }> = {};
+      const RIGHT_ALIGNED = new Set<string>([
+        "available",
+        "current",
+        "allocated",
+        "projected",
+        "inbound",
+      ]);
+
+      const columnStyles: Record<number, Partial<Styles>> = {};
+
       columns.forEach((c, i) => {
+        const align: HAlignType = RIGHT_ALIGNED.has(c) ? "right" : "left";
+
         columnStyles[i] = {
           cellWidth: scaledWidths[i],
-          halign: ["available", "current", "allocated", "projected", "inbound"].includes(c)
-            ? "right"
-            : "left",
+          halign: align,
         };
       });
-
       autoTable(pdf, {
         startY: tableStartY,
         margin: { ...margins, bottom: bottomMargin },
@@ -315,7 +350,7 @@ export default async function exportInventoryReportPdf(
           valign: "top",
         },
         headStyles: {
-          fillColor: [41, 128, 185],
+          fillColor: [90, 90, 90],
           textColor: 255,
           fontSize: 7.6,
           fontStyle: "bold",

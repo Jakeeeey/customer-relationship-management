@@ -83,7 +83,7 @@ function MultiSelect({
           </span>
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-3">
+      <PopoverContent className="w-(--radix-popover-trigger-width) p-3">
         <div className="flex flex-col">
           <Input
             placeholder={`Search ${placeholder?.toLowerCase() ?? "options"}...`}
@@ -284,7 +284,7 @@ export default function Filter({ filters, onApply, onExport, options }: Props) {
       value: productValue(p),
       label: productLabel(p),
     }));
-  }, [options?.products]);
+  }, [options.products]);
 
   return (
     <Card>

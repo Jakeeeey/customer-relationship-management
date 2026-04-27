@@ -233,6 +233,7 @@ export function useInventoryReport(initialPage = 1, initialSize = 20) {
           }
         } catch (e) {
           // defensive: fall back to passing raw filters
+          console.log(e);
           Object.assign(fetchFilters, useFilters as Record<string, string>);
         }
 
@@ -384,9 +385,12 @@ export function useInventoryReport(initialPage = 1, initialSize = 20) {
           abortControllerRef.current = null;
       }
     },
-    // Include `options` so we can map product IDs -> names when client-side filtering.
-    // Callers control when loadData runs via explicit calls; keeping deps minimal.
-    [options],
+    // Include `options` and `filters` so the callback stays in sync with the
+    // latest lookup options and the active filters used as a default param.
+    // Callers control when loadData runs via explicit calls; keeping deps
+    // minimal beyond those two values.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [options, filters],
   );
 
   useEffect(() => {

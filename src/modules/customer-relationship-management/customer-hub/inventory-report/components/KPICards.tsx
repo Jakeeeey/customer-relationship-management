@@ -152,7 +152,7 @@ export default function KPICards({ loading = false, KPIs, formatNumber }: Props)
           <div
             className={`p-3 rounded-md shadow-sm border cursor-pointer ${
               !loading && KPIs.outOfStockRate > 0.5
-                ? "border-rose-200 bg-rose-50 dark:border-rose-400/70 dark:bg-rose-600/20"
+                ? "border-rose-200 bg-rose-50 dark:border-rose-600/70 dark:bg-rose-600/20"
                 : !loading && KPIs.outOfStockRate > 0.3
                   ? "border-orange-200 bg-orange-50"
                   : ""
