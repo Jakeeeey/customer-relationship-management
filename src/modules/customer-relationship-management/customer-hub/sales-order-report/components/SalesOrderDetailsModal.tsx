@@ -687,7 +687,9 @@ export function SalesOrderDetailsModal({
 
             {/* ── PDF PREVIEW DIALOG ──────────────────────────────────── */}
             <Dialog open={isPdfOpen} onOpenChange={setIsPdfOpen}>
-                <DialogContent className={cn(
+                <DialogContent 
+                    showCloseButton={false}
+                    className={cn(
                     "p-0 gap-0 overflow-hidden bg-slate-900 border-none shadow-2xl transition-all duration-300",
                     orderPdf?.width_mm && orderPdf.width_mm < 100 ? "sm:max-w-[400px]" : "sm:max-w-[90dvh] lg:max-w-4xl"
                 )}>

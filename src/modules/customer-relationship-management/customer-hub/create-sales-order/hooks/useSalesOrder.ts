@@ -607,6 +607,7 @@ export function useSalesOrder() {
     const handleSupplierChange = (id: string) => {
         setSelectedSupplierId(id);
         setLineItems([]);
+        setAllocatedQuantities({});
     };
 
     // Auto-fetch products when supplier is selected

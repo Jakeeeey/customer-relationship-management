@@ -24,7 +24,6 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
 import { ChevronLeft, ChevronRight, MoreHorizontal, Shapes, User } from "lucide-react";
 import type { StoreTypeItem } from "../types";
 
@@ -95,9 +94,7 @@ export function StoreTypeTable({ data, isLoading, onView, onEdit }: StoreTypeTab
                                             </div>
                                             <div className="flex flex-col">
                                                 <span className="font-semibold leading-none">{item.store_type}</span>
-                                                <Badge variant="secondary" className="mt-1 h-5 w-fit px-1.5 text-[10px] uppercase">
-                                                    Store Type
-                                                </Badge>
+                                               
                                             </div>
                                         </div>
                                     </TableCell>

@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
         const { searchParams } = new URL(req.url);
         const search = searchParams.get("search");
 
-        let url = `${DIRECTUS_BASE}/items/branches?limit=50`;
+        let url = `${DIRECTUS_BASE}/items/branches?limit=50&filter[isActive][_eq]=1`;
         
         if (search) {
             url += `&filter[branch_name][_icontains]=${encodeURIComponent(search)}`;

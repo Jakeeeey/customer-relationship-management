@@ -17,12 +17,12 @@ export async function GET(req: NextRequest) {
         const { searchParams } = new URL(req.url);
         const search = searchParams.get("search");
 
-        let url = `${DIRECTUS_BASE}/items/customer?limit=50`;
+        let url = `${DIRECTUS_BASE}/items/customer?limit=50&filter[isActive][_eq]=1`;
         
         if (search) {
             // Search either by customer_name or customer_code
             const searchTerm = encodeURIComponent(search);
-            url += `&filter[_or][0][customer_name][_icontains]=${searchTerm}&filter[_or][1][customer_code][_icontains]=${searchTerm}`;
+            url += `&filter[_and][0][_or][0][customer_name][_icontains]=${searchTerm}&filter[_and][0][_or][1][customer_code][_icontains]=${searchTerm}`;
         }
         
         const response = await fetch(url, {
