@@ -3,6 +3,7 @@ export interface Salesman {
     salesman_code: string;
     salesman_name: string;
     price_type: string | null;
+    division_id: number | null;
 }
 
 export interface Branch {

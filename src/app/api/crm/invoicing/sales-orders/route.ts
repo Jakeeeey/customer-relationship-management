@@ -51,6 +51,7 @@ export async function GET(req: NextRequest) {
             "salesman_id.salesman_name",
             "salesman_id.salesman_code",
             "salesman_id.price_type",
+            "salesman_id.division_id",
             "branch_id.id",
             "branch_id.branch_name",
             "payment_terms",

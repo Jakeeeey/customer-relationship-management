@@ -252,22 +252,22 @@ export const SalesOrderModal: React.FC<SalesOrderModalProps> = ({ order, open, o
                                                 onValueChange={handleTypeChange}
                                                 disabled={isUpdatingType}
                                             >
-                                                <SelectTrigger className="h-7 text-[10px] py-0 px-3 bg-primary/5 hover:bg-primary/10 border-primary/20 hover:border-primary/40 text-primary uppercase font-black tracking-widest rounded-full transition-all duration-200 shadow-sm hover:shadow-md focus:ring-0 focus:ring-offset-0 ring-0 w-auto min-w-[140px] gap-2 group">
-                                                    <div className="flex items-center gap-2">
+                                                <SelectTrigger className="h-9 text-[11px] py-0 px-5 bg-primary/10 hover:bg-primary/20 border-primary/20 hover:border-primary/40 text-primary uppercase font-black tracking-[0.1em] rounded-full transition-all duration-300 shadow-sm hover:shadow-lg focus:ring-0 focus:ring-offset-0 ring-0 w-auto min-w-[200px] gap-4 group">
+                                                    <div className="flex items-center gap-3">
                                                         {isUpdatingType ? (
-                                                            <Loader2 className="h-3 w-3 animate-spin text-primary/70" />
+                                                            <Loader2 className="h-3.5 w-3.5 animate-spin text-primary/70" />
                                                         ) : (
-                                                            <FileText className="h-3.5 w-3.5 text-primary/60 group-hover:text-primary transition-colors" />
+                                                            <FileText className="h-4 w-4 text-primary/60 group-hover:text-primary transition-colors" />
                                                         )}
                                                         <SelectValue placeholder="Receipt Type" />
                                                     </div>
                                                 </SelectTrigger>
-                                                <SelectContent position="popper" sideOffset={4} className="bg-background/98 backdrop-blur-xl border-primary/20 p-1.5 shadow-2xl rounded-xl min-w-[180px] animate-in fade-in zoom-in-95 duration-200">
+                                                <SelectContent position="popper" sideOffset={6} className="bg-background/98 backdrop-blur-xl border-primary/20 p-2 shadow-2xl rounded-2xl min-w-[220px] animate-in fade-in zoom-in-95 duration-200">
                                                     {receiptTypes.map(t => (
                                                         <SelectItem 
                                                             key={t.id} 
                                                             value={t.id.toString()}
-                                                            className="text-[10px] uppercase font-black tracking-widest rounded-lg focus:bg-primary/10 focus:text-primary cursor-pointer transition-colors py-2 px-3"
+                                                            className="text-[11px] uppercase font-black tracking-widest rounded-xl focus:bg-primary/10 focus:text-primary cursor-pointer transition-colors py-2.5 px-4 mb-1 last:mb-0"
                                                         >
                                                             {t.type}
                                                         </SelectItem>
