@@ -95,6 +95,61 @@ export const ConvertToInvoiceModal: React.FC<ConvertToInvoiceModalProps> = ({
 
     const componentRef = useRef<HTMLDivElement>(null);
 
+    const autoDistributeAllItems = React.useCallback((data: ConversionData, discounts: DiscountType[]) => {
+        const availableItems = data.items.filter(item => {
+            const isMatched = Number(item.total_allocated_quantity || 0) > 0 && 
+                              Number(item.total_allocated_quantity || 0) === Number(item.picked_quantity || 0);
+            return isMatched && item.remaining_quantity > 0;
+        });
+
+        if (availableItems.length === 0) {
+            setReceipts([{ id: "1", receipt_no: "", items: [] }]);
+            return;
+        }
+
+        const maxLen = data.max_receipt_length || 15;
+        const newReceipts: Receipt[] = [];
+
+        for (let i = 0; i < availableItems.length; i += maxLen) {
+            const chunk = availableItems.slice(i, i + maxLen);
+            const receiptItems: ReceiptItem[] = chunk.map(item => {
+                const ordered = item.ordered_quantity || 0;
+                const poolRemaining = item.remaining_quantity || 0;
+                const autoQty = Math.min(ordered, poolRemaining);
+                
+                const dt = discounts.find(d => d.id === item.discount_type);
+                const totalPercent = dt ? Number(dt.total_percent) : 0;
+                const rawDistDiscount = (item.unit_price * autoQty) * (totalPercent / 100);
+                const roundedDistDiscount = Number(rawDistDiscount.toFixed(2));
+                const rawDistNet = (item.unit_price * autoQty) - roundedDistDiscount;
+
+                return {
+                    product_id: item.product_id,
+                    product_name: item.product_name,
+                    order_no: item.order_no,
+                    allocated_qty: item.allocated_quantity || 0,
+                    qty: autoQty,
+                    unit_price: item.unit_price,
+                    discount_type: item.discount_type,
+                    discount_amount: roundedDistDiscount,
+                    net_amount: Number(rawDistNet.toFixed(2)),
+                    unit_shortcut: item.unit_shortcut,
+                    ordered_qty: ordered
+                };
+            });
+
+            newReceipts.push({
+                id: (newReceipts.length + 1).toString(),
+                receipt_no: "",
+                items: receiptItems
+            });
+        }
+        setReceipts(newReceipts);
+        if (newReceipts.length > 0) {
+            setActiveReceiptId(newReceipts[0].id);
+        }
+    }, []);
+
     useEffect(() => {
         if (isOpen && order) {
             const typeId = order.receipt_type?.id;
@@ -225,7 +280,7 @@ export const ConvertToInvoiceModal: React.FC<ConvertToInvoiceModalProps> = ({
                         setActiveReceiptId("1");
                     } else {
                         // ── Normal order: auto-distribute ──
-                        autoDistributeAllItems(convData as ConversionData);
+                        autoDistributeAllItems(convData as ConversionData, discTypes as DiscountType[]);
                     }
                 })
             .catch(err => {
@@ -234,56 +289,8 @@ export const ConvertToInvoiceModal: React.FC<ConvertToInvoiceModalProps> = ({
             })
             .finally(() => {}); // removed 'setLoading(false)'
         }
-    }, [isOpen, order]);
-
-    const autoDistributeAllItems = (data: ConversionData) => {
-        const availableItems = data.items.filter(item => {
-            const isMatched = Number(item.total_allocated_quantity || 0) > 0 && 
-                              Number(item.total_allocated_quantity || 0) === Number(item.picked_quantity || 0);
-            return isMatched && item.remaining_quantity > 0;
-        });
-
-        if (availableItems.length === 0) {
-            setReceipts([{ id: "1", receipt_no: "", items: [] }]);
-            return;
-        }
-
-        const maxLen = data.max_receipt_length || 15;
-        const newReceipts: Receipt[] = [];
-
-        for (let i = 0; i < availableItems.length; i += maxLen) {
-            const chunk = availableItems.slice(i, i + maxLen);
-            const receiptItems: ReceiptItem[] = chunk.map(item => {
-                const ordered = item.ordered_quantity || 0;
-                const poolRemaining = item.remaining_quantity || 0;
-                // Cap by both ordered amount and pool remaining
-                const autoQty = Math.min(ordered, poolRemaining);
-                return {
-                    product_id: item.product_id,
-                    product_name: item.product_name,
-                    order_no: item.order_no,
-                    allocated_qty: item.allocated_quantity || 0,
-                    qty: autoQty,
-                    unit_price: item.unit_price,
-                    discount_type: item.discount_type,
-                    discount_amount: (item.discount_amount / ordered) * autoQty,
-                    net_amount: (item.unit_price * autoQty) - ((item.discount_amount / ordered) * autoQty),
-                    unit_shortcut: item.unit_shortcut,
-                    ordered_qty: ordered
-                };
-            });
-
-            newReceipts.push({
-                id: (newReceipts.length + 1).toString(),
-                receipt_no: "",
-                items: receiptItems
-            });
-        }
-
-        setReceipts(newReceipts);
-        setActiveReceiptId(newReceipts[0].id);
-    };
-
+    }, [isOpen, order, autoDistributeAllItems]);
+    
     const addReceipt = () => {
         const newId = (Math.max(0, ...receipts.map(r => parseInt(r.id))) + 1).toString();
         setReceipts([...receipts, { id: newId, receipt_no: "", items: [] }]);
@@ -303,19 +310,24 @@ export const ConvertToInvoiceModal: React.FC<ConvertToInvoiceModalProps> = ({
         setReceipts(receipts.map(r => r.id === id ? { ...r, receipt_no: no } : r));
     };
 
-    const isILCSupplier = order?.supplier_id?.supplier_name === "ISLA LPG CORPORATION" || 
-                         order?.supplier_id?.supplier_shortcut === "ILC";
+    const canOverridePrice = order?.salesman_id?.division_id === 1;
 
     const updateItemPrice = (receiptId: string, productId: number, newPrice: number) => {
         setReceipts(receipts.map(r => r.id === receiptId ? {
             ...r,
             items: r.items.map(i => {
                 if (i.product_id === productId) {
-                    const discount = i.discount_amount || 0;
+                    const dt = discountTypes.find(d => d.id === i.discount_type);
+                    const totalPercent = dt ? Number(dt.total_percent) : 0;
+                    const rawDiscount = (newPrice * i.qty) * (totalPercent / 100);
+                    const roundedDiscount = Number(rawDiscount.toFixed(2));
+                    const rawNet = (newPrice * i.qty) - roundedDiscount;
+                    
                     return {
                         ...i,
                         unit_price: newPrice,
-                        net_amount: (newPrice * i.qty) - discount
+                        discount_amount: roundedDiscount,
+                        net_amount: Number(rawNet.toFixed(2))
                     };
                 }
                 return i;
@@ -385,20 +397,37 @@ export const ConvertToInvoiceModal: React.FC<ConvertToInvoiceModalProps> = ({
         if (isExistingInTarget) {
             setReceipts(receipts.map(r => r.id === receiptId ? {
                 ...r,
-                items: r.items.map(i => i.product_id === productId ? {
-                    ...i,
-                    qty: finalQty,
-                    allocated_qty: convItem.allocated_quantity || 0,
-                    discount_amount: (convItem.discount_amount / ordered) * finalQty,
-                    net_amount: (i.unit_price * finalQty) - ((convItem.discount_amount / ordered) * finalQty),
-                    unit_shortcut: convItem.unit_shortcut,
-                    ordered_qty: ordered
-                } : i)
+                items: r.items.map(i => {
+                    if (i.product_id === productId) {
+                        const dt = discountTypes.find(d => d.id === i.discount_type);
+                        const totalPercent = dt ? Number(dt.total_percent) : 0;
+                        const rawDiscount = (i.unit_price * finalQty) * (totalPercent / 100);
+                        const roundedDiscount = Number(rawDiscount.toFixed(2));
+                        const rawNet = (i.unit_price * finalQty) - roundedDiscount;
+                        
+                        return {
+                            ...i,
+                            qty: finalQty,
+                            allocated_qty: convItem.allocated_quantity || 0,
+                            discount_amount: roundedDiscount,
+                            net_amount: Number(rawNet.toFixed(2)),
+                            unit_shortcut: convItem.unit_shortcut,
+                            ordered_qty: ordered
+                        };
+                    }
+                    return i;
+                })
             } : r));
             return;
         }
 
         // New item addition - Logic: Auto overflow if target full
+        const dt = discountTypes.find(d => d.id === convItem.discount_type);
+        const totalPercent = dt ? Number(dt.total_percent) : 0;
+        const rawInitialDiscount = (convItem.unit_price * finalQty) * (totalPercent / 100);
+        const roundedInitialDiscount = Number(rawInitialDiscount.toFixed(2));
+        const rawInitialNet = (convItem.unit_price * finalQty) - roundedInitialDiscount;
+
         const itemToAdd: ReceiptItem = {
             product_id: productId,
             product_name: convItem.product_name,
@@ -407,8 +436,8 @@ export const ConvertToInvoiceModal: React.FC<ConvertToInvoiceModalProps> = ({
             qty: finalQty,
             unit_price: convItem.unit_price,
             discount_type: convItem.discount_type,
-            discount_amount: (convItem.discount_amount / ordered) * finalQty,
-            net_amount: (convItem.unit_price * finalQty) - ((convItem.discount_amount / ordered) * finalQty),
+            discount_amount: roundedInitialDiscount,
+            net_amount: Number(rawInitialNet.toFixed(2)),
             unit_shortcut: convItem.unit_shortcut,
             ordered_qty: ordered
         };
@@ -606,20 +635,16 @@ export const ConvertToInvoiceModal: React.FC<ConvertToInvoiceModalProps> = ({
                 console.warn("No invoices were created by the API.");
             }
 
-            // 2. PDF Generation & Individual Downloads
+            // 2. PDF Generation & Merging
             let mergedDoc: jsPDF | null = null;
             const archivedReceiptNos: string[] = [];
             const invoiceIdsToArchive: number[] = createdInvoices.map((inv: { id: number }) => inv.id);
 
-            // Generate and download a separate PDF for EACH receipt (skip void references)
             for (let i = 0; i < receipts.length; i++) {
                 const r = receipts[i];
                 if (r.is_void_reference) continue;
                 
                 archivedReceiptNos.push(r.receipt_no);
-
-                // Barcode logic removed - now handled via Vector in generateInvoicingPDF.ts
-                const currentBarcodeUrl = undefined;
 
                 const data: ReceiptData = {
                     receipt_no: r.receipt_no,
@@ -633,15 +658,18 @@ export const ConvertToInvoiceModal: React.FC<ConvertToInvoiceModalProps> = ({
                     salesman_name: order.salesman_id?.salesman_name || "N/A",
                     is_official: isOfficialReceipt,
                     discountTypes: discountTypes,
-                    barcodeDataUrl: currentBarcodeUrl,
+                    barcodeDataUrl: undefined,
                     template: orTemplate
                 };
 
-                const doc = await generateInvoicingPDF(data);
-                const filename = `${order.order_no}-${r.receipt_no}.pdf`;
-                doc.save(filename);
-
+                // 2a. Accumulate all receipts into a single multi-page document
                 mergedDoc = await generateInvoicingPDF(data, mergedDoc || undefined);
+            }
+
+            // 2b. Trigger Download for the Merged PDF (Multi-page)
+            if (mergedDoc) {
+                const combinedFilename = `${order.order_no}-${archivedReceiptNos.join("-")}.pdf`;
+                mergedDoc.save(combinedFilename);
             }
 
             // 3. Automated PDF Archiving (Linked to Invoice IDs)
@@ -1297,7 +1325,7 @@ export const ConvertToInvoiceModal: React.FC<ConvertToInvoiceModalProps> = ({
                                                                 />
                                                             </div>
                                                             <div className="col-span-2 text-center px-1 flex items-center justify-center">
-                                                                {isILCSupplier && !r.is_void_reference && !order.existing_invoice_no ? (
+                                                                {canOverridePrice && !r.is_void_reference && !order.existing_invoice_no ? (
                                                                     <div className="relative group/price flex items-center justify-center w-full max-w-[110px] mx-auto">
                                                                         <span className="absolute left-2 text-[10px] font-black text-primary/40 pointer-events-none select-none">₱</span>
                                                                         <Input
@@ -1856,7 +1884,7 @@ export const ConvertToInvoiceModal: React.FC<ConvertToInvoiceModalProps> = ({
 
             {/* Print Confirmation Dialog */}
             <Dialog open={isPrintConfirmOpen} onOpenChange={setIsPrintConfirmOpen}>
-                <DialogContent className="max-w-md rounded-2xl p-0 overflow-hidden border-none shadow-2xl">
+                <DialogContent showCloseButton={false} className="max-w-md rounded-2xl p-0 overflow-hidden border-none shadow-2xl">
                     <DialogTitle className="sr-only">Confirm Print Receipt</DialogTitle>
                     <div className="bg-primary p-6 flex flex-col items-center text-white">
                         <div className="bg-white/20 p-4 rounded-full mb-4">
@@ -1875,10 +1903,9 @@ export const ConvertToInvoiceModal: React.FC<ConvertToInvoiceModalProps> = ({
                             <div className="flex justify-between items-center">
                                 <span className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider">Total Amount</span>
                                 <span className="font-black text-primary text-xl tracking-tighter">
-                                    ₱{receipts
+                                    {formatCurrency(receipts
                                         .filter(r => !r.is_void_reference)
-                                        .reduce((sum, r) => sum + r.items.reduce((iSum, item) => iSum + item.net_amount, 0), 0)
-                                        .toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                        .reduce((sum, r) => sum + r.items.reduce((iSum, item) => iSum + item.net_amount, 0), 0))}
                                 </span>
                             </div>
                         </div>
