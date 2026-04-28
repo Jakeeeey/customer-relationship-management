@@ -17,11 +17,11 @@ export async function GET(req: NextRequest) {
         const { searchParams } = new URL(req.url);
         const search = searchParams.get("search");
 
-        let url = `${DIRECTUS_BASE}/items/suppliers?limit=50&fields=id,supplier_shortcut,supplier_name`;
+        let url = `${DIRECTUS_BASE}/items/suppliers?limit=50&fields=id,supplier_shortcut,supplier_name&filter[isActive][_eq]=1&filter[supplier_type][_eq]=TRADE`;
         
         if (search) {
-            url += `&filter[_or][0][supplier_shortcut][_icontains]=${encodeURIComponent(search)}`;
-            url += `&filter[_or][1][supplier_name][_icontains]=${encodeURIComponent(search)}`;
+            const searchTerm = encodeURIComponent(search);
+            url += `&filter[_and][0][_or][0][supplier_shortcut][_icontains]=${searchTerm}&filter[_and][0][_or][1][supplier_name][_icontains]=${searchTerm}`;
         }
         
         const response = await fetch(url, {
