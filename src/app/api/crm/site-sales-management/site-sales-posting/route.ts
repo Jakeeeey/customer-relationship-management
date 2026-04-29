@@ -179,17 +179,32 @@ export async function GET(req: NextRequest) {
             const header = (await headerRes.json()).data || {};
 
             // Fetch Details (Items) with expanded products
-            // Based on user schema: FK is invoice_no -> sales_invoice.invoice_id
             const detRes = await fetch(`${DIRECTUS_URL}/items/sales_invoice_details?filter[invoice_no][_eq]=${invoiceId}&fields=*,product_id.product_id,product_id.product_name,product_id.product_code,product_id.description,product_id.short_description&limit=-1`, { headers: fetchHeaders });
             const details = (await detRes.json()).data || [];
 
-            // For Returns and Memo, we can fetch them if tables exist
-            // confirmed: returning empty for now as requested
+            // Fetch Returns from sales_invoice_sales_return
+            // Link table: return_no (FK to sales_return), invoice_no (FK to sales_invoice)
+            const returnsRes = await fetch(`${DIRECTUS_URL}/items/sales_invoice_sales_return?filter[invoice_no][_eq]=${invoiceId}&fields=*,return_no.sales_return_no,return_no.return_date,return_no.total_amount&limit=-1`, { headers: fetchHeaders });
+            const returnsData = (await returnsRes.json()).data || [];
+
+            const linkedDocs = returnsData.map((r: { 
+                id: number; 
+                amount: number; 
+                created_at: string; 
+                return_no: { sales_return_no?: string; return_date?: string; total_amount?: number } | number 
+            }) => ({
+                id: r.id,
+                type: "RETURN",
+                reference_no: typeof r.return_no === 'object' ? r.return_no?.sales_return_no : `RET-${r.return_no}`,
+                date: typeof r.return_no === 'object' ? r.return_no?.return_date : r.created_at,
+                amount: Number(r.amount) || (typeof r.return_no === 'object' ? Number(r.return_no?.total_amount) : 0),
+                status: "LINKED"
+            }));
             
             return NextResponse.json({
                 header,
                 details,
-                linkedDocs: [] 
+                linkedDocs
             });
         }
 

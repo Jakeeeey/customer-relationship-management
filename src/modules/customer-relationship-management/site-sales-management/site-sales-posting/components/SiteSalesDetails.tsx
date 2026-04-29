@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { SalesInvoiceHeader, SalesInvoiceDetail } from '../types';
+import { SalesInvoiceHeader, SalesInvoiceDetail, LinkedDocument } from '../types';
 import { siteSalesPostingProvider } from '../providers/fetchProvider';
 import { cn } from '@/lib/utils';
 import { format, parseISO } from 'date-fns';
@@ -13,7 +13,8 @@ import {
     User, 
     MapPin, 
     Plus,
-    CheckCircle2
+    CheckCircle2,
+    RotateCcw
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -34,6 +35,7 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
     const router = useRouter();
     const [header, setHeader] = useState<SalesInvoiceHeader | null>(null);
     const [details, setDetails] = useState<SalesInvoiceDetail[]>([]);
+    const [linkedDocs, setLinkedDocs] = useState<LinkedDocument[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
 
@@ -43,6 +45,7 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
             const data = await siteSalesPostingProvider.getInvoiceDetails(id);
             setHeader(data.header);
             setDetails(data.details);
+            setLinkedDocs(data.linkedDocs || []);
         } catch (error) {
             console.error("Failed to fetch invoice details:", error);
         } finally {
@@ -293,7 +296,34 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
                                     </TableBody>
                                 </Table>
                             </TabsContent>
-                            <TabsContent value="returns" className="p-8 text-center text-slate-400 text-xs font-bold uppercase tracking-widest">No Returns Found</TabsContent>
+                            <TabsContent value="returns" className="m-0 p-4">
+                                {linkedDocs.filter(d => d.type === "RETURN").length === 0 ? (
+                                    <div className="p-8 text-center text-slate-400 text-xs font-bold uppercase tracking-widest italic">
+                                        No linked returns found for this invoice.
+                                    </div>
+                                ) : (
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        {linkedDocs.filter(d => d.type === "RETURN").map((doc) => (
+                                            <div key={doc.id} className="flex justify-between items-center p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-800 hover:border-primary/30 transition-all cursor-pointer group shadow-sm">
+                                                <div className="flex items-center gap-4">
+                                                    <div className="h-10 w-10 bg-rose-100 dark:bg-rose-900/30 rounded-xl flex items-center justify-center">
+                                                        <RotateCcw className="h-5 w-5 text-rose-600" />
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-[10px] font-black text-rose-500 uppercase tracking-widest">{doc.type}</p>
+                                                        <p className="text-sm font-black text-slate-800 dark:text-slate-200">{doc.reference_no}</p>
+                                                        <p className="text-[10px] text-slate-400 font-bold uppercase">{doc.date ? format(parseISO(doc.date), 'MMM dd, yyyy') : '--'}</p>
+                                                    </div>
+                                                </div>
+                                                <div className="text-right">
+                                                    <p className="text-lg font-black text-slate-900 dark:text-white">₱{doc.amount.toLocaleString()}</p>
+                                                    <Badge variant="outline" className="text-[9px] font-black bg-white dark:bg-slate-900">{doc.status || 'LINKED'}</Badge>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </TabsContent>
                             <TabsContent value="memo" className="p-8 text-center text-slate-400 text-xs font-bold uppercase tracking-widest">No Memos Found</TabsContent>
                         </Card>
                     </Tabs>

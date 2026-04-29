@@ -1,4 +1,3 @@
-import { SiteSalesDetails } from "@/modules/customer-relationship-management/site-sales-management/site-sales-posting/components/SiteSalesDetails";
 import { 
     Breadcrumb, 
     BreadcrumbItem, 
@@ -11,6 +10,16 @@ import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Separator } from "@/components/ui/separator";
 import { NavUser } from "@/components/shared/app-sidebar/nav-user";
 import { cookies } from "next/headers";
+import React from 'react';
+
+const SiteSalesDetails = React.lazy(() => import("@/modules/customer-relationship-management/site-sales-management/site-sales-posting/components/SiteSalesDetails").then(m => ({ default: m.SiteSalesDetails })));
+
+const LoadingSpinner = () => (
+    <div className="flex flex-col items-center justify-center min-h-[400px] w-full gap-4">
+        <div className="h-10 w-10 animate-spin rounded-full border-4 border-indigo-600 border-t-transparent shadow-sm" />
+        <p className="text-xs font-black text-slate-400 uppercase tracking-[0.2em] animate-pulse">Loading Details...</p>
+    </div>
+);
 
 const COOKIE_NAME = "vos_access_token";
 
@@ -76,7 +85,9 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
                 </div>
             </header>
             <main className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden">
-                <SiteSalesDetails id={id} />
+                <React.Suspense fallback={<LoadingSpinner />}>
+                    <SiteSalesDetails id={id} />
+                </React.Suspense>
             </main>
         </div>
     );

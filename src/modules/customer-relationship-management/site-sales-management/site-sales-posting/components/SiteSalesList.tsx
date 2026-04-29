@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Download, Check, ChevronsUpDown, Plus } from "lucide-react";
+import { Download, Check, ChevronsUpDown, Plus, Loader2 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { format, isValid, parseISO } from "date-fns";
@@ -471,15 +471,26 @@ export const SiteSalesList: React.FC<SiteSalesListProps> = ({
                 </div>
             </div>
 
-            {/* DataTable Component */}
-            <DataTable 
-                columns={columns} 
-                data={data} 
-                isLoading={isLoading}
-                actionComponent={ActionComponent}
-                emptyTitle="No Site Sales Found"
-                emptyDescription="Try adjusting your filters or wait for new transactions to be uploaded."
-            />
+            {/* DataTable Component with Loading Overlay */}
+            <div className="relative">
+                {isLoading && data.length > 0 && (
+                    <div className="absolute inset-0 z-20 flex items-center justify-center bg-white/40 dark:bg-slate-950/40 backdrop-blur-[2px] rounded-xl transition-all duration-300">
+                        <div className="flex flex-col items-center gap-3 bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 scale-110">
+                            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 animate-pulse">Updating Data...</span>
+                        </div>
+                    </div>
+                )}
+                
+                <DataTable 
+                    columns={columns} 
+                    data={data} 
+                    isLoading={isLoading}
+                    actionComponent={ActionComponent}
+                    emptyTitle="No Site Sales Found"
+                    emptyDescription="Try adjusting your filters or wait for new transactions to be uploaded."
+                />
+            </div>
         </div>
     );
 };
