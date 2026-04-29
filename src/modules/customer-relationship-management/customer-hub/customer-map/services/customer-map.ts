@@ -105,13 +105,13 @@ export class CustomerMapService {
 
       // Create a lookup for cluster names by ID
       const clusterLookup: Record<number, string> = {};
-      clustersData.forEach((c: any) => {
+      clustersData.forEach((c: { id: number; cluster_name: string }) => {
         clusterLookup[c.id] = c.cluster_name;
       });
 
       // Build the geographical mapping
       const mapping: Record<string, string> = {};
-      areasData.forEach((a: any) => {
+      areasData.forEach((a: { province: string | null; city: string | null; baranggay: string | null; cluster_id: number }) => {
         const province = (a.province || "").toUpperCase().trim();
         const city = (a.city || "").toUpperCase().trim();
         const brgy = (a.baranggay || "").toUpperCase().trim();
