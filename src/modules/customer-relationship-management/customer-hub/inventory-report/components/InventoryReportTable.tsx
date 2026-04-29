@@ -93,10 +93,7 @@ function getNumber(r: InventoryRow, keys: string[]) {
 
 type DeepRecord = Record<string, unknown>;
 
-export function getObjectString(
-  v: unknown,
-  keys: string[]
-): string {
+export function getObjectString(v: unknown, keys: string[]): string {
   if (v == null) return "";
 
   if (typeof v === "string" || typeof v === "number") {
@@ -194,10 +191,15 @@ function getUnitLabel(r: InventoryRow) {
 
 function normalizeUnit(u?: unknown) {
   if (!u) return "other";
-  const s = String(u).toLowerCase();
+
+  const s = String(u).toLowerCase().trim();
+
   if (s.includes("box")) return "box";
   if (s.includes("pack")) return "pack";
+  if (s.includes("tie")) return "tie";
+
   if (s.includes("pcs") || s.includes("piece") || s === "pc") return "pcs";
+
   return "other";
 }
 
@@ -632,12 +634,10 @@ export default function InventoryReportTable({
 
   return (
     <div className="flex flex-col gap-3">
-      
-      <div  className="text-[12px]  font-black    flex items-center justify-between  uppercase text-slate-400 tracking-widest">
+      <div className="text-[12px]  font-black    flex items-center justify-between  uppercase text-slate-400 tracking-widest">
         Inventory Report Table
       </div>
       <div>
-        
         {onSearchChange !== undefined && (
           <div>
             <Input
@@ -725,7 +725,14 @@ export default function InventoryReportTable({
                   );
 
                   const unitCols = Array.from(unitMap.values());
-
+                  const UNIT_PRIORITY: Record<string, number> = {
+                    box: 0,
+                    tie: 1,
+                    pack: 2,
+                    pieces: 3,
+                    pcs: 3,
+                    other: 4,
+                  };
                   // Normalize into column descriptors and sort: boxes, packs, pcs, others
                   const columns = unitCols
                     .map((u) => ({
@@ -743,17 +750,16 @@ export default function InventoryReportTable({
                       unitCount: Math.max(1, Number(u.unitCount || 1)),
                       unitType: u.unitType,
                     }))
-                    .sort((x, y) => {
-                      const order = (t: string) =>
-                        t === "box"
-                          ? 0
-                          : t === "pack"
-                            ? 1
-                            : t === "pcs"
-                              ? 2
-                              : 3;
-                      return order(x.unitType || "") - order(y.unitType || "");
+
+                    .sort((a, b) => {
+                      const rank = (t: string) =>
+                        UNIT_PRIORITY[t?.toLowerCase()] ?? UNIT_PRIORITY.other;
+
+                      return rank(a.unitType) - rank(b.unitType);
                     });
+
+                  console.log(columns);
+                  // console.log(a.unitInfo)
 
                   const sumForColumn = (col: {
                     key: string;
@@ -788,6 +794,7 @@ export default function InventoryReportTable({
                   const apiRowValues = columns.map((c) =>
                     String(sumForColumn(c)),
                   );
+                  // console.log(apiRowValues)
 
                   let totalPieces = 0;
                   if (metric === "current") totalPieces = a.totalPiecesCurrent;
