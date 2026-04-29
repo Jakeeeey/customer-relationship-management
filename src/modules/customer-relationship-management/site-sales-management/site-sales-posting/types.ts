@@ -31,10 +31,28 @@ export const SalesInvoiceHeaderSchema = z.object({
     salesman_name: z.string().optional(),
 });
 
+export interface Branch {
+    id: number;
+    branch_name: string;
+}
+
+export interface Salesman {
+    id: number;
+    salesman_name: string;
+    salesman_code?: string;
+}
+
+export interface Product {
+    id: number;
+    product_id: string;
+    product_name: string;
+    description?: string;
+}
+
 export type SalesInvoiceHeader = z.infer<typeof SalesInvoiceHeaderSchema> & {
     // Allow expanded objects from Directus
-    branch_id?: any;
-    salesman_id?: any;
+    branch_id?: Branch | null;
+    salesman_id?: Salesman | null;
 };
 
 // --- Detail Schema ---
@@ -55,18 +73,41 @@ export const SalesInvoiceDetailSchema = z.object({
     total_amount: z.number().optional(),
 });
 
-export type SalesInvoiceDetail = z.infer<typeof SalesInvoiceDetailSchema> & {
-    product_id?: any; // To handle expanded object from Directus
+export type SalesInvoiceDetail = Omit<z.infer<typeof SalesInvoiceDetailSchema>, 'product_id'> & {
+    product_id?: Product | number | null;
 };
 
-// --- Linked Documents Schema ---
-export const LinkedDocumentSchema = z.object({
-    id: z.string().or(z.number()),
-    type: z.enum(["RETURN", "MEMO", "PAYMENT"]),
-    reference_no: z.string(),
-    date: z.string(),
-    amount: z.number(),
-    status: z.string().optional()
-});
+export interface Customer {
+    customer_code: string;
+    customer_name?: string;
+    store_name?: string;
+    city?: string;
+    province?: string;
+}
 
-export type LinkedDocument = z.infer<typeof LinkedDocumentSchema>;
+export interface SalesType {
+    id: number;
+    operation_name: string;
+}
+
+export interface LinkedDocument {
+    id: string | number;
+    type: "RETURN" | "MEMO" | "PAYMENT";
+    reference_no: string;
+    date: string;
+    amount: number;
+    status?: string;
+}
+
+export interface WorklistFilters {
+    page?: number;
+    limit?: number;
+    search?: string;
+    salesmanId?: string;
+    customerId?: string;
+    startDate?: string;
+    endDate?: string;
+    isDispatched?: boolean;
+    isPaid?: boolean;
+    salesTypeId?: number | string;
+}

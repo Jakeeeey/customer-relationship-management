@@ -2,31 +2,23 @@
 
 import React, { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { SalesInvoiceHeader, SalesInvoiceDetail, LinkedDocument } from '../types';
+import { SalesInvoiceHeader, SalesInvoiceDetail } from '../types';
 import { siteSalesPostingProvider } from '../providers/fetchProvider';
 import { cn } from '@/lib/utils';
-import { format, parseISO, isValid } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 
 import { 
     ChevronLeft, 
     FileText, 
-    Calendar, 
     User, 
     MapPin, 
-    Package, 
-    ArrowLeftRight, 
-    ClipboardList,
     Plus,
-    Trash2,
-    DollarSign,
-    Percent,
-    Save,
     CheckCircle2
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -42,7 +34,6 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
     const router = useRouter();
     const [header, setHeader] = useState<SalesInvoiceHeader | null>(null);
     const [details, setDetails] = useState<SalesInvoiceDetail[]>([]);
-    const [linkedDocs, setLinkedDocs] = useState<LinkedDocument[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
 
@@ -52,7 +43,6 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
             const data = await siteSalesPostingProvider.getInvoiceDetails(id);
             setHeader(data.header);
             setDetails(data.details);
-            setLinkedDocs(data.linkedDocs || []);
         } catch (error) {
             console.error("Failed to fetch invoice details:", error);
         } finally {
@@ -79,8 +69,9 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
             
             toast.success("Invoice finalized successfully!");
             router.push('/crm/site-sales-management/site-sales-posting');
-        } catch (error: any) {
-            toast.error(error.message || "Failed to finalize invoice");
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : "Failed to finalize invoice";
+            toast.error(message);
         } finally {
             setIsSaving(false);
         }
@@ -120,7 +111,6 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
     const gross = header.gross_amount || 0;
     const discount = header.discount_amount || 0;
     const vat = header.vat_amount || 0;
-    const net = header.net_amount || 0;
     const total = header.total_amount || 0;
 
     return (
@@ -269,19 +259,20 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
                                     </TableHeader>
                                     <TableBody>
                                         {details.map((item, idx) => {
-                                            const product = item.product_id || {};
+                                            const product = item.product_id && typeof item.product_id === 'object' ? item.product_id : null;
+                                            const displayId = product?.product_id || (typeof item.product_id !== 'object' ? item.product_id : '') || '';
                                             return (
                                                 <TableRow key={item.detail_id || idx} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 border-slate-100 dark:border-slate-800">
                                                     <TableCell>
                                                         <div className="flex flex-col">
-                                                            <span className="font-mono text-[10px] font-black text-primary">{product.product_id || ''}</span>
+                                                            <span className="font-mono text-[10px] font-black text-primary">{displayId}</span>
                                                             <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">{item.detail_id || 'NEW'}</span>
                                                         </div>
                                                     </TableCell>
                                                     <TableCell>
                                                         <div className="max-w-[300px]">
-                                                            <p className="font-black text-xs text-slate-700 dark:text-slate-200 uppercase">{product.product_name || 'Unnamed Product'}</p>
-                                                            <p className="text-[10px] text-slate-400 truncate">{product.description || ''}</p>
+                                                            <p className="font-black text-xs text-slate-700 dark:text-slate-200 uppercase">{product?.product_name || 'Unnamed Product'}</p>
+                                                            <p className="text-[10px] text-slate-400 truncate">{product?.description || ''}</p>
                                                         </div>
                                                     </TableCell>
                                                     <TableCell className="text-[10px] font-bold text-slate-500 uppercase">{item.unit || 'Box'}</TableCell>

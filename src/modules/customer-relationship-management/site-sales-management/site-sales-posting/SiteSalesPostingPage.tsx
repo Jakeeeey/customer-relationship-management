@@ -1,13 +1,11 @@
 "use client";
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect } from 'react';
 import { useSiteSalesPosting } from './hooks/useSiteSalesPosting';
 import { SiteSalesList } from './components/SiteSalesList';
-import { SiteSalesEditModal } from './components/SiteSalesEditModal';
-import { SalesInvoiceHeader } from './types';
+import { WorklistFilters } from './types';
 
 import { Separator } from '@/components/ui/separator';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 
 export const SiteSalesPostingPage = () => {
     const { 
@@ -19,24 +17,14 @@ export const SiteSalesPostingPage = () => {
         customers,
         salesTypes
     } = useSiteSalesPosting();
-    const [isModalOpen, setIsModalOpen] = useState(false);
-    const [selectedInvoice, setSelectedInvoice] = useState<SalesInvoiceHeader | null>(null);
 
     useEffect(() => {
         fetchUtilityData();
         fetchWorklist({ isDispatched: false, salesTypeId: 3 });
     }, [fetchUtilityData, fetchWorklist]);
 
-    const handleFilterChange = (filters: any) => {
+    const handleFilterChange = (filters: WorklistFilters) => {
         fetchWorklist(filters);
-    };
-
-    const handleEdit = (invoiceId: number) => {
-        const invoice = worklist.find(i => Number(i.invoice_id) === invoiceId);
-        if (invoice) {
-            setSelectedInvoice(invoice);
-            setIsModalOpen(true);
-        }
     };
 
     return (
@@ -58,17 +46,8 @@ export const SiteSalesPostingPage = () => {
                 customers={customers}
                 salesTypes={salesTypes}
                 onFilterChange={handleFilterChange}
-                onEdit={handleEdit} 
             />
 
-            <SiteSalesEditModal 
-                isOpen={isModalOpen}
-                onClose={() => {
-                    setIsModalOpen(false);
-                    fetchWorklist({ isDispatched: false }); 
-                }}
-                invoice={selectedInvoice}
-            />
         </div>
     );
 };

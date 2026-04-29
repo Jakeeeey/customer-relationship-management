@@ -13,9 +13,10 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { SalesInvoiceHeader, SalesInvoiceDetail, LinkedDocument } from "../types";
-import { Trash2, Plus, Save, X, FileText, Info, Calendar } from "lucide-react";
+import { Trash2, Plus, Info, FileText, Save, X } from "lucide-react";
 import { useSiteSalesPosting } from "../hooks/useSiteSalesPosting";
 import { format, isValid, parseISO } from "date-fns";
+import { toast } from "sonner";
 
 interface SiteSalesEditModalProps {
     isOpen: boolean;
@@ -35,11 +36,15 @@ export const SiteSalesEditModal: React.FC<SiteSalesEditModalProps> = ({ isOpen, 
     const [linkedDocs, setLinkedDocs] = useState<LinkedDocument[]>([]);
     const [deletedIds, setDeletedIds] = useState<number[]>([]);
     const [isLoading, setIsLoading] = useState(false);
+    const [isSaving, setIsSaving] = useState(false);
     const [customerCode, setCustomerCode] = useState("");
 
     useEffect(() => {
         if (invoice && isOpen) {
-            setCustomerCode(invoice.customer_code || "");
+            const targetCode = invoice.customer_code || "";
+            // Use a check to avoid unnecessary re-renders
+            setCustomerCode(prev => prev !== targetCode ? targetCode : prev);
+            
             setIsLoading(true);
             fetchDetails(invoice.invoice_id)
                 .then(data => {
@@ -52,19 +57,25 @@ export const SiteSalesEditModal: React.FC<SiteSalesEditModalProps> = ({ isOpen, 
 
     const handleSave = async () => {
         if (!invoice) return;
+        setIsSaving(true);
         try {
             await saveAdjustments(invoice.invoice_id, {
                 customer_code: customerCode,
                 details,
                 deletedDetailIds: deletedIds
             });
+            toast.success("Invoice finalized successfully!");
+            router.push('/crm/site-sales-management/site-sales-posting');
             onClose();
-        } catch (err) {
-            alert("Failed to save adjustments");
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : "Failed to finalize invoice";
+            toast.error(message);
+        } finally {
+            setIsSaving(false);
         }
     };
 
-    const updateDetail = (index: number, field: keyof SalesInvoiceDetail, value: any) => {
+    const updateDetail = (index: number, field: keyof SalesInvoiceDetail, value: string | number) => {
         const newDetails = [...details];
         newDetails[index] = { ...newDetails[index], [field]: value };
         setDetails(newDetails);
@@ -112,7 +123,6 @@ export const SiteSalesEditModal: React.FC<SiteSalesEditModalProps> = ({ isOpen, 
                 </DialogHeader>
 
                 <div className="p-6 space-y-6">
-                    {/* Header Section */}
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-6 bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
                         <div className="space-y-1.5">
                             <label className="text-[10px] font-bold text-slate-400 uppercase">Customer Code</label>
@@ -139,7 +149,6 @@ export const SiteSalesEditModal: React.FC<SiteSalesEditModalProps> = ({ isOpen, 
                         </div>
                     </div>
 
-                    {/* Details Table */}
                     <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
                         <div className="p-4 border-b bg-slate-50/50 flex justify-between items-center">
                             <h3 className="text-sm font-bold text-slate-700 flex items-center gap-2">
@@ -292,8 +301,13 @@ export const SiteSalesEditModal: React.FC<SiteSalesEditModalProps> = ({ isOpen, 
                             <Button variant="outline" onClick={onClose} className="rounded-full px-6 border-slate-200">
                                 <X className="w-4 h-4 mr-2" /> Cancel
                             </Button>
-                            <Button onClick={handleSave} className="rounded-full px-8 bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20">
-                                <Save className="w-4 h-4 mr-2" /> Save Adjustments
+                            <Button 
+                                onClick={handleSave} 
+                                disabled={isSaving}
+                                className="rounded-full px-8 bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20"
+                            >
+                                <Save className="w-4 h-4 mr-2" /> 
+                                {isSaving ? "Saving..." : "Save Adjustments"}
                             </Button>
                         </div>
                     </div>

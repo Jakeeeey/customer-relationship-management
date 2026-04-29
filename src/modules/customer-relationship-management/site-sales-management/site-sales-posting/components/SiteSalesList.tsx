@@ -1,42 +1,37 @@
 "use client";
 import { cn } from "@/lib/utils";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { ColumnDef } from "@tanstack/react-table";
 import { DataTable } from "@/components/ui/new-data-table";
-import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { SalesInvoiceHeader } from "../types";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { Download, Plus, Calendar, Check, ChevronsUpDown } from "lucide-react";
+import { Download, Check, ChevronsUpDown, Plus } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { format, isValid, parseISO } from "date-fns";
+import { SalesInvoiceHeader, Salesman, Customer, SalesType, WorklistFilters } from "../types";
 import Link from "next/link";
 
 interface SiteSalesListProps {
     data: SalesInvoiceHeader[];
     isLoading: boolean;
-    onEdit: (invoiceId: number) => void;
-    salesmen: any[];
-    customers: any[];
-    salesTypes: any[];
-    onFilterChange: (filters: any) => void;
+    salesmen: Salesman[];
+    customers: Customer[];
+    salesTypes: SalesType[];
+    onFilterChange: (filters: WorklistFilters) => void;
 }
 
 export const SiteSalesList: React.FC<SiteSalesListProps> = ({ 
     data, 
-    isLoading, 
-    onEdit, 
-    salesmen, 
+    isLoading,
+    salesmen,
     customers,
     salesTypes,
     onFilterChange 
 }) => {
-    const router = useRouter();
     const formatDate = (dateString?: string | null) => {
         if (!dateString) return "--";
         const date = parseISO(dateString);
@@ -54,7 +49,7 @@ export const SiteSalesList: React.FC<SiteSalesListProps> = ({
     const [openCustomer, setOpenCustomer] = useState(false);
     const [openSalesman, setOpenSalesman] = useState(false);
 
-    const applyFilters = () => {
+    const applyFilters = useCallback(() => {
         onFilterChange({
             search,
             salesmanId: salesman === "all" ? undefined : salesman,
@@ -65,12 +60,12 @@ export const SiteSalesList: React.FC<SiteSalesListProps> = ({
             isDispatched,
             isPaid
         });
-    };
+    }, [onFilterChange, search, salesman, customer, salesType, dateFrom, dateTo, isDispatched, isPaid]);
 
     useEffect(() => {
         const timer = setTimeout(applyFilters, 500);
         return () => clearTimeout(timer);
-    }, [search, salesman, customer, isDispatched, isPaid, dateFrom, dateTo]);
+    }, [applyFilters]);
 
     const columns: ColumnDef<SalesInvoiceHeader>[] = [
         {
@@ -256,9 +251,9 @@ export const SiteSalesList: React.FC<SiteSalesListProps> = ({
                                                    customers.find(c => c.customer_code === customer)?.customer_name || 
                                                    customer)}
                                         </span>
-                                        {customer !== "all" && customers.find(c => c.customer_code === customer) && (
+                                        {customer !== "all" && (
                                             <span className="text-[10px] text-muted-foreground truncate w-full">
-                                                {[customers.find(c => c.customer_code === customer).city, customers.find(c => c.customer_code === customer).province].filter(Boolean).join(", ")}
+                                                {[customers.find(c => c.customer_code === customer)?.city, customers.find(c => c.customer_code === customer)?.province].filter(Boolean).join(", ")}
                                             </span>
                                         )}
                                     </div>
@@ -379,9 +374,9 @@ export const SiteSalesList: React.FC<SiteSalesListProps> = ({
                                                 ? "Select Salesman" 
                                                 : (salesmen.find(s => s.id.toString() === salesman)?.salesman_name || salesman)}
                                         </span>
-                                        {salesman !== "all" && salesmen.find(s => s.id.toString() === salesman)?.salesman_code && (
+                                        {salesman !== "all" && (
                                             <span className="text-[10px] text-muted-foreground truncate w-full">
-                                                {salesmen.find(s => s.id.toString() === salesman).salesman_code}
+                                                {salesmen.find(s => s.id.toString() === salesman)?.salesman_code}
                                             </span>
                                         )}
                                     </div>

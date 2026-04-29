@@ -66,12 +66,11 @@ export async function GET(req: NextRequest) {
             const startDate = searchParams.get("startDate");
             const endDate = searchParams.get("endDate");
             const isDispatched = searchParams.get("isDispatched") === "true"; 
-            const isPaid = searchParams.get("isPaid") === "true";
             const page = parseInt(searchParams.get("page") || "1", 10);
             const limit = parseInt(searchParams.get("limit") || "-1", 10);
 
             // Filter building
-            const filters: any = {
+            const filters: { _and: Record<string, unknown>[] } = {
                 _and: []
             };
 
@@ -136,24 +135,27 @@ export async function GET(req: NextRequest) {
             const rawData = json.data || [];
 
             // Fetch customer names manually to avoid NaN join error
-            const customerCodes = Array.from(new Set(rawData.map((item: any) => item.customer_code).filter(Boolean)));
-            let customerMap: Record<string, string> = {};
+            const customerCodes = Array.from(new Set(rawData.map((item: { customer_code: string }) => item.customer_code).filter(Boolean)));
+            const customerMap: Record<string, string> = {};
             
             if (customerCodes.length > 0) {
                 const cRes = await fetch(`${DIRECTUS_URL}/items/customer?filter[customer_code][_in]=${customerCodes.join(",")}&fields=customer_code,customer_name,store_name`, { headers: fetchHeaders });
                 if (cRes.ok) {
                     const cData = (await cRes.json()).data || [];
-                    cData.forEach((c: any) => {
-                        customerMap[c.customer_code] = c.store_name || c.customer_name;
+                    cData.forEach((c: { customer_code: string; store_name?: string; customer_name?: string }) => {
+                        customerMap[c.customer_code] = c.store_name || c.customer_name || "N/A";
                     });
                 }
             }
 
-            const data = rawData.map((item: any) => ({
+            const data = rawData.map((item: { 
+                customer_code: string; 
+                salesman_id: { id: string | number; salesman_name: string } | string | number;
+            }) => ({
                 ...item,
-                salesman_name: item.salesman_id?.salesman_name || "N/A",
+                salesman_name: typeof item.salesman_id === 'object' ? item.salesman_id?.salesman_name : "N/A",
                 customer_name: customerMap[item.customer_code] || item.customer_code || "N/A",
-                salesman_id: item.salesman_id?.id || item.salesman_id
+                salesman_id: typeof item.salesman_id === 'object' ? item.salesman_id?.id : item.salesman_id
             }));
 
 
@@ -213,8 +215,9 @@ export async function GET(req: NextRequest) {
 
         return NextResponse.json({ error: "Invalid type" }, { status: 400 });
 
-    } catch (e: any) {
-        return NextResponse.json({ error: e.message }, { status: 500 });
+    } catch (e: unknown) {
+        const message = e instanceof Error ? e.message : "Internal Server Error";
+        return NextResponse.json({ error: message }, { status: 500 });
     }
 }
 
@@ -263,7 +266,11 @@ export async function PATCH(req: NextRequest) {
             let totalDiscount = 0;
             let totalVat = 0;
 
-            currentDetails.forEach((d: any) => {
+            currentDetails.forEach((d: { 
+                quantity: number | string; 
+                unit_price: number | string; 
+                discount_amount: number | string; 
+            }) => {
                 const qty = Number(d.quantity) || 0;
                 const price = Number(d.unit_price) || 0;
                 const disc = Number(d.discount_amount) || 0;
@@ -305,8 +312,9 @@ export async function PATCH(req: NextRequest) {
         }
 
         return NextResponse.json({ error: "Invalid action" }, { status: 400 });
-    } catch (e: any) {
-        return NextResponse.json({ error: e.message }, { status: 500 });
+    } catch (e: unknown) {
+        const message = e instanceof Error ? e.message : "Internal Server Error";
+        return NextResponse.json({ error: message }, { status: 500 });
     }
 }
 
@@ -335,7 +343,8 @@ export async function POST(req: NextRequest) {
         }
 
         return NextResponse.json({ error: "Invalid action" }, { status: 400 });
-    } catch (e: any) {
-        return NextResponse.json({ error: e.message }, { status: 500 });
+    } catch (e: unknown) {
+        const message = e instanceof Error ? e.message : "Internal Server Error";
+        return NextResponse.json({ error: message }, { status: 500 });
     }
 }

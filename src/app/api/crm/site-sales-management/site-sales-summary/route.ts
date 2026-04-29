@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
 
-export async function GET(req: NextRequest) {
+export async function GET() {
     try {
         return NextResponse.json({ message: "Site Sales Summary GET works!" });
     } catch (error: unknown) {
