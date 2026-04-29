@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { SalesInvoiceHeader, SalesInvoiceDetail, LinkedDocument } from '../types';
+import { SalesInvoiceHeader, SalesInvoiceDetail, LinkedDocument, SalesReturn } from '../types';
 import { siteSalesPostingProvider } from '../providers/fetchProvider';
 import { cn } from '@/lib/utils';
 import { format, parseISO } from 'date-fns';
@@ -13,7 +13,11 @@ import {
     User, 
     MapPin, 
     Plus,
-    CheckCircle2
+    CheckCircle2,
+    PlusCircle,
+    RotateCw,
+    Search,
+    Link2
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -25,6 +29,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Skeleton } from '@/components/ui/skeleton';
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogHeader,
+    DialogTitle,
+} from "@/components/ui/dialog";
 
 interface SiteSalesDetailsProps {
     id: string;
@@ -39,6 +50,12 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
     const [isSaving, setIsSaving] = useState(false);
 
     const [activeTab, setActiveTab] = useState('items');
+
+    // Return Linking States
+    const [isLinkModalOpen, setIsLinkModalOpen] = useState(false);
+    const [availableReturns, setAvailableReturns] = useState<SalesReturn[]>([]);
+    const [isFetchingReturns, setIsFetchingReturns] = useState(false);
+    const [isLinking, setIsLinking] = useState(false);
 
     const fetchData = useCallback(async () => {
         setIsLoading(true);
@@ -84,6 +101,35 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
     useEffect(() => {
         fetchData();
     }, [fetchData]);
+
+    const handleOpenLinkModal = async () => {
+        if (!header?.customer_code) return;
+        setIsLinkModalOpen(true);
+        setIsFetchingReturns(true);
+        try {
+            const data = await siteSalesPostingProvider.getAvailableReturns(header.customer_code);
+            setAvailableReturns(data);
+        } catch {
+            toast.error("Failed to fetch available returns");
+        } finally {
+            setIsFetchingReturns(false);
+        }
+    };
+
+    const handleLinkReturn = async (ret: SalesReturn) => {
+        setIsLinking(true);
+        try {
+            await siteSalesPostingProvider.linkReturn(id, ret.return_id, ret.total_amount);
+            toast.success(`Return ${ret.return_number} linked successfully!`);
+            setIsLinkModalOpen(false);
+            fetchData(); // Refresh list
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : "Failed to link return";
+            toast.error(message);
+        } finally {
+            setIsLinking(false);
+        }
+    };
 
     if (isLoading) {
         return (
@@ -248,7 +294,12 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
                             )}
 
                             {activeTab === 'returns' && (
-                                <Button variant="ghost" size="sm" className="gap-2 text-[10px] font-black uppercase tracking-widest text-rose-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/20 animate-in fade-in slide-in-from-right-4 duration-300">
+                                <Button 
+                                    onClick={handleOpenLinkModal}
+                                    variant="ghost" 
+                                    size="sm" 
+                                    className="gap-2 text-[10px] font-black uppercase tracking-widest text-rose-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/20 animate-in fade-in slide-in-from-right-4 duration-300"
+                                >
                                     <Plus className="h-3.5 w-3.5" />
                                     Link a Return
                                 </Button>
@@ -479,6 +530,76 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
                 </div>
             </div>
         </div>
-    </div>
+
+            {/* Link Return Modal */}
+            <Dialog open={isLinkModalOpen} onOpenChange={setIsLinkModalOpen}>
+                <DialogContent className="max-w-2xl p-0 overflow-hidden border-none shadow-2xl dark:bg-slate-950">
+                    <DialogHeader className="p-6 bg-slate-50 dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800">
+                        <div className="flex items-center gap-3">
+                            <div className="p-2 bg-rose-500 rounded-lg shadow-lg shadow-rose-500/20">
+                                <Link2 className="h-5 w-5 text-white" />
+                            </div>
+                            <div>
+                                <DialogTitle className="text-xl font-black tracking-tight text-slate-900 dark:text-white">Available Returns</DialogTitle>
+                                <DialogDescription className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-0.5">
+                                    Customer: {header?.customer_name || header?.customer_code || '...'}
+                                </DialogDescription>
+                            </div>
+                        </div>
+                    </DialogHeader>
+
+                    <div className="p-6 max-h-[60vh] overflow-y-auto">
+                        {isFetchingReturns ? (
+                            <div className="flex flex-col items-center justify-center py-12 gap-4">
+                                <RotateCw className="h-8 w-8 text-primary animate-spin" />
+                                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Fetching available returns...</p>
+                            </div>
+                        ) : availableReturns.length === 0 ? (
+                            <div className="flex flex-col items-center justify-center py-12 text-center">
+                                <div className="p-4 bg-slate-50 dark:bg-slate-900 rounded-full mb-4">
+                                    <Search className="h-8 w-8 text-slate-300" />
+                                </div>
+                                <p className="text-sm font-black text-slate-500 uppercase tracking-widest">No available returns found</p>
+                                <p className="text-[10px] text-slate-400 mt-1 font-medium">This customer has no unlinked returns in the system.</p>
+                            </div>
+                        ) : (
+                            <div className="space-y-3">
+                                {availableReturns.map((ret) => (
+                                    <div key={ret.return_id} className="group flex items-center justify-between p-4 bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 hover:border-rose-500/30 transition-all shadow-sm">
+                                        <div className="flex items-center gap-4">
+                                            <div className="h-10 w-10 rounded-lg bg-rose-50 dark:bg-rose-950/30 flex items-center justify-center group-hover:scale-110 transition-transform">
+                                                <FileText className="h-5 w-5 text-rose-500" />
+                                            </div>
+                                            <div>
+                                                <p className="text-sm font-black text-slate-800 dark:text-slate-200">#{ret.return_number}</p>
+                                                <div className="flex items-center gap-2 mt-0.5">
+                                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">{ret.return_date ? format(parseISO(ret.return_date), 'MMM dd, yyyy') : '--'}</p>
+                                                    <span className="text-[8px] text-slate-300">•</span>
+                                                    <p className="text-[10px] font-black text-primary uppercase tracking-tighter">{ret.salesman_id?.salesman_name || 'N/A'}</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center gap-6">
+                                            <div className="text-right">
+                                                <p className="text-base font-black text-slate-900 dark:text-white">₱{Number(ret.total_amount).toLocaleString()}</p>
+                                                <p className="text-[9px] font-black text-rose-500 uppercase tracking-widest opacity-70">Total Amount</p>
+                                            </div>
+                                            <Button 
+                                                disabled={isLinking}
+                                                onClick={() => handleLinkReturn(ret)}
+                                                className="bg-rose-500 hover:bg-rose-600 text-white rounded-lg px-4 h-9 font-black text-[10px] uppercase tracking-widest shadow-lg shadow-rose-500/20 gap-2"
+                                            >
+                                                {isLinking ? <RotateCw className="h-3 w-3 animate-spin" /> : <PlusCircle className="h-3.5 w-3.5" />}
+                                                Add
+                                            </Button>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                </DialogContent>
+            </Dialog>
+        </div>
     );
 };

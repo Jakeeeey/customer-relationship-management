@@ -349,6 +349,32 @@ export async function GET(req: NextRequest) {
             return NextResponse.json((await res.json()).data || []);
         }
 
+        if (type === "available_returns") {
+            const customerCode = searchParams.get("customerCode");
+            if (!customerCode) return NextResponse.json({ error: "customerCode required" }, { status: 400 });
+
+            // 1. Get all returns already linked to ANY invoice (to avoid double linking)
+            const linkedRes = await fetch(`${DIRECTUS_URL}/items/sales_invoice_sales_return?fields=return_no&limit=-1`, { headers: fetchHeaders });
+            const linkedData = (await linkedRes.json()).data || [];
+            const linkedReturnIds = linkedData.map((l: { return_no: number | string }) => l.return_no).filter(Boolean);
+
+            // 2. Fetch returns for this customer that are NOT in the linked list
+            const filters: { _and: Record<string, unknown>[] } = {
+                _and: [
+                    { customer_code: { _eq: customerCode } }
+                ]
+            };
+
+            if (linkedReturnIds.length > 0) {
+                filters._and.push({ return_id: { _nin: linkedReturnIds } });
+            }
+
+            const res = await fetch(`${DIRECTUS_URL}/items/sales_return?filter=${JSON.stringify(filters)}&fields=*,salesman_id.salesman_name&limit=-1`, { headers: fetchHeaders });
+            if (!res.ok) throw new Error("Failed to fetch available returns");
+            
+            return NextResponse.json((await res.json()).data || []);
+        }
+
         return NextResponse.json({ error: "Invalid type" }, { status: 400 });
 
     } catch (e: unknown) {
@@ -473,6 +499,31 @@ export async function POST(req: NextRequest) {
                         modified_date: now
                     })
                 });
+            }
+
+            return NextResponse.json({ success: true });
+        }
+
+        if (action === "link_return") {
+            const { invoiceId, returnId, amount } = body;
+            const userId = await resolveUserId();
+            const now = new Date().toISOString();
+
+            const res = await fetch(`${DIRECTUS_URL}/items/sales_invoice_sales_return`, {
+                method: "POST",
+                headers: fetchHeaders,
+                body: JSON.stringify({
+                    invoice_no: invoiceId,
+                    return_no: returnId,
+                    amount: amount,
+                    linked_by: userId,
+                    created_at: now
+                })
+            });
+
+            if (!res.ok) {
+                const errorData = await res.json();
+                throw new Error(errorData?.errors?.[0]?.message || "Failed to link return");
             }
 
             return NextResponse.json({ success: true });

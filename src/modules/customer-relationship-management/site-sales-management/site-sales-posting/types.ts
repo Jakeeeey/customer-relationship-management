@@ -122,3 +122,12 @@ export interface WorklistFilters {
     isPaid?: boolean;
     salesTypeId?: number | string;
 }
+
+export interface SalesReturn {
+    return_id: number;
+    return_number: string;
+    return_date: string;
+    total_amount: number;
+    customer_code: string;
+    salesman_id?: Salesman | null;
+}

@@ -1,6 +1,6 @@
 "use client";
 
-import { SalesInvoiceHeader, SalesInvoiceDetail, Salesman, Customer, SalesType, WorklistFilters, LinkedDocument } from "../types";
+import { SalesInvoiceHeader, SalesInvoiceDetail, Salesman, Customer, SalesType, WorklistFilters, LinkedDocument, SalesReturn } from "../types";
 
 const API_BASE = "/api/crm/site-sales-management/site-sales-posting";
 
@@ -86,6 +86,28 @@ export const siteSalesPostingProvider = {
     getCustomers: async (search: string = ""): Promise<Customer[]> => {
         const res = await fetch(`${API_BASE}?type=customers&search=${search}`);
         if (!res.ok) throw new Error("Failed to fetch customers");
+        return res.json();
+    },
+    
+    // 6. Return Linking
+    getAvailableReturns: async (customerCode: string): Promise<SalesReturn[]> => {
+        const res = await fetch(`${API_BASE}?type=available_returns&customerCode=${customerCode}`);
+        if (!res.ok) throw new Error("Failed to fetch available returns");
+        return res.json();
+    },
+
+    linkReturn: async (invoiceId: number | string, returnId: number | string, amount: number): Promise<{ success: boolean }> => {
+        const res = await fetch(API_BASE, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                action: "link_return",
+                invoiceId,
+                returnId,
+                amount
+            })
+        });
+        if (!res.ok) throw new Error("Failed to link return");
         return res.json();
     }
 };
