@@ -1,0 +1,490 @@
+"use client";
+import { cn } from "@/lib/utils";
+
+import React, { useState, useEffect } from "react";
+import { ColumnDef } from "@tanstack/react-table";
+import { DataTable } from "@/components/ui/new-data-table";
+import { useRouter } from "next/navigation";
+import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
+import { SalesInvoiceHeader } from "../types";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
+import { Download, Plus, Calendar, Check, ChevronsUpDown } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { format, isValid, parseISO } from "date-fns";
+import Link from "next/link";
+
+interface SiteSalesListProps {
+    data: SalesInvoiceHeader[];
+    isLoading: boolean;
+    onEdit: (invoiceId: number) => void;
+    salesmen: any[];
+    customers: any[];
+    salesTypes: any[];
+    onFilterChange: (filters: any) => void;
+}
+
+export const SiteSalesList: React.FC<SiteSalesListProps> = ({ 
+    data, 
+    isLoading, 
+    onEdit, 
+    salesmen, 
+    customers,
+    salesTypes,
+    onFilterChange 
+}) => {
+    const router = useRouter();
+    const formatDate = (dateString?: string | null) => {
+        if (!dateString) return "--";
+        const date = parseISO(dateString);
+        return isValid(date) ? format(date, "MMM dd, yyyy hh:mm a") : dateString;
+    };
+
+    const [search, setSearch] = useState("");
+    const [customer, setCustomer] = useState("all");
+    const [salesman, setSalesman] = useState("all");
+    const [salesType, setSalesType] = useState("3");
+    const [isDispatched, setIsDispatched] = useState(false);
+    const [isPaid, setIsPaid] = useState(false);
+    const [dateFrom, setDateFrom] = useState("");
+    const [dateTo, setDateTo] = useState("");
+    const [openCustomer, setOpenCustomer] = useState(false);
+    const [openSalesman, setOpenSalesman] = useState(false);
+
+    const applyFilters = () => {
+        onFilterChange({
+            search,
+            salesmanId: salesman === "all" ? undefined : salesman,
+            customerId: customer === "all" ? undefined : customer,
+            salesTypeId: salesType === "all" ? undefined : salesType,
+            startDate: dateFrom,
+            endDate: dateTo,
+            isDispatched,
+            isPaid
+        });
+    };
+
+    useEffect(() => {
+        const timer = setTimeout(applyFilters, 500);
+        return () => clearTimeout(timer);
+    }, [search, salesman, customer, isDispatched, isPaid, dateFrom, dateTo]);
+
+    const columns: ColumnDef<SalesInvoiceHeader>[] = [
+        {
+            accessorKey: "invoice_no",
+            header: "Receipt No.",
+            cell: ({ row }) => (
+                <Link 
+                    href={`/crm/site-sales-management/site-sales-posting/${row.original.invoice_id}`}
+                    className="block -m-3 p-3 font-black text-primary hover:bg-primary/5 transition-all"
+                >
+                    {row.original.invoice_no}
+                </Link>
+            )
+        },
+        {
+            accessorKey: "salesman_name",
+            header: "Salesman",
+            cell: ({ row }) => (
+                <Link 
+                    href={`/crm/site-sales-management/site-sales-posting/${row.original.invoice_id}`}
+                    className="block -m-3 p-3 hover:bg-primary/5 transition-colors font-medium text-slate-700 dark:text-slate-300"
+                >
+                    {row.original.salesman_name || "--"}
+                </Link>
+            )
+        },
+        {
+            accessorKey: "customer_name",
+            header: "Customer",
+            cell: ({ row }) => (
+                <Link 
+                    href={`/crm/site-sales-management/site-sales-posting/${row.original.invoice_id}`}
+                    className="block -m-3 p-3 hover:bg-primary/5 transition-colors"
+                >
+                    <span className="font-bold text-slate-900 dark:text-slate-100">{row.original.customer_name || row.original.customer_code}</span>
+                </Link>
+            )
+        },
+        {
+            accessorKey: "invoice_type",
+            header: "Type",
+            cell: () => <Badge variant="outline">DR</Badge>
+        },
+        {
+            accessorKey: "invoice_date",
+            header: "Receipt Date",
+            cell: ({ row }) => (
+                <Link 
+                    href={`/crm/site-sales-management/site-sales-posting/${row.original.invoice_id}`}
+                    className="block -m-3 p-3 hover:bg-primary/5 transition-colors"
+                >
+                    <span className="text-slate-500 dark:text-slate-400">{formatDate(row.original.invoice_date)}</span>
+                </Link>
+            )
+        },
+        {
+            accessorKey: "dispatch_date",
+            header: "Dispatch Date",
+            cell: ({ row }) => (
+                <Link 
+                    href={`/crm/site-sales-management/site-sales-posting/${row.original.invoice_id}`}
+                    className="block -m-3 p-3 hover:bg-primary/5 transition-colors"
+                >
+                    <span className="text-slate-500 dark:text-slate-400 font-medium italic">{formatDate(row.original.dispatch_date)}</span>
+                </Link>
+            )
+        },
+        {
+            accessorKey: "total_amount",
+            header: () => <div className="text-right">Total Amount</div>,
+            cell: ({ row }) => (
+                <Link 
+                    href={`/crm/site-sales-management/site-sales-posting/${row.original.invoice_id}`}
+                    className="block -m-3 p-3 hover:bg-primary/5 transition-colors"
+                >
+                    <div className="text-right font-bold text-slate-900 dark:text-slate-100">
+                        ₱{Number(row.original.total_amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                    </div>
+                </Link>
+            )
+        },
+        {
+            accessorKey: "transaction_status",
+            header: "Trans. Status",
+            cell: ({ row }) => {
+                const status = row.original.transaction_status?.toUpperCase() || 'PREPARED';
+                const colors = 
+                    status === 'VOID' ? 'bg-red-50 text-red-700 border-red-200' :
+                    status === 'COMPLETED' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                    'bg-sky-50 text-sky-700 border-sky-200';
+                
+                return (
+                    <Badge variant="outline" className={cn("uppercase text-[9px] font-black px-2 py-0.5 rounded-md tracking-tighter", colors)}>
+                        {status}
+                    </Badge>
+                );
+            }
+        },
+        {
+            accessorKey: "payment_status",
+            header: "Payment",
+            cell: ({ row }) => {
+                const status = row.original.payment_status?.toUpperCase() || 'UNPAID';
+                const isPaid = status === 'PAID';
+                
+                return (
+                    <div className="flex items-center gap-2">
+                        <div className={cn("h-2 w-2 rounded-full", isPaid ? "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]" : "bg-amber-500 animate-pulse")} />
+                        <span className={cn("text-[10px] font-black uppercase tracking-tight", isPaid ? "text-emerald-700" : "text-amber-700")}>
+                            {status}
+                        </span>
+                    </div>
+                );
+            }
+        },
+        {
+            accessorKey: "remarks",
+            header: "Remarks",
+            cell: ({ row }) => (
+                <div className="max-w-[150px] truncate text-[11px] text-slate-500 italic" title={row.original.remarks || ""}>
+                    {row.original.remarks || "--"}
+                </div>
+            )
+        },
+        {
+            accessorKey: "isDispatched",
+            header: () => <div className="text-center">Posted</div>,
+            cell: ({ row }) => (
+                <div className="flex justify-center">
+                    {row.original.isDispatched ? (
+                        <div className="h-5 w-5 bg-slate-900 rounded-full flex items-center justify-center shadow-lg">
+                            <svg className="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
+                        </div>
+                    ) : (
+                        <div className="h-5 w-5 border-2 border-slate-200 rounded-full bg-white shadow-inner"></div>
+                    )}
+                </div>
+            )
+        }
+    ];
+
+    const ActionComponent = (
+        <div className="flex gap-2">
+            <Button variant="outline" size="sm" className="rounded-lg gap-2 border-slate-200">
+                <Download className="w-4 h-4" /> Export
+            </Button>
+            <Button size="sm" className="rounded-lg gap-2 bg-slate-900 hover:bg-slate-800">
+                <Plus className="w-4 h-4" /> Add Record
+            </Button>
+        </div>
+    );
+
+    return (
+        <div className="space-y-6">
+            {/* ShadCN Card style for filters */}
+            <div className="bg-card p-6 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4 hover:shadow-md transition-shadow duration-300">
+                <div className="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-7 gap-4 items-end">
+                    <div className="space-y-1.5">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Receipt No</label>
+                        <Input 
+                            placeholder="Search invoice..." 
+                            value={search} 
+                            onChange={(e) => setSearch(e.target.value)} 
+                            className="h-9 rounded-lg border-slate-200 focus:border-primary"
+                        />
+                    </div>
+
+                    <div className="space-y-1.5">
+                        <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Customer</label>
+                        <Popover open={openCustomer} onOpenChange={setOpenCustomer}>
+                            <PopoverTrigger asChild>
+                                <Button
+                                    variant="outline"
+                                    role="combobox"
+                                    aria-expanded={openCustomer}
+                                    className={cn("w-full justify-between h-auto py-2 px-3", customer === "all" && "text-muted-foreground")}
+                                >
+                                    <div className="flex flex-col items-start truncate text-left">
+                                        <span className="font-medium text-slate-900 dark:text-slate-100 truncate w-full">
+                                            {customer === "all" 
+                                                ? "Select Customer" 
+                                                : (customers.find(c => c.customer_code === customer)?.store_name || 
+                                                   customers.find(c => c.customer_code === customer)?.customer_name || 
+                                                   customer)}
+                                        </span>
+                                        {customer !== "all" && customers.find(c => c.customer_code === customer) && (
+                                            <span className="text-[10px] text-muted-foreground truncate w-full">
+                                                {[customers.find(c => c.customer_code === customer).city, customers.find(c => c.customer_code === customer).province].filter(Boolean).join(", ")}
+                                            </span>
+                                        )}
+                                    </div>
+                                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-[300px] p-0" align="start">
+                                <Command>
+                                    <CommandInput placeholder="Search customer..." />
+                                    <CommandList>
+                                        <CommandEmpty>No results found.</CommandEmpty>
+                                        <CommandGroup>
+                                            <CommandItem
+                                                value="all"
+                                                onSelect={() => {
+                                                    setCustomer("all");
+                                                    setOpenCustomer(false);
+                                                }}
+                                                className="flex items-center gap-2 py-3 cursor-pointer"
+                                            >
+                                                <Check className={cn("h-4 w-4 shrink-0", customer === "all" ? "opacity-100" : "opacity-0")} />
+                                                <span className="font-medium text-slate-900 dark:text-slate-100">All Customers</span>
+                                            </CommandItem>
+                                            {customers.map((c) => (
+                                                <CommandItem
+                                                    key={c.customer_code}
+                                                    value={`${c.customer_name} ${c.store_name} ${c.customer_code} ${c.city} ${c.province}`}
+                                                    onSelect={() => {
+                                                        setCustomer(c.customer_code);
+                                                        setOpenCustomer(false);
+                                                    }}
+                                                    className="flex items-center gap-2 py-3 cursor-pointer"
+                                                >
+                                                    <Check className={cn("h-4 w-4 shrink-0", customer === c.customer_code ? "opacity-100" : "opacity-0")} />
+                                                    <div className="flex flex-col overflow-hidden flex-1 min-w-0">
+                                                        <span className="font-medium text-slate-900 dark:text-slate-100 leading-tight whitespace-normal break-words overflow-hidden" style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
+                                                            {c.store_name || c.customer_name}
+                                                        </span>
+                                                        {(c.city || c.province) && (
+                                                            <span className="text-[10px] text-muted-foreground truncate block">
+                                                                {[c.city, c.province].filter(Boolean).join(", ")}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </CommandItem>
+                                            ))}
+                                        </CommandGroup>
+                                    </CommandList>
+                                </Command>
+                            </PopoverContent>
+                        </Popover>
+                    </div>
+
+                    <div className="space-y-1.5">
+                        <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Sales Type</label>
+                        <Popover>
+                            <PopoverTrigger asChild>
+                                <Button
+                                    variant="outline"
+                                    role="combobox"
+                                    className={cn("w-full justify-between h-9 text-xs font-normal", salesType === "all" && "text-muted-foreground")}
+                                >
+                                    {salesType === "all" 
+                                        ? "Select Type" 
+                                        : (salesTypes.find(st => st.id.toString() === salesType)?.operation_name || salesType)}
+                                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-[300px] p-0" align="start">
+                                <Command>
+                                    <CommandInput placeholder="Search type..." />
+                                    <CommandList>
+                                        <CommandEmpty>No results found.</CommandEmpty>
+                                        <CommandGroup>
+                                            <CommandItem
+                                                value="all"
+                                                onSelect={() => {
+                                                    setSalesType("all");
+                                                }}
+                                                className="flex items-center gap-2 py-2 cursor-pointer"
+                                            >
+                                                <Check className={cn("h-4 w-4 shrink-0", salesType === "all" ? "opacity-100" : "opacity-0")} />
+                                                All Types
+                                            </CommandItem>
+                                            {salesTypes.map((st) => (
+                                                <CommandItem
+                                                    key={st.id}
+                                                    value={st.operation_name}
+                                                    onSelect={() => {
+                                                        setSalesType(st.id.toString());
+                                                    }}
+                                                    className="flex items-center gap-2 py-2 cursor-pointer"
+                                                >
+                                                    <Check className={cn("h-4 w-4 shrink-0", salesType === st.id.toString() ? "opacity-100" : "opacity-0")} />
+                                                    {st.operation_name}
+                                                </CommandItem>
+                                            ))}
+                                        </CommandGroup>
+                                    </CommandList>
+                                </Command>
+                            </PopoverContent>
+                        </Popover>
+                    </div>
+
+                    <div className="space-y-1.5">
+                        <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Salesman</label>
+                        <Popover open={openSalesman} onOpenChange={setOpenSalesman}>
+                            <PopoverTrigger asChild>
+                                <Button
+                                    variant="outline"
+                                    role="combobox"
+                                    aria-expanded={openSalesman}
+                                    className={cn("w-full justify-between h-auto py-2 px-3", salesman === "all" && "text-muted-foreground")}
+                                >
+                                    <div className="flex flex-col items-start truncate text-left">
+                                        <span className="font-medium text-slate-900 dark:text-slate-100 truncate w-full">
+                                            {salesman === "all" 
+                                                ? "Select Salesman" 
+                                                : (salesmen.find(s => s.id.toString() === salesman)?.salesman_name || salesman)}
+                                        </span>
+                                        {salesman !== "all" && salesmen.find(s => s.id.toString() === salesman)?.salesman_code && (
+                                            <span className="text-[10px] text-muted-foreground truncate w-full">
+                                                {salesmen.find(s => s.id.toString() === salesman).salesman_code}
+                                            </span>
+                                        )}
+                                    </div>
+                                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-[300px] p-0" align="start">
+                                <Command>
+                                    <CommandInput placeholder="Search salesman..." />
+                                    <CommandList>
+                                        <CommandEmpty>No results found.</CommandEmpty>
+                                        <CommandGroup>
+                                            <CommandItem
+                                                value="all"
+                                                onSelect={() => {
+                                                    setSalesman("all");
+                                                    setOpenSalesman(false);
+                                                }}
+                                                className="flex items-center gap-2 py-3 cursor-pointer"
+                                            >
+                                                <Check className={cn("h-4 w-4 shrink-0", salesman === "all" ? "opacity-100" : "opacity-0")} />
+                                                <span className="font-medium text-slate-900 dark:text-slate-100">All Salesmen</span>
+                                            </CommandItem>
+                                            {salesmen.map((s) => (
+                                                <CommandItem
+                                                    key={s.id}
+                                                    value={`${s.salesman_name} ${s.salesman_code}`}
+                                                    onSelect={() => {
+                                                        setSalesman(s.id.toString());
+                                                        setOpenSalesman(false);
+                                                    }}
+                                                    className="flex items-center gap-2 py-3 cursor-pointer"
+                                                >
+                                                    <Check className={cn("h-4 w-4 shrink-0", salesman === s.id.toString() ? "opacity-100" : "opacity-0")} />
+                                                    <div className="flex flex-col overflow-hidden flex-1 min-w-0">
+                                                        <span className="font-medium text-slate-900 dark:text-slate-100 leading-tight whitespace-normal break-words overflow-hidden" style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
+                                                            {s.salesman_name}
+                                                        </span>
+                                                        {s.salesman_code && (
+                                                            <span className="text-[10px] text-muted-foreground truncate block">
+                                                                {s.salesman_code}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </CommandItem>
+                                            ))}
+                                        </CommandGroup>
+                                    </CommandList>
+                                </Command>
+                            </PopoverContent>
+                        </Popover>
+                    </div>
+
+                    <div className="space-y-1.5">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Date From</label>
+                        <Input 
+                            type="date" 
+                            className="h-9 rounded-lg border-slate-200" 
+                            value={dateFrom} 
+                            onChange={(e) => setDateFrom(e.target.value)} 
+                        />
+                    </div>
+
+                    <div className="space-y-1.5">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Date To</label>
+                        <Input 
+                            type="date" 
+                            className="h-9 rounded-lg border-slate-200" 
+                            value={dateTo} 
+                            onChange={(e) => setDateTo(e.target.value)} 
+                        />
+                    </div>
+
+                    <div className="flex items-center gap-4 h-9 px-2 col-span-1 md:col-span-2">
+                        <div className="flex items-center space-x-2">
+                            <Checkbox 
+                                id="isDispatched" 
+                                checked={isDispatched} 
+                                onCheckedChange={(c) => setIsDispatched(c === true)} 
+                            />
+                            <label htmlFor="isDispatched" className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider cursor-pointer">isDispatched</label>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                            <Checkbox 
+                                id="isPaid" 
+                                checked={isPaid} 
+                                onCheckedChange={(c) => setIsPaid(c === true)} 
+                            />
+                            <label htmlFor="isPaid" className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider cursor-pointer">isPaid</label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* DataTable Component */}
+            <DataTable 
+                columns={columns} 
+                data={data} 
+                isLoading={isLoading}
+                actionComponent={ActionComponent}
+                emptyTitle="No Site Sales Found"
+                emptyDescription="Try adjusting your filters or wait for new transactions to be uploaded."
+            />
+        </div>
+    );
+};

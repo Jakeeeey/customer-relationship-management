@@ -1,0 +1,341 @@
+import { NextRequest, NextResponse } from "next/server";
+import { cookies } from "next/headers";
+
+const COOKIE_NAME = "vos_access_token";
+const DIRECTUS_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
+const DIRECTUS_TOKEN = process.env.DIRECTUS_STATIC_TOKEN;
+
+const fetchHeaders = {
+    Authorization: `Bearer ${DIRECTUS_TOKEN}`,
+    "Content-Type": "application/json",
+};
+
+export const dynamic = "force-dynamic";
+
+interface JwtPayload {
+    email?: string;
+    Email?: string;
+}
+
+function decodeJwtPayload(token: string): JwtPayload | null {
+    try {
+        const parts = token.split(".");
+        if (parts.length < 2) return null;
+        const p = parts[1];
+        const b64 = p.replace(/-/g, "+").replace(/_/g, "/");
+        const padded = b64 + "=".repeat((4 - (b64.length % 4)) % 4);
+        const json = Buffer.from(padded, "base64").toString("utf8");
+        return JSON.parse(json);
+    } catch {
+        return null;
+    }
+}
+
+async function resolveUserId() {
+    try {
+        const cookieStore = await cookies();
+        const token = cookieStore.get(COOKIE_NAME)?.value;
+        if (!token) return null;
+
+        const payload = decodeJwtPayload(token);
+        const email = payload?.email || payload?.Email || "";
+
+        if (email) {
+            const res = await fetch(`${DIRECTUS_URL}/items/user?filter[user_email][_eq]=${encodeURIComponent(email)}&fields=user_id&limit=1`, { headers: fetchHeaders });
+            if (res.ok) {
+                const data = (await res.json()).data;
+                if (data && data.length > 0) return data[0].user_id;
+            }
+        }
+    } catch (e) {
+        console.error("Failed to resolve user_id:", e);
+    }
+    return null;
+}
+
+export async function GET(req: NextRequest) {
+    const type = req.nextUrl.searchParams.get("type");
+    const searchParams = req.nextUrl.searchParams;
+
+    try {
+        if (type === "worklist") {
+            const search = searchParams.get("search") || "";
+            const salesmanId = searchParams.get("salesmanId");
+            const customerId = searchParams.get("customerId");
+            const salesTypeId = searchParams.get("salesTypeId");
+            const startDate = searchParams.get("startDate");
+            const endDate = searchParams.get("endDate");
+            const isDispatched = searchParams.get("isDispatched") === "true"; 
+            const isPaid = searchParams.get("isPaid") === "true";
+            const page = parseInt(searchParams.get("page") || "1", 10);
+            const limit = parseInt(searchParams.get("limit") || "-1", 10);
+
+            // Filter building
+            const filters: any = {
+                _and: []
+            };
+
+            // Default to 3 (Van Sales) if not specified
+            const activeSalesType = salesTypeId && salesTypeId !== "all" ? salesTypeId : 3;
+            filters._and.push({ sales_type: { _eq: activeSalesType } });
+
+            if (searchParams.has("isDispatched")) {
+                if (isDispatched) {
+                    filters._and.push({ isDispatched: { _eq: true } });
+                } else {
+                    filters._and.push({ isDispatched: { _neq: true } });
+                }
+            }
+
+            if (searchParams.has("isPaid")) {
+                const paidValue = searchParams.get("isPaid") === "true";
+                if (paidValue) {
+                    filters._and.push({ payment_status: { _eq: "Paid" } });
+                } else {
+                    // Use _neq to include everything that is NOT "Paid" (including NULLs)
+                    filters._and.push({ 
+                        payment_status: { _neq: "Paid" } 
+                    });
+                }
+            }
+
+            if (salesmanId && salesmanId !== "all") {
+                filters._and.push({ salesman_id: { _eq: salesmanId } });
+            }
+
+            if (startDate && endDate) {
+                filters._and.push({ created_date: { _between: [startDate, endDate] } });
+            }
+
+            if (search) {
+                filters._and.push({ invoice_no: { _icontains: search } });
+            }
+
+            if (customerId && customerId !== "all") {
+                filters._and.push({ customer_code: { _eq: customerId } });
+            }
+
+            const query = new URLSearchParams({
+                filter: JSON.stringify(filters),
+                page: page.toString(),
+                limit: limit.toString(),
+                fields: "*,salesman_id.salesman_name", // Removed customer_code expansion for now
+                meta: "total_count"
+            });
+
+            console.log("Fetching worklist with query:", query.toString());
+
+            const res = await fetch(`${DIRECTUS_URL}/items/sales_invoice?${query.toString()}`, { headers: fetchHeaders });
+            if (!res.ok) {
+                const errorData = await res.json();
+                console.error("Directus Error:", JSON.stringify(errorData, null, 2));
+                throw new Error(errorData?.errors?.[0]?.message || "Failed to fetch worklist");
+            }
+            
+            const json = await res.json();
+            const rawData = json.data || [];
+
+            // Fetch customer names manually to avoid NaN join error
+            const customerCodes = Array.from(new Set(rawData.map((item: any) => item.customer_code).filter(Boolean)));
+            let customerMap: Record<string, string> = {};
+            
+            if (customerCodes.length > 0) {
+                const cRes = await fetch(`${DIRECTUS_URL}/items/customer?filter[customer_code][_in]=${customerCodes.join(",")}&fields=customer_code,customer_name,store_name`, { headers: fetchHeaders });
+                if (cRes.ok) {
+                    const cData = (await cRes.json()).data || [];
+                    cData.forEach((c: any) => {
+                        customerMap[c.customer_code] = c.store_name || c.customer_name;
+                    });
+                }
+            }
+
+            const data = rawData.map((item: any) => ({
+                ...item,
+                salesman_name: item.salesman_id?.salesman_name || "N/A",
+                customer_name: customerMap[item.customer_code] || item.customer_code || "N/A",
+                salesman_id: item.salesman_id?.id || item.salesman_id
+            }));
+
+
+            return NextResponse.json({
+                data,
+                metadata: {
+                    totalCount: json.meta?.total_count || 0,
+                    page,
+                    limit
+                }
+            });
+        }
+
+
+        if (type === "details") {
+            const invoiceId = searchParams.get("invoiceId");
+            if (!invoiceId) return NextResponse.json({ error: "invoiceId required" }, { status: 400 });
+
+            // Fetch Header with expanded info
+            const headerRes = await fetch(`${DIRECTUS_URL}/items/sales_invoice/${invoiceId}?fields=*,salesman_id.salesman_name,salesman_id.salesman_code,branch_id.branch_name`, { headers: fetchHeaders });
+            const header = (await headerRes.json()).data || {};
+
+            // Fetch Details (Items) with expanded products
+            // Based on user schema: FK is invoice_no -> sales_invoice.invoice_id
+            const detRes = await fetch(`${DIRECTUS_URL}/items/sales_invoice_details?filter[invoice_no][_eq]=${invoiceId}&fields=*,product_id.product_id,product_id.product_name,product_id.product_code,product_id.description,product_id.short_description&limit=-1`, { headers: fetchHeaders });
+            const details = (await detRes.json()).data || [];
+
+            // For Returns and Memo, we can fetch them if tables exist
+            // confirmed: returning empty for now as requested
+            
+            return NextResponse.json({
+                header,
+                details,
+                linkedDocs: [] 
+            });
+        }
+
+        if (type === "salesmen") {
+            const res = await fetch(`${DIRECTUS_URL}/items/salesman?filter[isActive][_eq]=1&fields=*&limit=-1`, { headers: fetchHeaders, cache: "no-store" });
+            return NextResponse.json((await res.json()).data || []);
+        }
+
+        if (type === "sales_types") {
+            const res = await fetch(`${DIRECTUS_URL}/items/operation?fields=id,operation_name&limit=-1`, { headers: fetchHeaders, cache: "no-store" });
+            return NextResponse.json((await res.json()).data || []);
+        }
+
+        if (type === "customers") {
+            const search = searchParams.get("search") || "";
+            let url = `${DIRECTUS_URL}/items/customer?filter[isActive][_eq]=1&fields=customer_code,customer_name,store_name,city,province&limit=-1`;
+            if (search) {
+                url += `&filter[_or][0][customer_name][_icontains]=${encodeURIComponent(search)}&filter[_or][1][customer_code][_icontains]=${encodeURIComponent(search)}`;
+            }
+            const res = await fetch(url, { headers: fetchHeaders, cache: "no-store" });
+            return NextResponse.json((await res.json()).data || []);
+        }
+
+        return NextResponse.json({ error: "Invalid type" }, { status: 400 });
+
+    } catch (e: any) {
+        return NextResponse.json({ error: e.message }, { status: 500 });
+    }
+}
+
+export async function PATCH(req: NextRequest) {
+    try {
+        const body = await req.json();
+        const { action, invoiceId, customer_code, invoice_date, due_date, remarks, details, deletedDetailIds } = body;
+        
+        if (action === "save_adjustments") {
+            const userId = await resolveUserId();
+            const now = new Date().toISOString();
+
+            // 1. Process deleted items
+            if (deletedDetailIds && deletedDetailIds.length > 0) {
+                for (const id of deletedDetailIds) {
+                    await fetch(`${DIRECTUS_URL}/items/sales_invoice_details/${id}`, {
+                        method: "DELETE",
+                        headers: fetchHeaders
+                    });
+                }
+            }
+
+            // 2. Upsert items
+            for (const item of details) {
+                const method = item.detail_id ? "PATCH" : "POST";
+                const url = item.detail_id 
+                    ? `${DIRECTUS_URL}/items/sales_invoice_details/${item.detail_id}`
+                    : `${DIRECTUS_URL}/items/sales_invoice_details`;
+
+                await fetch(url, {
+                    method,
+                    headers: fetchHeaders,
+                    body: JSON.stringify({
+                        ...item,
+                        invoice_id: invoiceId
+                    })
+                });
+            }
+
+            // 3. Recalculate totals and Update Header
+            const detRes = await fetch(`${DIRECTUS_URL}/items/sales_invoice_details?filter[invoice_id][_eq]=${invoiceId}&fields=*&limit=-1`, { headers: fetchHeaders });
+            const currentDetails = (await detRes.json()).data || [];
+
+            let totalGross = 0;
+            let totalNet = 0;
+            let totalDiscount = 0;
+            let totalVat = 0;
+
+            currentDetails.forEach((d: any) => {
+                const qty = Number(d.quantity) || 0;
+                const price = Number(d.unit_price) || 0;
+                const disc = Number(d.discount_amount) || 0;
+                
+                const lineGross = qty * price;
+                const lineNet = lineGross - disc;
+                // Simple 12% VAT logic for now, or use what's in the DB if available
+                const lineVat = lineNet * 0.12; 
+
+                totalGross += lineGross;
+                totalDiscount += disc;
+                totalNet += lineNet;
+                totalVat += lineVat;
+            });
+
+            const headerUpdate = {
+                customer_code,
+                invoice_date,
+                due_date,
+                remarks,
+                gross_amount: totalGross,
+                discount_amount: totalDiscount,
+                net_amount: totalNet,
+                vat_amount: totalVat,
+                total_amount: totalNet + totalVat,
+                modified_by: userId,
+                modified_date: now
+            };
+
+            const hRes = await fetch(`${DIRECTUS_URL}/items/sales_invoice/${invoiceId}`, {
+                method: "PATCH",
+                headers: fetchHeaders,
+                body: JSON.stringify(headerUpdate)
+            });
+
+            if (!hRes.ok) throw new Error("Failed to update header");
+
+            return NextResponse.json({ success: true });
+        }
+
+        return NextResponse.json({ error: "Invalid action" }, { status: 400 });
+    } catch (e: any) {
+        return NextResponse.json({ error: e.message }, { status: 500 });
+    }
+}
+
+export async function POST(req: NextRequest) {
+    try {
+        const body = await req.json();
+        const { action, invoiceIds } = body;
+
+        if (action === "finalize_settlement") {
+            const userId = await resolveUserId();
+            const now = new Date().toISOString();
+
+            for (const id of invoiceIds) {
+                await fetch(`${DIRECTUS_URL}/items/sales_invoice/${id}`, {
+                    method: "PATCH",
+                    headers: fetchHeaders,
+                    body: JSON.stringify({
+                        isDispatched: 1,
+                        modified_by: userId,
+                        modified_date: now
+                    })
+                });
+            }
+
+            return NextResponse.json({ success: true });
+        }
+
+        return NextResponse.json({ error: "Invalid action" }, { status: 400 });
+    } catch (e: any) {
+        return NextResponse.json({ error: e.message }, { status: 500 });
+    }
+}
