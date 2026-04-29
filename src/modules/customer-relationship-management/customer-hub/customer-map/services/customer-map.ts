@@ -38,9 +38,97 @@ export class CustomerMapService {
       }
 
       const data = await response.json();
-      return Array.isArray(data) ? data : (data.data || []);
+      const customers: CustomerMapRecord[] = Array.isArray(data) ? data : (data.data || []);
+
+      // Apply area_per_cluster mapping to fill in missing clusters
+      try {
+        const mapping = await this.fetchAreaClusterMapping(activeToken);
+        return customers.map(customer => {
+          // If cluster is already set and not "N/A", keep it
+          if (customer.cluster && customer.cluster !== "N/A" && customer.cluster !== "") {
+            return customer;
+          }
+
+          const province = (customer.province || "").toUpperCase().trim();
+          const city = (customer.city || "").toUpperCase().trim();
+          const brgy = (customer.brgy || "").toUpperCase().trim();
+
+          // Try to find a match in the mapping with decreasing specificity
+          const clusterName =
+            (province && city && brgy && mapping[`${province}|${city}|${brgy}`]) ||
+            (province && city && mapping[`${province}|${city}`]) ||
+            (province && mapping[province]);
+
+          return {
+            ...customer,
+            cluster: clusterName || customer.cluster || "N/A"
+          };
+        });
+      } catch (mapErr) {
+        console.warn("Error applying area cluster mapping:", mapErr);
+        return customers;
+      }
     } catch (error) {
       throw error;
+    }
+  }
+
+  /**
+   * Fetches area to cluster mapping from Directus
+   */
+  static async fetchAreaClusterMapping(token?: string): Promise<Record<string, string>> {
+    const directusUrl = process.env.API_BASE_URL || process.env.NEXT_PUBLIC_API_BASE_URL || "";
+    const directusToken = process.env.DIRECTUS_STATIC_TOKEN;
+    if (!directusUrl) return {};
+
+    const activeToken = directusToken || token;
+    const baseUrl = directusUrl.replace(/\/+$/, "");
+
+    try {
+      // Fetch both area_per_cluster mapping and cluster names for lookup
+      const [areasRes, clustersRes] = await Promise.all([
+        fetch(`${baseUrl}/items/area_per_cluster?limit=-1`, {
+          headers: { "Authorization": `Bearer ${activeToken}` }
+        }),
+        fetch(`${baseUrl}/items/cluster?fields=id,cluster_name&limit=-1`, {
+          headers: { "Authorization": `Bearer ${activeToken}` }
+        })
+      ]);
+
+      if (!areasRes.ok || !clustersRes.ok) return {};
+
+      const areasResult = await areasRes.json();
+      const clustersResult = await clustersRes.json();
+
+      const areasData = areasResult.data || [];
+      const clustersData = clustersResult.data || [];
+
+      // Create a lookup for cluster names by ID
+      const clusterLookup: Record<number, string> = {};
+      clustersData.forEach((c: { id: number; cluster_name: string }) => {
+        clusterLookup[c.id] = c.cluster_name;
+      });
+
+      // Build the geographical mapping
+      const mapping: Record<string, string> = {};
+      areasData.forEach((a: { province: string | null; city: string | null; baranggay: string | null; cluster_id: number }) => {
+        const province = (a.province || "").toUpperCase().trim();
+        const city = (a.city || "").toUpperCase().trim();
+        const brgy = (a.baranggay || "").toUpperCase().trim();
+        const clusterName = clusterLookup[a.cluster_id];
+
+        if (clusterName) {
+          // Store mapping at multiple levels of specificity
+          if (province && city && brgy) mapping[`${province}|${city}|${brgy}`] = clusterName;
+          if (province && city) mapping[`${province}|${city}`] = clusterName;
+          if (province) mapping[province] = clusterName;
+        }
+      });
+
+      return mapping;
+    } catch (error) {
+      console.warn("Failed to fetch area-cluster mapping:", error);
+      return {};
     }
   }
 
@@ -50,7 +138,7 @@ export class CustomerMapService {
   static async fetchFilterOptions(field: string, token?: string): Promise<string[]> {
     const directusUrl = process.env.API_BASE_URL || process.env.NEXT_PUBLIC_API_BASE_URL || "";
     const directusToken = process.env.DIRECTUS_STATIC_TOKEN;
-    
+
     if (!directusUrl) return [];
 
     let endpoint = "";
@@ -93,10 +181,10 @@ export class CustomerMapService {
       });
 
       if (!response.ok) return [];
-      
+
       const result = await response.json();
       const items = result.data || [];
-      
+
       return Array.from(new Set(
         items.map((item: Record<string, unknown>) => String(item[dataField] || "").trim())
           .filter((val: string) => val !== "")

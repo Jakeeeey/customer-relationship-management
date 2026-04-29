@@ -100,18 +100,23 @@ export async function generatePriceListPDF({
             lastCategory = item.categoryCode;
 
             // Calculations based on Case Price
-            const casePrice = item.price;
+            const casePrice = item.price ?? 0;
             const pckg = item.pckg || 1;
             const piecePrice = casePrice / pckg;
             
+            const formatCurrency = (val: number | null) => {
+                const num = val ?? 0;
+                return num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            };
+
             return [
                 isFirstInGroup ? item.categoryCode : "", // Only show for first in group
                 item.productName,
                 item.productCode || "", // FG CODE
                 item.pckg,
-                casePrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
-                piecePrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
-                piecePrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                formatCurrency(casePrice),
+                formatCurrency(piecePrice),
+                formatCurrency(piecePrice)
             ];
         });
 

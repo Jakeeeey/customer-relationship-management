@@ -202,10 +202,27 @@ export async function POST(req: NextRequest) {
                 };
 
                 const targetId = receipt.target_id || order.existing_invoice_no;
+                let isVoidReplacement = false;
 
                 if (targetId) {
+                    // ── Check if this is a VOID replacement (Immutable History Rule) ──
+                    try {
+                        const checkRes = await fetch(`${DIRECTUS_BASE}/items/sales_invoice/${targetId}?fields=transaction_status`, {
+                            headers: directusHeaders()
+                        });
+                        if (checkRes.ok) {
+                            const checkData = await checkRes.json();
+                            if (checkData.data?.transaction_status === "Void") {
+                                isVoidReplacement = true;
+                                console.log(`[VOID] Detected void status for invoice ${targetId}. Proceeding with immutable POST.`);
+                            }
+                        }
+                    } catch (e) {
+                        console.warn("[VOID Check] Failed to verify status of targetId:", e);
+                    }
+
                     // ── A. Adjust Inventory before replacing (VOID/Recycled) ──
-                    // Fetch old details to subtract from served/applied quantities and get IDs for explicit cleanup
+                    // Fetch old details to subtract from served/applied quantities
                     const oldDetailIds: number[] = [];
                     try {
                         const oldDetailsRes = await fetch(`${DIRECTUS_BASE}/items/sales_invoice_details?filter[invoice_no][_eq]=${targetId}&fields=detail_id,product_id,quantity`, {
@@ -266,34 +283,37 @@ export async function POST(req: NextRequest) {
                             }
                         }
                     } catch (e) {
-                        console.warn("Failed to process quantity adjustment for VOID replacement:", e);
+                        console.warn("Failed to process quantity adjustment for replacement:", e);
                     }
 
-                    // ── B. Update existing invoice (Voided or Recycled) ──
-                    const patchRes = await fetch(`${DIRECTUS_BASE}/items/sales_invoice/${targetId}`, {
-                        method: 'PATCH',
-                        headers: directusHeaders(),
-                        body: JSON.stringify(invoicePayload)
-                    });
-                    if (!patchRes.ok) throw new Error(await patchRes.text());
-                    targetInvoiceId = targetId;
-                    
-                    // Clear old details for this invoice before adding new ones
-                    // Use explicit IDs if available, otherwise fallback to filter
-                    if (oldDetailIds.length > 0) {
-                        await fetch(`${DIRECTUS_BASE}/items/sales_invoice_details`, {
-                            method: 'DELETE',
+                    if (!isVoidReplacement) {
+                        // ── B. Update existing invoice (Non-Void/Recycled) ──
+                        const patchRes = await fetch(`${DIRECTUS_BASE}/items/sales_invoice/${targetId}`, {
+                            method: 'PATCH',
                             headers: directusHeaders(),
-                            body: JSON.stringify(oldDetailIds)
+                            body: JSON.stringify(invoicePayload)
                         });
-                    } else {
-                        await fetch(`${DIRECTUS_BASE}/items/sales_invoice_details?filter[invoice_no][_eq]=${targetInvoiceId}`, {
-                            method: 'DELETE',
-                            headers: directusHeaders()
-                        });
+                        if (!patchRes.ok) throw new Error(await patchRes.text());
+                        targetInvoiceId = targetId;
+                        
+                        // Clear old details for this invoice before adding new ones
+                        if (oldDetailIds.length > 0) {
+                            await fetch(`${DIRECTUS_BASE}/items/sales_invoice_details`, {
+                                method: 'DELETE',
+                                headers: directusHeaders(),
+                                body: JSON.stringify(oldDetailIds)
+                            });
+                        } else {
+                            await fetch(`${DIRECTUS_BASE}/items/sales_invoice_details?filter[invoice_no][_eq]=${targetInvoiceId}`, {
+                                method: 'DELETE',
+                                headers: directusHeaders()
+                            });
+                        }
                     }
-                } else {
-                    // ── Create new invoice ──
+                }
+                
+                if (!targetInvoiceId) {
+                    // ── Create new invoice (Normal or VOID Replacement) ──
                     invoicePayload.created_by = createdBy;
                     invoicePayload.created_date = now;
                     

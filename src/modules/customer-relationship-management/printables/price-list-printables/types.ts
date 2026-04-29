@@ -17,7 +17,7 @@ export interface PriceListItem {
     productName: string;
     pckg: number;
     unit: string;
-    price: number;
+    price: number | null;
     priceType: string;
 }
 
