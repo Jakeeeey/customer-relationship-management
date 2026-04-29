@@ -49,7 +49,11 @@ export function StoreTypeFormDialog({
             : "Review the selected store type details.";
 
     const handleSubmit = async () => {
-        await onSubmit(typeValue);
+        try {
+            await onSubmit(typeValue);
+        } catch {
+            // Error toast is already handled by the hook/provider flow.
+        }
     };
 
     return (
@@ -98,9 +102,6 @@ export function StoreTypeFormDialog({
                 </div>
 
                 <DialogFooter className="border-t bg-muted/30 px-6 py-4">
-                    <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSubmitting} className="min-w-24">
-                        {isView ? "Close" : "Cancel"}
-                    </Button>
                     {!isView ? (
                         <Button
                             onClick={() => void handleSubmit()}

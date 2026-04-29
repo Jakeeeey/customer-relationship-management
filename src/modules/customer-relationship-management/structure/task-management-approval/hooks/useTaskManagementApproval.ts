@@ -222,33 +222,36 @@ export const useTaskManagementApproval = () => {
         // 4. Map with details and progress
         return targets.map(t => {
             const customer = data.customers.find(c => c.id === t.customer_id);
+            const targetAmount = Number(t.target_amount || 0);
             const assignedAmount = currentMonthActions
                 .filter(ap => ap.customer_id === t.customer_id)
-                .reduce((sum, ap) => sum + (ap.sales_amount || 0), 0);
+                .reduce((sum, ap) => sum + Number(ap.sales_amount || 0), 0);
             
             return {
                 ...t,
+                target_amount: targetAmount,
                 customer_name: customer?.customer_name || "Unknown Customer",
                 store_name: customer?.store_name || "Unknown Store",
                 customer_code: customer?.customer_code || "N/A",
                 assignedAmount,
-                isFullyAllocated: assignedAmount >= t.target_amount && t.target_amount > 0,
-                remainingAmount: Math.max(0, t.target_amount - assignedAmount)
+                isFullyAllocated: assignedAmount >= targetAmount && targetAmount > 0,
+                remainingAmount: Math.max(0, targetAmount - assignedAmount)
             };
         });
     }, [data, selectedSalesmanId, currentDate]);
 
     const handleCreateMCP = async () => {
-        if (!selectedSalesmanId || !selectedEmployeeId) return undefined;
+        if (!data || !data.currentUserId || !selectedSalesmanId || !selectedEmployeeId) return undefined;
         try {
-            const salesman = data?.salesmen.find(s => String(s.id) === selectedSalesmanId);
+            const salesman = data.salesmen.find(s => String(s.id) === selectedSalesmanId);
             if (!salesman) throw new Error("Salesman not found");
 
             const newMcp = await createMCP({
                 salesman_id: parseInt(selectedSalesmanId),
                 employee_id: salesman.employee_id,
                 month: getMonth(currentDate) + 1,
-                year: getYear(currentDate)
+                year: getYear(currentDate),
+                created_by: data.currentUserId
             });
             return newMcp;
         } catch {
@@ -272,22 +275,40 @@ export const useTaskManagementApproval = () => {
     const handleSetDailyTarget = async (customerId: number, date: string, amount: number) => {
         if (!data) return false;
 
-        try {
-            // 1. Identify "Sales" Task ID
-            const salesTask = data.tasks.find(t => t.name.toLowerCase() === "sales");
-            if (!salesTask) {
-                toast.error("Required task type 'Sales' not found in system");
+        // 1. Identify "Sales" Task ID
+        const salesTask = data.tasks.find(t => t.name.toLowerCase() === "sales");
+        if (!salesTask) {
+            toast.error("Required task type 'Sales' not found in system");
+            return false;
+        }
+
+        // 2. Find existing task on that day for this customer (if any)
+        const existing = data.actionPlans.find(ap => 
+            ap.customer_id === customerId && 
+            ap.date === date && 
+            ap.task_id === salesTask.id &&
+            String(ap.salesman_id) === selectedSalesmanId
+        );
+
+        // 3. Validation: Check if this new amount would exceed the total target
+        const allocation = customerAllocations.find(a => a.customer_id === customerId);
+        if (allocation) {
+            // Calculate what the new total would be
+            const currentTotal = allocation.assignedAmount;
+            const existingDayAmount = existing ? Number(existing.sales_amount || 0) : 0;
+            const projectedTotal = currentTotal - existingDayAmount + amount;
+
+            if (projectedTotal > allocation.target_amount) {
+                const maxAllowedForThisDay = allocation.target_amount - (currentTotal - existingDayAmount);
+                toast.error("Target Exceeded", {
+                    description: `Total target is ₱${allocation.target_amount.toLocaleString()}. Current total elsewhere is ₱${(currentTotal - existingDayAmount).toLocaleString()}. Max you can set for this day is ₱${maxAllowedForThisDay.toLocaleString()}.`,
+                    duration: 6000
+                });
                 return false;
             }
+        }
 
-            // 2. Check for existing task on that day for this customer
-            const existing = data.actionPlans.find(ap => 
-                ap.customer_id === customerId && 
-                ap.date === date && 
-                ap.task_id === salesTask.id &&
-                String(ap.salesman_id) === selectedSalesmanId
-            );
-
+        try {
             if (existing) {
                 return await handleUpdateTask(existing.id, { sales_amount: amount });
             }
@@ -314,9 +335,12 @@ export const useTaskManagementApproval = () => {
                 employee_id: salesman?.employee_id,
                 date: date,
                 sales_amount: amount,
-                approval_status: "approved", // Supervisors' assignments are auto-approved
+                approval_status: "pending", // Supervisors' assignments are pending for final review/visibility
                 priority_level: "mid",
-                additional_description: "Sales Target Allocation"
+                additional_description: "Sales Target Allocation",
+                is_completed: 0,
+                created_at: new Date().toISOString(),
+                created_by: data.currentUserId
             };
 
             const result = await createDailyActionPlan(payload);

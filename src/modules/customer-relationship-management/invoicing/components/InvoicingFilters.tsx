@@ -74,7 +74,9 @@ export const InvoicingFiltersComponent: React.FC<InvoicingFiltersProps> = ({ onF
         const data = await InvoicingService.getSalesmen(search);
         const options = data.map(s => ({
             value: String(s.id),
-            label: s.salesman_name || `Unknown Salesman (${s.salesman_code})`,
+            label: s.salesman_name && s.salesman_code 
+                ? `${s.salesman_name} - ${s.salesman_code}` 
+                : s.salesman_name || s.salesman_code || `Unknown Salesman (${s.id})`,
         }));
         return [{ value: "", label: "All Salesmen" }, ...options];
     };

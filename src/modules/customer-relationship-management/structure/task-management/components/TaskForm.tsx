@@ -40,10 +40,20 @@ const taskSchema = z.object({
     name: z.string().min(1, "Brief description is required"),
     customer_id: z.string().min(1, "Customer is required"),
     priority_level: z.string().min(1, "Priority is required"),
-    remarks: z.string().optional(),
+    review_remarks: z.string().optional(),
     sales_amount: z.string().optional(),
     collection_amount: z.string().optional(),
-});
+    province: z.string().optional(),
+    province_code: z.string().optional(),
+    city: z.string().optional(),
+    city_code: z.string().optional(),
+    barangay: z.string().optional(),
+    barangay_code: z.string().optional(),
+}).superRefine(() => {
+    // Strict conditional validation can be added here
+},);
+
+
 
 interface LocalSearchableSelectProps {
     options: { value: string; label: string }[];
@@ -139,18 +149,97 @@ export const TaskForm: React.FC<TaskFormProps> = ({
     selectedEmployeeId,
     selectedDate,
 }) => {
-    const { control, handleSubmit, reset, formState: { isSubmitting } } = useForm<TaskFormValues>({
+    const [provinces, setProvinces] = React.useState<{ code: string; name: string }[]>([]);
+    const [cities, setCities] = React.useState<{ code: string; name: string }[]>([]);
+    const [barangays, setBarangays] = React.useState<{ code: string; name: string }[]>([]);
+    const [isLoadingLocations, setIsLoadingLocations] = React.useState(false);
+
+    const { control, handleSubmit, reset, watch, setValue, formState: { isSubmitting } } = useForm<TaskFormValues>({
         resolver: zodResolver(taskSchema),
         defaultValues: {
             task_id: "",
             name: "",
             customer_id: "",
             priority_level: "",
-            remarks: "",
+            review_remarks: "",
             sales_amount: "",
             collection_amount: "",
+            province: "",
+            province_code: "",
+            city: "",
+            city_code: "",
+            barangay: "",
+            barangay_code: "",
         }
     });
+
+    const watchedTaskId = watch("task_id");
+    const watchedProvinceCode = watch("province_code");
+    const watchedCityCode = watch("city_code");
+
+    const selectedTaskType = React.useMemo(() => 
+        tasks.find(t => String(t.id) === watchedTaskId), 
+    [tasks, watchedTaskId]);
+
+    const isAreaVisit = selectedTaskType?.name.toLowerCase().includes("area visit");
+    const isSales = selectedTaskType?.name.toLowerCase().includes("sales");
+    const isCollection = selectedTaskType?.name.toLowerCase().includes("collection");
+
+    // Fetch Provinces
+    React.useEffect(() => {
+        const fetchProvinces = async () => {
+            try {
+                const res = await fetch("https://psgc.gitlab.io/api/provinces/");
+                const data = await res.json();
+                setProvinces(data.sort((a: { name: string }, b: { name: string }) => a.name.localeCompare(b.name)));
+            } catch (error) {
+                console.error("Failed to fetch provinces", error);
+            }
+        };
+        fetchProvinces();
+    }, []);
+
+    // Fetch Cities when province changes
+    React.useEffect(() => {
+        if (!watchedProvinceCode) {
+            setCities([]);
+            return;
+        }
+        const fetchCities = async () => {
+            setIsLoadingLocations(true);
+            try {
+                const res = await fetch(`https://psgc.gitlab.io/api/provinces/${watchedProvinceCode}/cities-municipalities/`);
+                const data = await res.json();
+                setCities(data.sort((a: { name: string }, b: { name: string }) => a.name.localeCompare(b.name)));
+            } catch (error) {
+                console.error("Failed to fetch cities", error);
+            } finally {
+                setIsLoadingLocations(false);
+            }
+        };
+        fetchCities();
+    }, [watchedProvinceCode]);
+
+    // Fetch Barangays when city changes
+    React.useEffect(() => {
+        if (!watchedCityCode) {
+            setBarangays([]);
+            return;
+        }
+        const fetchBarangays = async () => {
+            setIsLoadingLocations(true);
+            try {
+                const res = await fetch(`https://psgc.gitlab.io/api/cities-municipalities/${watchedCityCode}/barangays/`);
+                const data = await res.json();
+                setBarangays(data.sort((a: { name: string }, b: { name: string }) => a.name.localeCompare(b.name)));
+            } catch (error) {
+                console.error("Failed to fetch barangays", error);
+            } finally {
+                setIsLoadingLocations(false);
+            }
+        };
+        fetchBarangays();
+    }, [watchedCityCode]);
 
     React.useEffect(() => {
         if (initialData) {
@@ -160,9 +249,12 @@ export const TaskForm: React.FC<TaskFormProps> = ({
                 name: parts[0] || "",
                 customer_id: String(initialData.customer_id),
                 priority_level: initialData.priority_level,
-                remarks: parts[1] || "",
+                review_remarks: initialData.reviewed_at ? (parts[2] || "") : "", // Assuming review remarks as 3rd part
                 sales_amount: initialData.sales_amount ? String(initialData.sales_amount) : "",
                 collection_amount: initialData.collection_amount ? String(initialData.collection_amount) : "",
+                province: initialData.province || "",
+                city: initialData.city || "",
+                barangay: initialData.barangay || "",
             });
         } else {
             reset({
@@ -170,30 +262,76 @@ export const TaskForm: React.FC<TaskFormProps> = ({
                 name: "",
                 customer_id: "",
                 priority_level: "",
-                remarks: "",
+                review_remarks: "",
                 sales_amount: "",
                 collection_amount: "",
+                province: "",
+                city: "",
+                barangay: "",
             });
         }
     }, [initialData, reset]);
+    // Attempt to set province_code when initialData.province exists and provinces are loaded
+    React.useEffect(() => {
+        if (initialData?.province && provinces.length > 0 && !watchedProvinceCode) {
+            const found = provinces.find(p => p.name.toLowerCase() === initialData.province?.toLowerCase());
+            if (found) setValue("province_code", found.code);
+        }
+    }, [initialData, provinces, watchedProvinceCode, setValue]);
+
+    // Attempt to set city_code when initialData.city exists and cities are loaded
+    React.useEffect(() => {
+        if (initialData?.city && cities.length > 0 && !watchedCityCode) {
+            const found = cities.find(c => c.name.toLowerCase() === initialData.city?.toLowerCase());
+            if (found) setValue("city_code", found.code);
+        }
+    }, [initialData, cities, watchedCityCode, setValue]);
+
+    // Attempt to set barangay_code when initialData.barangay exists and barangays are loaded
+    React.useEffect(() => {
+        if (initialData?.barangay && barangays.length > 0) {
+            const watchedBarangayCode = control._formValues.barangay_code;
+            if (!watchedBarangayCode) {
+                const found = barangays.find(b => b.name.toLowerCase() === initialData.barangay?.toLowerCase());
+                if (found) setValue("barangay_code", found.code);
+            }
+        }
+    }, [initialData, barangays, setValue, control._formValues.barangay_code]);
 
     const handleFormSubmit = async (values: TaskFormValues) => {
+        // Manual validation for conditional fields
+        if (isAreaVisit && (!values.province_code || !values.city_code || !values.barangay_code)) {
+            onValidationError();
+            return;
+        }
+        if (isSales && (!values.sales_amount || parseFloat(values.sales_amount) <= 0)) {
+            onValidationError();
+            return;
+        }
+        if (isCollection && (!values.collection_amount || parseFloat(values.collection_amount) <= 0)) {
+            onValidationError();
+            return;
+        }
+
         const selectedCustomer = customers.find(c => String(c.id) === values.customer_id);
         
+        let additionalDesc = values.name;
+        if (values.review_remarks) additionalDesc += ` | ${values.review_remarks}`;
+
         const payload = {
             task_id: parseInt(values.task_id),
             customer_id: parseInt(values.customer_id),
             priority_level: values.priority_level,
-            additional_description: values.name + (values.remarks ? ` | ${values.remarks}` : ""),
+            additional_description: additionalDesc,
             salesman_id: parseInt(selectedSalesmanId),
             employee_id: parseInt(selectedEmployeeId),
             date: selectedDate ? format(selectedDate, "yyyy-MM-dd") : format(new Date(), "yyyy-MM-dd"),
-            province: selectedCustomer?.province || null,
-            city: selectedCustomer?.city || null,
-            barangay: selectedCustomer?.barangay || null,
-            sales_amount: values.sales_amount ? parseFloat(values.sales_amount) : 0,
-            collection_amount: values.collection_amount ? parseFloat(values.collection_amount) : 0,
-            approval_status: "pending",
+            province: isAreaVisit ? values.province : (selectedCustomer?.province || null),
+            city: isAreaVisit ? values.city : (selectedCustomer?.city || null),
+            barangay: isAreaVisit ? values.barangay : (selectedCustomer?.barangay || null),
+            sales_amount: isSales ? parseFloat(values.sales_amount || "0") : 0,
+            collection_amount: isCollection ? parseFloat(values.collection_amount || "0") : 0,
+            approval_status: initialData?.approval_status || "pending",
             ...(initialData?.id && { id: initialData.id })
         };
 
@@ -202,7 +340,7 @@ export const TaskForm: React.FC<TaskFormProps> = ({
 
     const onValidationError = () => {
         toast.error("Please complete all required fields (*)", {
-            description: "Task Type, Brief Description, Target Customer, and Priority Level are required.",
+            description: "Task Type, Description, Customer, and Priority (plus conditional Location or Targets) are required.",
             duration: 4000,
         });
     };
@@ -342,9 +480,96 @@ export const TaskForm: React.FC<TaskFormProps> = ({
                     />
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2.5">
-                        <Label className="text-[11px] uppercase font-black tracking-[0.15em] text-primary/70">5. Sales Amount Target</Label>
+                {isAreaVisit && (
+                    <div className="space-y-6 animate-in fade-in slide-in-from-top-2 duration-500">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div className="space-y-2.5">
+                                <Label className="text-[11px] uppercase font-black tracking-[0.15em] text-primary/70 flex items-center gap-1.5">
+                                    Province <span className="text-red-500 text-lg leading-none">*</span>
+                                </Label>
+                                <Controller
+                                    name="province_code"
+                                    control={control}
+                                    render={({ field }) => (
+                                        <LocalSearchableSelect
+                                            options={provinces.map(p => ({ 
+                                                value: p.code, 
+                                                label: p.name 
+                                            }))}
+                                            value={field.value}
+                                            onValueChange={(val) => {
+                                                field.onChange(val);
+                                                const name = provinces.find(p => p.code === val)?.name || "";
+                                                setValue("province", name);
+                                                setValue("city_code", "");
+                                                setValue("city", "");
+                                                setValue("barangay_code", "");
+                                                setValue("barangay", "");
+                                            }}
+                                            placeholder="Select Province"
+                                        />
+                                    )}
+                                />
+                            </div>
+                            <div className="space-y-2.5">
+                                <Label className="text-[11px] uppercase font-black tracking-[0.15em] text-primary/70 flex items-center gap-1.5">
+                                    City/Municipality <span className="text-red-500 text-lg leading-none">*</span>
+                                </Label>
+                                <Controller
+                                    name="city_code"
+                                    control={control}
+                                    render={({ field }) => (
+                                        <LocalSearchableSelect
+                                            options={cities.map(c => ({ 
+                                                value: c.code, 
+                                                label: c.name 
+                                            }))}
+                                            value={field.value}
+                                            onValueChange={(val) => {
+                                                field.onChange(val);
+                                                const name = cities.find(c => c.code === val)?.name || "";
+                                                setValue("city", name);
+                                                setValue("barangay_code", "");
+                                                setValue("barangay", "");
+                                            }}
+                                            placeholder={isLoadingLocations ? "Loading..." : "Select City"}
+                                        />
+                                    )}
+                                />
+                            </div>
+                            <div className="space-y-2.5">
+                                <Label className="text-[11px] uppercase font-black tracking-[0.15em] text-primary/70 flex items-center gap-1.5">
+                                    Barangay <span className="text-red-500 text-lg leading-none">*</span>
+                                </Label>
+                                <Controller
+                                    name="barangay_code"
+                                    control={control}
+                                    render={({ field }) => (
+                                        <LocalSearchableSelect
+                                            options={barangays.map(b => ({ 
+                                                value: b.code, 
+                                                label: b.name 
+                                            }))}
+                                            value={field.value}
+                                            onValueChange={(val) => {
+                                                field.onChange(val);
+                                                const name = barangays.find(b => b.code === val)?.name || "";
+                                                setValue("barangay", name);
+                                            }}
+                                            placeholder={isLoadingLocations ? "Loading..." : "Select Barangay"}
+                                        />
+                                    )}
+                                />
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {isSales && (
+                    <div className="space-y-2.5 animate-in fade-in slide-in-from-top-2 duration-500">
+                        <Label className="text-[11px] uppercase font-black tracking-[0.15em] text-primary/70 flex items-center gap-1.5">
+                            Sales Amount Target <span className="text-red-500 text-lg leading-none">*</span>
+                        </Label>
                         <Controller
                             name="sales_amount"
                             control={control}
@@ -353,14 +578,19 @@ export const TaskForm: React.FC<TaskFormProps> = ({
                                     {...field} 
                                     type="number"
                                     step="0.01"
-                                    placeholder="0.00" 
+                                    placeholder="Enter target sales amount (₱)" 
                                     className="bg-muted/30 border-primary/10 h-12 text-base focus:ring-primary/20"
                                 />
                             )}
                         />
                     </div>
-                    <div className="space-y-2.5">
-                        <Label className="text-[11px] uppercase font-black tracking-[0.15em] text-primary/70">6. Collection Target</Label>
+                )}
+
+                {isCollection && (
+                    <div className="space-y-2.5 animate-in fade-in slide-in-from-top-2 duration-500">
+                        <Label className="text-[11px] uppercase font-black tracking-[0.15em] text-primary/70 flex items-center gap-1.5">
+                            Collection Target <span className="text-red-500 text-lg leading-none">*</span>
+                        </Label>
                         <Controller
                             name="collection_amount"
                             control={control}
@@ -369,24 +599,30 @@ export const TaskForm: React.FC<TaskFormProps> = ({
                                     {...field} 
                                     type="number"
                                     step="0.01"
-                                    placeholder="0.00" 
+                                    placeholder="Enter target collection amount (₱)" 
                                     className="bg-muted/30 border-primary/10 h-12 text-base focus:ring-primary/20"
                                 />
                             )}
                         />
                     </div>
-                </div>
+                )}
+
+                {!isAreaVisit && !isSales && !isCollection && (
+                    <div className="space-y-2.5 opacity-50">
+                        <p className="text-[10px] uppercase font-bold text-muted-foreground italic">No additional fields for this task type</p>
+                    </div>
+                )}
 
                 <div className="space-y-2.5">
-                    <Label className="text-[11px] uppercase font-black tracking-[0.15em] text-primary/70">7. Special Instructions</Label>
+                    <Label className="text-[11px] uppercase font-black tracking-[0.15em] text-primary/70">Review Remarks</Label>
                     <Controller
-                        name="remarks"
+                        name="review_remarks"
                         control={control}
                         render={({ field }) => (
                             <Textarea 
                                 {...field} 
-                                placeholder="Provide specific details for the salesman to follow..." 
-                                className="bg-muted/30 border-primary/10 min-h-[120px] resize-none focus:ring-primary/20 text-base"
+                                placeholder="Supervisor's feedback or review notes..." 
+                                className="bg-muted/30 border-primary/10 min-h-[100px] resize-none focus:ring-primary/20 text-base border-dashed"
                             />
                         )}
                     />

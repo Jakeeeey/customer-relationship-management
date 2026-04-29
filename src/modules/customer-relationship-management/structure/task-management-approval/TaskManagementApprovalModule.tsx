@@ -17,11 +17,14 @@ import { DailyActionPlan } from "./types";
 import { 
     DndContext, 
     DragEndEvent, 
+    DragStartEvent,
     PointerSensor, 
     useSensor, 
-    useSensors 
+    useSensors,
+    DragOverlay
 } from "@dnd-kit/core";
 import { SetDailyTargetDialog } from "./components/SetDailyTargetDialog";
+import { CustomerTargetCard } from "./components/AllocationSidePanel";
 
 const months = [
     "January", "February", "March", "April", "May", "June",
@@ -59,6 +62,7 @@ export default function TaskManagementApprovalModule() {
 
     // Target Allocation Modal State
     const [isTargetDialogOpen, setIsTargetDialogOpen] = useState(false);
+    const [activeId, setActiveId] = useState<string | null>(null);
     const [allocationData, setAllocationData] = useState<{ 
         customerId: number; 
         customerName: string; 
@@ -99,8 +103,13 @@ export default function TaskManagementApprovalModule() {
         return success;
     };
 
+    const handleDragStart = (event: DragStartEvent) => {
+        setActiveId(event.active.id.toString());
+    };
+
     const handleDragEnd = (event: DragEndEvent) => {
         const { active, over } = event;
+        setActiveId(null);
         if (!over || !active) return;
 
         if (selectedSalesmanId === "all") {
@@ -174,7 +183,7 @@ export default function TaskManagementApprovalModule() {
     }
 
     return (
-        <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+        <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
             <div className="flex flex-col min-h-full max-w-[1600px] mx-auto w-full pb-20 relative px-4">
             {isRefreshing && (
                 <div className="absolute top-4 right-8 z-50 flex items-center gap-3 bg-white/80 backdrop-blur-xl border border-primary/20 px-4 py-2 rounded-full shadow-2xl animate-in fade-in slide-in-from-top-4">
@@ -289,6 +298,18 @@ export default function TaskManagementApprovalModule() {
                     }}
                 />
             )}
+
+            <DragOverlay dropAnimation={null}>
+                {activeId ? (
+                    <div className="w-[300px] pointer-events-none">
+                        {(() => {
+                            const customerId = parseInt(activeId.replace("customer-", ""));
+                            const customer = customerAllocations.find(a => a.customer_id === customerId);
+                            return customer ? <CustomerTargetCard alloc={customer} isDragging /> : null;
+                        })()}
+                    </div>
+                ) : null}
+            </DragOverlay>
             </div>
         </DndContext>
     );
