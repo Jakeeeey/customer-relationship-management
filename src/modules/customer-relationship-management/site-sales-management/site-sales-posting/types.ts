@@ -65,6 +65,7 @@ export const SalesInvoiceDetailSchema = z.object({
     unit_price: z.number().min(0),
     discount_amount: z.number().min(0).default(0),
     discount_type: z.number().or(z.string()).nullable().optional(),
+    discount_type_name: z.string().nullable().optional(),
     
     // Virtual fields for calculation
     gross_amount: z.number().optional(),
@@ -91,12 +92,22 @@ export interface SalesType {
 }
 
 export interface LinkedDocument {
-    id: string | number;
-    type: "RETURN" | "MEMO" | "PAYMENT";
+    id: number;
+    type: "RETURN" | "MEMO";
     reference_no: string;
     date: string;
     amount: number;
-    status?: string;
+    status: string;
+    items?: {
+        id: number;
+        product_name: string;
+        quantity: number;
+        unit_price: number;
+        total_amount: number;
+        discount_amount: number;
+        discount_type_name?: string | null;
+        reason?: string;
+    }[];
 }
 
 export interface WorklistFilters {

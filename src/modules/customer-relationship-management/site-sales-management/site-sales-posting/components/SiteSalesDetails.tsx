@@ -13,8 +13,7 @@ import {
     User, 
     MapPin, 
     Plus,
-    CheckCircle2,
-    RotateCcw
+    CheckCircle2
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -282,7 +281,7 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
                                                     <TableCell className="text-center font-black text-primary">{item.quantity}</TableCell>
                                                     <TableCell className="text-right font-bold text-slate-600">₱{Number(item.unit_price).toLocaleString()}</TableCell>
                                                     <TableCell className="text-right font-bold text-slate-600">₱{Number(item.gross_amount || (item.quantity * item.unit_price)).toLocaleString()}</TableCell>
-                                                    <TableCell className="text-[10px] font-bold text-slate-400 uppercase">{item.discount_type || 'No Discount'}</TableCell>
+                                                    <TableCell className="text-[10px] font-bold text-slate-400 uppercase">{item.discount_type_name || item.discount_type || 'No Discount'}</TableCell>
                                                     <TableCell className="text-right font-bold text-slate-600">₱{Number(item.discount_amount || 0).toLocaleString()}</TableCell>
                                                     <TableCell className="text-right font-black text-slate-900 dark:text-white">₱{Number(item.total_amount).toLocaleString()}</TableCell>
                                                 </TableRow>
@@ -304,20 +303,75 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
                                 ) : (
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                         {linkedDocs.filter(d => d.type === "RETURN").map((doc) => (
-                                            <div key={doc.id} className="flex justify-between items-center p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-800 hover:border-primary/30 transition-all cursor-pointer group shadow-sm">
-                                                <div className="flex items-center gap-4">
-                                                    <div className="h-10 w-10 bg-rose-100 dark:bg-rose-900/30 rounded-xl flex items-center justify-center">
-                                                        <RotateCcw className="h-5 w-5 text-rose-600" />
+                                            <div key={doc.id} className="flex flex-col p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-800 hover:border-primary/30 transition-all group shadow-sm">
+                                                <div className="flex justify-between items-center mb-4 pb-4 border-b border-slate-100 dark:border-slate-800">
+                                                    <div className="flex items-center gap-4">
+                                                        <div>
+                                                            <p className="text-[10px] font-black text-rose-500 uppercase tracking-widest">{doc.type}</p>
+                                                            <p className="text-sm font-black text-slate-800 dark:text-slate-200">{doc.reference_no}</p>
+                                                            <p className="text-[10px] text-slate-400 font-bold uppercase">{doc.date ? format(parseISO(doc.date), 'MMM dd, yyyy') : '--'}</p>
+                                                        </div>
                                                     </div>
-                                                    <div>
-                                                        <p className="text-[10px] font-black text-rose-500 uppercase tracking-widest">{doc.type}</p>
-                                                        <p className="text-sm font-black text-slate-800 dark:text-slate-200">{doc.reference_no}</p>
-                                                        <p className="text-[10px] text-slate-400 font-bold uppercase">{doc.date ? format(parseISO(doc.date), 'MMM dd, yyyy') : '--'}</p>
+                                                    <div className="text-right">
+                                                        <p className="text-lg font-black text-slate-900 dark:text-white">₱{doc.amount.toLocaleString()}</p>
+                                                        <Badge variant="outline" className="text-[9px] font-black bg-white dark:bg-slate-900">{doc.status || 'LINKED'}</Badge>
                                                     </div>
                                                 </div>
-                                                <div className="text-right">
-                                                    <p className="text-lg font-black text-slate-900 dark:text-white">₱{doc.amount.toLocaleString()}</p>
-                                                    <Badge variant="outline" className="text-[9px] font-black bg-white dark:bg-slate-900">{doc.status || 'LINKED'}</Badge>
+
+                                                {/* Items List */}
+                                                <div className="space-y-2">
+                                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Return Items</p>
+                                                    {doc.items && doc.items.length > 0 ? (
+                                                        <div className="rounded-xl border border-slate-100 dark:border-slate-800 overflow-hidden bg-white/50 dark:bg-slate-900/50">
+                                                            <Table>
+                                                                <TableHeader className="bg-slate-50/50 dark:bg-slate-800/50">
+                                                                    <TableRow className="border-none hover:bg-transparent">
+                                                                        <TableHead className="text-[9px] font-black uppercase tracking-widest text-slate-400 h-9">Product Name</TableHead>
+                                                                        <TableHead className="text-[9px] font-black uppercase tracking-widest text-slate-400 h-9 text-right">Price</TableHead>
+                                                                        <TableHead className="text-[9px] font-black uppercase tracking-widest text-slate-400 h-9 text-right">Discount</TableHead>
+                                                                        <TableHead className="text-[9px] font-black uppercase tracking-widest text-slate-400 h-9 text-center">Dis Type</TableHead>
+                                                                        <TableHead className="text-[9px] font-black uppercase tracking-widest text-slate-400 h-9 text-center">Qty</TableHead>
+                                                                        <TableHead className="text-[9px] font-black uppercase tracking-widest text-slate-400 h-9 text-right">Total Amount</TableHead>
+                                                                    </TableRow>
+                                                                </TableHeader>
+                                                                <TableBody>
+                                                                    {doc.items.map((item) => (
+                                                                        <TableRow key={item.id} className="hover:bg-white dark:hover:bg-slate-900 border-slate-100 dark:border-slate-800/50">
+                                                                            <TableCell className="py-3">
+                                                                                <div className="max-w-[250px] lg:max-w-[350px]">
+                                                                                    <p className="font-black text-slate-800 dark:text-slate-200 text-[11px] uppercase line-clamp-2 tracking-tight leading-tight">{item.product_name}</p>
+                                                                                    {item.reason && <p className="text-[9px] text-slate-400 italic mt-1 font-medium truncate">Reason: {item.reason}</p>}
+                                                                                </div>
+                                                                            </TableCell>
+                                                                            <TableCell className="text-right font-bold text-slate-500 dark:text-slate-400 text-[10px]">
+                                                                                ₱{Number(item.unit_price).toLocaleString()}
+                                                                            </TableCell>
+                                                                            <TableCell className="text-right font-black text-rose-500 text-[11px]">
+                                                                                ₱{Number(item.discount_amount || 0).toLocaleString()}
+                                                                            </TableCell>
+                                                                            <TableCell className="text-center">
+                                                                                {item.discount_type_name ? (
+                                                                                    <span className="inline-block text-[10px] font-black text-amber-600 dark:text-amber-500 uppercase leading-none bg-amber-50 dark:bg-amber-950/30 px-2 py-1 rounded-md border border-amber-100/50 dark:border-amber-900/30">
+                                                                                        {item.discount_type_name}
+                                                                                    </span>
+                                                                                ) : (
+                                                                                    <span className="text-[9px] font-bold text-slate-300 uppercase tracking-tighter">--</span>
+                                                                                )}
+                                                                            </TableCell>
+                                                                            <TableCell className="text-center font-black text-rose-500 text-[12px]">
+                                                                                x{item.quantity}
+                                                                            </TableCell>
+                                                                            <TableCell className="text-right font-black text-slate-900 dark:text-white text-[13px] tracking-tighter">
+                                                                                ₱{Number(item.total_amount).toLocaleString()}
+                                                                            </TableCell>
+                                                                        </TableRow>
+                                                                    ))}
+                                                                </TableBody>
+                                                            </Table>
+                                                        </div>
+                                                    ) : (
+                                                        <p className="text-[10px] text-slate-400 italic py-2">No items listed for this return.</p>
+                                                    )}
                                                 </div>
                                             </div>
                                         ))}
