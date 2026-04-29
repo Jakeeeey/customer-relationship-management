@@ -38,6 +38,8 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
 
+    const [activeTab, setActiveTab] = useState('items');
+
     const fetchData = useCallback(async () => {
         setIsLoading(true);
         try {
@@ -230,17 +232,27 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
             <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
                 {/* Left Column - Tabs & Table */}
                 <div className="lg:col-span-3 space-y-6">
-                    <Tabs defaultValue="items" className="w-full">
+                    <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
                         <div className="flex items-center justify-between mb-2">
                             <TabsList className="bg-transparent h-10 p-0 gap-8">
                                 <TabsTrigger value="items" className="bg-transparent border-b-2 border-transparent data-[state=active]:border-primary rounded-none h-full px-1 font-black text-xs uppercase tracking-widest text-slate-400 data-[state=active]:text-primary transition-all">Items</TabsTrigger>
                                 <TabsTrigger value="returns" className="bg-transparent border-b-2 border-transparent data-[state=active]:border-primary rounded-none h-full px-1 font-black text-xs uppercase tracking-widest text-slate-400 data-[state=active]:text-primary transition-all">Returns</TabsTrigger>
                                 <TabsTrigger value="memo" className="bg-transparent border-b-2 border-transparent data-[state=active]:border-primary rounded-none h-full px-1 font-black text-xs uppercase tracking-widest text-slate-400 data-[state=active]:text-primary transition-all">Memo</TabsTrigger>
                             </TabsList>
-                            <Button variant="ghost" size="sm" className="gap-2 text-[10px] font-black uppercase tracking-widest text-primary">
-                                <Plus className="h-3.5 w-3.5" />
-                                Add Products
-                            </Button>
+
+                            {activeTab === 'items' && (
+                                <Button variant="ghost" size="sm" className="gap-2 text-[10px] font-black uppercase tracking-widest text-primary animate-in fade-in slide-in-from-right-4 duration-300">
+                                    <Plus className="h-3.5 w-3.5" />
+                                    Add Products
+                                </Button>
+                            )}
+
+                            {activeTab === 'returns' && (
+                                <Button variant="ghost" size="sm" className="gap-2 text-[10px] font-black uppercase tracking-widest text-rose-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/20 animate-in fade-in slide-in-from-right-4 duration-300">
+                                    <Plus className="h-3.5 w-3.5" />
+                                    Link a Return
+                                </Button>
+                            )}
                         </div>
 
                         <Card className="border-none shadow-sm overflow-hidden dark:bg-slate-900">
