@@ -1,6 +1,6 @@
 "use client";
 
-import { SalesInvoiceHeader, SalesInvoiceDetail, Salesman, Customer, SalesType, WorklistFilters, LinkedDocument, SalesReturn } from "../types";
+import { SalesInvoiceHeader, SalesInvoiceDetail, Salesman, Customer, SalesType, WorklistFilters, SalesReturn, InvoiceDetailsResponse, SearchProduct } from "../types";
 
 const API_BASE = "/api/crm/site-sales-management/site-sales-posting";
 
@@ -24,8 +24,8 @@ export const siteSalesPostingProvider = {
         return res.json();
     },
 
-    // 2. Fetch Invoice Details & Linked Documents
-    getInvoiceDetails: async (invoiceId: number | string): Promise<{ header: SalesInvoiceHeader, details: SalesInvoiceDetail[], linkedDocs: LinkedDocument[] }> => {
+    // 2. Fetch Header & Details
+    getInvoiceDetails: async (invoiceId: string): Promise<InvoiceDetailsResponse> => {
         const res = await fetch(`${API_BASE}?type=details&invoiceId=${invoiceId}`);
         if (!res.ok) throw new Error("Failed to fetch invoice details");
         return res.json();
@@ -108,6 +108,20 @@ export const siteSalesPostingProvider = {
             })
         });
         if (!res.ok) throw new Error("Failed to link return");
+        return res.json();
+    },
+
+    // 7. Product Search for Adding Items
+    searchProducts: async (params: { search: string, priceTypeId: number, supplierId?: number | null }): Promise<SearchProduct[]> => {
+        const query = new URLSearchParams({
+            type: "search_products",
+            search: params.search,
+            priceTypeId: params.priceTypeId.toString()
+        });
+        if (params.supplierId) query.append("supplierId", params.supplierId.toString());
+
+        const res = await fetch(`${API_BASE}?${query.toString()}`);
+        if (!res.ok) throw new Error("Failed to search products");
         return res.json();
     }
 };

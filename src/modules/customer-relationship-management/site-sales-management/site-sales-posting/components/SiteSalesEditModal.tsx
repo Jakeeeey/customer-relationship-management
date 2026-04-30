@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { 
     Dialog, 
     DialogContent, 
@@ -31,6 +32,7 @@ export const SiteSalesEditModal: React.FC<SiteSalesEditModalProps> = ({ isOpen, 
         return isValid(date) ? format(date, "MMM dd, yyyy hh:mm a") : dateString;
     };
 
+    const router = useRouter();
     const { fetchDetails, saveAdjustments } = useSiteSalesPosting();
     const [details, setDetails] = useState<SalesInvoiceDetail[]>([]);
     const [linkedDocs, setLinkedDocs] = useState<LinkedDocument[]>([]);
@@ -179,7 +181,9 @@ export const SiteSalesEditModal: React.FC<SiteSalesEditModalProps> = ({ isOpen, 
                                     ) : (
                                         details.map((d, index) => (
                                             <TableRow key={index} className="hover:bg-slate-50/50">
-                                                <TableCell className="text-sm font-medium text-slate-700">{d.product_id}</TableCell>
+                                                <TableCell className="text-sm font-medium text-slate-700">
+                                                    {typeof d.product_id === 'object' && d.product_id ? d.product_id.product_id : d.product_id}
+                                                </TableCell>
                                                 <TableCell>
                                                     <Input 
                                                         value={d.unit || ""} 
@@ -246,7 +250,7 @@ export const SiteSalesEditModal: React.FC<SiteSalesEditModalProps> = ({ isOpen, 
                                             No linked returns or payments
                                         </div>
                                     ) : (
-                                        linkedDocs.map((doc, idx) => (
+                                        linkedDocs.map((doc: LinkedDocument, idx: number) => (
                                             <div key={idx} className="flex justify-between items-center p-3 bg-slate-50 rounded-lg border border-slate-100">
                                                 <div>
                                                     <p className="text-[10px] font-bold text-primary uppercase">{doc.type}</p>

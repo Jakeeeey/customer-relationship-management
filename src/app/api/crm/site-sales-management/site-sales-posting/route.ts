@@ -179,15 +179,30 @@ export async function GET(req: NextRequest) {
             const invoiceId = searchParams.get("invoiceId");
             if (!invoiceId) return NextResponse.json({ error: "invoiceId required" }, { status: 400 });
 
-            // Fetch Header with expanded info
-            const headerRes = await fetch(`${DIRECTUS_URL}/items/sales_invoice/${invoiceId}?fields=*,salesman_id.salesman_name,salesman_id.salesman_code,branch_id.branch_name`, { headers: fetchHeaders });
+            // Fetch Header with expanded info (Added price_type_id)
+            const headerRes = await fetch(`${DIRECTUS_URL}/items/sales_invoice/${invoiceId}?fields=*,salesman_id.salesman_name,salesman_id.salesman_code,salesman_id.price_type_id,branch_id.branch_name`, { headers: fetchHeaders });
             const header = (await headerRes.json()).data || {};
 
-            // Fetch Details (Items) with expanded products and discount types
-            const detRes = await fetch(`${DIRECTUS_URL}/items/sales_invoice_details?filter[invoice_no][_eq]=${invoiceId}&fields=*,product_id.product_id,product_id.product_name,product_id.product_code,product_id.description,product_id.short_description,discount_type.discount_type&limit=-1`, { headers: fetchHeaders });
+            // Fetch Details (Items)
+            const detRes = await fetch(`${DIRECTUS_URL}/items/sales_invoice_details?filter[invoice_no][_eq]=${invoiceId}&fields=*,product_id.product_id,product_id.product_name,product_id.product_code,discount_type.discount_type&limit=-1`, { headers: fetchHeaders });
             const details = (await detRes.json()).data || [];
 
-            // Fetch Returns and their details (Step-by-step logic)
+            // Identify Main Supplier from existing items
+            let main_supplier_id = null;
+            if (details.length > 0) {
+                const firstProductId = typeof details[0].product_id === 'object' ? details[0].product_id?.product_id : details[0].product_id;
+                if (firstProductId) {
+                    const ppsRes = await fetch(`${DIRECTUS_URL}/items/product_per_supplier?filter[product_id][_eq]=${firstProductId}&fields=supplier_id&limit=1`, { headers: fetchHeaders });
+                    const ppsData = (await ppsRes.json()).data;
+                    if (ppsData && ppsData.length > 0) {
+                        main_supplier_id = ppsData[0].supplier_id;
+                    }
+                }
+            }
+
+            // Fetch Returns logic remains the same...
+            // (I'll keep the existing Return fetch logic here, just making sure I don't break it)
+            // [EXISTING RETURNS FETCH LOGIC START]
             interface ReturnItem {
                 id: number;
                 product_name: string;
@@ -209,66 +224,46 @@ export async function GET(req: NextRequest) {
                 items: ReturnItem[];
             }
 
+            interface DirectusReturnItemDetail {
+                detail_id: number;
+                product_id: { product_name: string; product_id?: string | number };
+                quantity: number;
+                unit_price: number;
+                total_amount: number;
+                discount_amount: number;
+                discount_type?: { discount_type: string };
+                reason?: string;
+                return_no: string | number | { return_number: string };
+            }
+
             let linkedDocs: ReturnDoc[] = [];
             try {
-                // Step 1: Get the link records
                 const returnsRes = await fetch(`${DIRECTUS_URL}/items/sales_invoice_sales_return?filter[invoice_no][_eq]=${invoiceId}&fields=id,amount,created_at,return_no.*&limit=-1`, { headers: fetchHeaders });
-                
                 if (returnsRes.ok) {
                     const resJson = await returnsRes.json();
                     const returnsData = resJson.data || [];
-                    if (returnsData.length > 0) {
-                        // Expansion logic...
-                    }
-
-                    // Step 2: Ensure we have the return_number strings
                     const processedReturns = [];
                     for (const r of returnsData) {
                         let headerInfo = (r.return_no && typeof r.return_no === 'object') ? r.return_no : null;
-                        
-                        // Fallback: If return_no is just an ID, fetch the header explicitly
                         if (!headerInfo && r.return_no) {
                             const hRes = await fetch(`${DIRECTUS_URL}/items/sales_return/${r.return_no}?fields=return_id,return_number,return_date,total_amount`, { headers: fetchHeaders });
-                            if (hRes.ok) {
-                                headerInfo = (await hRes.json()).data;
-                            }
+                            if (hRes.ok) headerInfo = (await hRes.json()).data;
                         }
                         processedReturns.push({ ...r, headerInfo });
                     }
-
                     const returnNumbers = processedReturns.map(p => p.headerInfo?.return_number).filter(Boolean);
-
-                    let allReturnItems: { 
-                        detail_id: number; 
-                        return_no: string | { return_number: string }; 
-                        product_id: { product_id: number; product_name: string }; 
-                        quantity: number; 
-                        unit_price: number; 
-                        total_amount: number; 
-                        discount_amount: number; 
-                        discount_type?: { discount_type: string }; 
-                        reason?: string 
-                    }[] = [];
-                    
+                    let allReturnItems = [];
                     if (returnNumbers.length > 0) {
-                        // Step 3: Fetch details using the return_number string
                         const itemsRes = await fetch(`${DIRECTUS_URL}/items/sales_return_details?filter[return_no][_in]=${returnNumbers.join(",")}&fields=*,product_id.product_name,product_id.product_id,discount_type.discount_type&limit=-1`, { headers: fetchHeaders });
-                        if (itemsRes.ok) {
-                            allReturnItems = (await itemsRes.json()).data || [];
-                        }
+                        if (itemsRes.ok) allReturnItems = (await itemsRes.json()).data || [];
                     }
-
                     linkedDocs = processedReturns.map(p => {
                         const returnNumberStr = p.headerInfo?.return_number || null;
                         const displayRef = returnNumberStr || (p.headerInfo ? p.headerInfo.return_id : p.return_no);
-                        
-                        // Filter items using the return_number string
-                        const items = allReturnItems.filter(item => {
-                            const itemReturnNo = (item.return_no && typeof item.return_no === 'object') 
-                                ? (item.return_no as { return_number: string }).return_number 
-                                : item.return_no;
+                        const items = allReturnItems.filter((item: DirectusReturnItemDetail) => {
+                            const itemReturnNo = (item.return_no && typeof item.return_no === 'object') ? (item.return_no as { return_number: string }).return_number : item.return_no;
                             return itemReturnNo === returnNumberStr;
-                        }).map(item => ({
+                        }).map((item: DirectusReturnItemDetail) => ({
                             id: item.detail_id,
                             product_name: item.product_id?.product_name || `Product ${item.product_id}`,
                             quantity: item.quantity,
@@ -278,55 +273,81 @@ export async function GET(req: NextRequest) {
                             discount_type_name: item.discount_type?.discount_type || (Number(item.discount_amount) > 0 ? "Discount" : null),
                             reason: item.reason
                         }));
-
                         return {
-                            id: p.id,
-                            type: "RETURN",
-                            reference_no: displayRef ? `${displayRef}` : `RET-${p.id}`,
+                            id: p.id, type: "RETURN", reference_no: displayRef ? `${displayRef}` : `RET-${p.id}`,
                             date: p.headerInfo?.return_date || p.created_at,
                             amount: Number(p.amount) || Number(p.headerInfo?.total_amount) || 0,
-                            status: "LINKED",
-                            items
+                            status: "LINKED", items
                         };
                     });
                 }
-            } catch (e) {
-                console.error("Returns fetch exception:", e);
-            }
-            
-            // Map details with fallback fetch for discount names if expansion failed
+            } catch (e) { console.error("Returns fetch exception:", e); }
+            // [EXISTING RETURNS FETCH LOGIC END]
+
             const mappedDetails = [];
             for (const d of details) {
-                let discTypeName = (d.discount_type && typeof d.discount_type === 'object') 
-                    ? (d.discount_type as { discount_type?: string }).discount_type 
-                    : null;
-
-                // Fallback: If discount_type is just an ID (number or string), fetch it explicitly
+                let discTypeName = (d.discount_type && typeof d.discount_type === 'object') ? (d.discount_type as { discount_type?: string }).discount_type : null;
                 if (!discTypeName && d.discount_type && (typeof d.discount_type === 'number' || typeof d.discount_type === 'string')) {
                     const dtRes = await fetch(`${DIRECTUS_URL}/items/discount_type/${d.discount_type}?fields=discount_type`, { headers: fetchHeaders });
-                    if (dtRes.ok) {
-                        const dtData = (await dtRes.json()).data;
-                        discTypeName = dtData?.discount_type;
-                    }
+                    if (dtRes.ok) discTypeName = (await dtRes.json()).data?.discount_type;
                 }
-
-                // Final fallback to generic "Discount" if we have an amount but no name
-                if (!discTypeName && Number(d.discount_amount) > 0) {
-                    discTypeName = "Discount";
-                }
-
-                mappedDetails.push({
-                    ...d,
-                    product_name: d.product_id?.product_name || `Product ${d.product_id?.product_id || 'N/A'}`,
-                    discount_type_name: discTypeName
-                });
+                if (!discTypeName && Number(d.discount_amount) > 0) discTypeName = "Discount";
+                mappedDetails.push({ ...d, product_name: d.product_id?.product_name || `Product ${d.product_id?.product_id || 'N/A'}`, discount_type_name: discTypeName });
             }
-            
+
             return NextResponse.json({
                 header,
                 details: mappedDetails,
-                linkedDocs
+                linkedDocs,
+                main_supplier_id // Added this
             });
+        }
+
+        if (type === "search_products") {
+            const search = searchParams.get("search") || "";
+            const priceTypeId = searchParams.get("priceTypeId");
+            const supplierId = searchParams.get("supplierId");
+
+            if (!priceTypeId) return NextResponse.json({ error: "priceTypeId required" }, { status: 400 });
+
+            // 1. Fetch products linked to this supplier (via product_per_supplier)
+            let productIdsBySupplier: number[] | null = null;
+            if (supplierId && supplierId !== "null") {
+                const ppsRes = await fetch(`${DIRECTUS_URL}/items/product_per_supplier?filter[supplier_id][_eq]=${supplierId}&fields=product_id&limit=-1`, { headers: fetchHeaders });
+                const ppsData = (await ppsRes.json()).data || [];
+                productIdsBySupplier = ppsData.map((p: { product_id: number }) => p.product_id);
+            }
+
+            // 2. Fetch prices from product_per_price_type
+            const priceFilter: { _and: Record<string, unknown>[] } = {
+                _and: [
+                    { price_type_id: { _eq: priceTypeId } },
+                    { status: { _eq: "published" } }
+                ]
+            };
+            if (productIdsBySupplier) {
+                priceFilter._and.push({ product_id: { _in: productIdsBySupplier } });
+            }
+
+            const pricesRes = await fetch(`${DIRECTUS_URL}/items/product_per_price_type?filter=${JSON.stringify(priceFilter)}&fields=price,product_id.*&limit=-1`, { headers: fetchHeaders });
+            const pricesData: { price: number; product_id: { product_id: number; product_name: string; product_code: string; unit_of_measurement: number } }[] = (await pricesRes.json()).data || [];
+
+            // 3. Combine and search
+            const results = pricesData.filter((p) => {
+                const prod = p.product_id;
+                if (!prod) return false;
+                const nameMatch = prod.product_name?.toLowerCase().includes(search.toLowerCase());
+                const codeMatch = prod.product_code?.toLowerCase().includes(search.toLowerCase());
+                return nameMatch || codeMatch;
+            }).map((p) => ({
+                product_id: p.product_id.product_id,
+                product_name: p.product_id.product_name,
+                product_code: p.product_id.product_code,
+                unit_price: p.price,
+                unit: p.product_id.unit_of_measurement // Use default UOM from product
+            }));
+
+            return NextResponse.json(results);
         }
 
         if (type === "salesmen") {

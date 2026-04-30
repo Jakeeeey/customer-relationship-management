@@ -53,7 +53,7 @@ export const useSiteSalesPosting = (): UseSiteSalesPostingReturn => {
 
     const fetchDetails = useCallback(async (invoiceId: number | string) => {
         try {
-            const data = await siteSalesPostingProvider.getInvoiceDetails(invoiceId);
+            const data = await siteSalesPostingProvider.getInvoiceDetails(invoiceId.toString());
             return {
                 details: data?.details || [],
                 linkedDocs: data?.linkedDocs || []

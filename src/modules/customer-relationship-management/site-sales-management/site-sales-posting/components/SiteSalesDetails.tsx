@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { SalesInvoiceHeader, SalesInvoiceDetail, LinkedDocument, SalesReturn } from '../types';
+import { SalesInvoiceHeader, SalesInvoiceDetail, LinkedDocument, SalesReturn, SearchProduct, Salesman, Product } from '../types';
 import { siteSalesPostingProvider } from '../providers/fetchProvider';
 import { cn } from '@/lib/utils';
 import { format, parseISO } from 'date-fns';
@@ -16,8 +16,9 @@ import {
     CheckCircle2,
     PlusCircle,
     RotateCw,
-    Search,
-    Link2
+    Link2,
+    PackagePlus,
+    Search
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -29,6 +30,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Label } from '@/components/ui/label';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import {
     Dialog,
     DialogContent,
@@ -57,6 +60,15 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
     const [isFetchingReturns, setIsFetchingReturns] = useState(false);
     const [isLinking, setIsLinking] = useState(false);
 
+    // Add Product States
+    const [isAddProductModalOpen, setIsAddProductModalOpen] = useState(false);
+    const [mainSupplierId, setMainSupplierId] = useState<number | null>(null);
+    const [searchProducts, setSearchProducts] = useState<SearchProduct[]>([]);
+    const [isSearchingProducts, setIsSearchingProducts] = useState(false);
+    const [selectedProductId, setSelectedProductId] = useState<string | undefined>(undefined);
+    const [newProductQty, setNewProductQty] = useState<number>(1);
+    const [newProductDiscount, setNewProductDiscount] = useState<number>(0);
+
     const fetchData = useCallback(async () => {
         setIsLoading(true);
         try {
@@ -64,6 +76,7 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
             setHeader(data.header);
             setDetails(data.details);
             setLinkedDocs(data.linkedDocs || []);
+            setMainSupplierId(data.main_supplier_id || null);
         } catch (error) {
             console.error("Failed to fetch invoice details:", error);
         } finally {
@@ -114,6 +127,55 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
         } finally {
             setIsFetchingReturns(false);
         }
+    };
+
+    const handleOpenAddProductModal = async () => {
+        const salesman = header?.salesman_id as Salesman | undefined;
+        const priceTypeId = salesman?.price_type_id;
+        if (!priceTypeId) {
+            toast.error("Salesman price type not found");
+            return;
+        }
+        setIsAddProductModalOpen(true);
+        setIsSearchingProducts(true);
+        try {
+            const data = await siteSalesPostingProvider.searchProducts({
+                search: "",
+                priceTypeId,
+                supplierId: mainSupplierId
+            });
+            setSearchProducts(data);
+        } catch {
+            toast.error("Failed to fetch available products");
+        } finally {
+            setIsSearchingProducts(false);
+        }
+    };
+
+    const handleAddItem = () => {
+        const prod = searchProducts.find(p => p.product_id.toString() === selectedProductId);
+        if (!prod) return;
+
+        const newDetail: SalesInvoiceDetail = {
+            detail_id: undefined, // Draft ID
+            invoice_id: Number(id),
+            product_id: {
+                product_id: prod.product_id,
+                product_name: prod.product_name,
+                product_code: prod.product_code,
+            } as Product,
+            quantity: newProductQty,
+            unit_price: prod.unit_price,
+            discount_amount: newProductDiscount,
+            total_amount: (newProductQty * prod.unit_price) - newProductDiscount,
+        };
+
+        setDetails([...details, newDetail]);
+        setIsAddProductModalOpen(false);
+        setSelectedProductId(undefined);
+        setNewProductQty(1);
+        setNewProductDiscount(0);
+        toast.success("Item added to draft. Remember to Save Changes!");
     };
 
     const handleLinkReturn = async (ret: SalesReturn) => {
@@ -287,7 +349,12 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
                             </TabsList>
 
                             {activeTab === 'items' && (
-                                <Button variant="ghost" size="sm" className="gap-2 text-[10px] font-black uppercase tracking-widest text-primary animate-in fade-in slide-in-from-right-4 duration-300">
+                                <Button 
+                                    onClick={handleOpenAddProductModal}
+                                    variant="ghost" 
+                                    size="sm" 
+                                    className="gap-2 text-[10px] font-black uppercase tracking-widest text-primary animate-in fade-in slide-in-from-right-4 duration-300"
+                                >
                                     <Plus className="h-3.5 w-3.5" />
                                     Add Products
                                 </Button>
@@ -323,7 +390,7 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
-                                        {details.map((item, idx) => {
+                                        {details.map((item: SalesInvoiceDetail, idx: number) => {
                                             const product = item.product_id && typeof item.product_id === 'object' ? item.product_id : null;
                                             const displayId = product?.product_id || (typeof item.product_id !== 'object' ? item.product_id : '') || '';
                                             return (
@@ -365,7 +432,7 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
                                     </div>
                                 ) : (
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        {linkedDocs.filter(d => d.type === "RETURN").map((doc) => (
+                                        {linkedDocs.filter(d => d.type === "RETURN").map((doc: LinkedDocument) => (
                                             <div key={doc.id} className="flex flex-col p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-800 hover:border-primary/30 transition-all group shadow-sm">
                                                 <div className="flex justify-between items-center mb-4 pb-4 border-b border-slate-100 dark:border-slate-800">
                                                     <div className="flex items-center gap-4">
@@ -398,7 +465,7 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
                                                                     </TableRow>
                                                                 </TableHeader>
                                                                 <TableBody>
-                                                                    {doc.items.map((item) => (
+                                                                    {doc.items?.map((item) => (
                                                                         <TableRow key={item.id} className="hover:bg-white dark:hover:bg-slate-900 border-slate-100 dark:border-slate-800/50">
                                                                             <TableCell className="py-3">
                                                                                 <div className="max-w-[250px] lg:max-w-[350px]">
@@ -597,6 +664,92 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
                                 ))}
                             </div>
                         )}
+                    </div>
+                </DialogContent>
+            </Dialog>
+
+            {/* Add Product Modal */}
+            <Dialog open={isAddProductModalOpen} onOpenChange={setIsAddProductModalOpen}>
+                <DialogContent className="max-w-md p-0 overflow-hidden border-none shadow-2xl dark:bg-slate-950">
+                    <DialogHeader className="p-6 bg-slate-50 dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800">
+                        <div className="flex items-center gap-3">
+                            <div className="p-2 bg-primary rounded-lg shadow-lg shadow-primary/20">
+                                <PackagePlus className="h-5 w-5 text-white" />
+                            </div>
+                            <div>
+                                <DialogTitle className="text-xl font-black tracking-tight text-slate-900 dark:text-white">Add Product</DialogTitle>
+                                <DialogDescription className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-0.5">
+                                    Select product and set quantities
+                                </DialogDescription>
+                            </div>
+                        </div>
+                    </DialogHeader>
+
+                    <div className="p-6 space-y-6">
+                        <div className="space-y-2">
+                            <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Select Product</Label>
+                            <SearchableSelect 
+                                disabled={isSearchingProducts}
+                                placeholder={isSearchingProducts ? "Loading products..." : "Search product..."}
+                                options={searchProducts.map(p => ({
+                                    value: p.product_id.toString(),
+                                    label: `[${p.product_code}] ${p.product_name} - ₱${Number(p.unit_price).toLocaleString()}`
+                                }))}
+                                value={selectedProductId}
+                                onValueChange={setSelectedProductId}
+                            />
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                                <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Quantity</Label>
+                                <Input 
+                                    type="number" 
+                                    min={1} 
+                                    value={newProductQty}
+                                    onChange={(e) => setNewProductQty(Number(e.target.value))}
+                                    className="font-black text-sm"
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Discount</Label>
+                                <Input 
+                                    type="number" 
+                                    min={0} 
+                                    value={newProductDiscount}
+                                    onChange={(e) => setNewProductDiscount(Number(e.target.value))}
+                                    className="font-black text-sm text-rose-500"
+                                />
+                            </div>
+                        </div>
+
+                        {selectedProductId && (
+                            <div className="p-4 bg-slate-50 dark:bg-slate-900 rounded-xl border border-dashed border-slate-200 dark:border-slate-800">
+                                <div className="flex justify-between items-center">
+                                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Estimated Line Total</p>
+                                    <p className="text-lg font-black text-primary">
+                                        ₱{((newProductQty * (searchProducts.find(p => p.product_id.toString() === selectedProductId)?.unit_price || 0)) - newProductDiscount).toLocaleString()}
+                                    </p>
+                                </div>
+                            </div>
+                        )}
+
+                        <div className="flex gap-3 pt-2">
+                            <Button 
+                                variant="outline" 
+                                className="flex-1 font-black text-[10px] uppercase tracking-widest"
+                                onClick={() => setIsAddProductModalOpen(false)}
+                            >
+                                Cancel
+                            </Button>
+                            <Button 
+                                disabled={!selectedProductId}
+                                onClick={handleAddItem}
+                                className="flex-1 bg-primary hover:bg-primary/90 text-white font-black text-[10px] uppercase tracking-widest shadow-lg shadow-primary/20"
+                            >
+                                Add to List
+                            </Button>
+                        </div>
                     </div>
                 </DialogContent>
             </Dialog>

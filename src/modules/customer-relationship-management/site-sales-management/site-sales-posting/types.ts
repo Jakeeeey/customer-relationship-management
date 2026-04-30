@@ -40,12 +40,13 @@ export interface Salesman {
     id: number;
     salesman_name: string;
     salesman_code?: string;
+    price_type_id?: number;
 }
 
 export interface Product {
-    id: number;
-    product_id: string;
+    product_id: number;
     product_name: string;
+    product_code: string;
     description?: string;
 }
 
@@ -130,4 +131,19 @@ export interface SalesReturn {
     total_amount: number;
     customer_code: string;
     salesman_id?: Salesman | null;
+}
+
+export interface InvoiceDetailsResponse {
+    header: SalesInvoiceHeader;
+    details: SalesInvoiceDetail[];
+    linkedDocs: LinkedDocument[];
+    main_supplier_id?: number | null;
+}
+
+export interface SearchProduct {
+    product_id: number;
+    product_name: string;
+    product_code: string;
+    unit_price: number;
+    unit: number;
 }
