@@ -112,13 +112,16 @@ export const siteSalesPostingProvider = {
     },
 
     // 7. Product Search for Adding Items
-    searchProducts: async (params: { search: string, priceTypeId: number, supplierId?: number | null }): Promise<SearchProduct[]> => {
+    searchProducts: async (params: { search: string, priceTypeId: number, priceType?: string | null, supplierId?: number | null, branchId?: number | string | null, customerCode?: string | null }): Promise<SearchProduct[]> => {
         const query = new URLSearchParams({
             type: "search_products",
             search: params.search,
             priceTypeId: params.priceTypeId.toString()
         });
-        if (params.supplierId) query.append("supplierId", params.supplierId.toString());
+        if (params.priceType) query.append("priceType", params.priceType);
+        if (params.supplierId != null) query.append("supplierId", params.supplierId.toString());
+        if (params.branchId != null) query.append("branchId", params.branchId.toString());
+        if (params.customerCode) query.append("customerCode", params.customerCode);
 
         const res = await fetch(`${API_BASE}?${query.toString()}`);
         if (!res.ok) throw new Error("Failed to search products");

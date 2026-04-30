@@ -4,6 +4,7 @@ import { cookies } from "next/headers";
 const COOKIE_NAME = "vos_access_token";
 const DIRECTUS_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
 const DIRECTUS_TOKEN = process.env.DIRECTUS_STATIC_TOKEN;
+const SPRING_API_BASE_URL = process.env.SPRING_API_BASE_URL;
 
 const fetchHeaders = {
     Authorization: `Bearer ${DIRECTUS_TOKEN}`,
@@ -179,9 +180,18 @@ export async function GET(req: NextRequest) {
             const invoiceId = searchParams.get("invoiceId");
             if (!invoiceId) return NextResponse.json({ error: "invoiceId required" }, { status: 400 });
 
-            // Fetch Header with expanded info (Added price_type_id)
-            const headerRes = await fetch(`${DIRECTUS_URL}/items/sales_invoice/${invoiceId}?fields=*,salesman_id.salesman_name,salesman_id.salesman_code,salesman_id.price_type_id,branch_id.branch_name`, { headers: fetchHeaders });
+            // Fetch Header with expanded info
+            const headerRes = await fetch(`${DIRECTUS_URL}/items/sales_invoice/${invoiceId}?fields=*,salesman_id.salesman_name,salesman_id.salesman_code,salesman_id.price_type_id,branch_id.*`, { headers: fetchHeaders });
             const header = (await headerRes.json()).data || {};
+
+            // Resolve Customer Name
+            if (header.customer_code) {
+                const custRes = await fetch(`${DIRECTUS_URL}/items/customer?filter[customer_code][_eq]=${header.customer_code}&fields=customer_name`, { headers: fetchHeaders });
+                const custData = (await custRes.json()).data;
+                if (custData && custData.length > 0) {
+                    header.customer_name = custData[0].customer_name;
+                }
+            }
 
             // Fetch Details (Items)
             const detRes = await fetch(`${DIRECTUS_URL}/items/sales_invoice_details?filter[invoice_no][_eq]=${invoiceId}&fields=*,product_id.product_id,product_id.product_name,product_id.product_code,discount_type.discount_type&limit=-1`, { headers: fetchHeaders });
@@ -189,13 +199,15 @@ export async function GET(req: NextRequest) {
 
             // Identify Main Supplier from existing items
             let main_supplier_id = null;
+            let main_supplier_name = null;
             if (details.length > 0) {
                 const firstProductId = typeof details[0].product_id === 'object' ? details[0].product_id?.product_id : details[0].product_id;
                 if (firstProductId) {
-                    const ppsRes = await fetch(`${DIRECTUS_URL}/items/product_per_supplier?filter[product_id][_eq]=${firstProductId}&fields=supplier_id&limit=1`, { headers: fetchHeaders });
+                    const ppsRes = await fetch(`${DIRECTUS_URL}/items/product_per_supplier?filter[product_id][_eq]=${firstProductId}&fields=supplier_id.id,supplier_id.supplier_name&limit=1`, { headers: fetchHeaders });
                     const ppsData = (await ppsRes.json()).data;
                     if (ppsData && ppsData.length > 0) {
-                        main_supplier_id = ppsData[0].supplier_id;
+                        main_supplier_id = ppsData[0].supplier_id?.id || ppsData[0].supplier_id;
+                        main_supplier_name = ppsData[0].supplier_id?.supplier_name || null;
                     }
                 }
             }
@@ -299,7 +311,8 @@ export async function GET(req: NextRequest) {
                 header,
                 details: mappedDetails,
                 linkedDocs,
-                main_supplier_id // Added this
+                main_supplier_id,
+                main_supplier_name
             });
         }
 
@@ -307,18 +320,20 @@ export async function GET(req: NextRequest) {
             const search = searchParams.get("search") || "";
             const priceTypeId = searchParams.get("priceTypeId");
             const supplierId = searchParams.get("supplierId");
+            const branchId = searchParams.get("branchId"); 
+            const customerCode = searchParams.get("customerCode"); // Need this for L1 prices
 
             if (!priceTypeId) return NextResponse.json({ error: "priceTypeId required" }, { status: 400 });
 
-            // 1. Fetch products linked to this supplier (via product_per_supplier)
+            // 1. Fetch products linked to this supplier
             let productIdsBySupplier: number[] | null = null;
             if (supplierId && supplierId !== "null") {
                 const ppsRes = await fetch(`${DIRECTUS_URL}/items/product_per_supplier?filter[supplier_id][_eq]=${supplierId}&fields=product_id&limit=-1`, { headers: fetchHeaders });
-                const ppsData = (await ppsRes.json()).data || [];
-                productIdsBySupplier = ppsData.map((p: { product_id: number }) => p.product_id);
+                const ppsData = ((await ppsRes.json()).data || []) as { product_id: number | { id: number } }[];
+                productIdsBySupplier = ppsData.map((p) => typeof p.product_id === 'object' ? p.product_id.id : p.product_id);
             }
 
-            // 2. Fetch prices from product_per_price_type
+            // 2. Fetch prices from product_per_price_type (Strict base)
             const priceFilter: { _and: Record<string, unknown>[] } = {
                 _and: [
                     { price_type_id: { _eq: priceTypeId } },
@@ -329,23 +344,102 @@ export async function GET(req: NextRequest) {
                 priceFilter._and.push({ product_id: { _in: productIdsBySupplier } });
             }
 
-            const pricesRes = await fetch(`${DIRECTUS_URL}/items/product_per_price_type?filter=${JSON.stringify(priceFilter)}&fields=price,product_id.*&limit=-1`, { headers: fetchHeaders });
-            const pricesData: { price: number; product_id: { product_id: number; product_name: string; product_code: string; unit_of_measurement: number } }[] = (await pricesRes.json()).data || [];
+            const pricesRes = await fetch(`${DIRECTUS_URL}/items/product_per_price_type?filter=${JSON.stringify(priceFilter)}&fields=price,product_id.*,product_id.product_category.category_name,product_id.product_brand.brand_name&limit=-1`, { headers: fetchHeaders });
+            const pricesData = ((await pricesRes.json()).data || []) as { price: number; product_id: { product_id: number } }[];
+            
+            const activeProductIds = pricesData.map((p) => p.product_id?.product_id).filter(Boolean);
 
-            // 3. Combine and search
-            const results = pricesData.filter((p) => {
+            // 3. Fetch L1 Price Overrides (Customer-Specific)
+            const l1PriceOverrides: Record<number, number> = {};
+            if (customerCode && activeProductIds.length > 0) {
+                const l1Res = await fetch(`${DIRECTUS_URL}/items/product_per_customer?filter[customer_code][_eq]=${customerCode}&filter[product_id][_in]=${activeProductIds.join(",")}&fields=product_id,unit_price&limit=-1`, { headers: fetchHeaders });
+                const l1Data = ((await l1Res.json()).data || []) as { product_id: number | { id: number }; unit_price: number }[];
+                l1Data.forEach((l1) => {
+                    const pid = typeof l1.product_id === 'object' ? l1.product_id.id : l1.product_id;
+                    l1PriceOverrides[Number(pid)] = Number(l1.unit_price);
+                });
+            }
+
+            // 4. Inventory Fetch Logic (Robust Match)
+            const inventoryMap: Record<number, { available: number; unitCount: number }> = {};
+            if (branchId && SPRING_API_BASE_URL) {
+                try {
+                    let branchCodeStr: string | null = null;
+                    if (!isNaN(Number(branchId))) {
+                        const bRes = await fetch(`${DIRECTUS_URL}/items/branches/${branchId}?fields=branch_code`, { headers: fetchHeaders });
+                        if (bRes.ok) branchCodeStr = (await bRes.json()).data?.branch_code || null;
+                    } else branchCodeStr = String(branchId);
+
+                    const cookieStore = await cookies();
+                    const token = cookieStore.get(COOKIE_NAME)?.value;
+                    const invUrl = `${SPRING_API_BASE_URL.replace(/\/$/, "")}/api/view-running-inventory-by-unit/all?startDate=2025-01-01&endDate=2026-12-30`;
+                    const inventoryRes = await fetch(invUrl, {
+                        headers: { "Accept": "application/json", ...(token ? { "Authorization": `Bearer ${token}` } : {}) },
+                        cache: 'no-store',
+                    });
+
+                    if (inventoryRes.ok) {
+                        const invData = (await inventoryRes.json()) as { branchId?: number; branch_id?: number; BranchId?: number; productId?: number; product_id?: number; ProductId?: number; runningInventoryUnit?: number; running_inventory_unit?: number; runningInventory?: number; running_inventory?: number; unitCount?: number; unit_count?: number }[];
+                        invData.forEach((item) => {
+                            const itemBId = item.branchId ?? item.branch_id ?? item.BranchId;
+                            const matchId = (itemBId && Number(itemBId) === Number(branchId));
+                            const matchCode = (branchCodeStr && itemBId && String(itemBId).toUpperCase() === String(branchCodeStr).toUpperCase());
+                            if (matchId || matchCode) {
+                                const pid = item.productId ?? item.product_id ?? item.ProductId;
+                                if (pid) {
+                                    const available = Number(item.runningInventoryUnit ?? item.running_inventory_unit ?? item.runningInventory ?? item.running_inventory ?? 0);
+                                    const unitCount = Number(item.unitCount ?? item.unit_count ?? 1);
+                                    inventoryMap[Number(pid)] = { available, unitCount };
+                                }
+                            }
+                        });
+                    }
+                } catch (e) { console.error("[InventoryFetch] Error:", e); }
+            }
+
+            // 5. Fetch units for mapping
+            const unitsRes = await fetch(`${DIRECTUS_URL}/items/units?limit=-1`, { headers: fetchHeaders });
+            const unitsData = (await unitsRes.json()).data as { unit_id: number; unit_shortcut?: string; unit_name?: string }[];
+            const unitMap: Record<number, string> = unitsData?.reduce((acc, u) => ({ ...acc, [Number(u.unit_id)]: u.unit_shortcut || u.unit_name || "PCS" }), {}) || {};
+
+            // 6. Combine and Sort by UOM Priority (Box > Tie > Pack > Pcs)
+            const uomPriority: Record<string, number> = {
+                'BOX': 1, 'CASE': 1, 'CS': 1,
+                'TIE': 2,
+                'PACK': 3, 'PCK': 3, 'BNDL': 3,
+                'PCS': 4, 'PC': 4
+            };
+
+            const results = (pricesData as { product_id: { product_id: number; product_name: string; product_code: string; description: string; isActive: number | boolean; product_category: { category_name: string } | null; product_brand: { brand_name: string } | null; unit_of_measurement: number }; price: number }[]).filter((p) => {
                 const prod = p.product_id;
-                if (!prod) return false;
-                const nameMatch = prod.product_name?.toLowerCase().includes(search.toLowerCase());
-                const codeMatch = prod.product_code?.toLowerCase().includes(search.toLowerCase());
-                return nameMatch || codeMatch;
-            }).map((p) => ({
-                product_id: p.product_id.product_id,
-                product_name: p.product_id.product_name,
-                product_code: p.product_id.product_code,
-                unit_price: p.price,
-                unit: p.product_id.unit_of_measurement // Use default UOM from product
-            }));
+                if (!prod || (prod.isActive !== 1 && prod.isActive !== true)) return false;
+                const q = search.toLowerCase();
+                return (prod.product_name || "").toLowerCase().includes(q) || (prod.product_code || "").toLowerCase().includes(q) || (prod.description || "").toLowerCase().includes(q);
+            }).map((p) => {
+                const pid = p.product_id.product_id;
+                const inv = inventoryMap[Number(pid)] || { available: 0, unitCount: 0 };
+                const finalPrice = l1PriceOverrides[Number(pid)] ?? Number(p.price);
+                const unitShortcut = unitMap[Number(p.product_id.unit_of_measurement)] || "PCS";
+
+                return {
+                    product_id: pid,
+                    product_name: p.product_id.product_name,
+                    description: p.product_id.description || p.product_id.product_name,
+                    product_code: p.product_id.product_code,
+                    category_name: p.product_id.product_category?.category_name || null,
+                    brand_name: p.product_id.product_brand?.brand_name || null,
+                    unit_price: finalPrice,
+                    unit: unitShortcut,
+                    available_qty: inv.available,
+                    unit_count: inv.unitCount,
+                    _uomRank: uomPriority[unitShortcut.toUpperCase()] || 99
+                };
+            }).sort((a, b) => {
+                const pa = a as { _uomRank: number; product_name: string };
+                const pb = b as { _uomRank: number; product_name: string };
+                if (pa._uomRank !== pb._uomRank) return pa._uomRank - pb._uomRank;
+                return pa.product_name.localeCompare(pb.product_name);
+            });
 
             return NextResponse.json(results);
         }

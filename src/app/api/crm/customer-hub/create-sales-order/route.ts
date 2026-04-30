@@ -519,7 +519,12 @@ export async function GET(req: NextRequest) {
                     discountTypeNameMap[Number(dt.id)] = dt.discount_type || "";
                 });
 
-                const sellableItems = Array.from(allProductsMap.values()).filter(p => p.isActive === 1 || p.isActive === true);
+                const sellableItems = Array.from(allProductsMap.values()).filter(p => {
+                    const isActive = p.isActive === 1 || p.isActive === true;
+                    // Strict Mode: Only products with a price record in product_per_price_type are allowed
+                    const hasPriceRecord = Object.prototype.hasOwnProperty.call(priceOverrides, Number(p.product_id));
+                    return isActive && hasPriceRecord;
+                });
 
                 const finalProducts = sellableItems.map((p) => {
                     let winId = null;
@@ -591,13 +596,22 @@ export async function GET(req: NextRequest) {
                     };
                 });
 
-                const itemsWithStock = finalProducts.filter(p => (Number(p.available_qty) || 0) > 0);
-                console.log(`[InventoryDebug] Total Products: ${finalProducts.length}, with Stock: ${itemsWithStock.length}`);
+                // Sort by UOM Priority (Box > Tie > Pack > Pcs)
+                const uomPriority: Record<string, number> = {
+                    'BOX': 1, 'CASE': 1, 'CS': 1,
+                    'TIE': 2,
+                    'PACK': 3, 'PCK': 3, 'BNDL': 3,
+                    'PCS': 4, 'PC': 4
+                };
 
-                if (itemsWithStock.length === 0 && finalProducts.length > 0) {
-                    const p = finalProducts[0];
-                    console.log(`[InventoryDebug] Sample Check (PID: ${p.product_id}): MapAvailable=${inventoryMap[Number(p.product_id)]?.available ?? 'MISSING'}`);
-                }
+                finalProducts.sort((a, b) => {
+                    const pa = a as { uom: string; display_name: string; product_name: string };
+                    const pb = b as { uom: string; display_name: string; product_name: string };
+                    const rankA = uomPriority[String(pa.uom).toUpperCase()] || 99;
+                    const rankB = uomPriority[String(pb.uom).toUpperCase()] || 99;
+                    if (rankA !== rankB) return rankA - rankB;
+                    return String(pa.display_name || pa.product_name).localeCompare(String(pb.display_name || pb.product_name));
+                });
 
                 return NextResponse.json(finalProducts);
             } catch (err: unknown) {

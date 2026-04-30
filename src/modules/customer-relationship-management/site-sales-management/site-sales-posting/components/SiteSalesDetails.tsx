@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { SalesInvoiceHeader, SalesInvoiceDetail, LinkedDocument, SalesReturn, SearchProduct, Salesman, Product } from '../types';
+import { SalesInvoiceHeader, SalesInvoiceDetail, LinkedDocument, SalesReturn, SearchProduct, Salesman } from '../types';
 import { siteSalesPostingProvider } from '../providers/fetchProvider';
 import { cn } from '@/lib/utils';
 import { format, parseISO } from 'date-fns';
@@ -17,7 +17,6 @@ import {
     PlusCircle,
     RotateCw,
     Link2,
-    PackagePlus,
     Search
 } from 'lucide-react';
 
@@ -30,8 +29,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Label } from '@/components/ui/label';
-import { SearchableSelect } from '@/components/ui/searchable-select';
 import {
     Dialog,
     DialogContent,
@@ -39,6 +36,7 @@ import {
     DialogHeader,
     DialogTitle,
 } from "@/components/ui/dialog";
+import { SiteSalesAddProductModal } from './SiteSalesAddProductModal';
 
 interface SiteSalesDetailsProps {
     id: string;
@@ -63,11 +61,9 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
     // Add Product States
     const [isAddProductModalOpen, setIsAddProductModalOpen] = useState(false);
     const [mainSupplierId, setMainSupplierId] = useState<number | null>(null);
+    const [mainSupplierName, setMainSupplierName] = useState<string | null>(null);
     const [searchProducts, setSearchProducts] = useState<SearchProduct[]>([]);
     const [isSearchingProducts, setIsSearchingProducts] = useState(false);
-    const [selectedProductId, setSelectedProductId] = useState<string | undefined>(undefined);
-    const [newProductQty, setNewProductQty] = useState<number>(1);
-    const [newProductDiscount, setNewProductDiscount] = useState<number>(0);
 
     const fetchData = useCallback(async () => {
         setIsLoading(true);
@@ -77,6 +73,7 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
             setDetails(data.details);
             setLinkedDocs(data.linkedDocs || []);
             setMainSupplierId(data.main_supplier_id || null);
+            setMainSupplierName(data.main_supplier_name || null);
         } catch (error) {
             console.error("Failed to fetch invoice details:", error);
         } finally {
@@ -136,14 +133,32 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
             toast.error("Salesman price type not found");
             return;
         }
+
+        // Extract branch ID properly with type safety
+        let branchId: number | string | null = null;
+        const rawBranch = header?.branch_id;
+        if (rawBranch) {
+            if (typeof rawBranch === 'object') {
+                branchId = (rawBranch as { id: number | string }).id;
+            } else {
+                branchId = rawBranch as number | string;
+            }
+        }
+
+        console.log(`[SiteSalesDebug] Opening Modal - BranchID: ${branchId}, PriceTypeID: ${priceTypeId}, SupplierID: ${mainSupplierId}`);
+        
         setIsAddProductModalOpen(true);
         setIsSearchingProducts(true);
         try {
             const data = await siteSalesPostingProvider.searchProducts({
                 search: "",
                 priceTypeId,
-                supplierId: mainSupplierId
+                priceType: header?.price_type,
+                supplierId: mainSupplierId,
+                branchId,
+                customerCode: header?.customer_code
             });
+            console.log(`[SiteSalesDebug] Search Results Count: ${data.length}`);
             setSearchProducts(data);
         } catch {
             toast.error("Failed to fetch available products");
@@ -152,30 +167,9 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
         }
     };
 
-    const handleAddItem = () => {
-        const prod = searchProducts.find(p => p.product_id.toString() === selectedProductId);
-        if (!prod) return;
-
-        const newDetail: SalesInvoiceDetail = {
-            detail_id: undefined, // Draft ID
-            invoice_id: Number(id),
-            product_id: {
-                product_id: prod.product_id,
-                product_name: prod.product_name,
-                product_code: prod.product_code,
-            } as Product,
-            quantity: newProductQty,
-            unit_price: prod.unit_price,
-            discount_amount: newProductDiscount,
-            total_amount: (newProductQty * prod.unit_price) - newProductDiscount,
-        };
-
-        setDetails([...details, newDetail]);
-        setIsAddProductModalOpen(false);
-        setSelectedProductId(undefined);
-        setNewProductQty(1);
-        setNewProductDiscount(0);
-        toast.success("Item added to draft. Remember to Save Changes!");
+    const handleAddProducts = (newItems: SalesInvoiceDetail[]) => {
+        setDetails([...details, ...newItems]);
+        toast.success(`${newItems.length} items added to order`);
     };
 
     const handleLinkReturn = async (ret: SalesReturn) => {
@@ -669,90 +663,14 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
             </Dialog>
 
             {/* Add Product Modal */}
-            <Dialog open={isAddProductModalOpen} onOpenChange={setIsAddProductModalOpen}>
-                <DialogContent className="max-w-md p-0 overflow-hidden border-none shadow-2xl dark:bg-slate-950">
-                    <DialogHeader className="p-6 bg-slate-50 dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800">
-                        <div className="flex items-center gap-3">
-                            <div className="p-2 bg-primary rounded-lg shadow-lg shadow-primary/20">
-                                <PackagePlus className="h-5 w-5 text-white" />
-                            </div>
-                            <div>
-                                <DialogTitle className="text-xl font-black tracking-tight text-slate-900 dark:text-white">Add Product</DialogTitle>
-                                <DialogDescription className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-0.5">
-                                    Select product and set quantities
-                                </DialogDescription>
-                            </div>
-                        </div>
-                    </DialogHeader>
-
-                    <div className="p-6 space-y-6">
-                        <div className="space-y-2">
-                            <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Select Product</Label>
-                            <SearchableSelect 
-                                disabled={isSearchingProducts}
-                                placeholder={isSearchingProducts ? "Loading products..." : "Search product..."}
-                                options={searchProducts.map(p => ({
-                                    value: p.product_id.toString(),
-                                    label: `[${p.product_code}] ${p.product_name} - ₱${Number(p.unit_price).toLocaleString()}`
-                                }))}
-                                value={selectedProductId}
-                                onValueChange={setSelectedProductId}
-                            />
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                                <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Quantity</Label>
-                                <Input 
-                                    type="number" 
-                                    min={1} 
-                                    value={newProductQty}
-                                    onChange={(e) => setNewProductQty(Number(e.target.value))}
-                                    className="font-black text-sm"
-                                />
-                            </div>
-                            <div className="space-y-2">
-                                <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Discount</Label>
-                                <Input 
-                                    type="number" 
-                                    min={0} 
-                                    value={newProductDiscount}
-                                    onChange={(e) => setNewProductDiscount(Number(e.target.value))}
-                                    className="font-black text-sm text-rose-500"
-                                />
-                            </div>
-                        </div>
-
-                        {selectedProductId && (
-                            <div className="p-4 bg-slate-50 dark:bg-slate-900 rounded-xl border border-dashed border-slate-200 dark:border-slate-800">
-                                <div className="flex justify-between items-center">
-                                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Estimated Line Total</p>
-                                    <p className="text-lg font-black text-primary">
-                                        ₱{((newProductQty * (searchProducts.find(p => p.product_id.toString() === selectedProductId)?.unit_price || 0)) - newProductDiscount).toLocaleString()}
-                                    </p>
-                                </div>
-                            </div>
-                        )}
-
-                        <div className="flex gap-3 pt-2">
-                            <Button 
-                                variant="outline" 
-                                className="flex-1 font-black text-[10px] uppercase tracking-widest"
-                                onClick={() => setIsAddProductModalOpen(false)}
-                            >
-                                Cancel
-                            </Button>
-                            <Button 
-                                disabled={!selectedProductId}
-                                onClick={handleAddItem}
-                                className="flex-1 bg-primary hover:bg-primary/90 text-white font-black text-[10px] uppercase tracking-widest shadow-lg shadow-primary/20"
-                            >
-                                Add to List
-                            </Button>
-                        </div>
-                    </div>
-                </DialogContent>
-            </Dialog>
+            <SiteSalesAddProductModal 
+                isOpen={isAddProductModalOpen}
+                onClose={() => setIsAddProductModalOpen(false)}
+                onConfirm={handleAddProducts}
+                products={searchProducts}
+                isLoading={isSearchingProducts}
+                supplierName={mainSupplierName}
+            />
         </div>
     );
 };

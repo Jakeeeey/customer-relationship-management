@@ -138,12 +138,18 @@ export interface InvoiceDetailsResponse {
     details: SalesInvoiceDetail[];
     linkedDocs: LinkedDocument[];
     main_supplier_id?: number | null;
+    main_supplier_name?: string | null;
 }
 
 export interface SearchProduct {
     product_id: number;
     product_name: string;
+    description?: string;
     product_code: string;
     unit_price: number;
-    unit: number;
+    unit: string;
+    available_qty: number;
+    unit_count: number;
+    brand_name?: string | null;
+    category_name?: string | null;
 }
