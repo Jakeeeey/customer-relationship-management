@@ -363,7 +363,7 @@ export async function GET(req: NextRequest) {
                     product_name: prod?.product_name || `Product ${prod?.product_id || 'N/A'}`,
                     brand_name: prod?.product_brand?.brand_name || 'N/A',
                     category_name: prod?.product_category?.category_name || 'N/A',
-                    unit_name: unitMap[Number(d.unit)] || d.unit || "N/A",
+                    unit_name: (d.unit && unitMap[Number(d.unit)]) ? unitMap[Number(d.unit)] : 'PCS',
                     discount_type_name: discTypeName
                 });
             }
@@ -386,17 +386,28 @@ export async function GET(req: NextRequest) {
                 const branchId = searchParams.get("branchId");
                 const customerCode = searchParams.get("customerCode");
 
-                if (!priceTypeId || !customerCode || !supplierId) {
-                    return NextResponse.json({ error: "priceTypeId, customerCode and supplierId required" }, { status: 400 });
+                if (!priceTypeId || !customerCode || !supplierIdRaw) {
+                    return NextResponse.json({ error: "priceTypeId, customerCode and supplierIdRaw required" }, { status: 400 });
                 }
 
-                // 1. Fetch products linked to this supplier
-                const ppsRes = await fetch(`${DIRECTUS_URL}/items/product_per_supplier?filter[supplier_id][_eq]=${supplierId}&fields=product_id&limit=-1`, { headers: fetchHeaders });
-                const psData = (await ppsRes.json()).data || [];
-                const linkedProductIds = psData.map((ps: { product_id: number | { id?: number; product_id?: number } }) => {
-                    if (ps.product_id && typeof ps.product_id === 'object') return ps.product_id.id || ps.product_id.product_id;
-                    return ps.product_id;
-                }).filter(Boolean);
+                // 1. Fetch products linked to this supplier (or all if specified)
+                let linkedProductIds: (string | number)[] = [];
+                if (supplierIdRaw === "all") {
+                    // Fetch all products that have a price for this price type
+                    const poRes = await fetch(`${DIRECTUS_URL}/items/product_per_price_type?filter[price_type_id][_eq]=${priceTypeId}&filter[status][_eq]=published&fields=product_id&limit=-1`, { headers: fetchHeaders });
+                    const poData = (await poRes.json()).data || [];
+                    linkedProductIds = poData.map((po: { product_id: number | { id?: number; product_id?: number } }) => {
+                        if (po.product_id && typeof po.product_id === 'object') return po.product_id.id || po.product_id.product_id;
+                        return po.product_id;
+                    }).filter(Boolean);
+                } else {
+                    const ppsRes = await fetch(`${DIRECTUS_URL}/items/product_per_supplier?filter[supplier_id][_eq]=${supplierId}&fields=product_id&limit=-1`, { headers: fetchHeaders });
+                    const psData = (await ppsRes.json()).data || [];
+                    linkedProductIds = psData.map((ps: { product_id: number | { id?: number; product_id?: number } }) => {
+                        if (ps.product_id && typeof ps.product_id === 'object') return ps.product_id.id || ps.product_id.product_id;
+                        return ps.product_id;
+                    }).filter(Boolean);
+                }
 
                 if (linkedProductIds.length === 0) return NextResponse.json([]);
 
@@ -606,6 +617,12 @@ export async function GET(req: NextRequest) {
             const res = await fetch(`${DIRECTUS_URL}/items/sales_return?filter=${JSON.stringify(filters)}&fields=*,salesman_id.salesman_name&limit=-1`, { headers: fetchHeaders });
             if (!res.ok) throw new Error("Failed to fetch available returns");
 
+            return NextResponse.json((await res.json()).data || []);
+        }
+
+        if (type === "suppliers") {
+            const res = await fetch(`${DIRECTUS_URL}/items/suppliers?filter[supplier_type][_eq]=TRADE&filter[isActive][_eq]=1&fields=id,supplier_name&sort=supplier_name&limit=-1`, { headers: fetchHeaders });
+            if (!res.ok) throw new Error("Failed to fetch suppliers");
             return NextResponse.json((await res.json()).data || []);
         }
 

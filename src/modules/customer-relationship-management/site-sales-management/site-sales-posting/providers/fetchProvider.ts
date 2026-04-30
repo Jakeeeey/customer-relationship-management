@@ -39,6 +39,11 @@ export const siteSalesPostingProvider = {
             invoice_date?: string | null;
             due_date?: string | null;
             remarks?: string | null;
+            gross_amount?: number;
+            discount_amount?: number;
+            vat_amount?: number;
+            total_amount?: number;
+            net_amount?: number;
             details: SalesInvoiceDetail[];
             deletedDetailIds: number[]; 
         }
@@ -125,6 +130,12 @@ export const siteSalesPostingProvider = {
 
         const res = await fetch(`${API_BASE}?${query.toString()}`);
         if (!res.ok) throw new Error("Failed to search products");
+        return res.json();
+    },
+
+    getSuppliers: async (): Promise<{ id: number; supplier_name: string }[]> => {
+        const res = await fetch(`${API_BASE}?type=suppliers`);
+        if (!res.ok) throw new Error("Failed to fetch suppliers");
         return res.json();
     }
 };

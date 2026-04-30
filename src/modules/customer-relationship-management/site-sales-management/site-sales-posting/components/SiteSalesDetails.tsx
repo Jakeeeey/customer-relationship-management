@@ -58,12 +58,39 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
     const [isFetchingReturns, setIsFetchingReturns] = useState(false);
     const [isLinking, setIsLinking] = useState(false);
 
+
+    const { gross, discount, vat, total, returnAmount, memoAmount, balance } = React.useMemo(() => {
+        const g = details.reduce((acc, item) => acc + (Number(item.quantity) * Number(item.unit_price)), 0);
+        const d = details.reduce((acc, item) => acc + Number(item.discount_amount || 0), 0);
+        const net = g - d;
+        const v = (net / 1.12) * 0.12; // VAT-Inclusive calculation (12%)
+        
+        // Sum of all linked returns
+        const r = linkedDocs
+            .filter(doc => doc.type === "RETURN")
+            .reduce((acc, doc) => acc + Number(doc.amount), 0);
+            
+        const m = 0; // Placeholder for Memo as requested (blank for now)
+        const b = net - r - m;
+        
+        return {
+            gross: g,
+            discount: d,
+            vat: v,
+            total: net,
+            returnAmount: r,
+            memoAmount: m,
+            balance: b
+        };
+    }, [details, linkedDocs]);
+
     // Add Product States
     const [isAddProductModalOpen, setIsAddProductModalOpen] = useState(false);
     const [mainSupplierId, setMainSupplierId] = useState<number | null>(null);
-    const [mainSupplierName, setMainSupplierName] = useState<string | null>(null);
     const [searchProducts, setSearchProducts] = useState<SearchProduct[]>([]);
     const [isSearchingProducts, setIsSearchingProducts] = useState(false);
+    const [suppliers, setSuppliers] = useState<{ id: number; supplier_name: string }[]>([]);
+    const [currentModalSupplierId, setCurrentModalSupplierId] = useState<number | string | null>(null);
 
     const fetchData = useCallback(async () => {
         setIsLoading(true);
@@ -73,7 +100,10 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
             setDetails(data.details);
             setLinkedDocs(data.linkedDocs || []);
             setMainSupplierId(data.main_supplier_id || null);
-            setMainSupplierName(data.main_supplier_name || null);
+            
+            // Fetch Suppliers for modal
+            const sData = await siteSalesPostingProvider.getSuppliers();
+            setSuppliers(sData);
         } catch (error) {
             console.error("Failed to fetch invoice details:", error);
         } finally {
@@ -91,8 +121,13 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
                 invoice_date: header.invoice_date,
                 due_date: header.due_date,
                 remarks: header.remarks,
+                gross_amount: gross,
+                discount_amount: discount,
+                vat_amount: vat,
+                total_amount: total,
+                net_amount: total,
                 details: details,
-                deletedDetailIds: [] // Track these if needed
+                deletedDetailIds: []
             });
 
             // 2. Finalize settlement (isDispatched = 1)
@@ -148,13 +183,14 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
         console.log(`[SiteSalesDebug] Opening Modal - BranchID: ${branchId}, PriceTypeID: ${priceTypeId}, SupplierID: ${mainSupplierId}`);
 
         setIsAddProductModalOpen(true);
+        setCurrentModalSupplierId(mainSupplierId || "");
         setIsSearchingProducts(true);
         try {
             const data = await siteSalesPostingProvider.searchProducts({
                 search: "",
                 priceTypeId,
                 priceType: header?.price_type,
-                supplierId: mainSupplierId,
+                supplierId: mainSupplierId as unknown as number,
                 branchId,
                 customerCode: header?.customer_code
             });
@@ -167,9 +203,39 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
         }
     };
 
+    const handleSupplierChange = async (supplierId: string | number) => {
+        const salesman = header?.salesman_id as Salesman | undefined;
+        const priceTypeId = salesman?.price_type_id;
+        if (!priceTypeId) return;
+
+        let branchId: number | string | null = null;
+        const rawBranch = header?.branch_id;
+        if (rawBranch) {
+            branchId = typeof rawBranch === 'object' ? (rawBranch as { id: number | string }).id : rawBranch;
+        }
+
+        setCurrentModalSupplierId(supplierId);
+        setIsSearchingProducts(true);
+        try {
+            const data = await siteSalesPostingProvider.searchProducts({
+                search: "",
+                priceTypeId,
+                priceType: header?.price_type,
+                supplierId: supplierId === "all" ? ("all" as unknown as number) : Number(supplierId),
+                branchId,
+                customerCode: header?.customer_code
+            });
+            setSearchProducts(data);
+        } catch {
+            toast.error("Failed to refresh products for this supplier");
+        } finally {
+            setIsSearchingProducts(false);
+        }
+    };
+
     const handleAddProducts = (newItems: SalesInvoiceDetail[]) => {
-        setDetails([...details, ...newItems]);
-        toast.success(`${newItems.length} items added to order`);
+        setDetails(newItems); // Entire list replaced (initial + new - deleted)
+        toast.success(`Items updated successfully`);
     };
 
     const handleLinkReturn = async (ret: SalesReturn) => {
@@ -214,10 +280,6 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
         );
     }
 
-    const gross = header.gross_amount || 0;
-    const discount = header.discount_amount || 0;
-    const vat = header.vat_amount || 0;
-    const total = header.total_amount || 0;
 
     return (
         <div className="flex flex-col gap-6 p-4 md:p-8 bg-slate-50/50 dark:bg-[#020617] dark:bg-[radial-gradient(circle_at_top_right,_var(--tw-gradient-stops))] dark:from-slate-900/20 dark:via-slate-950 dark:to-slate-950 min-h-screen transition-colors duration-300 relative overflow-hidden">
@@ -521,34 +583,49 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
                             <CardHeader className="pb-2">
                                 <CardTitle className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Summary</CardTitle>
                             </CardHeader>
-                            <CardContent className="space-y-4">
-                                <div className="space-y-2">
+                            <CardContent className="space-y-5">
+                                <div className="space-y-2.5">
                                     <div className="flex justify-between text-xs font-bold">
-                                        <span className="text-slate-400 uppercase tracking-wider">Gross</span>
-                                        <span className="text-slate-700 dark:text-slate-200">₱{gross.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                                        <span className="text-slate-400 uppercase tracking-wider">Gross Amount</span>
+                                        <span className="text-slate-700 dark:text-slate-200 font-black">₱{gross.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                                     </div>
                                     <div className="flex justify-between text-xs font-bold">
                                         <span className="text-slate-400 uppercase tracking-wider">Discount</span>
-                                        <span className="text-slate-700 dark:text-slate-200">₱{discount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                                        <span className="text-rose-500 font-black">-₱{discount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                                     </div>
                                     <div className="flex justify-between text-xs font-bold">
-                                        <span className="text-slate-400 uppercase tracking-wider">VAT (12%)</span>
-                                        <span className="text-slate-700 dark:text-slate-200">₱{vat.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                                        <span className="text-slate-400 uppercase tracking-wider">Vat (12%)</span>
+                                        <span className="text-slate-700 dark:text-slate-200 font-black">₱{vat.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                                    </div>
+                                    <div className="flex justify-between text-sm font-black pt-1">
+                                        <span className="text-slate-900 dark:text-white uppercase tracking-wider">Total Amount</span>
+                                        <span className="text-slate-900 dark:text-white">₱{total.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                                     </div>
                                 </div>
+
                                 <Separator className="bg-slate-100 dark:bg-slate-800" />
-                                <div className="flex justify-between items-baseline py-2">
-                                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-900 dark:text-white">Total</span>
-                                    <span className="text-2xl font-black text-primary">₱{total.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-                                </div>
-                                <div className="flex justify-between items-baseline">
-                                    <span className="text-[10px] font-black uppercase tracking-widest text-red-500">Balance</span>
-                                    <span className="text-lg font-black text-red-500">₱{total.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+
+                                <div className="space-y-2.5">
+                                    <div className="flex justify-between text-xs font-bold">
+                                        <span className="text-rose-500 uppercase tracking-wider">Returns</span>
+                                        <span className="text-rose-600 font-black">-₱{returnAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                                    </div>
+                                    <div className="flex justify-between text-xs font-bold">
+                                        <span className="text-amber-500 uppercase tracking-wider">Memo</span>
+                                        <span className="text-amber-600 font-black">-₱{memoAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                                    </div>
                                 </div>
 
-                                <div className="pt-4 space-y-4">
+                                <Separator className="bg-slate-200 dark:bg-slate-700 h-0.5" />
+
+                                <div className="flex justify-between items-baseline py-2 bg-primary/5 dark:bg-primary/10 px-4 rounded-2xl border border-primary/10">
+                                    <span className="text-xs font-black uppercase tracking-[0.1em] text-primary">Balance</span>
+                                    <span className="text-3xl font-black text-primary drop-shadow-sm">₱{balance.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                                </div>
+
+                                <div className="pt-2 space-y-4">
                                     <div className="space-y-2">
-                                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Status</label>
+                                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 pl-1">Audit Status</label>
                                         <div className="flex gap-2">
                                             <Badge variant="outline" className={cn(
                                                 "uppercase text-[9px] font-black px-3 py-1 rounded-full",
@@ -677,7 +754,10 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
                 onConfirm={handleAddProducts}
                 products={searchProducts}
                 isLoading={isSearchingProducts}
-                supplierName={mainSupplierName}
+                initialDetails={details}
+                suppliers={suppliers}
+                onSupplierChange={handleSupplierChange}
+                currentSupplierId={currentModalSupplierId}
             />
         </div>
     );

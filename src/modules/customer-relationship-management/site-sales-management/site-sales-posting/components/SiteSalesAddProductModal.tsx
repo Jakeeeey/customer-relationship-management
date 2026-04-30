@@ -28,6 +28,7 @@ import {
     Package,
     ArrowRight
 } from 'lucide-react';
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import { SearchProduct, SalesInvoiceDetail, CartItem } from '../types';
 import { calculateChainNetPrice } from '../utils';
 import { cn } from '@/lib/utils';
@@ -38,7 +39,10 @@ interface SiteSalesAddProductModalProps {
     onConfirm: (items: SalesInvoiceDetail[]) => void;
     products: SearchProduct[];
     isLoading: boolean;
-    supplierName: string | null;
+    initialDetails: SalesInvoiceDetail[];
+    suppliers: { id: number; supplier_name: string }[];
+    onSupplierChange: (supplierId: string | number) => void;
+    currentSupplierId: string | number | null;
 }
 
 export const SiteSalesAddProductModal: React.FC<SiteSalesAddProductModalProps> = ({
@@ -47,11 +51,40 @@ export const SiteSalesAddProductModal: React.FC<SiteSalesAddProductModalProps> =
     onConfirm,
     products,
     isLoading,
-    supplierName
+    initialDetails,
+    suppliers,
+    onSupplierChange,
+    currentSupplierId
 }) => {
     const [searchQuery, setSearchQuery] = useState("");
     const [cart, setCart] = useState<CartItem[]>([]);
-    const [showOnlyAvailable, setShowOnlyAvailable] = useState(false);
+
+    // Initialize cart from initialDetails when modal opens
+    React.useEffect(() => {
+        if (isOpen) {
+            const initialCart: CartItem[] = initialDetails.map(item => {
+                const prod = item.product_id && typeof item.product_id === 'object' ? item.product_id : null;
+                return {
+                    product_id: prod?.product_id || 0,
+                    product_name: prod?.product_name || 'N/A',
+                    description: prod?.description || '',
+                    product_code: prod?.product_code || 'N/A',
+                    unit_price: Number(item.unit_price),
+                    unit: item.unit_name || 'PCS',
+                    quantity: Number(item.quantity),
+                    discount_amount: Number(item.discount_amount),
+                    total_amount: Number(item.total_amount),
+                    discount_type: item.discount_type?.toString() || null,
+                    discount_type_name: item.discount_type_name || null,
+                    unit_count: 1, // Default or fetch if needed
+                    available_qty: 0, // Not needed for existing items
+                    brand_name: item.brand_name || null,
+                    category_name: item.category_name || null
+                };
+            });
+            setCart(initialCart);
+        }
+    }, [isOpen, initialDetails]);
 
 
     const filteredProducts = useMemo(() => {
@@ -64,11 +97,8 @@ export const SiteSalesAddProductModal: React.FC<SiteSalesAddProductModalProps> =
                 (p.description?.toLowerCase() || "").includes(q)
             );
         }
-        if (showOnlyAvailable) {
-            filtered = filtered.filter(p => (p.available_qty || 0) > 0);
-        }
         return filtered;
-    }, [products, searchQuery, showOnlyAvailable]);
+    }, [products, searchQuery]);
 
     const addToCart = (product: SearchProduct) => {
         const netUnitPrice = calculateChainNetPrice(product.unit_price, product.discounts || []);
@@ -130,7 +160,6 @@ export const SiteSalesAddProductModal: React.FC<SiteSalesAddProductModalProps> =
             product_id: {
                 product_id: item.product_id,
                 product_name: item.product_name,
-                description: item.description,
                 product_code: item.product_code
             },
             quantity: item.quantity,
@@ -139,7 +168,10 @@ export const SiteSalesAddProductModal: React.FC<SiteSalesAddProductModalProps> =
             discount_type: item.discount_type,
             discount_type_name: item.discount_type_name,
             total_amount: item.total_amount,
-            unit: item.unit?.toString() || 'PCS'
+            unit: item.unit?.toString() || 'PCS',
+            unit_name: item.unit?.toString() || 'PCS',
+            brand_name: item.brand_name,
+            category_name: item.category_name
         }));
         onConfirm(details);
         setCart([]); // Clear cart after submit
@@ -152,7 +184,6 @@ export const SiteSalesAddProductModal: React.FC<SiteSalesAddProductModalProps> =
             if (!open) {
                 setSearchQuery("");
                 setCart([]);
-                setShowOnlyAvailable(false);
                 onClose();
             }
         }}>
@@ -168,10 +199,22 @@ export const SiteSalesAddProductModal: React.FC<SiteSalesAddProductModalProps> =
                             <div className="flex items-center justify-between">
                                 <h2 className="text-[12px] font-black uppercase tracking-[0.2em] text-slate-900 dark:text-white flex items-center gap-2">
                                     <Package className="h-4 w-4 text-primary" />
-                                    Product Catalog <span className="text-primary/50 text-[10px] bg-primary/5 px-2 py-0.5 rounded-full">({filteredProducts.length})</span>
+                                    Catalog <span className="text-primary/50 text-[10px] bg-primary/5 px-2 py-0.5 rounded-full">({filteredProducts.length})</span>
                                 </h2>
                             </div>
-                            <div className="flex gap-2">
+                            <div className="space-y-3">
+                                <div className="space-y-1.5">
+                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest pl-1">Supplier Filter</p>
+                                    <SearchableSelect
+                                        value={currentSupplierId?.toString() || "all"}
+                                        onValueChange={(val) => onSupplierChange(val)}
+                                        options={[
+                                            ...suppliers.map(s => ({ value: s.id.toString(), label: s.supplier_name }))
+                                        ]}
+                                        placeholder="Select Supplier"
+                                        className="h-11 bg-slate-50 dark:bg-slate-900 border-transparent rounded-xl text-xs font-black uppercase tracking-tight shadow-inner focus:ring-1 focus:ring-primary/20"
+                                    />
+                                </div>
                                 <div className="relative group flex-1">
                                     <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-300 group-focus-within:text-primary transition-colors" />
                                     <Input
@@ -181,18 +224,6 @@ export const SiteSalesAddProductModal: React.FC<SiteSalesAddProductModalProps> =
                                         onChange={(e) => setSearchQuery(e.target.value)}
                                     />
                                 </div>
-                                <Button
-                                    variant="outline"
-                                    size="icon"
-                                    className={`h-12 w-12 rounded-2xl transition-all ${showOnlyAvailable
-                                            ? "bg-emerald-500 text-white border-emerald-500 hover:bg-emerald-600 shadow-lg shadow-emerald-500/20"
-                                            : "bg-slate-50 text-slate-400 border-transparent hover:bg-slate-100"
-                                        }`}
-                                    onClick={() => setShowOnlyAvailable(!showOnlyAvailable)}
-                                    title={showOnlyAvailable ? "Showing In-Stock Only" : "Show All Products"}
-                                >
-                                    <Package className={`h-5 w-5 ${showOnlyAvailable ? "animate-pulse" : ""}`} />
-                                </Button>
                             </div>
                         </div>
 
@@ -281,9 +312,9 @@ export const SiteSalesAddProductModal: React.FC<SiteSalesAddProductModalProps> =
                                 <div>
                                     <h2 className="text-xl font-black tracking-tight text-slate-900 dark:text-white uppercase">Order Items</h2>
                                     <div className="flex items-center gap-2 mt-0.5">
-                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Supplier:</p>
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Active Search:</p>
                                         <Badge variant="outline" className="h-4 px-1.5 text-[9px] font-black border-pink-200 text-pink-600 bg-pink-50 uppercase tracking-tighter">
-                                            {supplierName || 'NOT IDENTIFIED'}
+                                            {currentSupplierId === 'all' ? 'ALL SUPPLIERS' : (suppliers.find(s => s.id.toString() === currentSupplierId?.toString())?.supplier_name || 'CUSTOM SELECTION')}
                                         </Badge>
                                     </div>
                                 </div>
@@ -323,7 +354,6 @@ export const SiteSalesAddProductModal: React.FC<SiteSalesAddProductModalProps> =
                                                     <div className="space-y-0.5">
                                                         <p className="text-xs font-black text-slate-800 dark:text-slate-200 line-clamp-1">{item.description || item.product_name}</p>
                                                         <div className="flex flex-wrap gap-1 mt-0.5">
-                                                            <p className="text-[9px] font-bold text-primary uppercase tracking-tighter mr-2">{item.product_code}</p>
                                                             {item.brand_name && (
                                                                 <Badge variant="outline" className="text-[7px] font-black uppercase px-1 py-0 border-blue-100 bg-blue-50/50 text-blue-500 leading-none h-3.5">
                                                                     {item.brand_name}
@@ -424,7 +454,7 @@ export const SiteSalesAddProductModal: React.FC<SiteSalesAddProductModalProps> =
                                         onClick={handleSubmit}
                                         className="h-16 px-12 bg-rose-500 hover:bg-rose-600 text-white rounded-2xl font-black text-sm uppercase tracking-widest shadow-xl shadow-rose-500/30 transition-all active:scale-95 group"
                                     >
-                                        Submit Order
+                                        Save Order
                                         <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
                                     </Button>
                                 </div>
