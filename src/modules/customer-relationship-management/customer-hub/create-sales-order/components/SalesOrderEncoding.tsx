@@ -141,7 +141,7 @@ export function SalesOrderEncoding({
                                                         </div>
                                                         <span className="text-[9px] text-muted-foreground font-black tracking-tighter">
                                                             {p.uom || ''}
-                                                            <span className="ml-2 text-indigo-500">• Avail: {Number(p.available_qty) || 0}</span>
+                                                            {/* Avail removed */}
                                                         </span>
                                                     </div>
                                                     <div className="flex gap-1 items-center">
@@ -152,12 +152,7 @@ export function SalesOrderEncoding({
                                             <Button
                                                 size="icon"
                                                 variant="secondary"
-                                                disabled={(Number(p.available_qty) || 0) <= 0}
-                                                className={`absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8 transition-all shadow-sm ${
-                                                    (Number(p.available_qty) || 0) <= 0
-                                                    ? "bg-slate-100 text-slate-300 cursor-not-allowed opacity-50"
-                                                    : "hover:bg-primary hover:text-white"
-                                                }`}
+                                                className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8 transition-all shadow-sm hover:bg-primary hover:text-white"
                                                 onClick={() => addProduct(p, 1, p.uom || "PCS")}
                                             >
                                                 <Plus className="w-4 h-4" />
@@ -192,7 +187,6 @@ export function SalesOrderEncoding({
                                         <TableHead className="text-center text-[10px] font-black uppercase w-[100px] bg-muted/50">Qty</TableHead>
                                         <TableHead className="text-right text-[10px] font-black uppercase bg-muted/50">Unit Price</TableHead>
                                         <TableHead className="text-center text-[10px] font-black uppercase bg-muted/50">Discounts</TableHead>
-                                        <TableHead className="text-center text-[10px] font-black uppercase bg-muted/50">Available</TableHead>
                                         <TableHead className="text-right text-[10px] font-black uppercase bg-muted/50">Total</TableHead>
                                         <TableHead className="w-[50px] bg-muted/50"></TableHead>
                                     </TableRow>
@@ -244,11 +238,6 @@ export function SalesOrderEncoding({
                                                     )}
                                                     {!item.discountType && <span className="text-[10px] text-muted-foreground italic">none</span>}
                                                 </div>
-                                            </TableCell>
-                                            <TableCell className="text-center border-l border-muted/20">
-                                                <span className={`text-[10px] font-black tabular-nums ${(Number(item.product.available_qty) || 0) > 0 ? "text-foreground" : "text-destructive"}`}>
-                                                    {Number(item.product.available_qty) || 0}
-                                                </span>
                                             </TableCell>
                                             <TableCell className="text-right text-[11px] font-black text-foreground tabular-nums">{formatCurrency(item.netAmount)}</TableCell>
                                             <TableCell>

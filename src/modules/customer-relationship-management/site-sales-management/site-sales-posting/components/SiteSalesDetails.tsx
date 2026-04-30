@@ -7,11 +7,11 @@ import { siteSalesPostingProvider } from '../providers/fetchProvider';
 import { cn } from '@/lib/utils';
 import { format, parseISO } from 'date-fns';
 
-import { 
-    ChevronLeft, 
-    FileText, 
-    User, 
-    MapPin, 
+import {
+    ChevronLeft,
+    FileText,
+    User,
+    MapPin,
     Plus,
     CheckCircle2,
     PlusCircle,
@@ -97,7 +97,7 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
 
             // 2. Finalize settlement (isDispatched = 1)
             await siteSalesPostingProvider.finalizeSettlement([id]);
-            
+
             toast.success("Invoice finalized successfully!");
             router.push('/crm/site-sales-management/site-sales-posting');
         } catch (error: unknown) {
@@ -146,7 +146,7 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
         }
 
         console.log(`[SiteSalesDebug] Opening Modal - BranchID: ${branchId}, PriceTypeID: ${priceTypeId}, SupplierID: ${mainSupplierId}`);
-        
+
         setIsAddProductModalOpen(true);
         setIsSearchingProducts(true);
         try {
@@ -224,373 +224,381 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
             {/* Subtle background glow for premium feel */}
             <div className="absolute top-0 right-0 -translate-y-1/2 translate-x-1/2 w-[500px] h-[500px] bg-primary/5 rounded-full blur-[120px] pointer-events-none" />
             <div className="absolute bottom-0 left-0 translate-y-1/2 -translate-x-1/2 w-[500px] h-[500px] bg-primary/5 rounded-full blur-[120px] pointer-events-none" />
-            
+
             <div className="relative z-10 flex flex-col gap-6">
-            {/* Header Section */}
-            <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                    <Button variant="ghost" size="icon" onClick={() => router.back()} className="rounded-full">
-                        <ChevronLeft className="h-5 w-5" />
-                    </Button>
-                    <div className="flex items-center gap-3">
-                        <div className="p-3 bg-primary rounded-xl shadow-lg shadow-primary/20">
-                            <FileText className="h-6 w-6 text-white" />
-                        </div>
-                        <div>
-                            <div className="flex items-center gap-2">
-                                <h1 className="text-2xl font-black tracking-tight text-slate-900 dark:text-white">Invoice #{header.invoice_no}</h1>
+                {/* Header Section */}
+                <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                        <Button variant="ghost" size="icon" onClick={() => router.back()} className="rounded-full">
+                            <ChevronLeft className="h-5 w-5" />
+                        </Button>
+                        <div className="flex items-center gap-3">
+                            <div className="p-3 bg-primary rounded-xl shadow-lg shadow-primary/20">
+                                <FileText className="h-6 w-6 text-white" />
                             </div>
-                        </div>
-                    </div>
-                </div>
-                
-                <div className="flex items-center gap-2 bg-white dark:bg-slate-900 p-1.5 rounded-xl border shadow-sm">
-                    <div className="px-3 py-1 border-r last:border-0">
-                        <p className="text-[9px] font-black text-slate-400 uppercase">Date</p>
-                        <div className="flex items-center">
-                            <Input 
-                                type="date"
-                                className="h-6 w-28 p-0 border-none bg-transparent font-bold text-slate-700 dark:text-slate-300 text-[11px] focus-visible:ring-0"
-                                value={header.invoice_date ? format(parseISO(header.invoice_date), 'yyyy-MM-dd') : ''}
-                                onChange={(e) => header && setHeader({ ...header, invoice_date: e.target.value })}
-                            />
-                        </div>
-                    </div>
-                    <div className="px-3 py-1 border-r last:border-0">
-                        <p className="text-[9px] font-black text-slate-400 uppercase">Due</p>
-                        <div className="flex items-center">
-                            <Input 
-                                type="date"
-                                className="h-6 w-28 p-0 border-none bg-transparent font-bold text-slate-700 dark:text-slate-300 text-[11px] focus-visible:ring-0"
-                                value={header.due_date ? format(parseISO(header.due_date), 'yyyy-MM-dd') : ''}
-                                onChange={(e) => header && setHeader({ ...header, due_date: e.target.value })}
-                            />
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            {/* Top Section - Info Grid (Full Width) */}
-            <Card className="border-none shadow-sm dark:bg-slate-900">
-                <CardContent className="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-x-12 gap-y-6">
-                    <div className="space-y-4">
-                        <div className="space-y-1.5">
-                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Customer Store</label>
-                            <div className="flex gap-2">
-                                <div className="relative flex-1">
-                                    <Input readOnly value={header.customer_name || header.customer_code || ''} className="h-10 bg-slate-50 dark:bg-slate-800 border-none font-bold text-slate-700 dark:text-slate-200" />
+                            <div>
+                                <div className="flex items-center gap-2">
+                                    <h1 className="text-2xl font-black tracking-tight text-slate-900 dark:text-white">Invoice #{header.invoice_no}</h1>
                                 </div>
                             </div>
                         </div>
-                        <div className="space-y-1.5">
-                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Customer Code</label>
-                            <Input readOnly value={header.customer_code || ''} className="h-10 bg-slate-50 dark:bg-slate-800 border-none font-bold text-slate-400" />
-                        </div>
                     </div>
 
-                    <div className="space-y-4">
-                        <div className="space-y-1.5">
-                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Salesman</label>
-                            <div className="relative">
-                                <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                                <Input readOnly value={header.salesman_id?.salesman_name || header.salesman_name || ''} className="h-10 pl-10 bg-slate-50 dark:bg-slate-800 border-none font-bold text-slate-700 dark:text-slate-200" />
+                    <div className="flex items-center gap-2 bg-white dark:bg-slate-900 p-1.5 rounded-xl border shadow-sm">
+                        <div className="px-3 py-1 border-r last:border-0">
+                            <p className="text-[9px] font-black text-slate-400 uppercase">Date</p>
+                            <div className="flex items-center">
+                                <Input
+                                    type="date"
+                                    className="h-6 w-28 p-0 border-none bg-transparent font-bold text-slate-700 dark:text-slate-300 text-[11px] focus-visible:ring-0"
+                                    value={header.invoice_date ? format(parseISO(header.invoice_date), 'yyyy-MM-dd') : ''}
+                                    onChange={(e) => header && setHeader({ ...header, invoice_date: e.target.value })}
+                                />
                             </div>
                         </div>
-                        <div className="space-y-1.5">
-                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Branch</label>
-                            <div className="relative">
-                                <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                                <Input readOnly value={header.branch_id?.branch_name || ''} className="h-10 pl-10 bg-slate-50 dark:bg-slate-800 border-none font-bold text-slate-400" />
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="space-y-4">
-                        <div className="space-y-1.5">
-                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Sales Type</label>
-                            <Input readOnly value={header.sales_type === 3 ? 'SITE SALES' : 'OTHERS'} className="h-10 bg-slate-50 dark:bg-slate-800 border-none font-bold text-slate-700 dark:text-slate-200" />
-                        </div>
-                        <div className="space-y-1.5">
-                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Price Type</label>
-                            <Input readOnly value={header.price_type || 'B'} className="h-10 bg-slate-50 dark:bg-slate-800 border-none font-bold text-slate-700 dark:text-slate-200" />
-                        </div>
-                    </div>
-
-                    <div className="space-y-4">
-                        <div className="space-y-1.5">
-                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Receipt Type</label>
-                            <Input readOnly value="DIRECT SALES" className="h-10 bg-slate-50 dark:bg-slate-800 border-none font-bold text-slate-700 dark:text-slate-200" />
-                        </div>
-                        <div className="space-y-1.5">
-                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Dispatch Date</label>
-                            <div className="relative">
-                                <Input readOnly value={header.dispatch_date ? format(parseISO(header.dispatch_date), 'MM/dd/yyyy') : ''} className="h-10 bg-slate-50 dark:bg-slate-800 border-none font-bold text-slate-700 dark:text-slate-200" />
+                        <div className="px-3 py-1 border-r last:border-0">
+                            <p className="text-[9px] font-black text-slate-400 uppercase">Due</p>
+                            <div className="flex items-center">
+                                <Input
+                                    type="date"
+                                    className="h-6 w-28 p-0 border-none bg-transparent font-bold text-slate-700 dark:text-slate-300 text-[11px] focus-visible:ring-0"
+                                    value={header.due_date ? format(parseISO(header.due_date), 'yyyy-MM-dd') : ''}
+                                    onChange={(e) => header && setHeader({ ...header, due_date: e.target.value })}
+                                />
                             </div>
                         </div>
                     </div>
-                </CardContent>
-            </Card>
+                </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-                {/* Left Column - Tabs & Table */}
-                <div className="lg:col-span-3 space-y-6">
-                    <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-                        <div className="flex items-center justify-between mb-2">
-                            <TabsList className="bg-transparent h-10 p-0 gap-8">
-                                <TabsTrigger value="items" className="bg-transparent border-b-2 border-transparent data-[state=active]:border-primary rounded-none h-full px-1 font-black text-xs uppercase tracking-widest text-slate-400 data-[state=active]:text-primary transition-all">Items</TabsTrigger>
-                                <TabsTrigger value="returns" className="bg-transparent border-b-2 border-transparent data-[state=active]:border-primary rounded-none h-full px-1 font-black text-xs uppercase tracking-widest text-slate-400 data-[state=active]:text-primary transition-all">Returns</TabsTrigger>
-                                <TabsTrigger value="memo" className="bg-transparent border-b-2 border-transparent data-[state=active]:border-primary rounded-none h-full px-1 font-black text-xs uppercase tracking-widest text-slate-400 data-[state=active]:text-primary transition-all">Memo</TabsTrigger>
-                            </TabsList>
-
-                            {activeTab === 'items' && (
-                                <Button 
-                                    onClick={handleOpenAddProductModal}
-                                    variant="ghost" 
-                                    size="sm" 
-                                    className="gap-2 text-[10px] font-black uppercase tracking-widest text-primary animate-in fade-in slide-in-from-right-4 duration-300"
-                                >
-                                    <Plus className="h-3.5 w-3.5" />
-                                    Add Products
-                                </Button>
-                            )}
-
-                            {activeTab === 'returns' && (
-                                <Button 
-                                    onClick={handleOpenLinkModal}
-                                    variant="ghost" 
-                                    size="sm" 
-                                    className="gap-2 text-[10px] font-black uppercase tracking-widest text-rose-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/20 animate-in fade-in slide-in-from-right-4 duration-300"
-                                >
-                                    <Plus className="h-3.5 w-3.5" />
-                                    Link a Return
-                                </Button>
-                            )}
-                        </div>
-
-                        <Card className="border-none shadow-sm overflow-hidden dark:bg-slate-900">
-                            <TabsContent value="items" className="m-0">
-                                <Table>
-                                    <TableHeader className="bg-slate-50/50 dark:bg-slate-800/50">
-                                        <TableRow className="border-none">
-                                            <TableHead className="text-[10px] font-black uppercase tracking-widest text-slate-400 h-10">Product ID</TableHead>
-                                            <TableHead className="text-[10px] font-black uppercase tracking-widest text-slate-400 h-10">Description</TableHead>
-                                            <TableHead className="text-[10px] font-black uppercase tracking-widest text-slate-400 h-10">Unit</TableHead>
-                                            <TableHead className="text-[10px] font-black uppercase tracking-widest text-slate-400 h-10 text-center">Qty</TableHead>
-                                            <TableHead className="text-[10px] font-black uppercase tracking-widest text-slate-400 h-10 text-right">Price</TableHead>
-                                            <TableHead className="text-[10px] font-black uppercase tracking-widest text-slate-400 h-10 text-right">Gross</TableHead>
-                                            <TableHead className="text-[10px] font-black uppercase tracking-widest text-slate-400 h-10">Disc Type</TableHead>
-                                            <TableHead className="text-[10px] font-black uppercase tracking-widest text-slate-400 h-10 text-right">Disc Amt</TableHead>
-                                            <TableHead className="text-[10px] font-black uppercase tracking-widest text-slate-400 h-10 text-right">Net Total</TableHead>
-                                        </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
-                                        {details.map((item: SalesInvoiceDetail, idx: number) => {
-                                            const product = item.product_id && typeof item.product_id === 'object' ? item.product_id : null;
-                                            const displayId = product?.product_id || (typeof item.product_id !== 'object' ? item.product_id : '') || '';
-                                            return (
-                                                <TableRow key={item.detail_id || idx} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 border-slate-100 dark:border-slate-800">
-                                                    <TableCell>
-                                                        <div className="flex flex-col">
-                                                            <span className="font-mono text-[10px] font-black text-primary">{displayId}</span>
-                                                            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">{item.detail_id || 'NEW'}</span>
-                                                        </div>
-                                                    </TableCell>
-                                                    <TableCell>
-                                                        <div className="max-w-[300px]">
-                                                            <p className="font-black text-xs text-slate-700 dark:text-slate-200 uppercase">{product?.product_name || 'Unnamed Product'}</p>
-                                                            <p className="text-[10px] text-slate-400 truncate">{product?.description || ''}</p>
-                                                        </div>
-                                                    </TableCell>
-                                                    <TableCell className="text-[10px] font-bold text-slate-500 uppercase">{item.unit || 'Box'}</TableCell>
-                                                    <TableCell className="text-center font-black text-primary">{item.quantity}</TableCell>
-                                                    <TableCell className="text-right font-bold text-slate-600">₱{Number(item.unit_price).toLocaleString()}</TableCell>
-                                                    <TableCell className="text-right font-bold text-slate-600">₱{Number(item.gross_amount || (item.quantity * item.unit_price)).toLocaleString()}</TableCell>
-                                                    <TableCell className="text-[10px] font-bold text-slate-400 uppercase">{item.discount_type_name || item.discount_type || 'No Discount'}</TableCell>
-                                                    <TableCell className="text-right font-bold text-slate-600">₱{Number(item.discount_amount || 0).toLocaleString()}</TableCell>
-                                                    <TableCell className="text-right font-black text-slate-900 dark:text-white">₱{Number(item.total_amount).toLocaleString()}</TableCell>
-                                                </TableRow>
-                                            );
-                                        })}
-                                        {details.length === 0 && (
-                                            <TableRow>
-                                                <TableCell colSpan={7} className="h-32 text-center text-slate-400 font-medium">No items found in this invoice.</TableCell>
-                                            </TableRow>
-                                        )}
-                                    </TableBody>
-                                </Table>
-                            </TabsContent>
-                            <TabsContent value="returns" className="m-0 p-4">
-                                {linkedDocs.filter(d => d.type === "RETURN").length === 0 ? (
-                                    <div className="p-8 text-center text-slate-400 text-xs font-bold uppercase tracking-widest italic">
-                                        No linked returns found for this invoice.
+                {/* Top Section - Info Grid (Full Width) */}
+                <Card className="border-none shadow-sm dark:bg-slate-900">
+                    <CardContent className="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-x-12 gap-y-6">
+                        <div className="space-y-4">
+                            <div className="space-y-1.5">
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Customer Store</label>
+                                <div className="flex gap-2">
+                                    <div className="relative flex-1">
+                                        <Input readOnly value={header.customer_name || header.customer_code || ''} className="h-10 bg-slate-50 dark:bg-slate-800 border-none font-bold text-slate-700 dark:text-slate-200" />
                                     </div>
-                                ) : (
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        {linkedDocs.filter(d => d.type === "RETURN").map((doc: LinkedDocument) => (
-                                            <div key={doc.id} className="flex flex-col p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-800 hover:border-primary/30 transition-all group shadow-sm">
-                                                <div className="flex justify-between items-center mb-4 pb-4 border-b border-slate-100 dark:border-slate-800">
-                                                    <div className="flex items-center gap-4">
-                                                        <div>
-                                                            <p className="text-[10px] font-black text-rose-500 uppercase tracking-widest">{doc.type}</p>
-                                                            <p className="text-sm font-black text-slate-800 dark:text-slate-200">{doc.reference_no}</p>
-                                                            <p className="text-[10px] text-slate-400 font-bold uppercase">{doc.date ? format(parseISO(doc.date), 'MMM dd, yyyy') : '--'}</p>
-                                                        </div>
-                                                    </div>
-                                                    <div className="text-right">
-                                                        <p className="text-lg font-black text-slate-900 dark:text-white">₱{doc.amount.toLocaleString()}</p>
-                                                        <Badge variant="outline" className="text-[9px] font-black bg-white dark:bg-slate-900">{doc.status || 'LINKED'}</Badge>
-                                                    </div>
-                                                </div>
+                                </div>
+                            </div>
+                            <div className="space-y-1.5">
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Customer Code</label>
+                                <Input readOnly value={header.customer_code || ''} className="h-10 bg-slate-50 dark:bg-slate-800 border-none font-bold text-slate-400" />
+                            </div>
+                        </div>
 
-                                                {/* Items List */}
-                                                <div className="space-y-2">
-                                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Return Items</p>
-                                                    {doc.items && doc.items.length > 0 ? (
-                                                        <div className="rounded-xl border border-slate-100 dark:border-slate-800 overflow-hidden bg-white/50 dark:bg-slate-900/50">
-                                                            <Table>
-                                                                <TableHeader className="bg-slate-50/50 dark:bg-slate-800/50">
-                                                                    <TableRow className="border-none hover:bg-transparent">
-                                                                        <TableHead className="text-[9px] font-black uppercase tracking-widest text-slate-400 h-9">Product Name</TableHead>
-                                                                        <TableHead className="text-[9px] font-black uppercase tracking-widest text-slate-400 h-9 text-right">Price</TableHead>
-                                                                        <TableHead className="text-[9px] font-black uppercase tracking-widest text-slate-400 h-9 text-right">Discount</TableHead>
-                                                                        <TableHead className="text-[9px] font-black uppercase tracking-widest text-slate-400 h-9 text-center">Dis Type</TableHead>
-                                                                        <TableHead className="text-[9px] font-black uppercase tracking-widest text-slate-400 h-9 text-center">Qty</TableHead>
-                                                                        <TableHead className="text-[9px] font-black uppercase tracking-widest text-slate-400 h-9 text-right">Total Amount</TableHead>
-                                                                    </TableRow>
-                                                                </TableHeader>
-                                                                <TableBody>
-                                                                    {doc.items?.map((item) => (
-                                                                        <TableRow key={item.id} className="hover:bg-white dark:hover:bg-slate-900 border-slate-100 dark:border-slate-800/50">
-                                                                            <TableCell className="py-3">
-                                                                                <div className="max-w-[250px] lg:max-w-[350px]">
-                                                                                    <p className="font-black text-slate-800 dark:text-slate-200 text-[11px] uppercase line-clamp-2 tracking-tight leading-tight">{item.product_name}</p>
-                                                                                    {item.reason && <p className="text-[9px] text-slate-400 italic mt-1 font-medium truncate">Reason: {item.reason}</p>}
-                                                                                </div>
-                                                                            </TableCell>
-                                                                            <TableCell className="text-right font-bold text-slate-500 dark:text-slate-400 text-[10px]">
-                                                                                ₱{Number(item.unit_price).toLocaleString()}
-                                                                            </TableCell>
-                                                                            <TableCell className="text-right font-black text-rose-500 text-[11px]">
-                                                                                ₱{Number(item.discount_amount || 0).toLocaleString()}
-                                                                            </TableCell>
-                                                                            <TableCell className="text-center">
-                                                                                {item.discount_type_name ? (
-                                                                                    <span className="inline-block text-[10px] font-black text-amber-600 dark:text-amber-500 uppercase leading-none bg-amber-50 dark:bg-amber-950/30 px-2 py-1 rounded-md border border-amber-100/50 dark:border-amber-900/30">
-                                                                                        {item.discount_type_name}
-                                                                                    </span>
-                                                                                ) : (
-                                                                                    <span className="text-[9px] font-bold text-slate-300 uppercase tracking-tighter">--</span>
-                                                                                )}
-                                                                            </TableCell>
-                                                                            <TableCell className="text-center font-black text-rose-500 text-[12px]">
-                                                                                x{item.quantity}
-                                                                            </TableCell>
-                                                                            <TableCell className="text-right font-black text-slate-900 dark:text-white text-[13px] tracking-tighter">
-                                                                                ₱{Number(item.total_amount).toLocaleString()}
-                                                                            </TableCell>
-                                                                        </TableRow>
-                                                                    ))}
-                                                                </TableBody>
-                                                            </Table>
-                                                        </div>
-                                                    ) : (
-                                                        <p className="text-[10px] text-slate-400 italic py-2">No items listed for this return.</p>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
+                        <div className="space-y-4">
+                            <div className="space-y-1.5">
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Salesman</label>
+                                <div className="relative">
+                                    <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                                    <Input readOnly value={header.salesman_id?.salesman_name || header.salesman_name || ''} className="h-10 pl-10 bg-slate-50 dark:bg-slate-800 border-none font-bold text-slate-700 dark:text-slate-200" />
+                                </div>
+                            </div>
+                            <div className="space-y-1.5">
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Branch</label>
+                                <div className="relative">
+                                    <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                                    <Input readOnly value={header.branch_id?.branch_name || ''} className="h-10 pl-10 bg-slate-50 dark:bg-slate-800 border-none font-bold text-slate-400" />
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="space-y-4">
+                            <div className="space-y-1.5">
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Sales Type</label>
+                                <Input readOnly value={header.sales_type === 3 ? 'SITE SALES' : 'OTHERS'} className="h-10 bg-slate-50 dark:bg-slate-800 border-none font-bold text-slate-700 dark:text-slate-200" />
+                            </div>
+                            <div className="space-y-1.5">
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Price Type</label>
+                                <Input readOnly value={header.price_type || 'B'} className="h-10 bg-slate-50 dark:bg-slate-800 border-none font-bold text-slate-700 dark:text-slate-200" />
+                            </div>
+                        </div>
+
+                        <div className="space-y-4">
+                            <div className="space-y-1.5">
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Receipt Type</label>
+                                <Input readOnly value="DIRECT SALES" className="h-10 bg-slate-50 dark:bg-slate-800 border-none font-bold text-slate-700 dark:text-slate-200" />
+                            </div>
+                            <div className="space-y-1.5">
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Dispatch Date</label>
+                                <div className="relative">
+                                    <Input readOnly value={header.dispatch_date ? format(parseISO(header.dispatch_date), 'MM/dd/yyyy') : ''} className="h-10 bg-slate-50 dark:bg-slate-800 border-none font-bold text-slate-700 dark:text-slate-200" />
+                                </div>
+                            </div>
+                        </div>
+                    </CardContent>
+                </Card>
+
+                <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+                    {/* Left Column - Tabs & Table */}
+                    <div className="lg:col-span-3 space-y-6">
+                        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+                            <div className="flex items-center justify-between mb-2">
+                                <TabsList className="bg-transparent h-10 p-0 gap-8">
+                                    <TabsTrigger value="items" className="bg-transparent border-b-2 border-transparent data-[state=active]:border-primary rounded-none h-full px-1 font-black text-xs uppercase tracking-widest text-slate-400 data-[state=active]:text-primary transition-all">Items</TabsTrigger>
+                                    <TabsTrigger value="returns" className="bg-transparent border-b-2 border-transparent data-[state=active]:border-primary rounded-none h-full px-1 font-black text-xs uppercase tracking-widest text-slate-400 data-[state=active]:text-primary transition-all">Returns</TabsTrigger>
+                                    <TabsTrigger value="memo" className="bg-transparent border-b-2 border-transparent data-[state=active]:border-primary rounded-none h-full px-1 font-black text-xs uppercase tracking-widest text-slate-400 data-[state=active]:text-primary transition-all">Memo</TabsTrigger>
+                                </TabsList>
+
+                                {activeTab === 'items' && (
+                                    <Button
+                                        onClick={handleOpenAddProductModal}
+                                        variant="ghost"
+                                        size="sm"
+                                        className="gap-2 text-[10px] font-black uppercase tracking-widest text-primary animate-in fade-in slide-in-from-right-4 duration-300"
+                                    >
+                                        <Plus className="h-3.5 w-3.5" />
+                                        Add Products
+                                    </Button>
                                 )}
-                            </TabsContent>
-                            <TabsContent value="memo" className="p-8 text-center text-slate-400 text-xs font-bold uppercase tracking-widest">No Memos Found</TabsContent>
-                        </Card>
-                    </Tabs>
-                </div>
 
-                {/* Right Column - Summary */}
-                <div className="space-y-6">
-                    <Card className="border-none shadow-lg shadow-primary/5 dark:bg-slate-900">
-                        <CardHeader className="pb-2">
-                            <CardTitle className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Summary</CardTitle>
-                        </CardHeader>
-                        <CardContent className="space-y-4">
-                            <div className="space-y-2">
-                                <div className="flex justify-between text-xs font-bold">
-                                    <span className="text-slate-400 uppercase tracking-wider">Gross</span>
-                                    <span className="text-slate-700 dark:text-slate-200">₱{gross.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-                                </div>
-                                <div className="flex justify-between text-xs font-bold">
-                                    <span className="text-slate-400 uppercase tracking-wider">Discount</span>
-                                    <span className="text-slate-700 dark:text-slate-200">₱{discount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-                                </div>
-                                <div className="flex justify-between text-xs font-bold">
-                                    <span className="text-slate-400 uppercase tracking-wider">VAT (12%)</span>
-                                    <span className="text-slate-700 dark:text-slate-200">₱{vat.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-                                </div>
-                            </div>
-                            <Separator className="bg-slate-100 dark:bg-slate-800" />
-                            <div className="flex justify-between items-baseline py-2">
-                                <span className="text-[10px] font-black uppercase tracking-widest text-slate-900 dark:text-white">Total</span>
-                                <span className="text-2xl font-black text-primary">₱{total.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-                            </div>
-                            <div className="flex justify-between items-baseline">
-                                <span className="text-[10px] font-black uppercase tracking-widest text-red-500">Balance</span>
-                                <span className="text-lg font-black text-red-500">₱{total.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                                {activeTab === 'returns' && (
+                                    <Button
+                                        onClick={handleOpenLinkModal}
+                                        variant="ghost"
+                                        size="sm"
+                                        className="gap-2 text-[10px] font-black uppercase tracking-widest text-rose-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/20 animate-in fade-in slide-in-from-right-4 duration-300"
+                                    >
+                                        <Plus className="h-3.5 w-3.5" />
+                                        Link a Return
+                                    </Button>
+                                )}
                             </div>
 
-                            <div className="pt-4 space-y-4">
+                            <Card className="border-none shadow-sm overflow-hidden dark:bg-slate-900">
+                                <TabsContent value="items" className="m-0">
+                                    <Table>
+                                        <TableHeader className="bg-slate-50/50 dark:bg-slate-800/50">
+                                            <TableRow className="border-none">
+                                                <TableHead className="text-[10px] font-black uppercase tracking-widest text-slate-400 h-10">Brand</TableHead>
+                                                <TableHead className="text-[10px] font-black uppercase tracking-widest text-slate-400 h-10">Category</TableHead>
+                                                <TableHead className="text-[10px] font-black uppercase tracking-widest text-slate-400 h-10">Description</TableHead>
+                                                <TableHead className="text-[10px] font-black uppercase tracking-widest text-slate-400 h-10">Unit</TableHead>
+                                                <TableHead className="text-[10px] font-black uppercase tracking-widest text-slate-400 h-10 text-center">Qty</TableHead>
+                                                <TableHead className="text-[10px] font-black uppercase tracking-widest text-slate-400 h-10 text-right">Price</TableHead>
+                                                <TableHead className="text-[10px] font-black uppercase tracking-widest text-slate-400 h-10 text-right">Gross</TableHead>
+                                                <TableHead className="text-[10px] font-black uppercase tracking-widest text-slate-400 h-10">Disc Type</TableHead>
+                                                <TableHead className="text-[10px] font-black uppercase tracking-widest text-slate-400 h-10 text-right">Disc Amt</TableHead>
+                                                <TableHead className="text-[10px] font-black uppercase tracking-widest text-slate-400 h-10 text-right">Net Total</TableHead>
+                                            </TableRow>
+                                        </TableHeader>
+                                        <TableBody>
+                                            {details.map((item: SalesInvoiceDetail, idx: number) => {
+                                                const product = item.product_id && typeof item.product_id === 'object' ? item.product_id : null;
+                                                return (
+                                                    <TableRow key={item.detail_id || idx} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 border-slate-100 dark:border-slate-800">
+                                                        <TableCell>
+                                                            {item.brand_name && (
+                                                                <Badge variant="outline" className="text-[7px] font-black uppercase px-1 py-0 border-blue-100 bg-blue-50/50 text-blue-500 leading-none h-3.5 whitespace-nowrap">
+                                                                    {item.brand_name}
+                                                                </Badge>
+                                                            )}
+                                                        </TableCell>
+                                                        <TableCell>
+                                                            {item.category_name && (
+                                                                <Badge variant="outline" className="text-[7px] font-black uppercase px-1 py-0 border-slate-100 bg-slate-50/50 text-slate-400 leading-none h-3.5 whitespace-nowrap">
+                                                                    {item.category_name}
+                                                                </Badge>
+                                                            )}
+                                                        </TableCell>
+                                                        <TableCell>
+                                                            <div className="max-w-[300px]">
+                                                                <p className="font-black text-xs text-slate-700 dark:text-slate-200 uppercase">{product?.product_name || 'Unnamed Product'}</p>
+                                                                <p className="text-[10px] text-slate-400 truncate">{product?.description || ''}</p>
+                                                            </div>
+                                                        </TableCell>
+                                                        <TableCell className="text-[10px] font-black text-slate-500 uppercase">{item.unit_name || item.unit || 'BOX'}</TableCell>
+                                                        <TableCell className="text-center font-black text-primary">{item.quantity}</TableCell>
+                                                        <TableCell className="text-right font-bold text-slate-600">₱{Number(item.unit_price).toLocaleString()}</TableCell>
+                                                        <TableCell className="text-right font-bold text-slate-600">₱{Number(item.gross_amount || (item.quantity * item.unit_price)).toLocaleString()}</TableCell>
+                                                        <TableCell className="text-[10px] font-bold text-slate-400 uppercase">{item.discount_type_name || item.discount_type || 'No Discount'}</TableCell>
+                                                        <TableCell className="text-right font-bold text-slate-600">₱{Number(item.discount_amount || 0).toLocaleString()}</TableCell>
+                                                        <TableCell className="text-right font-black text-slate-900 dark:text-white">₱{Number(item.total_amount).toLocaleString()}</TableCell>
+                                                    </TableRow>
+                                                );
+                                            })}
+                                            {details.length === 0 && (
+                                                <TableRow>
+                                                    <TableCell colSpan={10} className="h-32 text-center text-slate-400 font-medium">No items found in this invoice.</TableCell>
+                                                </TableRow>
+                                            )}
+                                        </TableBody>
+                                    </Table>
+                                </TabsContent>
+                                <TabsContent value="returns" className="m-0 p-4">
+                                    {linkedDocs.filter(d => d.type === "RETURN").length === 0 ? (
+                                        <div className="p-8 text-center text-slate-400 text-xs font-bold uppercase tracking-widest italic">
+                                            No linked returns found for this invoice.
+                                        </div>
+                                    ) : (
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            {linkedDocs.filter(d => d.type === "RETURN").map((doc: LinkedDocument) => (
+                                                <div key={doc.id} className="flex flex-col p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-800 hover:border-primary/30 transition-all group shadow-sm">
+                                                    <div className="flex justify-between items-center mb-4 pb-4 border-b border-slate-100 dark:border-slate-800">
+                                                        <div className="flex items-center gap-4">
+                                                            <div>
+                                                                <p className="text-[10px] font-black text-rose-500 uppercase tracking-widest">{doc.type}</p>
+                                                                <p className="text-sm font-black text-slate-800 dark:text-slate-200">{doc.reference_no}</p>
+                                                                <p className="text-[10px] text-slate-400 font-bold uppercase">{doc.date ? format(parseISO(doc.date), 'MMM dd, yyyy') : '--'}</p>
+                                                            </div>
+                                                        </div>
+                                                        <div className="text-right">
+                                                            <p className="text-lg font-black text-slate-900 dark:text-white">₱{doc.amount.toLocaleString()}</p>
+                                                            <Badge variant="outline" className="text-[9px] font-black bg-white dark:bg-slate-900">{doc.status || 'LINKED'}</Badge>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Items List */}
+                                                    <div className="space-y-2">
+                                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Return Items</p>
+                                                        {doc.items && doc.items.length > 0 ? (
+                                                            <div className="rounded-xl border border-slate-100 dark:border-slate-800 overflow-hidden bg-white/50 dark:bg-slate-900/50">
+                                                                <Table>
+                                                                    <TableHeader className="bg-slate-50/50 dark:bg-slate-800/50">
+                                                                        <TableRow className="border-none hover:bg-transparent">
+                                                                            <TableHead className="text-[9px] font-black uppercase tracking-widest text-slate-400 h-9">Product Name</TableHead>
+                                                                            <TableHead className="text-[9px] font-black uppercase tracking-widest text-slate-400 h-9 text-right">Price</TableHead>
+                                                                            <TableHead className="text-[9px] font-black uppercase tracking-widest text-slate-400 h-9 text-right">Discount</TableHead>
+                                                                            <TableHead className="text-[9px] font-black uppercase tracking-widest text-slate-400 h-9 text-center">Dis Type</TableHead>
+                                                                            <TableHead className="text-[9px] font-black uppercase tracking-widest text-slate-400 h-9 text-center">Qty</TableHead>
+                                                                            <TableHead className="text-[9px] font-black uppercase tracking-widest text-slate-400 h-9 text-right">Total Amount</TableHead>
+                                                                        </TableRow>
+                                                                    </TableHeader>
+                                                                    <TableBody>
+                                                                        {doc.items?.map((item) => (
+                                                                            <TableRow key={item.id} className="hover:bg-white dark:hover:bg-slate-900 border-slate-100 dark:border-slate-800/50">
+                                                                                <TableCell className="py-3">
+                                                                                    <div className="max-w-[250px] lg:max-w-[350px]">
+                                                                                        <p className="font-black text-slate-800 dark:text-slate-200 text-[11px] uppercase line-clamp-2 tracking-tight leading-tight">{item.product_name}</p>
+                                                                                        {item.reason && <p className="text-[9px] text-slate-400 italic mt-1 font-medium truncate">Reason: {item.reason}</p>}
+                                                                                    </div>
+                                                                                </TableCell>
+                                                                                <TableCell className="text-right font-bold text-slate-500 dark:text-slate-400 text-[10px]">
+                                                                                    ₱{Number(item.unit_price).toLocaleString()}
+                                                                                </TableCell>
+                                                                                <TableCell className="text-right font-black text-rose-500 text-[11px]">
+                                                                                    ₱{Number(item.discount_amount || 0).toLocaleString()}
+                                                                                </TableCell>
+                                                                                <TableCell className="text-center">
+                                                                                    {item.discount_type_name ? (
+                                                                                        <span className="inline-block text-[10px] font-black text-amber-600 dark:text-amber-500 uppercase leading-none bg-amber-50 dark:bg-amber-950/30 px-2 py-1 rounded-md border border-amber-100/50 dark:border-amber-900/30">
+                                                                                            {item.discount_type_name}
+                                                                                        </span>
+                                                                                    ) : (
+                                                                                        <span className="text-[9px] font-bold text-slate-300 uppercase tracking-tighter">--</span>
+                                                                                    )}
+                                                                                </TableCell>
+                                                                                <TableCell className="text-center font-black text-rose-500 text-[12px]">
+                                                                                    x{item.quantity}
+                                                                                </TableCell>
+                                                                                <TableCell className="text-right font-black text-slate-900 dark:text-white text-[13px] tracking-tighter">
+                                                                                    ₱{Number(item.total_amount).toLocaleString()}
+                                                                                </TableCell>
+                                                                            </TableRow>
+                                                                        ))}
+                                                                    </TableBody>
+                                                                </Table>
+                                                            </div>
+                                                        ) : (
+                                                            <p className="text-[10px] text-slate-400 italic py-2">No items listed for this return.</p>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </TabsContent>
+                                <TabsContent value="memo" className="p-8 text-center text-slate-400 text-xs font-bold uppercase tracking-widest">No Memos Found</TabsContent>
+                            </Card>
+                        </Tabs>
+                    </div>
+
+                    {/* Right Column - Summary */}
+                    <div className="space-y-6">
+                        <Card className="border-none shadow-lg shadow-primary/5 dark:bg-slate-900">
+                            <CardHeader className="pb-2">
+                                <CardTitle className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Summary</CardTitle>
+                            </CardHeader>
+                            <CardContent className="space-y-4">
                                 <div className="space-y-2">
-                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Status</label>
-                                    <div className="flex gap-2">
-                                        <Badge variant="outline" className={cn(
-                                            "uppercase text-[9px] font-black px-3 py-1 rounded-full",
-                                            header.transaction_status === 'COMPLETED' ? "bg-emerald-50 text-emerald-600 border-emerald-100" : "bg-amber-50 text-amber-600 border-amber-100"
-                                        )}>
-                                            {header.transaction_status || 'PENDING'}
-                                        </Badge>
-                                        <Badge variant="outline" className={cn(
-                                            "uppercase text-[9px] font-black px-3 py-1 rounded-full",
-                                            header.payment_status === 'Paid' ? "bg-emerald-50 text-emerald-600 border-emerald-100" : "bg-rose-50 text-rose-600 border-rose-100"
-                                        )}>
-                                            {header.payment_status || 'UNPAID'}
-                                        </Badge>
+                                    <div className="flex justify-between text-xs font-bold">
+                                        <span className="text-slate-400 uppercase tracking-wider">Gross</span>
+                                        <span className="text-slate-700 dark:text-slate-200">₱{gross.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                                    </div>
+                                    <div className="flex justify-between text-xs font-bold">
+                                        <span className="text-slate-400 uppercase tracking-wider">Discount</span>
+                                        <span className="text-slate-700 dark:text-slate-200">₱{discount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                                    </div>
+                                    <div className="flex justify-between text-xs font-bold">
+                                        <span className="text-slate-400 uppercase tracking-wider">VAT (12%)</span>
+                                        <span className="text-slate-700 dark:text-slate-200">₱{vat.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                                     </div>
                                 </div>
-
-                                <div className="space-y-2">
-                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Remarks</label>
-                                    <textarea 
-                                        value={header.remarks || ''} 
-                                        onChange={(e) => header && setHeader({ ...header, remarks: e.target.value })}
-                                        className="w-full min-h-[80px] p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border border-dashed border-slate-200 dark:border-slate-700 text-[11px] text-slate-600 dark:text-slate-300 font-medium focus:ring-1 focus:ring-primary focus:outline-none transition-all resize-none"
-                                        placeholder="Add notes or remarks for this invoice..."
-                                    />
+                                <Separator className="bg-slate-100 dark:bg-slate-800" />
+                                <div className="flex justify-between items-baseline py-2">
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-900 dark:text-white">Total</span>
+                                    <span className="text-2xl font-black text-primary">₱{total.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                                 </div>
-                            </div>
-                        </CardContent>
-                    </Card>
-                </div>
-            </div>
+                                <div className="flex justify-between items-baseline">
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-red-500">Balance</span>
+                                    <span className="text-lg font-black text-red-500">₱{total.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                                </div>
 
-            {/* Bottom Actions */}
-            <div className="mt-auto pt-6 flex justify-end items-center">
-                <div className="flex gap-3">
-                    <Button variant="outline" className="rounded-xl font-black text-xs uppercase tracking-widest">Print Invoice</Button>
-                    <Button 
-                        disabled={isSaving}
-                        onClick={handleFinalize}
-                        className="bg-primary hover:bg-primary/90 rounded-xl px-8 font-black text-xs uppercase tracking-widest shadow-lg shadow-primary/20 gap-2"
-                    >
-                        {isSaving ? (
-                            <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                        ) : (
-                            <CheckCircle2 className="h-4 w-4" />
-                        )}
-                        Finalize Posting
-                    </Button>
+                                <div className="pt-4 space-y-4">
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Status</label>
+                                        <div className="flex gap-2">
+                                            <Badge variant="outline" className={cn(
+                                                "uppercase text-[9px] font-black px-3 py-1 rounded-full",
+                                                header.transaction_status === 'COMPLETED' ? "bg-emerald-50 text-emerald-600 border-emerald-100" : "bg-amber-50 text-amber-600 border-amber-100"
+                                            )}>
+                                                {header.transaction_status || 'PENDING'}
+                                            </Badge>
+                                            <Badge variant="outline" className={cn(
+                                                "uppercase text-[9px] font-black px-3 py-1 rounded-full",
+                                                header.payment_status === 'Paid' ? "bg-emerald-50 text-emerald-600 border-emerald-100" : "bg-rose-50 text-rose-600 border-rose-100"
+                                            )}>
+                                                {header.payment_status || 'UNPAID'}
+                                            </Badge>
+                                        </div>
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Remarks</label>
+                                        <textarea
+                                            value={header.remarks || ''}
+                                            onChange={(e) => header && setHeader({ ...header, remarks: e.target.value })}
+                                            className="w-full min-h-[80px] p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border border-dashed border-slate-200 dark:border-slate-700 text-[11px] text-slate-600 dark:text-slate-300 font-medium focus:ring-1 focus:ring-primary focus:outline-none transition-all resize-none"
+                                            placeholder="Add notes or remarks for this invoice..."
+                                        />
+                                    </div>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    </div>
+                </div>
+
+                {/* Bottom Actions */}
+                <div className="mt-auto pt-6 flex justify-end items-center">
+                    <div className="flex gap-3">
+                        <Button variant="outline" className="rounded-xl font-black text-xs uppercase tracking-widest">Print Invoice</Button>
+                        <Button
+                            disabled={isSaving}
+                            onClick={handleFinalize}
+                            className="bg-primary hover:bg-primary/90 rounded-xl px-8 font-black text-xs uppercase tracking-widest shadow-lg shadow-primary/20 gap-2"
+                        >
+                            {isSaving ? (
+                                <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                            ) : (
+                                <CheckCircle2 className="h-4 w-4" />
+                            )}
+                            Finalize Posting
+                        </Button>
+                    </div>
                 </div>
             </div>
-        </div>
 
             {/* Link Return Modal */}
             <Dialog open={isLinkModalOpen} onOpenChange={setIsLinkModalOpen}>
@@ -645,7 +653,7 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
                                                 <p className="text-base font-black text-slate-900 dark:text-white">₱{Number(ret.total_amount).toLocaleString()}</p>
                                                 <p className="text-[9px] font-black text-rose-500 uppercase tracking-widest opacity-70">Total Amount</p>
                                             </div>
-                                            <Button 
+                                            <Button
                                                 disabled={isLinking}
                                                 onClick={() => handleLinkReturn(ret)}
                                                 className="bg-rose-500 hover:bg-rose-600 text-white rounded-lg px-4 h-9 font-black text-[10px] uppercase tracking-widest shadow-lg shadow-rose-500/20 gap-2"
@@ -663,7 +671,7 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
             </Dialog>
 
             {/* Add Product Modal */}
-            <SiteSalesAddProductModal 
+            <SiteSalesAddProductModal
                 isOpen={isAddProductModalOpen}
                 onClose={() => setIsAddProductModalOpen(false)}
                 onConfirm={handleAddProducts}

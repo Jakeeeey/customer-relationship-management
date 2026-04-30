@@ -1,8 +1,8 @@
 "use client";
 
 import React, { useState, useMemo } from 'react';
-import { 
-    Dialog, 
+import {
+    Dialog,
     DialogContent,
     DialogHeader,
     DialogTitle,
@@ -10,26 +10,26 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { 
-    Table, 
-    TableBody, 
-    TableCell, 
-    TableHead, 
-    TableHeader, 
-    TableRow 
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { 
-    Search, 
-    Plus, 
-    Trash2, 
-    ShoppingCart, 
+import {
+    Search,
+    Plus,
+    Trash2,
+    ShoppingCart,
     Package,
     ArrowRight
 } from 'lucide-react';
-import { toast } from 'sonner';
-import { SearchProduct, SalesInvoiceDetail } from '../types';
+import { SearchProduct, SalesInvoiceDetail, CartItem } from '../types';
+import { calculateChainNetPrice } from '../utils';
 import { cn } from '@/lib/utils';
 
 interface SiteSalesAddProductModalProps {
@@ -39,11 +39,6 @@ interface SiteSalesAddProductModalProps {
     products: SearchProduct[];
     isLoading: boolean;
     supplierName: string | null;
-}
-
-interface CartItem extends SearchProduct {
-    quantity: number;
-    discount: number;
 }
 
 export const SiteSalesAddProductModal: React.FC<SiteSalesAddProductModalProps> = ({
@@ -63,8 +58,8 @@ export const SiteSalesAddProductModal: React.FC<SiteSalesAddProductModalProps> =
         let filtered = products;
         if (searchQuery) {
             const q = searchQuery.toLowerCase();
-            filtered = filtered.filter(p => 
-                (p.product_name?.toLowerCase() || "").includes(q) || 
+            filtered = filtered.filter(p =>
+                (p.product_name?.toLowerCase() || "").includes(q) ||
                 (p.product_code?.toLowerCase() || "").includes(q) ||
                 (p.description?.toLowerCase() || "").includes(q)
             );
@@ -76,23 +71,25 @@ export const SiteSalesAddProductModal: React.FC<SiteSalesAddProductModalProps> =
     }, [products, searchQuery, showOnlyAvailable]);
 
     const addToCart = (product: SearchProduct) => {
-        if ((product.available_qty || 0) <= 0) {
-            toast.error("Product is out of stock", {
-                description: `${product.product_name} is currently unavailable.`,
-            });
-            return;
-        }
-        
+        const netUnitPrice = calculateChainNetPrice(product.unit_price, product.discounts || []);
+        const totalAmount = netUnitPrice * 1;
+
         setCart(prev => {
             const existing = prev.find(item => item.product_id === product.product_id);
             if (existing) {
-                return prev.map(item => 
-                    item.product_id === product.product_id 
-                        ? { ...item, quantity: item.quantity + 1 } 
+                const newQty = existing.quantity + 1;
+                return prev.map(item =>
+                    item.product_id === product.product_id
+                        ? { ...item, quantity: newQty, total_amount: netUnitPrice * newQty, discount_amount: (item.unit_price - netUnitPrice) * newQty }
                         : item
                 );
             }
-            return [...prev, { ...product, quantity: 1, discount: 0 }];
+            return [...prev, { 
+                ...product, 
+                quantity: 1, 
+                discount_amount: (product.unit_price - netUnitPrice),
+                total_amount: totalAmount
+            }];
         });
     };
 
@@ -101,15 +98,24 @@ export const SiteSalesAddProductModal: React.FC<SiteSalesAddProductModalProps> =
     };
 
     const updateQuantity = (productId: number, qty: number) => {
-        if (qty < 0) return;
-        setCart(prev => prev.map(item => 
-            item.product_id === productId ? { ...item, quantity: qty } : item
-        ));
+        setCart(prev => prev.map(item => {
+            if (item.product_id === productId) {
+                const newQty = Math.max(0, qty);
+                const netUnitPrice = calculateChainNetPrice(item.unit_price, item.discounts || []);
+                return { 
+                    ...item, 
+                    quantity: newQty,
+                    discount_amount: (item.unit_price - netUnitPrice) * newQty,
+                    total_amount: netUnitPrice * newQty 
+                };
+            }
+            return item;
+        }));
     };
 
     const totals = useMemo(() => {
         const gross = cart.reduce((acc, item) => acc + (item.quantity * item.unit_price), 0);
-        const discount = cart.reduce((acc, item) => acc + item.discount, 0);
+        const discount = cart.reduce((acc, item) => acc + item.discount_amount, 0);
         return {
             gross,
             discount,
@@ -120,7 +126,7 @@ export const SiteSalesAddProductModal: React.FC<SiteSalesAddProductModalProps> =
     const handleSubmit = () => {
         const details: SalesInvoiceDetail[] = cart.map(item => ({
             detail_id: undefined,
-            invoice_id: 0, 
+            invoice_id: 0,
             product_id: {
                 product_id: item.product_id,
                 product_name: item.product_name,
@@ -129,8 +135,10 @@ export const SiteSalesAddProductModal: React.FC<SiteSalesAddProductModalProps> =
             },
             quantity: item.quantity,
             unit_price: item.unit_price,
-            discount_amount: item.discount,
-            total_amount: (item.quantity * item.unit_price) - item.discount,
+            discount_amount: item.discount_amount,
+            discount_type: item.discount_type,
+            discount_type_name: item.discount_type_name,
+            total_amount: item.total_amount,
             unit: item.unit?.toString() || 'PCS'
         }));
         onConfirm(details);
@@ -166,8 +174,8 @@ export const SiteSalesAddProductModal: React.FC<SiteSalesAddProductModalProps> =
                             <div className="flex gap-2">
                                 <div className="relative group flex-1">
                                     <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-300 group-focus-within:text-primary transition-colors" />
-                                    <Input 
-                                        placeholder="Search products..." 
+                                    <Input
+                                        placeholder="Search products..."
                                         className="pl-11 h-12 bg-slate-50 dark:bg-slate-900 border-transparent focus:border-primary/30 focus:bg-white rounded-2xl transition-all text-xs font-bold shadow-inner"
                                         value={searchQuery}
                                         onChange={(e) => setSearchQuery(e.target.value)}
@@ -176,11 +184,10 @@ export const SiteSalesAddProductModal: React.FC<SiteSalesAddProductModalProps> =
                                 <Button
                                     variant="outline"
                                     size="icon"
-                                    className={`h-12 w-12 rounded-2xl transition-all ${
-                                        showOnlyAvailable 
-                                        ? "bg-emerald-500 text-white border-emerald-500 hover:bg-emerald-600 shadow-lg shadow-emerald-500/20" 
-                                        : "bg-slate-50 text-slate-400 border-transparent hover:bg-slate-100"
-                                    }`}
+                                    className={`h-12 w-12 rounded-2xl transition-all ${showOnlyAvailable
+                                            ? "bg-emerald-500 text-white border-emerald-500 hover:bg-emerald-600 shadow-lg shadow-emerald-500/20"
+                                            : "bg-slate-50 text-slate-400 border-transparent hover:bg-slate-100"
+                                        }`}
                                     onClick={() => setShowOnlyAvailable(!showOnlyAvailable)}
                                     title={showOnlyAvailable ? "Showing In-Stock Only" : "Show All Products"}
                                 >
@@ -219,7 +226,7 @@ export const SiteSalesAddProductModal: React.FC<SiteSalesAddProductModalProps> =
                                     </div>
                                 ) : (
                                     filteredProducts.map((p) => (
-                                        <div 
+                                        <div
                                             key={p.product_id}
                                             className="group relative p-6 bg-white dark:bg-slate-900 border border-rose-500/80 dark:border-rose-500/50 rounded-[28px] shadow-sm hover:shadow-xl hover:shadow-rose-500/10 transition-all cursor-default"
                                         >
@@ -241,29 +248,16 @@ export const SiteSalesAddProductModal: React.FC<SiteSalesAddProductModalProps> =
                                                         )}
                                                     </div>
                                                     <div className="flex items-center gap-2">
-                                                        <span className="text-sm font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-lg border border-emerald-100">₱{Number(p.unit_price).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-                                                        <Badge 
-                                                            variant="outline" 
-                                                            className={`text-[9px] font-black h-5 uppercase tracking-widest ${
-                                                                (p.available_qty || 0) > 10 
-                                                                ? "bg-emerald-50 text-emerald-600 border-emerald-100" 
-                                                                : (p.available_qty || 0) > 0 
-                                                                ? "bg-amber-50 text-amber-600 border-amber-100"
-                                                                : "bg-rose-50 text-rose-600 border-rose-100"
-                                                            }`}
-                                                        >
-                                                            Avail: {p.available_qty || 0}
-                                                        </Badge>
+                                                        <span className="text-sm font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-lg border border-emerald-100">₱{calculateChainNetPrice(Number(p.unit_price), p.discounts || []).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                                                        {p.discounts && p.discounts.length > 0 && (
+                                                            <span className="text-[10px] font-bold text-slate-400 line-through">₱{Number(p.unit_price).toLocaleString()}</span>
+                                                        )}
                                                     </div>
+                                                    {/* Avail badge removed */}
                                                 </div>
-                                                <Button 
-                                                    size="icon" 
-                                                    disabled={(p.available_qty || 0) <= 0}
-                                                    className={`h-11 w-11 rounded-[18px] transition-all shadow-lg active:scale-90 ${
-                                                        (p.available_qty || 0) <= 0 
-                                                        ? "bg-slate-100 text-slate-300 dark:bg-slate-800 dark:text-slate-600 shadow-none cursor-not-allowed" 
-                                                        : "bg-pink-500 text-white hover:bg-pink-600 shadow-pink-500/30"
-                                                    }`}
+                                                <Button
+                                                    size="icon"
+                                                    className="h-11 w-11 rounded-[18px] bg-pink-500 text-white hover:bg-pink-600 shadow-lg shadow-pink-500/30 transition-all active:scale-90"
                                                     onClick={() => addToCart(p)}
                                                 >
                                                     <Plus className="h-5 w-5" />
@@ -307,7 +301,7 @@ export const SiteSalesAddProductModal: React.FC<SiteSalesAddProductModalProps> =
                                         <TableHead className="text-[10px] font-black uppercase tracking-widest text-slate-400 text-center w-32">Qty</TableHead>
                                         <TableHead className="text-[10px] font-black uppercase tracking-widest text-slate-400 text-right">Unit Price</TableHead>
                                         <TableHead className="text-[10px] font-black uppercase tracking-widest text-slate-400 text-center">Discounts</TableHead>
-                                        <TableHead className="text-[10px] font-black uppercase tracking-widest text-slate-400 text-center">Available</TableHead>
+                                        <TableHead className="text-[10px] font-black uppercase tracking-widest text-slate-400 text-center">Discount Type</TableHead>
                                         <TableHead className="text-[10px] font-black uppercase tracking-widest text-slate-400 text-right pr-6">Total</TableHead>
                                         <TableHead className="w-12"></TableHead>
                                     </TableRow>
@@ -315,7 +309,7 @@ export const SiteSalesAddProductModal: React.FC<SiteSalesAddProductModalProps> =
                                 <TableBody>
                                     {cart.length === 0 ? (
                                         <TableRow>
-                                            <TableCell colSpan={9} className="h-[40vh] text-center">
+                                            <TableCell colSpan={10} className="h-[40vh] text-center">
                                                 <div className="flex flex-col items-center justify-center space-y-3 opacity-30">
                                                     <ShoppingCart className="h-12 w-12 text-slate-300" />
                                                     <p className="text-sm font-bold text-slate-400 italic">Cart is empty. Select products from the catalog to begin.</p>
@@ -328,7 +322,19 @@ export const SiteSalesAddProductModal: React.FC<SiteSalesAddProductModalProps> =
                                                 <TableCell className="pl-6 py-4">
                                                     <div className="space-y-0.5">
                                                         <p className="text-xs font-black text-slate-800 dark:text-slate-200 line-clamp-1">{item.description || item.product_name}</p>
-                                                        <p className="text-[9px] font-bold text-primary uppercase tracking-tighter">{item.product_code}</p>
+                                                        <div className="flex flex-wrap gap-1 mt-0.5">
+                                                            <p className="text-[9px] font-bold text-primary uppercase tracking-tighter mr-2">{item.product_code}</p>
+                                                            {item.brand_name && (
+                                                                <Badge variant="outline" className="text-[7px] font-black uppercase px-1 py-0 border-blue-100 bg-blue-50/50 text-blue-500 leading-none h-3.5">
+                                                                    {item.brand_name}
+                                                                </Badge>
+                                                            )}
+                                                            {item.category_name && (
+                                                                <Badge variant="outline" className="text-[7px] font-black uppercase px-1 py-0 border-slate-100 bg-slate-50/50 text-slate-400 leading-none h-3.5">
+                                                                    {item.category_name}
+                                                                </Badge>
+                                                            )}
+                                                        </div>
                                                     </div>
                                                 </TableCell>
                                                 <TableCell className="text-center">
@@ -338,9 +344,10 @@ export const SiteSalesAddProductModal: React.FC<SiteSalesAddProductModalProps> =
                                                 </TableCell>
                                                 <TableCell className="text-center font-bold text-xs text-primary">{item.unit_count}</TableCell>
                                                 <TableCell className="px-2">
-                                                    <Input 
-                                                        type="number" 
+                                                    <Input
+                                                        type="number"
                                                         value={item.quantity}
+                                                        min={0}
                                                         onChange={(e) => updateQuantity(item.product_id, Number(e.target.value))}
                                                         className="h-10 text-center font-black text-sm bg-white dark:bg-slate-900 border-slate-200 focus:ring-primary rounded-lg"
                                                     />
@@ -351,26 +358,28 @@ export const SiteSalesAddProductModal: React.FC<SiteSalesAddProductModalProps> =
                                                 <TableCell className="text-center">
                                                     <Badge className={cn(
                                                         "text-[9px] font-black h-5 uppercase px-2",
-                                                        item.discount > 0 ? "bg-rose-500 hover:bg-rose-600" : "bg-emerald-500 hover:bg-emerald-600"
+                                                        item.discount_amount > 0 ? "bg-rose-500 hover:bg-rose-600" : "bg-emerald-500 hover:bg-emerald-600"
                                                     )}>
-                                                        {item.discount > 0 ? `₱${item.discount}` : 'NONE'}
+                                                        {item.discount_amount > 0 ? `₱${item.discount_amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}` : 'NONE'}
                                                     </Badge>
                                                 </TableCell>
                                                 <TableCell className="text-center">
-                                                    <span className={`text-xs font-black ${
-                                                        (item.available_qty || 0) > 10 ? "text-emerald-500" :
-                                                        (item.available_qty || 0) > 0 ? "text-amber-500" : "text-rose-500"
-                                                    }`}>
-                                                        {item.available_qty || 0}
-                                                    </span>
+                                                    {item.discount_amount > 0 && item.discount_type_name ? (
+                                                        <Badge className="text-[8px] font-black h-4 uppercase px-1.5 bg-amber-500 hover:bg-amber-600 border-none text-white">
+                                                            {item.discount_type_name}
+                                                        </Badge>
+                                                    ) : (
+                                                        <span className="text-[10px] text-slate-300 italic">--</span>
+                                                    )}
                                                 </TableCell>
+                                                {/* Avail cell removed */}
                                                 <TableCell className="text-right font-black text-slate-900 dark:text-white pr-6">
-                                                    ₱{((item.quantity * item.unit_price) - item.discount).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                                    ₱{item.total_amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                                                 </TableCell>
                                                 <TableCell>
-                                                    <Button 
-                                                        variant="ghost" 
-                                                        size="icon" 
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon"
                                                         className="h-8 w-8 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-all"
                                                         onClick={() => removeFromCart(item.product_id)}
                                                     >
@@ -410,7 +419,7 @@ export const SiteSalesAddProductModal: React.FC<SiteSalesAddProductModalProps> =
                                         </p>
                                     </div>
 
-                                    <Button 
+                                    <Button
                                         disabled={cart.length === 0}
                                         onClick={handleSubmit}
                                         className="h-16 px-12 bg-rose-500 hover:bg-rose-600 text-white rounded-2xl font-black text-sm uppercase tracking-widest shadow-xl shadow-rose-500/30 transition-all active:scale-95 group"

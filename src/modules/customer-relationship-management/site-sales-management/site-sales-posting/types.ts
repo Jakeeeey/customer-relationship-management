@@ -67,6 +67,9 @@ export const SalesInvoiceDetailSchema = z.object({
     discount_amount: z.number().min(0).default(0),
     discount_type: z.number().or(z.string()).nullable().optional(),
     discount_type_name: z.string().nullable().optional(),
+    brand_name: z.string().nullable().optional(),
+    category_name: z.string().nullable().optional(),
+    unit_name: z.string().nullable().optional(),
     
     // Virtual fields for calculation
     gross_amount: z.number().optional(),
@@ -152,4 +155,13 @@ export interface SearchProduct {
     unit_count: number;
     brand_name?: string | null;
     category_name?: string | null;
+    discount_type?: string | number | null;
+    discount_type_name?: string | null;
+    discounts?: number[];
+}
+
+export interface CartItem extends SearchProduct {
+    quantity: number;
+    discount_amount: number;
+    total_amount: number;
 }
