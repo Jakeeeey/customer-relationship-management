@@ -90,6 +90,7 @@ function MultiSelect({
             value={query}
             onChange={(e) => setQuery((e.target as HTMLInputElement).value)}
             className="mb-2"
+            
           />
 
           <div className="flex gap-2 mb-2 justify-end">
@@ -102,9 +103,18 @@ function MultiSelect({
             >
               Select all
             </Button>
-            <Button variant="ghost" size="sm" onClick={() => onChange([])}>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                onChange([]);
+                setQuery("");
+
+              }}
+            >
               Clear
             </Button>
+            
           </div>
 
           <div className="max-h-56 overflow-y-auto space-y-1">

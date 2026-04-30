@@ -758,7 +758,7 @@ export default function InventoryReportTable({
                       return rank(a.unitType) - rank(b.unitType);
                     });
 
-                  console.log(columns);
+                  // console.log(columns);
                   // console.log(a.unitInfo)
 
                   const sumForColumn = (col: {
