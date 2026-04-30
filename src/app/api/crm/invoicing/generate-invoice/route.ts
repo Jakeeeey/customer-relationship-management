@@ -86,7 +86,7 @@ export async function POST(req: NextRequest) {
                 // Robust ID normalization
                 const dispatchIds = Array.from(new Set(
                     (dpdData.data || [])
-                        .map((d: any) => {
+                        .map((d: { dispatch_id: number | string | { id?: number; dispatch_id?: number } | null }) => {
                             const id = d.dispatch_id;
                             if (typeof id === 'number') return id;
                             if (typeof id === 'string') return parseInt(id);
