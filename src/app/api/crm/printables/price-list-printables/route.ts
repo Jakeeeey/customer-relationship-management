@@ -41,6 +41,24 @@ export async function GET(req: NextRequest) {
             return NextResponse.json(json.data || []);
         }
 
+        // 3. Handle Category by code
+        if (action === "category") {
+            const categoryCode = searchParams.get("categoryCode");
+            if (!categoryCode) {
+                return NextResponse.json({ error: "categoryCode is required" }, { status: 400 });
+            }
+            // Fetch category by ID/Code from Directus /items/categories/{category-code}
+            const res = await fetch(`${directusUrl}/items/categories/${categoryCode}`, {
+                headers,
+                cache: "force-cache" // Can cache categories
+            });
+            if (!res.ok) {
+                return NextResponse.json({ category_name: categoryCode }); // Fallback to code if failed
+            }
+            const json = await res.json();
+            return NextResponse.json(json.data || { category_name: categoryCode });
+        }
+
         // 3. Handle Price List Data (Default)
         if (!salesmanId || !supplierId) {
             return NextResponse.json({ error: "salesmanId and supplierId are required" }, { status: 400 });
