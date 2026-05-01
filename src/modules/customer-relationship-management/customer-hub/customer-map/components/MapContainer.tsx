@@ -164,6 +164,7 @@ export function MapContainer() {
               <p><strong>Signage:</strong> ${customer.storeSignage || "N/A"}</p>
               <p><strong>Location:</strong> ${[customer.brgy, customer.city, customer.province].filter(Boolean).join(", ")}</p>
               <p><strong>Type:</strong> <span class="px-1.5 py-0.5 bg-secondary text-secondary-foreground rounded text-[10px]">${customer.storeType || "Regular"}</span></p>
+              <p><strong>Cluster:</strong> <span class="px-1.5 py-0.5 bg-primary/10 text-primary rounded text-[10px] font-semibold">${customer.cluster || "N/A"}</span></p>
               <p><strong>Classification:</strong> ${customer.classification || "N/A"}</p>
             </div>
           </div>

@@ -112,7 +112,7 @@ export async function GET(req: NextRequest) {
         const voidInvoiceMap = new Map<string, { invoice_id: number; invoice_no: string }[]>();
         if (allOrderNos) {
             const invoiceRes = await fetch(
-                `${DIRECTUS_BASE}/items/sales_invoice?filter[order_id][_in]=${encodeURIComponent(allOrderNos)}&fields=invoice_id,order_id,invoice_no,transaction_status&limit=-1`,
+                `${DIRECTUS_BASE}/items/sales_invoice?filter[order_id][_in]=${encodeURIComponent(allOrderNos)}&filter[isReplaced][_neq]=1&fields=invoice_id,order_id,invoice_no,transaction_status&limit=-1`,
                 { headers: directusHeaders() }
             );
             if (invoiceRes.ok) {

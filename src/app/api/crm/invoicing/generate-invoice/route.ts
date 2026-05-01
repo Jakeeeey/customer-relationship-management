@@ -71,37 +71,63 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: "Failed to update sales order", details: results }, { status: 500 });
         }
 
-        // 1b. Resolve consolidator_id for this order
-        // Chain: order.order_id → dispatch_plan_details → dispatch_plan → consolidator_dispatches → consolidator
+        // 1b. Resolve consolidator_id for this order (Always get the NEWEST dispatch)
+        // Chain: order.order_id → dispatch_plan_details → dispatch_plan (sort by dispatch_date) → consolidator_dispatches → consolidator
         let consolidatorId: number | null = null;
         try {
-            // Step 1: Get dispatch_id from dispatch_plan_details
-            const dpdRes = await fetch(`${DIRECTUS_BASE}/items/dispatch_plan_details?filter[sales_order_id][_eq]=${order.order_id}&limit=1`, {
+            // Step 1: Get ALL dispatch_id from dispatch_plan_details
+            const dpdRes = await fetch(`${DIRECTUS_BASE}/items/dispatch_plan_details?filter[sales_order_id][_eq]=${order.order_id}&fields=dispatch_id`, {
                 headers: directusHeaders()
             });
+            
             if (dpdRes.ok) {
                 const dpdData = await dpdRes.json();
-                if (dpdData.data && dpdData.data.length > 0) {
-                    const dispatchId = dpdData.data[0].dispatch_id;
+                
+                // Robust ID normalization
+                const dispatchIds = Array.from(new Set(
+                    (dpdData.data || [])
+                        .map((d: { dispatch_id: number | string | { id?: number; dispatch_id?: number } | null }) => {
+                            const id = d.dispatch_id;
+                            if (typeof id === 'number') return id;
+                            if (typeof id === 'string') return parseInt(id);
+                            if (id && typeof id === 'object') return id.id || id.dispatch_id;
+                            return null;
+                        })
+                        .filter(Boolean)
+                )) as number[];
 
-                    // Step 2: Get dispatch_no from dispatch_plan
-                    const dpRes = await fetch(`${DIRECTUS_BASE}/items/dispatch_plan/${dispatchId}?fields=dispatch_no`, {
-                        headers: directusHeaders()
+                if (dispatchIds.length > 0) {
+                    // Step 2: Fetch dispatch details to find the NEWEST one based on dispatch_date
+                    const dispatches = await Promise.all(dispatchIds.map(async (dId) => {
+                        const dpRes = await fetch(`${DIRECTUS_BASE}/items/dispatch_plan/${dId}?fields=dispatch_no,dispatch_date`, {
+                            headers: directusHeaders()
+                        });
+                        if (dpRes.ok) {
+                            const dpData = await dpRes.json();
+                            return dpData.data;
+                        }
+                        return null;
+                    }));
+
+                    // Filter valid and sort by dispatch_date descending (newest first)
+                    const validDispatches = dispatches.filter(d => d && d.dispatch_no);
+                    validDispatches.sort((a, b) => {
+                        const dateA = a.dispatch_date ? new Date(a.dispatch_date).getTime() : 0;
+                        const dateB = b.dispatch_date ? new Date(b.dispatch_date).getTime() : 0;
+                        return dateB - dateA; // Descending (Newest first)
                     });
-                    if (dpRes.ok) {
-                        const dpData = await dpRes.json();
-                        const dispatchNo = dpData.data?.dispatch_no;
 
-                        if (dispatchNo) {
-                            // Step 3: Get consolidator_id from consolidator_dispatches
-                            const cdpRes = await fetch(`${DIRECTUS_BASE}/items/consolidator_dispatches?filter[dispatch_no][_eq]=${dispatchNo}&limit=1`, {
-                                headers: directusHeaders()
-                            });
-                            if (cdpRes.ok) {
-                                const cdpData = await cdpRes.json();
-                                if (cdpData.data && cdpData.data.length > 0) {
-                                    consolidatorId = cdpData.data[0].consolidator_id;
-                                }
+                    if (validDispatches.length > 0) {
+                        const newestDispatchNo = validDispatches[0].dispatch_no;
+
+                        // Step 3: Get consolidator_id from consolidator_dispatches using the newest dispatch
+                        const cdpRes = await fetch(`${DIRECTUS_BASE}/items/consolidator_dispatches?filter[dispatch_no][_eq]=${newestDispatchNo}&limit=1`, {
+                            headers: directusHeaders()
+                        });
+                        if (cdpRes.ok) {
+                            const cdpData = await cdpRes.json();
+                            if (cdpData.data && cdpData.data.length > 0) {
+                                consolidatorId = cdpData.data[0].consolidator_id;
                             }
                         }
                     }
@@ -202,98 +228,52 @@ export async function POST(req: NextRequest) {
                 };
 
                 const targetId = receipt.target_id || order.existing_invoice_no;
+                let isVoidReplacement = false;
 
                 if (targetId) {
-                    // ── A. Adjust Inventory before replacing (VOID/Recycled) ──
-                    // Fetch old details to subtract from served/applied quantities and get IDs for explicit cleanup
-                    const oldDetailIds: number[] = [];
+                    // ── Check if this is a VOID replacement (Immutable History Rule) ──
                     try {
-                        const oldDetailsRes = await fetch(`${DIRECTUS_BASE}/items/sales_invoice_details?filter[invoice_no][_eq]=${targetId}&fields=detail_id,product_id,quantity`, {
+                        const checkRes = await fetch(`${DIRECTUS_BASE}/items/sales_invoice/${targetId}?fields=transaction_status`, {
                             headers: directusHeaders()
                         });
-                        if (oldDetailsRes.ok) {
-                            const oldDetailsData = await oldDetailsRes.json();
-                            const oldItems = oldDetailsData.data || [];
+                        if (checkRes.ok) {
+                            const checkData = await checkRes.json();
+                            if (checkData.data?.transaction_status?.toUpperCase() === "VOID") {
+                                isVoidReplacement = true;
+                                console.log(`[VOID] Detected void status for invoice ${targetId}. Tagging as replaced.`);
 
-                            for (const oldItem of oldItems) {
-                                if (oldItem.detail_id) oldDetailIds.push(oldItem.detail_id);
-                                
-                                // Subtract from sales_order_details
-                                try {
-                                    const podRes = await fetch(`${DIRECTUS_BASE}/items/sales_order_details?filter[order_id][_eq]=${order.order_id}&filter[product_id][_eq]=${oldItem.product_id}`, {
-                                        headers: directusHeaders()
-                                    });
-                                    if (podRes.ok) {
-                                        const podData = await podRes.json();
-                                        if (podData.data && podData.data.length > 0) {
-                                            const detailId = podData.data[0].detail_id;
-                                            const currentServed = podData.data[0].served_quantity || 0;
-                                            const adjustedServed = Math.max(0, currentServed - oldItem.quantity);
-                                            await fetch(`${DIRECTUS_BASE}/items/sales_order_details/${detailId}`, {
-                                                method: 'PATCH',
-                                                headers: directusHeaders(),
-                                                body: JSON.stringify({ served_quantity: adjustedServed })
-                                            });
-                                        }
-                                    }
-                                } catch (e) {
-                                    console.warn(`Failed to subtract served_quantity for product ${oldItem.product_id}:`, e);
-                                }
-
-                                // Subtract from consolidator_details
-                                if (consolidatorId) {
-                                    try {
-                                        const cdRes = await fetch(`${DIRECTUS_BASE}/items/consolidator_details?filter[consolidator_id][_eq]=${consolidatorId}&filter[product_id][_eq]=${oldItem.product_id}&limit=1`, {
-                                            headers: directusHeaders()
-                                        });
-                                        if (cdRes.ok) {
-                                            const cdData = await cdRes.json();
-                                            if (cdData.data && cdData.data.length > 0) {
-                                                const cdRecord = cdData.data[0];
-                                                const currentApplied = cdRecord.applied_quantity || 0;
-                                                const adjustedApplied = Math.max(0, currentApplied - oldItem.quantity);
-                                                await fetch(`${DIRECTUS_BASE}/items/consolidator_details/${cdRecord.id}`, {
-                                                    method: 'PATCH',
-                                                    headers: directusHeaders(),
-                                                    body: JSON.stringify({ applied_quantity: adjustedApplied })
-                                                });
-                                            }
-                                        }
-                                    } catch (e) {
-                                        console.warn(`Failed to subtract applied_quantity for product ${oldItem.product_id}:`, e);
-                                    }
-                                }
+                                // Tag the old invoice as replaced
+                                await fetch(`${DIRECTUS_BASE}/items/sales_invoice/${targetId}`, {
+                                    method: 'PATCH',
+                                    headers: directusHeaders(),
+                                    body: JSON.stringify({ isReplaced: 1 })
+                                });
                             }
                         }
                     } catch (e) {
-                        console.warn("Failed to process quantity adjustment for VOID replacement:", e);
+                        console.warn("[VOID Check] Failed to verify status of targetId:", e);
                     }
 
-                    // ── B. Update existing invoice (Voided or Recycled) ──
-                    const patchRes = await fetch(`${DIRECTUS_BASE}/items/sales_invoice/${targetId}`, {
-                        method: 'PATCH',
-                        headers: directusHeaders(),
-                        body: JSON.stringify(invoicePayload)
-                    });
-                    if (!patchRes.ok) throw new Error(await patchRes.text());
-                    targetInvoiceId = targetId;
-                    
-                    // Clear old details for this invoice before adding new ones
-                    // Use explicit IDs if available, otherwise fallback to filter
-                    if (oldDetailIds.length > 0) {
-                        await fetch(`${DIRECTUS_BASE}/items/sales_invoice_details`, {
-                            method: 'DELETE',
+                    if (!isVoidReplacement) {
+                        // ── B. Update existing invoice (Non-Void/Recycled) ──
+                        const patchRes = await fetch(`${DIRECTUS_BASE}/items/sales_invoice/${targetId}`, {
+                            method: 'PATCH',
                             headers: directusHeaders(),
-                            body: JSON.stringify(oldDetailIds)
+                            body: JSON.stringify(invoicePayload)
                         });
-                    } else {
+                        if (!patchRes.ok) throw new Error(await patchRes.text());
+                        targetInvoiceId = targetId;
+                        
+                        // Clear old details for this invoice before adding new ones
                         await fetch(`${DIRECTUS_BASE}/items/sales_invoice_details?filter[invoice_no][_eq]=${targetInvoiceId}`, {
                             method: 'DELETE',
                             headers: directusHeaders()
                         });
                     }
-                } else {
-                    // ── Create new invoice ──
+                }
+                
+                if (!targetInvoiceId) {
+                    // ── Create new invoice (Normal or VOID Replacement) ──
                     invoicePayload.created_by = createdBy;
                     invoicePayload.created_date = now;
                     
