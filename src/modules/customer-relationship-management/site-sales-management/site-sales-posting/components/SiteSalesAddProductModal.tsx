@@ -26,9 +26,23 @@ import {
     Trash2,
     ShoppingCart,
     Package,
-    ArrowRight
+    ArrowRight,
+    Check,
+    ChevronsUpDown
 } from 'lucide-react';
-import { SearchableSelect } from "@/components/ui/searchable-select";
+import {
+    Popover,
+    PopoverContent,
+    PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+    Command,
+    CommandEmpty,
+    CommandGroup,
+    CommandInput,
+    CommandItem,
+    CommandList,
+} from "@/components/ui/command";
 import { SearchProduct, SalesInvoiceDetail, CartItem } from '../types';
 import { calculateChainNetPrice } from '../utils';
 import { cn } from '@/lib/utils';
@@ -40,7 +54,7 @@ interface SiteSalesAddProductModalProps {
     products: SearchProduct[];
     isLoading: boolean;
     initialDetails: SalesInvoiceDetail[];
-    suppliers: { id: number; supplier_name: string }[];
+    suppliers: { id: number; supplier_name: string; supplier_shortcut?: string }[];
     onSupplierChange: (supplierId: string | number) => void;
     currentSupplierId: string | number | null;
 }
@@ -57,6 +71,7 @@ export const SiteSalesAddProductModal: React.FC<SiteSalesAddProductModalProps> =
     currentSupplierId
 }) => {
     const [searchQuery, setSearchQuery] = useState("");
+    const [openSupplier, setOpenSupplier] = useState(false);
     const [cart, setCart] = useState<CartItem[]>([]);
 
     // Initialize cart from initialDetails when modal opens
@@ -65,6 +80,7 @@ export const SiteSalesAddProductModal: React.FC<SiteSalesAddProductModalProps> =
             const initialCart: CartItem[] = initialDetails.map(item => {
                 const prod = item.product_id && typeof item.product_id === 'object' ? item.product_id : null;
                 return {
+                    detail_id: item.detail_id, // PRESERVE THIS!
                     product_id: prod?.product_id || 0,
                     product_name: prod?.product_name || 'N/A',
                     description: prod?.description || '',
@@ -155,7 +171,7 @@ export const SiteSalesAddProductModal: React.FC<SiteSalesAddProductModalProps> =
 
     const handleSubmit = () => {
         const details: SalesInvoiceDetail[] = cart.map(item => ({
-            detail_id: undefined,
+            detail_id: item.detail_id, // PASS THIS BACK!
             invoice_id: 0,
             product_id: {
                 product_id: item.product_id,
@@ -205,15 +221,54 @@ export const SiteSalesAddProductModal: React.FC<SiteSalesAddProductModalProps> =
                             <div className="space-y-3">
                                 <div className="space-y-1.5">
                                     <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest pl-1">Supplier Filter</p>
-                                    <SearchableSelect
-                                        value={currentSupplierId?.toString() || "all"}
-                                        onValueChange={(val) => onSupplierChange(val)}
-                                        options={[
-                                            ...suppliers.map(s => ({ value: s.id.toString(), label: s.supplier_name }))
-                                        ]}
-                                        placeholder="Select Supplier"
-                                        className="h-11 bg-slate-50 dark:bg-slate-900 border-transparent rounded-xl text-xs font-black uppercase tracking-tight shadow-inner focus:ring-1 focus:ring-primary/20"
-                                    />
+                                    <Popover open={openSupplier} onOpenChange={setOpenSupplier}>
+                                        <PopoverTrigger asChild>
+                                            <Button
+                                                variant="outline"
+                                                role="combobox"
+                                                aria-expanded={openSupplier}
+                                                className="w-full justify-between h-11 bg-slate-50 dark:bg-slate-900 border-transparent rounded-xl text-xs font-black uppercase tracking-tight shadow-inner focus:ring-1 focus:ring-primary/20 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                                            >
+                                                <span className="truncate">
+                                                    {currentSupplierId 
+                                                        ? suppliers.find((s) => s.id.toString() === currentSupplierId.toString())?.supplier_name 
+                                                        : "Select Supplier..."}
+                                                </span>
+                                                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                            </Button>
+                                        </PopoverTrigger>
+                                        <PopoverContent className="w-[350px] p-0" align="start">
+                                            <Command onWheel={(e) => e.stopPropagation()}>
+                                                <CommandInput placeholder="Search supplier..." className="h-9" />
+                                                <CommandList>
+                                                    <CommandEmpty>No supplier found.</CommandEmpty>
+                                                    <CommandGroup>
+                                                        <div className="max-h-[300px] overflow-y-auto custom-scrollbar p-1">
+                                                            {suppliers.map((s) => (
+                                                                <CommandItem
+                                                                    key={s.id}
+                                                                    value={`${s.supplier_name} ${s.supplier_shortcut || ""} ${s.id}`}
+                                                                    onSelect={() => {
+                                                                        onSupplierChange(s.id.toString());
+                                                                        setOpenSupplier(false);
+                                                                    }}
+                                                                    className="text-xs font-bold uppercase py-2.5"
+                                                                >
+                                                                    <Check
+                                                                        className={cn(
+                                                                            "mr-2 h-4 w-4",
+                                                                            currentSupplierId?.toString() === s.id.toString() ? "opacity-100" : "opacity-0"
+                                                                        )}
+                                                                    />
+                                                                    {s.supplier_name} {s.supplier_shortcut && `(${s.supplier_shortcut})`}
+                                                                </CommandItem>
+                                                            ))}
+                                                        </div>
+                                                    </CommandGroup>
+                                                </CommandList>
+                                            </Command>
+                                        </PopoverContent>
+                                    </Popover>
                                 </div>
                                 <div className="relative group flex-1">
                                     <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-300 group-focus-within:text-primary transition-colors" />

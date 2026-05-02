@@ -621,7 +621,7 @@ export async function GET(req: NextRequest) {
         }
 
         if (type === "suppliers") {
-            const res = await fetch(`${DIRECTUS_URL}/items/suppliers?filter[supplier_type][_eq]=TRADE&filter[isActive][_eq]=1&fields=id,supplier_name&sort=supplier_name&limit=-1`, { headers: fetchHeaders });
+            const res = await fetch(`${DIRECTUS_URL}/items/suppliers?filter[supplier_type][_eq]=Trade&filter[isActive][_eq]=1&fields=id,supplier_name,supplier_shortcut&sort=supplier_name&limit=-1`, { headers: fetchHeaders });
             if (!res.ok) throw new Error("Failed to fetch suppliers");
             return NextResponse.json((await res.json()).data || []);
         }
@@ -637,7 +637,7 @@ export async function GET(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
     try {
         const body = await req.json();
-        const { action, invoiceId, customer_code, invoice_date, due_date, remarks, details, deletedDetailIds } = body;
+        const { action, invoiceId, customer_code, order_id, invoice_date, due_date, remarks, details, deletedDetailIds } = body;
 
         if (action === "save_adjustments") {
             const userId = await resolveUserId();
@@ -645,33 +645,69 @@ export async function PATCH(req: NextRequest) {
 
             // 1. Process deleted items
             if (deletedDetailIds && deletedDetailIds.length > 0) {
+                console.log(`[SaveAdjustments] Deleting ${deletedDetailIds.length} items:`, deletedDetailIds);
                 for (const id of deletedDetailIds) {
-                    await fetch(`${DIRECTUS_URL}/items/sales_invoice_details/${id}`, {
-                        method: "DELETE",
-                        headers: fetchHeaders
-                    });
+                    try {
+                        const delRes = await fetch(`${DIRECTUS_URL}/items/sales_invoice_details/${id}`, {
+                            method: "DELETE",
+                            headers: fetchHeaders
+                        });
+                        if (!delRes.ok) {
+                            const errorText = await delRes.text();
+                            console.error(`[SaveAdjustments] Failed to delete detail_id ${id}:`, errorText);
+                        } else {
+                            console.log(`[SaveAdjustments] Successfully deleted detail_id ${id}`);
+                        }
+                    } catch (err) {
+                        console.error(`[SaveAdjustments] Critical error deleting detail_id ${id}:`, err);
+                    }
                 }
             }
 
             // 2. Upsert items
             for (const item of details) {
-                const method = item.detail_id ? "PATCH" : "POST";
-                const url = item.detail_id
-                    ? `${DIRECTUS_URL}/items/sales_invoice_details/${item.detail_id}`
-                    : `${DIRECTUS_URL}/items/sales_invoice_details`;
+                try {
+                    const method = item.detail_id ? "PATCH" : "POST";
+                    const url = item.detail_id
+                        ? `${DIRECTUS_URL}/items/sales_invoice_details/${item.detail_id}`
+                        : `${DIRECTUS_URL}/items/sales_invoice_details`;
 
-                await fetch(url, {
-                    method,
-                    headers: fetchHeaders,
-                    body: JSON.stringify({
+                    const qty = Number(item.quantity) || 0;
+                    const price = Number(item.unit_price) || 0;
+                    const disc = Number(item.discount_amount) || 0;
+                    const lineGross = qty * price;
+                    const lineTotal = lineGross - disc;
+
+                    // Flatten IDs for Directus schema consistency
+                    const prodId = typeof item.product_id === 'object' ? (item.product_id as { product_id?: number }).product_id : item.product_id;
+                    const unitId = typeof item.unit === 'object' ? (item.unit as { unit_id?: number; id?: number }).unit_id || (item.unit as { id?: number }).id : item.unit;
+
+                    const payload = {
                         ...item,
-                        invoice_id: invoiceId
-                    })
-                });
+                        order_id: order_id || '', // Populating order_id in details table
+                        product_id: Number(prodId),
+                        unit: Number(unitId) || 1,
+                        invoice_no: invoiceId,
+                        gross_amount: lineGross,
+                        total_amount: lineTotal,
+                        modified_date: now
+                    };
+
+                    // Clean up detail_id for POST
+                    if (method === "POST") delete (payload as { detail_id?: number }).detail_id;
+
+                    await fetch(url, {
+                        method,
+                        headers: fetchHeaders,
+                        body: JSON.stringify(payload)
+                    });
+                } catch (e) {
+                    console.error("[SaveAdjustments] Item Save Error:", e);
+                }
             }
 
             // 3. Recalculate totals and Update Header
-            const detRes = await fetch(`${DIRECTUS_URL}/items/sales_invoice_details?filter[invoice_id][_eq]=${invoiceId}&fields=*&limit=-1`, { headers: fetchHeaders });
+            const detRes = await fetch(`${DIRECTUS_URL}/items/sales_invoice_details?filter[invoice_no][_eq]=${invoiceId}&fields=*&limit=-1`, { headers: fetchHeaders });
             const currentDetails = ((await detRes.json()).data || []) as { quantity: number | string; unit_price: number | string; discount_amount: number | string }[];
 
             let totalGross = 0;
@@ -690,8 +726,8 @@ export async function PATCH(req: NextRequest) {
 
                 const lineGross = qty * price;
                 const lineNet = lineGross - disc;
-                // Simple 12% VAT logic for now, or use what's in the DB if available
-                const lineVat = lineNet * 0.12;
+                // VAT Extraction (Assuming VAT-inclusive prices)
+                const lineVat = (lineNet / 1.12) * 0.12;
 
                 totalGross += lineGross;
                 totalDiscount += disc;
@@ -701,6 +737,7 @@ export async function PATCH(req: NextRequest) {
 
             const headerUpdate = {
                 customer_code,
+                order_id, // Syncing header order_id as well
                 invoice_date,
                 due_date,
                 remarks,
@@ -708,7 +745,7 @@ export async function PATCH(req: NextRequest) {
                 discount_amount: totalDiscount,
                 net_amount: totalNet,
                 vat_amount: totalVat,
-                total_amount: totalNet + totalVat,
+                total_amount: totalNet, // Net already includes VAT if inclusive
                 modified_by: userId,
                 modified_date: now
             };
@@ -745,6 +782,7 @@ export async function POST(req: NextRequest) {
                     method: "PATCH",
                     headers: fetchHeaders,
                     body: JSON.stringify({
+                        transaction_status: "Dispatched",
                         isDispatched: 1,
                         modified_by: userId,
                         modified_date: now

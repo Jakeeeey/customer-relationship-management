@@ -36,6 +36,7 @@ export const siteSalesPostingProvider = {
         invoiceId: number | string, 
         payload: { 
             customer_code?: string | null; 
+            order_id?: string | null;
             invoice_date?: string | null;
             due_date?: string | null;
             remarks?: string | null;

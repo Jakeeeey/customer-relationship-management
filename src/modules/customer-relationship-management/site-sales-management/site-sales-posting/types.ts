@@ -161,6 +161,7 @@ export interface SearchProduct {
 }
 
 export interface CartItem extends SearchProduct {
+    detail_id?: number;
     quantity: number;
     discount_amount: number;
     total_amount: number;

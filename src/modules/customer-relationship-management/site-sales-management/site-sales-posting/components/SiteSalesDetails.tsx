@@ -17,7 +17,8 @@ import {
     PlusCircle,
     RotateCw,
     Link2,
-    Search
+    Search,
+    Trash
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -89,8 +90,9 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
     const [mainSupplierId, setMainSupplierId] = useState<number | null>(null);
     const [searchProducts, setSearchProducts] = useState<SearchProduct[]>([]);
     const [isSearchingProducts, setIsSearchingProducts] = useState(false);
-    const [suppliers, setSuppliers] = useState<{ id: number; supplier_name: string }[]>([]);
+    const [suppliers, setSuppliers] = useState<{ id: number; supplier_name: string; supplier_shortcut?: string }[]>([]);
     const [currentModalSupplierId, setCurrentModalSupplierId] = useState<number | string | null>(null);
+    const [deletedDetailIds, setDeletedDetailIds] = useState<number[]>([]);
 
     const fetchData = useCallback(async () => {
         setIsLoading(true);
@@ -118,6 +120,7 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
             // 1. Save Header & Details adjustments first
             await siteSalesPostingProvider.saveAdjustments(id, {
                 customer_code: header.customer_code,
+                order_id: header.invoice_no, // Syncing invoice_no to order_id column in details
                 invoice_date: header.invoice_date,
                 due_date: header.due_date,
                 remarks: header.remarks,
@@ -127,13 +130,15 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
                 total_amount: total,
                 net_amount: total,
                 details: details,
-                deletedDetailIds: []
+                deletedDetailIds: deletedDetailIds
             });
 
             // 2. Finalize settlement (isDispatched = 1)
             await siteSalesPostingProvider.finalizeSettlement([id]);
 
             toast.success("Invoice finalized successfully!");
+            // Reset deleted IDs after success
+            setDeletedDetailIds([]);
             router.push('/crm/site-sales-management/site-sales-posting');
         } catch (error: unknown) {
             const message = error instanceof Error ? error.message : "Failed to finalize invoice";
@@ -234,8 +239,29 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
     };
 
     const handleAddProducts = (newItems: SalesInvoiceDetail[]) => {
-        setDetails(newItems); // Entire list replaced (initial + new - deleted)
+        // Track items removed via the modal
+        const removed = details.filter(old => 
+            old.detail_id && !newItems.find(n => n.detail_id === old.detail_id)
+        );
+        
+        if (removed.length > 0) {
+            const removedIds = removed.map(r => Number(r.detail_id)).filter(id => !isNaN(id));
+            setDeletedDetailIds(prev => [...prev, ...removedIds]);
+        }
+
+        setDetails(newItems); // Entire list replaced
         toast.success(`Items updated successfully`);
+    };
+
+    // Delete a line item and store its ID for backend removal
+    const handleDeleteItem = (detailId?: number) => {
+        // Always remove from UI
+        setDetails(prev => prev.filter(d => d.detail_id !== detailId));
+        // If it exists in DB, track for backend deletion
+        if (detailId) {
+            setDeletedDetailIds(prev => [...prev, detailId]);
+        }
+        toast.success('Item removed');
     };
 
     const handleLinkReturn = async (ret: SalesReturn) => {
@@ -444,6 +470,7 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
                                                 <TableHead className="text-[10px] font-black uppercase tracking-widest text-slate-400 h-10">Disc Type</TableHead>
                                                 <TableHead className="text-[10px] font-black uppercase tracking-widest text-slate-400 h-10 text-right">Disc Amt</TableHead>
                                                 <TableHead className="text-[10px] font-black uppercase tracking-widest text-slate-400 h-10 text-right">Net Total</TableHead>
+                                                <TableHead className="text-[10px] font-black uppercase tracking-widest text-slate-400 h-10 text-center">Delete</TableHead>
                                             </TableRow>
                                         </TableHeader>
                                         <TableBody>
@@ -478,6 +505,11 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
                                                         <TableCell className="text-[10px] font-bold text-slate-400 uppercase">{item.discount_type_name || item.discount_type || 'No Discount'}</TableCell>
                                                         <TableCell className="text-right font-bold text-slate-600">₱{Number(item.discount_amount || 0).toLocaleString()}</TableCell>
                                                         <TableCell className="text-right font-black text-slate-900 dark:text-white">₱{Number(item.total_amount).toLocaleString()}</TableCell>
+                                                        <TableCell className="text-center">
+                                                            <Button variant="ghost" size="sm" onClick={() => handleDeleteItem(item.detail_id)}>
+                                                                <Trash className="h-4 w-4 text-rose-500" />
+                                                            </Button>
+                                                        </TableCell>
                                                     </TableRow>
                                                 );
                                             })}
