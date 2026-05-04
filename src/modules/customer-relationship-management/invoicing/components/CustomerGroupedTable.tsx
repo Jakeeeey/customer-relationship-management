@@ -10,7 +10,7 @@ import {
     TableRow,
 } from "@/components/ui/table";
 import { CustomerGroup, SalesOrder, ReceiptType } from "../types";
-import { format } from "date-fns";
+import { formatToPHT } from "../utils/dateUtils";
 import { ChevronDown, ChevronRight, FileText, User, Hash, Calendar, MapPin } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -74,12 +74,7 @@ export const CustomerGroupedTable: React.FC<CustomerGroupedTableProps> = ({ grou
     };
 
     const formatDate = (dateString?: string) => {
-        if (!dateString) return "—";
-        try {
-            return format(new Date(dateString), "MMM dd, yyyy");
-        } catch {
-            return dateString;
-        }
+        return formatToPHT(dateString, "MMM dd, yyyy");
     };
 
     const formatCurrency = (amount: number) => {
