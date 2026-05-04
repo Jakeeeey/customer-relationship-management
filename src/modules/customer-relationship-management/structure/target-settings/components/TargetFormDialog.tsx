@@ -224,7 +224,7 @@ export function TargetFormDialog({
                     const res = await fetch("https://psgc.gitlab.io/api/provinces/");
                     if (!res.ok) throw new Error("Failed to fetch provinces");
                     const data = await res.json();
-                    setProvinces(data.map((p: any) => ({ code: p.code, name: p.name })));
+                    setProvinces(data.map((p: { code: string; name: string }) => ({ code: p.code, name: p.name })));
                 } catch (error) {
                     console.error("Error fetching provinces:", error);
                 } finally {
@@ -233,7 +233,7 @@ export function TargetFormDialog({
             };
             fetchProvinces();
         }
-    }, [isOpen]);
+    }, [isOpen, provinces.length]);
 
     // --- Fetch Cities ---
     useEffect(() => {
@@ -245,7 +245,7 @@ export function TargetFormDialog({
                     const res = await fetch(`https://psgc.gitlab.io/api/provinces/${selectedProvinceCode}/cities-municipalities/`);
                     if (!res.ok) throw new Error("Failed to fetch cities");
                     const data = await res.json();
-                    setCities(data.map((c: any) => ({ code: c.code, name: c.name })));
+                    setCities(data.map((c: { code: string; name: string }) => ({ code: c.code, name: c.name })));
                 } catch (error) {
                     console.error("Error fetching cities:", error);
                 } finally {
