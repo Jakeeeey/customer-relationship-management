@@ -61,6 +61,7 @@ export function TargetSettingsModule() {
                     target.tactical_skus = data.tacticalSkus.filter((ts: TacticalSKU) => ts.salesman_target_setting_id === target.id);
                     target.customer_targets = data.customerTargets.filter((ct: CustomerTarget) => ct.target_setting_id === target.id);
                     target.supplier_targets = data.supplierTargets.filter((st: SupplierTarget) => st.target_setting_id === target.id);
+                    target.area_targets = data.areaTargets.filter((at: { target_setting_id: number }) => at.target_setting_id === target.id);
                 }
                 return { ...s, current_target: target };
             });

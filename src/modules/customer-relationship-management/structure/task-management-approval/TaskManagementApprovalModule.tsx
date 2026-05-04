@@ -53,6 +53,8 @@ export default function TaskManagementApprovalModule() {
         setYear,
         customerAllocations,
         handleSetDailyTarget,
+        handleApproveAllDaily,
+        handleApproveAllMonthly,
     } = useTaskManagementApproval();
 
     const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -232,6 +234,9 @@ export default function TaskManagementApprovalModule() {
                             year={currentYear}
                             employeeName={employeeName}
                             salesmanAccount={salesmanAccount}
+                            onApproveAllDaily={handleApproveAllDaily}
+                            onApproveAllMonthly={handleApproveAllMonthly}
+                            isApproving={isRefreshing}
                         />
 
                         <div key={`${currentMonth}-${currentYear}`}>
