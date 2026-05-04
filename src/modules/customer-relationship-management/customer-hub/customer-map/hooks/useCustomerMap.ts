@@ -50,7 +50,7 @@ export function useCustomerMap() {
       if (!response.ok) {
         throw new Error("Failed to fetch map data");
       }
-      
+
       const json = await response.json();
       setData(json);
     } catch (err) {

@@ -17,7 +17,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 
 import { SalesOrder, ReceiptType } from "../types";
-import { format } from "date-fns";
+import { formatToPHT } from "../utils/dateUtils";
 import { InvoicingService } from "../services/InvoicingService";
 import { 
     Loader2, 
@@ -157,12 +157,7 @@ export const SalesOrderModal: React.FC<SalesOrderModalProps> = ({ order, open, o
     if (!order) return null;
 
     const formatDate = (dateString?: string | null) => {
-        if (!dateString) return "Not Available";
-        try {
-            return format(new Date(dateString), "MMM dd, yyyy h:mm a");
-        } catch {
-            return dateString;
-        }
+        return formatToPHT(dateString);
     };
 
     const formatCurrency = (amount: number | null) => {
@@ -243,7 +238,7 @@ export const SalesOrderModal: React.FC<SalesOrderModalProps> = ({ order, open, o
                                         <div className="flex items-center gap-2">
                                             <div className="h-1 w-1 rounded-full bg-primary/30" />
                                             <p className="text-[10px] font-bold uppercase tracking-wider whitespace-nowrap">
-                                                Order Date: <span className="text-foreground ml-1">{order.order_date ? format(new Date(order.order_date), "MMMM dd, yyyy") : "—"}</span>
+                                            Order Date: <span className="text-foreground ml-1">{order.order_date ? formatToPHT(order.order_date, "MMM dd, yyyy") : "—"}</span>
                                             </p>
                                         </div>
                                         <div className="flex items-center gap-2 mt-1">
@@ -281,7 +276,7 @@ export const SalesOrderModal: React.FC<SalesOrderModalProps> = ({ order, open, o
                                 <div className="md:hidden flex flex-col gap-2 mt-2 pt-2 border-t border-primary/5">
                                     <div className="flex justify-between items-center">
                                         <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                                            Date: <span className="text-foreground ml-1">{order.order_date ? format(new Date(order.order_date), "MMMM dd, yyyy") : "—"}</span>
+                                            Date: <span className="text-foreground ml-1">{order.order_date ? formatToPHT(order.order_date, "MMM dd, yyyy") : "—"}</span>
                                         </p>
                                         <Select 
                                             value={selectedTypeId} 

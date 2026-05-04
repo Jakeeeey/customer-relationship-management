@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { AsyncCombobox } from "./AsyncCombobox";
 import { InvoicingFilters, ComboboxOption } from "../types";
+import { normalizeToUTC } from "../utils/dateUtils";
 import { InvoicingService } from "../services/InvoicingService";
 
 import { RotateCcw, Hash, FileSignature, User, Users, Building2, MapPin, Filter } from "lucide-react";
@@ -31,7 +32,13 @@ export const InvoicingFiltersComponent: React.FC<InvoicingFiltersProps> = ({ onF
         const { name, value } = e.target;
         const newFilters = { ...filters, [name]: value };
         setFilters(newFilters);
-        onFilterChange(newFilters);
+        
+        // Normalize for API if it's a date field
+        const normalized = { ...newFilters };
+        if (name === "fromDate" && value) normalized.fromDate = normalizeToUTC(value, 'start');
+        if (name === "toDate" && value) normalized.toDate = normalizeToUTC(value, 'end');
+        
+        onFilterChange(normalized);
     };
 
     const handleComboboxChange = (name: keyof InvoicingFilters, value: string) => {
