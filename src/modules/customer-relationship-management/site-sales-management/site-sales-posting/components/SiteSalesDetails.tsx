@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { SalesInvoiceHeader, SalesInvoiceDetail, LinkedDocument, SalesReturn, SearchProduct, Salesman } from '../types';
+import { SalesInvoiceHeader, SalesInvoiceDetail, LinkedDocument, SalesReturn, SearchProduct, Salesman, CustomerMemo } from '../types';
 import { siteSalesPostingProvider } from '../providers/fetchProvider';
 import { cn } from '@/lib/utils';
 import { format, parseISO } from 'date-fns';
@@ -59,6 +59,12 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
     const [isFetchingReturns, setIsFetchingReturns] = useState(false);
     const [isLinking, setIsLinking] = useState(false);
 
+    // Memo Linking States
+    const [isMemoLinkModalOpen, setIsMemoLinkModalOpen] = useState(false);
+    const [availableMemos, setAvailableMemos] = useState<CustomerMemo[]>([]);
+    const [isFetchingMemos, setIsFetchingMemos] = useState(false);
+
+
 
     const { gross, discount, vat, total, returnAmount, memoAmount, balance } = React.useMemo(() => {
         const g = details.reduce((acc, item) => acc + (Number(item.quantity) * Number(item.unit_price)), 0);
@@ -70,8 +76,15 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
         const r = linkedDocs
             .filter(doc => doc.type === "RETURN")
             .reduce((acc, doc) => acc + Number(doc.amount), 0);
-            
-        const m = 0; // Placeholder for Memo as requested (blank for now)
+
+        // Sum of all linked memos (Credit minus Debit)
+        const m = linkedDocs
+            .filter(doc => doc.type === "MEMO")
+            .reduce((acc, doc) => {
+                const isDebit = doc.memo_type_id === 2 || doc.balance_name === "DEBIT";
+                return isDebit ? acc - Number(doc.amount) : acc + Number(doc.amount);
+            }, 0);
+
         const b = net - r - m;
         
         return {
@@ -165,6 +178,39 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
             setIsFetchingReturns(false);
         }
     };
+
+    const handleOpenMemoLinkModal = async () => {
+        if (!header?.customer_code) return;
+        setIsMemoLinkModalOpen(true);
+        setIsFetchingMemos(true);
+        try {
+            const data = await siteSalesPostingProvider.getAvailableMemos(header.customer_code);
+            setAvailableMemos(data);
+        } catch {
+            toast.error("Failed to fetch available memos");
+        } finally {
+            setIsFetchingMemos(false);
+        }
+    };
+
+    const handleLinkMemo = async (memo: CustomerMemo) => {
+        setIsLinking(true);
+        try {
+            // Apply full amount or remaining amount? 
+            // Usually we link the whole remaining balance of the memo to this invoice
+            const availableAmount = Number(memo.amount) - Number(memo.applied_amount);
+            await siteSalesPostingProvider.linkMemo(id, memo.id, availableAmount);
+            toast.success(`Memo ${memo.memo_number} linked successfully!`);
+            setIsMemoLinkModalOpen(false);
+            fetchData(); // Refresh list
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : "Failed to link memo";
+            toast.error(message);
+        } finally {
+            setIsLinking(false);
+        }
+    };
+
 
     const handleOpenAddProductModal = async () => {
         const salesman = header?.salesman_id as Salesman | undefined;
@@ -453,6 +499,18 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
                                         Link a Return
                                     </Button>
                                 )}
+
+                                {activeTab === 'memo' && (
+                                    <Button
+                                        onClick={handleOpenMemoLinkModal}
+                                        variant="ghost"
+                                        size="sm"
+                                        className="gap-2 text-[10px] font-black uppercase tracking-widest text-primary hover:text-primary/90 hover:bg-primary/5 animate-in fade-in slide-in-from-right-4 duration-300"
+                                    >
+                                        <Plus className="h-3.5 w-3.5" />
+                                        Link A Memo
+                                    </Button>
+                                )}
                             </div>
 
                             <Card className="border-none shadow-sm overflow-hidden dark:bg-slate-900">
@@ -604,7 +662,63 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
                                         </div>
                                     )}
                                 </TabsContent>
-                                <TabsContent value="memo" className="p-8 text-center text-slate-400 text-xs font-bold uppercase tracking-widest">No Memos Found</TabsContent>
+                                <TabsContent value="memo" className="m-0 p-4">
+                                    {linkedDocs.filter(d => d.type === "MEMO").length === 0 ? (
+                                        <div className="p-8 text-center text-slate-400 text-xs font-bold uppercase tracking-widest italic">
+                                            No linked memos found for this invoice.
+                                        </div>
+                                    ) : (
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            {linkedDocs.filter(d => d.type === "MEMO").map((doc) => (
+                                                <div key={doc.id} className="flex flex-col p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-800 hover:border-primary/30 transition-all group shadow-sm">
+                                                    <div className="flex justify-between items-center mb-4 pb-4 border-b border-slate-100 dark:border-slate-800">
+                                                        <div className="flex items-center gap-4">
+                                                            <div>
+                                                                <p className={cn(
+                                                                    "text-[10px] font-black uppercase tracking-widest",
+                                                                    doc.balance_name === "DEBIT" ? "text-blue-500" : "text-amber-500"
+                                                                )}>
+                                                                    {doc.balance_name || "MEMO"}
+                                                                </p>
+                                                                <p className="text-sm font-black text-slate-800 dark:text-slate-200">{doc.reference_no}</p>
+                                                                <p className="text-[10px] text-slate-400 font-bold uppercase">{doc.date ? format(parseISO(doc.date), 'MMM dd, yyyy') : '--'}</p>
+                                                            </div>
+                                                        </div>
+                                                        <div className="text-right">
+                                                            <p className={cn(
+                                                                "text-lg font-black",
+                                                                doc.balance_name === "DEBIT" ? "text-blue-600" : "text-amber-600"
+                                                            )}>
+                                                                {doc.balance_name === "DEBIT" ? "+" : "-"}₱{doc.amount.toLocaleString()}
+                                            
+                                                            </p>
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="space-y-1.5">
+                                                        <div className="flex items-center justify-between">
+                                                            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Account</span>
+                                                            <span className="text-[10px] font-bold text-slate-700 dark:text-slate-300">
+                                                                {doc.account_title || 'N/A'} ({doc.gl_code || 'N/A'})
+                                                            </span>
+                                                        </div>
+                                                        <div className="flex items-center justify-between">
+                                                            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Status</span>
+                                                            <span className={cn(
+                                                                "text-[10px] font-bold",
+                                                                doc.status === "APPROVED" ? "text-emerald-500" :
+                                                                doc.status === "FOR APPROVAL" ? "text-amber-500" :
+                                                                "text-indigo-500"
+                                                            )}>
+                                                                {doc.status || 'LINKED'}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </TabsContent>
                             </Card>
                         </Tabs>
                     </div>
@@ -791,6 +905,129 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
                 onSupplierChange={handleSupplierChange}
                 currentSupplierId={currentModalSupplierId}
             />
+
+            {/* Link Memo Modal */}
+            <Dialog open={isMemoLinkModalOpen} onOpenChange={setIsMemoLinkModalOpen}>
+                <DialogContent className="sm:max-w-[1100px] w-[95vw] p-0 overflow-hidden border-none shadow-2xl dark:bg-slate-950">
+                    <DialogHeader className="p-6 bg-slate-50 dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800">
+                        <div className="flex items-center gap-3">
+                            <div className="p-2 bg-primary rounded-lg shadow-lg shadow-primary/20">
+                                <Link2 className="h-5 w-5 text-white" />
+                            </div>
+                            <div>
+                                <DialogTitle className="text-xl font-black tracking-tight text-slate-900 dark:text-white">Available Customer Memos</DialogTitle>
+                                <DialogDescription className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-0.5">
+                                    Customer: {header?.customer_name || header?.customer_code || '...'}
+                                </DialogDescription>
+                            </div>
+                        </div>
+                    </DialogHeader>
+
+                    <div className="p-6 max-h-[60vh] overflow-y-auto">
+                        {isFetchingMemos ? (
+                            <div className="flex flex-col items-center justify-center py-12 gap-4">
+                                <RotateCw className="h-8 w-8 text-primary animate-spin" />
+                                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Fetching available memos...</p>
+                            </div>
+                        ) : availableMemos.length === 0 ? (
+                            <div className="flex flex-col items-center justify-center py-12 text-center">
+                                <div className="p-4 bg-slate-50 dark:bg-slate-900 rounded-full mb-4">
+                                    <Search className="h-8 w-8 text-slate-300" />
+                                </div>
+                                <p className="text-sm font-black text-slate-500 uppercase tracking-widest">No available memos found</p>
+                                <p className="text-[10px] text-slate-400 mt-1 font-medium">This customer has no unapplied memos in the system.</p>
+                            </div>
+                        ) : (
+                            <div className="space-y-4">
+                                {availableMemos.map((memo) => {
+                                    const isDebit = memo.balance_name === "DEBIT";
+                                    const remaining = Number(memo.amount) - Number(memo.applied_amount);
+                                    
+                                    return (
+                                        <div key={memo.id} className="group flex flex-col p-4 bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 hover:border-primary/30 transition-all shadow-sm">
+                                            <div className="flex items-center justify-between mb-3">
+                                                <div className="flex items-center gap-4">
+                                                    <div className={cn(
+                                                        "h-10 w-10 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform",
+                                                        isDebit ? "bg-blue-50 dark:bg-blue-950/30" : "bg-amber-50 dark:bg-amber-950/30"
+                                                    )}>
+                                                        <FileText className={cn("h-5 w-5", isDebit ? "text-blue-500" : "text-amber-500")} />
+                                                    </div>
+                                                    <div>
+                                                        <div className="flex items-center gap-2">
+                                                            <p className="text-sm font-black text-slate-800 dark:text-slate-200">#{memo.memo_number}</p>
+                                                            <Badge variant="outline" className={cn(
+                                                                "text-[8px] font-black uppercase px-2 py-0 h-4",
+                                                                isDebit ? "border-blue-100 bg-blue-50 text-blue-500" : "border-amber-100 bg-amber-50 text-amber-500"
+                                                            )}>
+                                                                {memo.balance_name}
+                                                            </Badge>
+                                                        </div>
+                                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tight mt-0.5">
+                                                            {memo.created_at ? format(parseISO(memo.created_at), 'MMM dd, yyyy') : '--'}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                                <div className="flex items-center gap-6">
+                                                    <div className="text-right">
+                                                        <p className="text-base font-black text-slate-900 dark:text-white">₱{remaining.toLocaleString()}</p>
+                                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest opacity-70">Balance Remaining</p>
+                                                    </div>
+                                                    <Button
+                                                        disabled={isLinking}
+                                                        onClick={() => handleLinkMemo(memo)}
+                                                        className="bg-primary hover:bg-primary/90 text-white rounded-lg px-4 h-9 font-black text-[10px] uppercase tracking-widest shadow-lg shadow-primary/20 gap-2"
+                                                    >
+                                                        {isLinking ? <RotateCw className="h-3 w-3 animate-spin" /> : <PlusCircle className="h-3.5 w-3.5" />}
+                                                        Link Memo
+                                                    </Button>
+                                                </div>
+                                            </div>
+
+                                            <Separator className="my-2 bg-slate-50 dark:bg-slate-800" />
+                                            
+                                            <div className="grid grid-cols-2 gap-x-8 gap-y-2 mt-1">
+                                                <div className="flex justify-between items-center">
+                                                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Total Amount</span>
+                                                    <span className="text-[10px] font-bold text-slate-600 dark:text-slate-400">₱{Number(memo.amount).toLocaleString()}</span>
+                                                </div>
+                                                <div className="flex justify-between items-center">
+                                                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Applied Amount</span>
+                                                    <span className="text-[10px] font-bold text-slate-600 dark:text-slate-400">₱{Number(memo.applied_amount).toLocaleString()}</span>
+                                                </div>
+                                                <div className="flex justify-between items-center">
+                                                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Account</span>
+                                                    <span className="text-[10px] font-bold text-indigo-500">
+                                                        {memo.account_title || 'N/A'} ({memo.gl_code || 'N/A'})
+                                                    </span>
+                                                </div>
+                                                <div className="flex justify-between items-center">
+                                                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Status</span>
+                                                    <span className={cn(
+                                                        "text-[10px] font-black",
+                                                        memo.status === "APPROVED" ? "text-emerald-500" :
+                                                        memo.status === "FOR APPROVAL" ? "text-amber-500" :
+                                                        "text-slate-700 dark:text-slate-200"
+                                                    )}>
+                                                        {memo.status}
+                                                    </span>
+                                                </div>
+                                            </div>
+
+                                            {memo.reason && (
+                                                <div className="mt-3 p-2 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-dashed border-slate-200 dark:border-slate-700">
+                                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Reason</p>
+                                                    <p className="text-[10px] font-medium text-slate-600 dark:text-slate-300 italic">&quot;{memo.reason}&quot;</p>
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
+                    </div>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 };

@@ -102,6 +102,10 @@ export interface LinkedDocument {
     date: string;
     amount: number;
     status: string;
+    balance_name?: string;
+    account_title?: string;
+    gl_code?: string;
+    memo_type_id?: number;
     items?: {
         id: number;
         product_name: string;
@@ -165,4 +169,23 @@ export interface CartItem extends SearchProduct {
     quantity: number;
     discount_amount: number;
     total_amount: number;
+}
+
+export interface CustomerMemo {
+    id: number;
+    memo_number: string;
+    supplier_reference?: string | null;
+    customer_reference?: string | null;
+    type: number;
+    balance_name?: string; // From balance_type join
+    customer_id: number;
+    salesman_id: number;
+    amount: number;
+    applied_amount: number;
+    reason?: string | null;
+    status: string;
+    chart_of_account: number;
+    account_title?: string; // From chart_of_accounts join
+    gl_code?: string; // From chart_of_accounts join
+    created_at?: string;
 }

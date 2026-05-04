@@ -345,7 +345,39 @@ export async function GET(req: NextRequest) {
                         };
                     });
                 }
-            } catch (e) { console.error("Returns fetch exception:", e); }
+
+                // Fetch Linked Memos (everything associated with this invoice)
+                const memosRes = await fetch(`${DIRECTUS_URL}/items/customer_memo_invoices?filter[invoice_id][_eq]=${invoiceId}&fields=*,memo_id.*,memo_id.type.balance_name,memo_id.chart_of_account.account_title,memo_id.chart_of_account.gl_code,memo_id.chart_of_account.account_type&limit=-1`, { headers: fetchHeaders });
+                if (memosRes.ok) {
+                    const memosData = (await memosRes.json()).data || [];
+                    const mappedMemos = memosData.map((m: {
+                        id: number;
+                        memo_id: {
+                            id: number;
+                            memo_number?: string;
+                            status?: string;
+                            type?: { id: number; balance_name?: string };
+                            chart_of_account?: { account_title?: string; gl_code?: string; account_type?: number };
+                        };
+                        amount: number;
+                        date_applied: string;
+                        created_at: string;
+                    }) => ({
+                        id: m.id,
+                        type: "MEMO",
+                        reference_no: m.memo_id?.memo_number || `MEMO-${m.memo_id?.id || m.memo_id}`,
+                        date: m.date_applied || m.created_at,
+                        amount: Number(m.amount) || 0,
+                        status: m.memo_id?.status || "LINKED",
+                        balance_name: m.memo_id?.type?.balance_name || "N/A",
+                        account_title: m.memo_id?.chart_of_account?.account_title || "N/A",
+                        gl_code: m.memo_id?.chart_of_account?.gl_code || "N/A",
+                        memo_type_id: m.memo_id?.type?.id || m.memo_id?.type
+                    }));
+                    linkedDocs = [...linkedDocs, ...mappedMemos];
+                }
+
+            } catch (e) { console.error("Linked documents fetch exception:", e); }
 
             const mappedDetails = [];
             for (const d of details) {
@@ -620,6 +652,76 @@ export async function GET(req: NextRequest) {
             return NextResponse.json((await res.json()).data || []);
         }
 
+        if (type === "available_memos") {
+            const customerCode = searchParams.get("customerCode");
+            if (!customerCode) return NextResponse.json({ error: "customerCode required" }, { status: 400 });
+
+            // Resolve customer_id first if customerCode is passed
+            const custRes = await fetch(`${DIRECTUS_URL}/items/customer?filter[customer_code][_eq]=${customerCode}&fields=id`, { headers: fetchHeaders });
+            const custData = (await custRes.json()).data?.[0];
+            if (!custData) return NextResponse.json([]);
+
+            const customerId = custData.id;
+
+            // Fetch memos for this customer (filtered by account_type 7-11)
+            const filters = {
+                _and: [
+                    { customer_id: { _eq: customerId } },
+                    { chart_of_account: { account_type: { _between: [7, 11] } } }
+                ]
+            };
+
+            const res = await fetch(`${DIRECTUS_URL}/items/customers_memo?filter=${JSON.stringify(filters)}&fields=*,type.balance_name,chart_of_account.account_title,chart_of_account.gl_code,chart_of_account.account_type&limit=-1`, { headers: fetchHeaders });
+            if (!res.ok) throw new Error("Failed to fetch available memos");
+
+            const memos = (await res.json()).data || [];
+            
+            // Map the data to include flattened names for the frontend
+            const results = memos.map((m: Record<string, unknown>) => ({
+                ...m,
+                balance_name: m.type?.balance_name || "N/A",
+                account_title: m.chart_of_account?.account_title || "N/A",
+                gl_code: m.chart_of_account?.gl_code || "N/A"
+            }));
+
+            return NextResponse.json(results);
+        }
+
+        if (type === "available_memos") {
+            const customerCode = searchParams.get("customerCode");
+            if (!customerCode) return NextResponse.json({ error: "customerCode required" }, { status: 400 });
+
+            // Resolve customer_id first if customerCode is passed
+            const custRes = await fetch(`${DIRECTUS_URL}/items/customer?filter[customer_code][_eq]=${customerCode}&fields=id`, { headers: fetchHeaders });
+            const custData = (await custRes.json()).data?.[0];
+            if (!custData) return NextResponse.json([]);
+
+            const customerId = custData.id;
+
+            // Fetch ALL memos for this customer (filtered only by account_type 7-11)
+            const filters = {
+                _and: [
+                    { customer_id: { _eq: customerId } },
+                    { chart_of_account: { account_type: { _between: [7, 11] } } }
+                ]
+            };
+
+            const res = await fetch(`${DIRECTUS_URL}/items/customers_memo?filter=${JSON.stringify(filters)}&fields=*,type.balance_name,chart_of_account.account_title,chart_of_account.gl_code,chart_of_account.account_type&limit=-1`, { headers: fetchHeaders });
+            if (!res.ok) throw new Error("Failed to fetch available memos");
+
+            const memos = (await res.json()).data || [];
+            
+            // Map the data to include flattened names for the frontend
+            const results = memos.map((m: Record<string, unknown>) => ({
+                ...m,
+                balance_name: m.type?.balance_name || "N/A",
+                account_title: m.chart_of_account?.account_title || "N/A",
+                gl_code: m.chart_of_account?.gl_code || "N/A"
+            }));
+
+            return NextResponse.json(results);
+        }
+
         if (type === "suppliers") {
             const res = await fetch(`${DIRECTUS_URL}/items/suppliers?filter[supplier_type][_eq]=Trade&filter[isActive][_eq]=1&fields=id,supplier_name,supplier_shortcut&sort=supplier_name&limit=-1`, { headers: fetchHeaders });
             if (!res.ok) throw new Error("Failed to fetch suppliers");
@@ -815,6 +917,27 @@ export async function POST(req: NextRequest) {
                 throw new Error(errorData?.errors?.[0]?.message || "Failed to link return");
             }
 
+            return NextResponse.json({ success: true });
+        }
+
+        if (action === "link_memo") {
+            const { invoiceId, memoId, amount } = body;
+            const now = new Date().toISOString();
+            const res = await fetch(`${DIRECTUS_URL}/items/customer_memo_invoices`, {
+                method: "POST", headers: fetchHeaders,
+                body: JSON.stringify({ invoice_id: invoiceId, memo_id: memoId, amount, date_applied: now })
+            });
+            if (!res.ok) throw new Error("Failed to link memo");
+            const memoRes = await fetch(`${DIRECTUS_URL}/items/customers_memo/${memoId}?fields=applied_amount,amount`, { headers: fetchHeaders });
+            if (memoRes.ok) {
+                const memo = (await memoRes.json()).data;
+                const newApplied = (Number(memo.applied_amount) || 0) + Number(amount);
+                const newStatus = newApplied >= Number(memo.amount) ? "APPLIED" : "PARTIALLY APPLIED";
+                await fetch(`${DIRECTUS_URL}/items/customers_memo/${memoId}`, {
+                    method: "PATCH", headers: fetchHeaders,
+                    body: JSON.stringify({ applied_amount: newApplied, status: newStatus })
+                });
+            }
             return NextResponse.json({ success: true });
         }
 

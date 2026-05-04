@@ -1,6 +1,6 @@
 "use client";
 
-import { SalesInvoiceHeader, SalesInvoiceDetail, Salesman, Customer, SalesType, WorklistFilters, SalesReturn, InvoiceDetailsResponse, SearchProduct } from "../types";
+import { SalesInvoiceHeader, SalesInvoiceDetail, Salesman, Customer, SalesType, WorklistFilters, SalesReturn, InvoiceDetailsResponse, SearchProduct, CustomerMemo } from "../types";
 
 const API_BASE = "/api/crm/site-sales-management/site-sales-posting";
 
@@ -138,6 +138,27 @@ export const siteSalesPostingProvider = {
         const res = await fetch(`${API_BASE}?type=suppliers`);
         if (!res.ok) throw new Error("Failed to fetch suppliers");
         return res.json();
+    },
+
+    // 8. Memo Linking
+    getAvailableMemos: async (customerCode: string): Promise<CustomerMemo[]> => {
+        const res = await fetch(`${API_BASE}?type=available_memos&customerCode=${customerCode}`);
+        if (!res.ok) throw new Error("Failed to fetch available memos");
+        return res.json();
+    },
+
+    linkMemo: async (invoiceId: number | string, memoId: number | string, amount: number): Promise<{ success: boolean }> => {
+        const res = await fetch(API_BASE, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                action: "link_memo",
+                invoiceId,
+                memoId,
+                amount
+            })
+        });
+        if (!res.ok) throw new Error("Failed to link memo");
+        return res.json();
     }
 };
-
