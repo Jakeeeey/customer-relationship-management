@@ -1,6 +1,24 @@
 "use client";
 
-import { SalesInvoiceHeader, SalesInvoiceDetail, Salesman, Customer, SalesType, WorklistFilters, SalesReturn, InvoiceDetailsResponse, SearchProduct, CustomerMemo } from "../types";
+import { 
+    SalesInvoiceHeader, 
+    SalesInvoiceDetail, 
+    Salesman, 
+    Customer, 
+    SalesType, 
+    WorklistFilters, 
+    SalesReturn, 
+    InvoiceDetailsResponse, 
+    SearchProduct, 
+    CustomerMemo,
+    Supplier,
+    InvoiceType,
+    PriceType,
+    Branch,
+    PaymentTerm,
+    CustomerSalesmanLink,
+    MasterUser
+} from "../types";
 
 const API_BASE = "/api/crm/site-sales-management/site-sales-posting";
 
@@ -83,6 +101,24 @@ export const siteSalesPostingProvider = {
         return res.json();
     },
 
+    getMasterUsers: async (): Promise<MasterUser[]> => {
+        const res = await fetch(`${API_BASE}?type=master_users`);
+        if (!res.ok) throw new Error("Failed to fetch master users");
+        return res.json();
+    },
+
+    getAccounts: async (userId: number | string): Promise<Salesman[]> => {
+        const res = await fetch(`${API_BASE}?type=accounts&userId=${userId}`);
+        if (!res.ok) throw new Error("Failed to fetch accounts");
+        return res.json();
+    },
+
+    getSalesmanByCustomer: async (customerId: number): Promise<MasterUser[]> => {
+        const res = await fetch(`${API_BASE}?type=salesman_by_customer&customerId=${customerId}`);
+        if (!res.ok) throw new Error("Failed to fetch salesman by customer");
+        return res.json();
+    },
+
     getSalesTypes: async (): Promise<SalesType[]> => {
         const res = await fetch(`${API_BASE}?type=sales_types`);
         if (!res.ok) throw new Error("Failed to fetch sales types");
@@ -134,20 +170,39 @@ export const siteSalesPostingProvider = {
         return res.json();
     },
 
-    getSuppliers: async (): Promise<{ id: number; supplier_name: string }[]> => {
+    getSuppliers: async (): Promise<Supplier[]> => {
         const res = await fetch(`${API_BASE}?type=suppliers`);
         if (!res.ok) throw new Error("Failed to fetch suppliers");
         return res.json();
     },
 
+    getUtilityInfo: async (): Promise<{ 
+        invoice_types: InvoiceType[], 
+        price_types: PriceType[], 
+        branches: Branch[], 
+        payment_terms: PaymentTerm[] 
+    }> => {
+        const res = await fetch(`${API_BASE}?type=utility_info`);
+        if (!res.ok) throw new Error("Failed to fetch utility info");
+        return res.json();
+    },
+
+    getCustomerSalesman: async (customerId: number): Promise<CustomerSalesmanLink | null> => {
+        const res = await fetch(`${API_BASE}?type=customer_salesman&customerId=${customerId}`);
+        if (!res.ok) throw new Error("Failed to fetch customer salesman");
+        return res.json();
+    },
+
     // 8. Memo Linking
-    getAvailableMemos: async (customerCode: string): Promise<CustomerMemo[]> => {
-        const res = await fetch(`${API_BASE}?type=available_memos&customerCode=${customerCode}`);
+    getAvailableMemos: async (customerCode: string, invoiceId?: string | number): Promise<CustomerMemo[]> => {
+        const query = new URLSearchParams({ type: "available_memos", customerCode });
+        if (invoiceId) query.append("invoiceId", invoiceId.toString());
+        const res = await fetch(`${API_BASE}?${query.toString()}`);
         if (!res.ok) throw new Error("Failed to fetch available memos");
         return res.json();
     },
 
-    linkMemo: async (invoiceId: number | string, memoId: number | string, amount: number): Promise<{ success: boolean }> => {
+    linkMemo: async (invoiceId: number | string, memoId: number | string, amount: number, balance: number): Promise<{ success: boolean }> => {
         const res = await fetch(API_BASE, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -155,7 +210,8 @@ export const siteSalesPostingProvider = {
                 action: "link_memo",
                 invoiceId,
                 memoId,
-                amount
+                amount,
+                balance
             })
         });
         if (!res.ok) throw new Error("Failed to link memo");

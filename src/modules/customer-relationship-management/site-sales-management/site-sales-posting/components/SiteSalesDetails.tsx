@@ -58,6 +58,13 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
     const [availableReturns, setAvailableReturns] = useState<SalesReturn[]>([]);
     const [isFetchingReturns, setIsFetchingReturns] = useState(false);
     const [isLinking, setIsLinking] = useState(false);
+    const [isItemsModified, setIsItemsModified] = useState(false);
+
+    // Initial Financials (from DB)
+    const [initialVat, setInitialVat] = useState(0);
+    const [initialGross, setInitialGross] = useState(0);
+    const [initialDiscount, setInitialDiscount] = useState(0);
+    const [initialNet, setInitialNet] = useState(0);
 
     // Memo Linking States
     const [isMemoLinkModalOpen, setIsMemoLinkModalOpen] = useState(false);
@@ -66,7 +73,7 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
 
 
 
-    const { gross, discount, vat, total, returnAmount, memoAmount, balance } = React.useMemo(() => {
+    const { computedGross, computedDiscount, computedVat, computedNet, returnAmount, creditMemoAmount, debitMemoAmount, balance } = React.useMemo(() => {
         const g = details.reduce((acc, item) => acc + (Number(item.quantity) * Number(item.unit_price)), 0);
         const d = details.reduce((acc, item) => acc + Number(item.discount_amount || 0), 0);
         const net = g - d;
@@ -77,26 +84,34 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
             .filter(doc => doc.type === "RETURN")
             .reduce((acc, doc) => acc + Number(doc.amount), 0);
 
-        // Sum of all linked memos (Credit minus Debit)
-        const m = linkedDocs
-            .filter(doc => doc.type === "MEMO")
-            .reduce((acc, doc) => {
-                const isDebit = doc.memo_type_id === 2 || doc.balance_name === "DEBIT";
-                return isDebit ? acc - Number(doc.amount) : acc + Number(doc.amount);
-            }, 0);
+        // Sum of all linked memos
+        const cm = linkedDocs
+            .filter(doc => doc.type === "MEMO" && !(doc.memo_type_id === 2 || doc.balance_name === "DEBIT"))
+            .reduce((acc, doc) => acc + Number(doc.amount), 0);
 
-        const b = net - r - m;
+        const dm = linkedDocs
+            .filter(doc => doc.type === "MEMO" && (doc.memo_type_id === 2 || doc.balance_name === "DEBIT"))
+            .reduce((acc, doc) => acc + Number(doc.amount), 0);
+
+        const b = (isItemsModified ? net : initialNet) - r - cm + dm;
         
         return {
-            gross: g,
-            discount: d,
-            vat: v,
-            total: net,
+            computedGross: g,
+            computedDiscount: d,
+            computedVat: v,
+            computedNet: net,
             returnAmount: r,
-            memoAmount: m,
+            creditMemoAmount: cm,
+            debitMemoAmount: dm,
             balance: b
         };
-    }, [details, linkedDocs]);
+    }, [details, linkedDocs, isItemsModified, initialNet]);
+
+    // Display values (Use initial if not modified)
+    const displayGross = isItemsModified ? computedGross : initialGross;
+    const displayDiscount = isItemsModified ? computedDiscount : initialDiscount;
+    const displayVat = isItemsModified ? computedVat : initialVat;
+    const displayTotal = isItemsModified ? computedNet : initialNet;
 
     // Add Product States
     const [isAddProductModalOpen, setIsAddProductModalOpen] = useState(false);
@@ -116,6 +131,13 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
             setLinkedDocs(data.linkedDocs || []);
             setMainSupplierId(data.main_supplier_id || null);
             
+            // Set Initial Financials for Read-only/No-change scenarios
+            setInitialVat(Number(data.header.vat_amount || 0));
+            setInitialGross(Number(data.header.gross_amount || 0));
+            setInitialDiscount(Number(data.header.discount_amount || 0));
+            setInitialNet(Number(data.header.net_amount || data.header.total_amount || 0));
+            setIsItemsModified(false);
+            
             // Fetch Suppliers for modal
             const sData = await siteSalesPostingProvider.getSuppliers();
             setSuppliers(sData);
@@ -130,23 +152,30 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
         if (!header) return;
         setIsSaving(true);
         try {
-            // 1. Save Header & Details adjustments first
-            await siteSalesPostingProvider.saveAdjustments(id, {
-                customer_code: header.customer_code,
-                order_id: header.invoice_no, // Syncing invoice_no to order_id column in details
-                invoice_date: header.invoice_date,
-                due_date: header.due_date,
-                remarks: header.remarks,
-                gross_amount: gross,
-                discount_amount: discount,
-                vat_amount: vat,
-                total_amount: total,
-                net_amount: total,
-                details: details,
-                deletedDetailIds: deletedDetailIds
-            });
+            // 1. Save Header & Details adjustments ONLY if modified
+            if (isItemsModified) {
+                console.log("[SiteSalesDetails] Saving items modification before finalize");
+                await siteSalesPostingProvider.saveAdjustments(id, {
+                    customer_code: header.customer_code,
+                    order_id: header.invoice_no, 
+                    invoice_date: header.invoice_date,
+                    due_date: header.due_date,
+                    remarks: header.remarks,
+                    gross_amount: displayGross,
+                    discount_amount: displayDiscount,
+                    vat_amount: displayVat,
+                    total_amount: displayTotal,
+                    net_amount: displayTotal,
+                    details: details,
+                    deletedDetailIds: deletedDetailIds
+                });
+            } else {
+                console.log("[SiteSalesDetails] No item changes, proceeding to metadata finalize only");
+                // Optional: We can still update header metadata (remarks, dates) if they changed
+                // For now, following user's rule: only dispatch_date, status, modified_by, isDispatched
+            }
 
-            // 2. Finalize settlement (isDispatched = 1)
+            // 2. Finalize settlement (isDispatched = 1, dispatch_date = now)
             await siteSalesPostingProvider.finalizeSettlement([id]);
 
             toast.success("Invoice finalized successfully!");
@@ -184,7 +213,7 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
         setIsMemoLinkModalOpen(true);
         setIsFetchingMemos(true);
         try {
-            const data = await siteSalesPostingProvider.getAvailableMemos(header.customer_code);
+            const data = await siteSalesPostingProvider.getAvailableMemos(header.customer_code, id);
             setAvailableMemos(data);
         } catch {
             toast.error("Failed to fetch available memos");
@@ -194,13 +223,22 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
     };
 
     const handleLinkMemo = async (memo: CustomerMemo) => {
+        const availableAmount = Number(memo.amount) - Number(memo.applied_amount);
+        const memoType = (memo.type && typeof memo.type === 'object') ? (memo.type as { id: number }).id : memo.type;
+        const isCredit = memoType === 1 || memo.balance_name === "CREDIT";
+        const isDebit = memoType === 2 || memo.balance_name === "DEBIT";
+        
+        // USER RULE: CREDIT memo cannot exceed current summary balance
+        // DEBIT memos (Type 2) are exempt since they add to the balance
+        if (isCredit && availableAmount > balance) {
+            toast.error("Linking failed: This credit memo exceeds the remaining invoice balance.");
+            return;
+        }
+
         setIsLinking(true);
         try {
-            // Apply full amount or remaining amount? 
-            // Usually we link the whole remaining balance of the memo to this invoice
-            const availableAmount = Number(memo.amount) - Number(memo.applied_amount);
-            await siteSalesPostingProvider.linkMemo(id, memo.id, availableAmount);
-            toast.success(`Memo ${memo.memo_number} linked successfully!`);
+            await siteSalesPostingProvider.linkMemo(id, memo.id, availableAmount, balance);
+            toast.success(`${isDebit ? 'Debit' : 'Credit'} Memo ${memo.memo_number} linked successfully!`);
             setIsMemoLinkModalOpen(false);
             fetchData(); // Refresh list
         } catch (error: unknown) {
@@ -296,6 +334,7 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
         }
 
         setDetails(newItems); // Entire list replaced
+        setIsItemsModified(true);
         toast.success(`Items updated successfully`);
     };
 
@@ -307,6 +346,7 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
         if (detailId) {
             setDeletedDetailIds(prev => [...prev, detailId]);
         }
+        setIsItemsModified(true);
         toast.success('Item removed');
     };
 
@@ -733,19 +773,24 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
                                 <div className="space-y-2.5">
                                     <div className="flex justify-between text-xs font-bold">
                                         <span className="text-slate-400 uppercase tracking-wider">Gross Amount</span>
-                                        <span className="text-slate-700 dark:text-slate-200 font-black">₱{gross.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                                        <span className="text-slate-700 dark:text-slate-200 font-black">₱{displayGross.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                                     </div>
                                     <div className="flex justify-between text-xs font-bold">
                                         <span className="text-slate-400 uppercase tracking-wider">Discount</span>
-                                        <span className="text-rose-500 font-black">-₱{discount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                                        <span className="text-rose-500 font-black">-₱{displayDiscount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                                     </div>
                                     <div className="flex justify-between text-xs font-bold">
                                         <span className="text-slate-400 uppercase tracking-wider">Vat (12%)</span>
-                                        <span className="text-slate-700 dark:text-slate-200 font-black">₱{vat.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                                        <span className={cn(
+                                            "font-black transition-colors",
+                                            isItemsModified ? "text-primary animate-pulse" : "text-slate-700 dark:text-slate-200"
+                                        )}>
+                                            ₱{displayVat.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                        </span>
                                     </div>
                                     <div className="flex justify-between text-sm font-black pt-1">
                                         <span className="text-slate-900 dark:text-white uppercase tracking-wider">Total Amount</span>
-                                        <span className="text-slate-900 dark:text-white">₱{total.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                                        <span className="text-slate-900 dark:text-white">₱{displayTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                                     </div>
                                 </div>
 
@@ -757,8 +802,12 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
                                         <span className="text-rose-600 font-black">-₱{returnAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                                     </div>
                                     <div className="flex justify-between text-xs font-bold">
-                                        <span className="text-amber-500 uppercase tracking-wider">Memo</span>
-                                        <span className="text-amber-600 font-black">-₱{memoAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                                        <span className="text-amber-500 uppercase tracking-wider">Credit Memo</span>
+                                        <span className="text-amber-600 font-black">-₱{creditMemoAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                                    </div>
+                                    <div className="flex justify-between text-xs font-bold">
+                                        <span className="text-blue-500 uppercase tracking-wider">Debit Memo</span>
+                                        <span className="text-blue-600 font-black">+₱{debitMemoAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                                     </div>
                                 </div>
 

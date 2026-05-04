@@ -212,8 +212,14 @@ export const SiteSalesList: React.FC<SiteSalesListProps> = ({
             <Button variant="outline" size="sm" className="rounded-lg gap-2 border-slate-200">
                 <Download className="w-4 h-4" /> Export
             </Button>
-            <Button size="sm" className="rounded-lg gap-2 bg-slate-900 hover:bg-slate-800">
-                <Plus className="w-4 h-4" /> Add Record
+            <Button 
+                size="sm" 
+                className="rounded-lg gap-2 bg-slate-900 hover:bg-slate-800"
+                asChild
+            >
+                <Link href="/crm/site-sales-management/site-sales-posting/create-sales-invoice">
+                    <Plus className="w-4 h-4" /> Add Record
+                </Link>
             </Button>
         </div>
     );
@@ -491,6 +497,7 @@ export const SiteSalesList: React.FC<SiteSalesListProps> = ({
                     emptyDescription="Try adjusting your filters or wait for new transactions to be uploaded."
                 />
             </div>
+
         </div>
     );
 };

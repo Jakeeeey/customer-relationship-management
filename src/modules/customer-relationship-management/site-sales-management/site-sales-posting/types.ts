@@ -41,6 +41,16 @@ export interface Salesman {
     salesman_name: string;
     salesman_code?: string;
     price_type_id?: number;
+    price_type?: string;
+    branch_code?: number | null;
+}
+
+export interface MasterUser {
+    user_id: number;
+    user_fname?: string;
+    user_lname?: string;
+    user_email?: string;
+    linked_account_ids?: (number | string)[];
 }
 
 export interface Product {
@@ -83,11 +93,39 @@ export type SalesInvoiceDetail = Omit<z.infer<typeof SalesInvoiceDetailSchema>, 
 };
 
 export interface Customer {
+    id: number;
     customer_code: string;
     customer_name?: string;
     store_name?: string;
     city?: string;
     province?: string;
+    payment_term?: number;
+    isActive?: number;
+}
+
+export interface Supplier {
+    id: number;
+    supplier_name: string;
+    supplier_shortcut?: string;
+    isActive?: number;
+    supplier_type?: string;
+}
+
+export interface InvoiceType {
+    id: number;
+    type: string;
+    shortcut?: string;
+}
+
+export interface PriceType {
+    price_type_id: number;
+    price_type_name: string;
+}
+
+export interface PaymentTerm {
+    id: number;
+    payment_name: string;
+    payment_days?: number;
 }
 
 export interface SalesType {
@@ -176,7 +214,7 @@ export interface CustomerMemo {
     memo_number: string;
     supplier_reference?: string | null;
     customer_reference?: string | null;
-    type: number;
+    type: number | { id: number; balance_name?: string };
     balance_name?: string; // From balance_type join
     customer_id: number;
     salesman_id: number;
@@ -188,4 +226,9 @@ export interface CustomerMemo {
     account_title?: string; // From chart_of_accounts join
     gl_code?: string; // From chart_of_accounts join
     created_at?: string;
+}
+export interface CustomerSalesmanLink {
+    id: number;
+    customer_id: number;
+    salesman_id: Salesman;
 }

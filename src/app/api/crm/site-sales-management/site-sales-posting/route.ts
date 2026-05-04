@@ -607,8 +607,76 @@ export async function GET(req: NextRequest) {
         }
 
         if (type === "salesmen") {
-            const res = await fetch(`${DIRECTUS_URL}/items/salesman?filter[isActive][_eq]=1&fields=*&limit=-1`, { headers: fetchHeaders, cache: "no-store" });
+            const res = await fetch(`${DIRECTUS_URL}/items/salesman?filter[isActive][_eq]=1&fields=*,branch_code&limit=-1`, { headers: fetchHeaders, cache: "no-store" });
             return NextResponse.json((await res.json()).data || []);
+        }
+
+        if (type === "master_users") {
+            const res = await fetch(`${DIRECTUS_URL}/items/salesman?filter[isActive][_eq]=1&limit=-1`, { headers: fetchHeaders, cache: "no-store" });
+            const smData = (await res.json()).data || [];
+            const userIds = new Set<string>();
+
+            smData.forEach((s: { employee_id?: number | string; encoder_id?: number | string; user_id?: number | string }) => {
+                const uid = s.employee_id || s.encoder_id || s.user_id;
+                if (uid) userIds.add(uid.toString());
+            });
+            if (userIds.size === 0) return NextResponse.json([]);
+
+            const uRes = await fetch(`${DIRECTUS_URL}/items/user?filter[user_id][_in]=${Array.from(userIds).join(',')}&limit=-1`, { headers: fetchHeaders });
+            return NextResponse.json((await uRes.json()).data || []);
+        }
+
+        if (type === "accounts") {
+            const userId = searchParams.get("userId");
+            const url = `${DIRECTUS_URL}/items/salesman?filter[_or][0][employee_id][_eq]=${userId}&filter[_or][1][encoder_id][_eq]=${userId}&filter[_or][2][user_id][_eq]=${userId}&filter[isActive][_eq]=1&fields=id,salesman_name,salesman_code,price_type,price_type_id,branch_code&limit=-1`;
+            const res = await fetch(url, { headers: fetchHeaders, cache: "no-store" });
+            return NextResponse.json((await res.json()).data || []);
+        }
+
+        if (type === "salesman_by_customer") {
+            const customerId = searchParams.get("customerId");
+            if (!customerId) return NextResponse.json({ error: "customerId required" }, { status: 400 });
+
+            // 1. Get all customer_salesman links for this customer
+            const csRes = await fetch(`${DIRECTUS_URL}/items/customer_salesmen?filter[customer_id][_eq]=${customerId}&limit=-1`, { headers: fetchHeaders });
+            const csData = (await csRes.json()).data || [];
+            if (csData.length === 0) return NextResponse.json([]);
+
+            const salesmanIds = csData.map((cs: { salesman_id?: number | string }) => cs.salesman_id).filter(Boolean);
+            if (salesmanIds.length === 0) return NextResponse.json([]);
+
+            // 2. Resolve Salesman records to find employee_id / encoder_id
+            const sRes = await fetch(`${DIRECTUS_URL}/items/salesman?filter[id][_in]=${salesmanIds.join(',')}&limit=-1`, { headers: fetchHeaders });
+            const sData = (await sRes.json()).data || [];
+            if (sData.length === 0) return NextResponse.json([]);
+
+            const userIds = new Set<string>();
+            sData.forEach((s: { employee_id?: number | string; encoder_id?: number | string; user_id?: number | string }) => {
+                const uid = s.employee_id || s.encoder_id || s.user_id;
+                if (uid) userIds.add(uid.toString());
+            });
+            if (userIds.size === 0) return NextResponse.json([]);
+
+            // 3. Fetch full User records for the distinct user IDs
+            const uRes = await fetch(`${DIRECTUS_URL}/items/user?filter[user_id][_in]=${Array.from(userIds).join(',')}&limit=-1`, { headers: fetchHeaders });
+            const uData = (await uRes.json()).data || [];
+
+            // Attach the specific accounts (salesman_id) linked to this customer for each Master User
+            const finalUsers = uData.map((user: { user_id: number | string }) => {
+                const myLinkedAccounts = sData
+                    .filter((s: { employee_id?: number | string; encoder_id?: number | string; user_id?: number | string; id: number | string }) => {
+                        const sid = (s.employee_id || s.encoder_id || s.user_id)?.toString();
+                        return sid === user.user_id.toString();
+                    })
+                    .map((s: { id: number | string }) => s.id);
+
+                return {
+                    ...user,
+                    linked_account_ids: myLinkedAccounts
+                };
+            });
+
+            return NextResponse.json(finalUsers);
         }
 
         if (type === "sales_types") {
@@ -618,7 +686,7 @@ export async function GET(req: NextRequest) {
 
         if (type === "customers") {
             const search = searchParams.get("search") || "";
-            let url = `${DIRECTUS_URL}/items/customer?filter[isActive][_eq]=1&fields=customer_code,customer_name,store_name,city,province&limit=-1`;
+            let url = `${DIRECTUS_URL}/items/customer?filter[isActive][_eq]=1&fields=id,customer_code,customer_name,store_name,city,province,isActive,payment_term&limit=-1`;
             if (search) {
                 url += `&filter[_or][0][customer_name][_icontains]=${encodeURIComponent(search)}&filter[_or][1][customer_code][_icontains]=${encodeURIComponent(search)}`;
             }
@@ -638,7 +706,8 @@ export async function GET(req: NextRequest) {
             // 2. Fetch returns for this customer that are NOT in the linked list
             const filters: { _and: Record<string, unknown>[] } = {
                 _and: [
-                    { customer_code: { _eq: customerCode } }
+                    { customer_code: { _eq: customerCode } },
+                    { status: { _neq: 'APPLIED' } }
                 ]
             };
 
@@ -654,6 +723,7 @@ export async function GET(req: NextRequest) {
 
         if (type === "available_memos") {
             const customerCode = searchParams.get("customerCode");
+            const invoiceId = searchParams.get("invoiceId");
             if (!customerCode) return NextResponse.json({ error: "customerCode required" }, { status: 400 });
 
             // Resolve customer_id first if customerCode is passed
@@ -663,13 +733,26 @@ export async function GET(req: NextRequest) {
 
             const customerId = custData.id;
 
-            // Fetch memos for this customer (filtered by account_type 7-11)
-            const filters = {
+            // 1. Get all memos already linked to THIS invoice
+            let linkedMemoIds: (number | string)[] = [];
+            if (invoiceId) {
+                const linkedRes = await fetch(`${DIRECTUS_URL}/items/customer_memo_invoices?filter[invoice_id][_eq]=${invoiceId}&fields=memo_id&limit=-1`, { headers: fetchHeaders });
+                const linkedData = (await linkedRes.json()).data || [];
+                linkedMemoIds = linkedData.map((l: { memo_id: number | string }) => l.memo_id).filter(Boolean);
+            }
+
+            // 2. Fetch memos for this customer (filtered by account_type 7-11)
+            const filters: { _and: Record<string, unknown>[] } = {
                 _and: [
                     { customer_id: { _eq: customerId } },
-                    { chart_of_account: { account_type: { _between: [7, 11] } } }
+                    { chart_of_account: { account_type: { _between: [7, 11] } } },
+                    { status: { _neq: 'APPLIED' } }
                 ]
             };
+
+            if (linkedMemoIds.length > 0) {
+                filters._and.push({ id: { _nin: linkedMemoIds } });
+            }
 
             const res = await fetch(`${DIRECTUS_URL}/items/customers_memo?filter=${JSON.stringify(filters)}&fields=*,type.balance_name,chart_of_account.account_title,chart_of_account.gl_code,chart_of_account.account_type&limit=-1`, { headers: fetchHeaders });
             if (!res.ok) throw new Error("Failed to fetch available memos");
@@ -677,7 +760,11 @@ export async function GET(req: NextRequest) {
             const memos = (await res.json()).data || [];
             
             // Map the data to include flattened names for the frontend
-            const results = memos.map((m: Record<string, unknown>) => ({
+            const results = memos.map((m: {
+                type?: { balance_name?: string };
+                chart_of_account?: { account_title?: string, gl_code?: string };
+                [key: string]: unknown;
+            }) => ({
                 ...m,
                 balance_name: m.type?.balance_name || "N/A",
                 account_title: m.chart_of_account?.account_title || "N/A",
@@ -687,45 +774,46 @@ export async function GET(req: NextRequest) {
             return NextResponse.json(results);
         }
 
-        if (type === "available_memos") {
-            const customerCode = searchParams.get("customerCode");
-            if (!customerCode) return NextResponse.json({ error: "customerCode required" }, { status: 400 });
-
-            // Resolve customer_id first if customerCode is passed
-            const custRes = await fetch(`${DIRECTUS_URL}/items/customer?filter[customer_code][_eq]=${customerCode}&fields=id`, { headers: fetchHeaders });
-            const custData = (await custRes.json()).data?.[0];
-            if (!custData) return NextResponse.json([]);
-
-            const customerId = custData.id;
-
-            // Fetch ALL memos for this customer (filtered only by account_type 7-11)
-            const filters = {
-                _and: [
-                    { customer_id: { _eq: customerId } },
-                    { chart_of_account: { account_type: { _between: [7, 11] } } }
-                ]
-            };
-
-            const res = await fetch(`${DIRECTUS_URL}/items/customers_memo?filter=${JSON.stringify(filters)}&fields=*,type.balance_name,chart_of_account.account_title,chart_of_account.gl_code,chart_of_account.account_type&limit=-1`, { headers: fetchHeaders });
-            if (!res.ok) throw new Error("Failed to fetch available memos");
-
-            const memos = (await res.json()).data || [];
-            
-            // Map the data to include flattened names for the frontend
-            const results = memos.map((m: Record<string, unknown>) => ({
-                ...m,
-                balance_name: m.type?.balance_name || "N/A",
-                account_title: m.chart_of_account?.account_title || "N/A",
-                gl_code: m.chart_of_account?.gl_code || "N/A"
-            }));
-
-            return NextResponse.json(results);
-        }
 
         if (type === "suppliers") {
             const res = await fetch(`${DIRECTUS_URL}/items/suppliers?filter[supplier_type][_eq]=Trade&filter[isActive][_eq]=1&fields=id,supplier_name,supplier_shortcut&sort=supplier_name&limit=-1`, { headers: fetchHeaders });
             if (!res.ok) throw new Error("Failed to fetch suppliers");
             return NextResponse.json((await res.json()).data || []);
+        }
+
+        if (type === "utility_info") {
+            // Fetch Invoice Types, Price Types, Branches, and Payment Terms in parallel
+            const [itRes, ptRes, brRes, pyRes] = await Promise.all([
+                fetch(`${DIRECTUS_URL}/items/sales_invoice_type?fields=*&limit=-1`, { headers: fetchHeaders }),
+                fetch(`${DIRECTUS_URL}/items/price_types?fields=*&limit=-1`, { headers: fetchHeaders }),
+                fetch(`${DIRECTUS_URL}/items/branches?fields=*&limit=-1`, { headers: fetchHeaders }),
+                fetch(`${DIRECTUS_URL}/items/payment_terms?fields=*&limit=-1`, { headers: fetchHeaders })
+            ]);
+
+            const [itData, ptData, brData, pyData] = await Promise.all([
+                itRes.ok ? itRes.json().then(j => j.data) : [],
+                ptRes.ok ? ptRes.json().then(j => j.data) : [],
+                brRes.ok ? brRes.json().then(j => j.data) : [],
+                pyRes.ok ? pyRes.json().then(j => j.data) : []
+            ]);
+
+            return NextResponse.json({
+                invoice_types: itData,
+                price_types: ptData,
+                branches: brData,
+                payment_terms: pyData
+            });
+        }
+
+        if (type === "customer_salesman") {
+            const customerId = searchParams.get("customerId");
+            if (!customerId) return NextResponse.json({ error: "customerId required" }, { status: 400 });
+
+            const res = await fetch(`${DIRECTUS_URL}/items/customer_salesmen?filter[customer_id][_eq]=${customerId}&fields=*,salesman_id.*,salesman_id.branch_code.*&limit=1`, { headers: fetchHeaders });
+            if (!res.ok) throw new Error("Failed to fetch customer salesman");
+            
+            const data = (await res.json()).data?.[0];
+            return NextResponse.json(data || null);
         }
 
         return NextResponse.json({ error: "Invalid type" }, { status: 400 });
@@ -886,6 +974,7 @@ export async function POST(req: NextRequest) {
                     body: JSON.stringify({
                         transaction_status: "Dispatched",
                         isDispatched: 1,
+                        dispatch_date: now,
                         modified_by: userId,
                         modified_date: now
                     })
@@ -921,23 +1010,67 @@ export async function POST(req: NextRequest) {
         }
 
         if (action === "link_memo") {
-            const { invoiceId, memoId, amount } = body;
+            const { invoiceId, memoId, amount, balance } = body;
             const now = new Date().toISOString();
+
+            console.log(`[LinkMemo] Starting link for Invoice: ${invoiceId}, Memo: ${memoId}, Amount: ${amount}, Current Balance: ${balance}`);
+
+            // 1. Link to junction table
             const res = await fetch(`${DIRECTUS_URL}/items/customer_memo_invoices`, {
-                method: "POST", headers: fetchHeaders,
-                body: JSON.stringify({ invoice_id: invoiceId, memo_id: memoId, amount, date_applied: now })
+                method: "POST", 
+                headers: fetchHeaders,
+                body: JSON.stringify({ 
+                    invoice_id: invoiceId, 
+                    memo_id: memoId, 
+                    amount: Number(amount), 
+                    date_applied: now 
+                })
             });
-            if (!res.ok) throw new Error("Failed to link memo");
-            const memoRes = await fetch(`${DIRECTUS_URL}/items/customers_memo/${memoId}?fields=applied_amount,amount`, { headers: fetchHeaders });
+
+            if (!res.ok) {
+                const errorData = await res.json();
+                console.error("[LinkMemo] Junction link failed:", errorData);
+                throw new Error("Failed to link memo to invoice");
+            }
+
+            // 2. Fetch current memo state to update totals
+            const memoRes = await fetch(`${DIRECTUS_URL}/items/customers_memo/${memoId}?fields=id,applied_amount,amount,status,type.id,type.balance_name`, { headers: fetchHeaders });
+            
             if (memoRes.ok) {
                 const memo = (await memoRes.json()).data;
-                const newApplied = (Number(memo.applied_amount) || 0) + Number(amount);
-                const newStatus = newApplied >= Number(memo.amount) ? "APPLIED" : "PARTIALLY APPLIED";
-                await fetch(`${DIRECTUS_URL}/items/customers_memo/${memoId}`, {
-                    method: "PATCH", headers: fetchHeaders,
-                    body: JSON.stringify({ applied_amount: newApplied, status: newStatus })
+                const currentApplied = Number(memo.applied_amount) || 0;
+                const newApplied = currentApplied + Number(amount);
+                
+                // USER RULE: 
+                // DEBIT (Type 2) -> APPLIED immediately
+                // CREDIT (Type 1) -> amount < balance ? PARTIALLY APPLIED : APPLIED
+                const memoType = memo.type?.id || memo.type;
+                const memoTypeName = memo.type?.balance_name || "";
+                const isDebit = memoType === 2 || memoTypeName === "DEBIT";
+                const newStatus = isDebit ? "APPLIED" : (Number(amount) < Number(balance) ? "PARTIALLY APPLIED" : "APPLIED");
+                
+                console.log(`[LinkMemo] Updating Memo ${memoId}. TypeID: ${memoType}, Name: ${memoTypeName}. Status Logic: ${amount} vs ${balance} -> ${newStatus}`);
+
+                const updateRes = await fetch(`${DIRECTUS_URL}/items/customers_memo/${memoId}`, {
+                    method: "PATCH", 
+                    headers: fetchHeaders,
+                    body: JSON.stringify({ 
+                        applied_amount: newApplied, 
+                        status: newStatus,
+                        updated_at: now
+                    })
                 });
+
+                if (!updateRes.ok) {
+                    const updateError = await updateRes.json();
+                    console.error("[LinkMemo] Memo update failed:", updateError);
+                } else {
+                    console.log("[LinkMemo] Memo updated successfully");
+                }
+            } else {
+                console.error(`[LinkMemo] Could not fetch memo ${memoId} for update`);
             }
+
             return NextResponse.json({ success: true });
         }
 

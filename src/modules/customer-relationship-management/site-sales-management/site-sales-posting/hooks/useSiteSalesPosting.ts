@@ -1,6 +1,22 @@
 import { useState, useCallback } from "react";
 import { siteSalesPostingProvider } from "../providers/fetchProvider";
-import { SalesInvoiceHeader, SalesInvoiceDetail, LinkedDocument, Salesman, Customer, SalesType, WorklistFilters } from "../types";
+import { 
+    SalesInvoiceHeader, 
+    SalesInvoiceDetail, 
+    LinkedDocument, 
+    Salesman, 
+    MasterUser,
+    Customer, 
+    SalesType, 
+    WorklistFilters,
+    Supplier,
+    InvoiceType,
+    PriceType,
+    Branch,
+    PaymentTerm,
+    SearchProduct,
+    CustomerSalesmanLink
+} from "../types";
 
 interface UseSiteSalesPostingReturn {
     // State
@@ -25,6 +41,25 @@ interface UseSiteSalesPostingReturn {
     }) => Promise<void>;
     finalizeSettlement: (invoiceIds: (number | string)[]) => Promise<void>;
     fetchUtilityData: () => Promise<void>;
+    fetchModalData: () => Promise<{
+        suppliers: Supplier[],
+        invoiceTypes: InvoiceType[],
+        priceTypes: PriceType[],
+        branches: Branch[],
+        payment_terms: PaymentTerm[],
+        masterUsers: MasterUser[]
+    }>;
+    getCustomerSalesman: (customerId: number) => Promise<CustomerSalesmanLink | null>;
+    getSalesmanByCustomer: (customerId: number) => Promise<MasterUser[]>;
+    getAccounts: (userId: number | string) => Promise<Salesman[]>;
+    searchProducts: (params: { 
+        search: string, 
+        priceTypeId: number, 
+        priceType?: string | null, 
+        supplierId?: number | null, 
+        branchId?: number | string | null, 
+        customerCode?: string | null 
+    }) => Promise<SearchProduct[]>;
 }
 
 export const useSiteSalesPosting = (): UseSiteSalesPostingReturn => {
@@ -110,6 +145,70 @@ export const useSiteSalesPosting = (): UseSiteSalesPostingReturn => {
         }
     }, []);
 
+    const fetchModalData = useCallback(async () => {
+        try {
+            const [suppliers, utilities, mu] = await Promise.all([
+                siteSalesPostingProvider.getSuppliers(),
+                siteSalesPostingProvider.getUtilityInfo(),
+                siteSalesPostingProvider.getMasterUsers()
+            ]);
+            return {
+                suppliers,
+                invoiceTypes: utilities.invoice_types,
+                priceTypes: utilities.price_types,
+                branches: utilities.branches,
+                payment_terms: utilities.payment_terms,
+                masterUsers: mu
+            };
+        } catch (err) {
+            console.error("Modal data fetch error:", err);
+            throw err;
+        }
+    }, []);
+
+    const getCustomerSalesman = useCallback(async (customerId: number) => {
+        try {
+            return await siteSalesPostingProvider.getCustomerSalesman(customerId);
+        } catch (err) {
+            console.error("Customer salesman fetch error:", err);
+            throw err;
+        }
+    }, []);
+
+    const getSalesmanByCustomer = useCallback(async (customerId: number) => {
+        try {
+            return await siteSalesPostingProvider.getSalesmanByCustomer(customerId);
+        } catch (err) {
+            console.error("Salesman by customer fetch error:", err);
+            throw err;
+        }
+    }, []);
+
+    const getAccounts = useCallback(async (userId: number | string) => {
+        try {
+            return await siteSalesPostingProvider.getAccounts(userId);
+        } catch (err) {
+            console.error("Accounts fetch error:", err);
+            throw err;
+        }
+    }, []);
+
+    const searchProducts = useCallback(async (params: { 
+        search: string, 
+        priceTypeId: number, 
+        priceType?: string | null, 
+        supplierId?: number | null, 
+        branchId?: number | string | null, 
+        customerCode?: string | null 
+    }) => {
+        try {
+            return await siteSalesPostingProvider.searchProducts(params);
+        } catch (err) {
+            console.error("Product search error:", err);
+            throw err;
+        }
+    }, []);
+
     return {
         worklist,
         salesmen,
@@ -122,7 +221,11 @@ export const useSiteSalesPosting = (): UseSiteSalesPostingReturn => {
         fetchDetails,
         saveAdjustments,
         finalizeSettlement,
-        fetchUtilityData
+        fetchUtilityData,
+        fetchModalData,
+        getCustomerSalesman,
+        getSalesmanByCustomer,
+        getAccounts,
+        searchProducts
     };
 };
-
