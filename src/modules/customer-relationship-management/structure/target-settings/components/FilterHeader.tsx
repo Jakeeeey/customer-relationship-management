@@ -43,7 +43,7 @@ export function FilterHeader({
     ];
 
     const currentYear = new Date().getFullYear();
-    const years = Array.from({ length: 5 }, (_, i) => String(currentYear - 2 + i));
+    const years = Array.from({ length: 21 }, (_, i) => String(currentYear - 10 + i));
 
     return (
         <div className="space-y-8">
@@ -94,7 +94,7 @@ export function FilterHeader({
                     <div className="relative">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                         <Input
-                            placeholder="Enter salesman name or code..."
+                            placeholder="Enter salesman name..."
                             className="pl-9 h-10 bg-white border-muted/60"
                             value={searchTerm}
                             onChange={(e) => onSearchChange(e.target.value)}
