@@ -19,6 +19,7 @@ export interface TargetSetting {
     tactical_skus?: TacticalSKU[];
     customer_targets?: CustomerTarget[];
     supplier_targets?: SupplierTarget[];
+    area_targets?: AreaTarget[];
 }
 
 export interface TacticalSKU {
@@ -106,6 +107,11 @@ export interface TargetFormData {
         supplier_id: number;
         target_amount: number;
     }[];
+    area_targets?: {
+        province: string;
+        city: string;
+        target_amount: number;
+    }[];
 }
 
 export interface CustomerTarget {
@@ -124,6 +130,15 @@ export interface SupplierTarget {
     target_amount: number;
     created_at?: string;
     supplier_name?: string;
+}
+
+export interface AreaTarget {
+    id?: number;
+    target_setting_id?: number;
+    province: string;
+    city: string;
+    target_amount: number;
+    created_at?: string;
 }
 
 export interface CustomerRecord {

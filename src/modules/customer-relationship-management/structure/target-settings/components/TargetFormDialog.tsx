@@ -52,10 +52,18 @@ import {
     ProductPricing,
     CustomerTarget,
     SupplierTarget,
+    AreaTarget,
     CustomerRecord,
     SupplierRecord
 } from "@/modules/customer-relationship-management/structure/target-settings/types";
 import { targetSettingsProvider } from "@/modules/customer-relationship-management/structure/target-settings/providers/fetchProvider";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -127,6 +135,14 @@ export function TargetFormDialog({
         })) || []
     );
 
+    const [areaTargets, setAreaTargets] = useState<Partial<AreaTarget>[]>(
+        salesman.current_target?.area_targets?.map(at => ({
+            province: at.province,
+            city: at.city,
+            target_amount: at.target_amount
+        })) || []
+    );
+
     const [supplierTargets, setSupplierTargets] = useState<Partial<SupplierTarget>[]>(
         salesman.current_target?.supplier_targets?.map(st => ({
             supplier_id: st.supplier_id,
@@ -136,6 +152,14 @@ export function TargetFormDialog({
 
     const [customerSearch, setCustomerSearch] = useState("");
     const [supplierSearch, setSupplierSearch] = useState("");
+
+    // --- PSGC State ---
+    const [provinces, setProvinces] = useState<{ code: string; name: string }[]>([]);
+    const [cities, setCities] = useState<{ code: string; name: string }[]>([]);
+    const [isLoadingProvinces, setIsLoadingProvinces] = useState(false);
+    const [isLoadingCities, setIsLoadingCities] = useState(false);
+    const [selectedProvinceCode, setSelectedProvinceCode] = useState<string>("");
+    const [selectedCityName, setSelectedCityName] = useState<string>("");
 
     // --- Reset State when Salesman or Modal changes ---
     useEffect(() => {
@@ -168,10 +192,11 @@ export function TargetFormDialog({
                 }) || []
             );
 
-            setCustomerTargets(
-                salesman.current_target?.customer_targets?.map(ct => ({
-                    customer_id: ct.customer_id,
-                    target_amount: ct.target_amount
+            setAreaTargets(
+                salesman.current_target?.area_targets?.map(at => ({
+                    province: at.province,
+                    city: at.city,
+                    target_amount: at.target_amount
                 })) || []
             );
 
@@ -184,9 +209,54 @@ export function TargetFormDialog({
 
             setCustomerSearch("");
             setSupplierSearch("");
+            setSelectedProvinceCode("");
+            setSelectedCityName("");
             setLoading(false);
         }
     }, [isOpen, salesman, month, year, allProducts]);
+
+    // --- Fetch Provinces ---
+    useEffect(() => {
+        if (isOpen && provinces.length === 0) {
+            const fetchProvinces = async () => {
+                setIsLoadingProvinces(true);
+                try {
+                    const res = await fetch("https://psgc.gitlab.io/api/provinces/");
+                    if (!res.ok) throw new Error("Failed to fetch provinces");
+                    const data = await res.json();
+                    setProvinces(data.map((p: { code: string; name: string }) => ({ code: p.code, name: p.name })));
+                } catch (error) {
+                    console.error("Error fetching provinces:", error);
+                } finally {
+                    setIsLoadingProvinces(false);
+                }
+            };
+            fetchProvinces();
+        }
+    }, [isOpen, provinces.length]);
+
+    // --- Fetch Cities ---
+    useEffect(() => {
+        if (selectedProvinceCode) {
+            const fetchCities = async () => {
+                setIsLoadingCities(true);
+                setCities([]);
+                try {
+                    const res = await fetch(`https://psgc.gitlab.io/api/provinces/${selectedProvinceCode}/cities-municipalities/`);
+                    if (!res.ok) throw new Error("Failed to fetch cities");
+                    const data = await res.json();
+                    setCities(data.map((c: { code: string; name: string }) => ({ code: c.code, name: c.name })));
+                } catch (error) {
+                    console.error("Error fetching cities:", error);
+                } finally {
+                    setIsLoadingCities(false);
+                }
+            };
+            fetchCities();
+        } else {
+            setCities([]);
+        }
+    }, [selectedProvinceCode]);
 
     // --- Customer Filter Logic ---
     const salesmanCustomerIds = useMemo(() => {
@@ -240,6 +310,29 @@ export function TargetFormDialog({
         return groups;
     }, [allCustomers, salesmanCustomerIds, customerSearch, customerTargets]);
 
+    const groupedAreas = useMemo(() => {
+        const groups: Record<string, {
+            totalAllocation: number;
+            cities: Record<string, {
+                targetAmount: number;
+            }>
+        }> = {};
+
+        areaTargets.forEach(at => {
+            const prov = (at.province || "Unknown Province").toUpperCase();
+            const city = (at.city || "Unknown City").toUpperCase();
+
+            if (!groups[prov]) {
+                groups[prov] = { totalAllocation: 0, cities: {} };
+            }
+            
+            groups[prov].cities[city] = { targetAmount: Number(at.target_amount) || 0 };
+            groups[prov].totalAllocation += Number(at.target_amount) || 0;
+        });
+
+        return groups;
+    }, [areaTargets]);
+
     const filteredSuppliersList = useMemo(() => {
         let list = allSuppliers;
         if (supplierSearch) {
@@ -250,12 +343,17 @@ export function TargetFormDialog({
 
     // --- Allocation Calculations ---
     const totalAllocatedCustomer = useMemo(() => customerTargets.reduce((sum, ct) => sum + (Number(ct.target_amount) || 0), 0), [customerTargets]);
+    const totalAllocatedArea = useMemo(() => areaTargets.reduce((sum, at) => sum + (Number(at.target_amount) || 0), 0), [areaTargets]);
     const totalAllocatedSupplier = useMemo(() => supplierTargets.reduce((sum, st) => sum + (Number(st.target_amount) || 0), 0), [supplierTargets]);
 
     // Count only customers with a target > 0
     const activeCustomerCount = useMemo(() =>
         customerTargets.filter(ct => (Number(ct.target_amount) || 0) > 0).length,
         [customerTargets]);
+
+    const activeAreaCount = useMemo(() =>
+        areaTargets.filter(at => (Number(at.target_amount) || 0) > 0).length,
+        [areaTargets]);
 
     const handleCustomerTargetChange = (customerId: number, amount: number) => {
         setCustomerTargets(prev => {
@@ -267,6 +365,47 @@ export function TargetFormDialog({
             if (amount <= 0) return prev;
             return [...prev, { customer_id: customerId, target_amount: amount }];
         });
+    };
+
+    const handleAreaTargetChange = (province: string, city: string, amount: number) => {
+        setAreaTargets(prev => {
+            const existing = prev.find(at => at.province?.toUpperCase() === province.toUpperCase() && at.city?.toUpperCase() === city.toUpperCase());
+            if (existing) {
+                if (amount <= 0) return prev.filter(at => !(at.province?.toUpperCase() === province.toUpperCase() && at.city?.toUpperCase() === city.toUpperCase()));
+                return prev.map(at => (at.province?.toUpperCase() === province.toUpperCase() && at.city?.toUpperCase() === city.toUpperCase()) ? { ...at, target_amount: amount } : at);
+            }
+            if (amount <= 0) return prev;
+            return [...prev, { province, city, target_amount: amount }];
+        });
+    };
+
+    const handleAddArea = () => {
+        const prov = provinces.find(p => p.code === selectedProvinceCode);
+        if (!prov || !selectedCityName) {
+            toast.error("Please select both province and city");
+            return;
+        }
+
+        const isDuplicate = areaTargets.some(at => at.province === prov.name && at.city === selectedCityName);
+        if (isDuplicate) {
+            toast.error("This area has already been added");
+            return;
+        }
+
+        setAreaTargets(prev => [...prev, {
+            province: prov.name,
+            city: selectedCityName,
+            target_amount: 0
+        }]);
+
+        setSelectedCityName("");
+    };
+
+    const handleRemoveArea = (province: string, city: string) => {
+        setAreaTargets(prev => prev.filter(at => 
+            !(at.province?.toUpperCase() === province.toUpperCase() && 
+              at.city?.toUpperCase() === city.toUpperCase())
+        ));
     };
 
     const handleSupplierTargetChange = (supplierId: number, amount: number) => {
@@ -363,6 +502,12 @@ export function TargetFormDialog({
             return;
         }
 
+        if (isSiteSales && totalAllocatedArea > targetData.volume) {
+            toast.error(`Total area allocation (₱${(totalAllocatedArea || 0).toLocaleString()}) exceeds total volume (₱${(targetData.volume || 0).toLocaleString()})`);
+            setLoading(false);
+            return;
+        }
+
         if (totalAllocatedSupplier > targetData.volume) {
             toast.error(`Total supplier allocation (₱${(totalAllocatedSupplier || 0).toLocaleString()}) exceeds total volume (₱${(targetData.volume || 0).toLocaleString()})`);
             setLoading(false);
@@ -378,8 +523,9 @@ export function TargetFormDialog({
                     date_range_to: dateTo,
                 },
                 tacticalSkus: tacticalSkus.filter(s => s.product_id !== 0),
-                customerTargets: customerTargets.filter(ct => (ct.target_amount || 0) > 0) as CustomerTarget[],
-                supplierTargets: supplierTargets.filter(st => (st.target_amount || 0) > 0) as SupplierTarget[]
+                customerTargets: isBooking ? customerTargets.filter(ct => (ct.target_amount || 0) > 0) as CustomerTarget[] : [],
+                supplierTargets: supplierTargets.filter(st => (st.target_amount || 0) > 0) as SupplierTarget[],
+                areaTargets: isSiteSales ? areaTargets.filter(at => (at.target_amount || 0) > 0) as AreaTarget[] : []
             });
             toast.success("Target settings saved successfully");
             onSuccess();
@@ -601,9 +747,9 @@ export function TargetFormDialog({
 
                                     <div className="flex gap-4">
                                         <div className="text-right">
-                                            <p className="text-[10px] font-black text-slate-400 uppercase">Allocated (Customers)</p>
-                                            <p className={`text-sm font-bold ${totalAllocatedCustomer > targetData.volume ? 'text-destructive' : 'text-slate-900'}`}>
-                                                ₱{(totalAllocatedCustomer || 0).toLocaleString()} / ₱{(targetData.volume || 0).toLocaleString()}
+                                            <p className="text-[10px] font-black text-slate-400 uppercase">Allocated ({isBooking ? 'Customers' : 'Areas'})</p>
+                                            <p className={`text-sm font-bold ${(isBooking ? totalAllocatedCustomer : totalAllocatedArea) > targetData.volume ? 'text-destructive' : 'text-slate-900'}`}>
+                                                ₱{(isBooking ? totalAllocatedCustomer : totalAllocatedArea || 0).toLocaleString()} / ₱{(targetData.volume || 0).toLocaleString()}
                                             </p>
                                         </div>
                                         <div className="text-right">
@@ -616,98 +762,191 @@ export function TargetFormDialog({
                                 </div>
 
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 h-[400px]">
-                                    {/* Left: Customer Side */}
+                                    {/* Left: Customer/Area Side */}
                                     <div className="flex flex-col border border-slate-200 rounded-2xl bg-slate-50/50 overflow-hidden shadow-sm min-h-0 max-h-full">
                                         <div className="p-4 bg-white border-b border-slate-100 space-y-4 flex-none">
                                             <div className="flex items-center justify-between w-full">
                                                 <div className="flex items-center gap-2 text-primary font-black text-xs uppercase tracking-widest">
-                                                    <Users className="w-4 h-4" /> Customer Allocation
+                                                    {isBooking ? (
+                                                        <><Users className="w-4 h-4" /> Customer Allocation</>
+                                                    ) : (
+                                                        <><MapPin className="w-4 h-4" /> Area Allocation</>
+                                                    )}
                                                 </div>
                                                 <Badge variant="secondary" className="bg-primary/10 text-primary border-none font-bold text-[10px] h-5">
-                                                    {activeCustomerCount} Customers Set
+                                                    {isBooking ? `${activeCustomerCount} Customers Set` : `${activeAreaCount} Areas Set`}
                                                 </Badge>
                                             </div>
 
-                                            <div className="relative">
-                                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
-                                                <Input
-                                                    placeholder="Search province, city, or customer..."
-                                                    className="h-9 pl-9 text-sm border-slate-100 bg-slate-50"
-                                                    value={customerSearch}
-                                                    onChange={(e) => setCustomerSearch(e.target.value)}
-                                                />
-                                            </div>
+                                            {isBooking && (
+                                                <div className="relative">
+                                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+                                                    <Input
+                                                        placeholder="Search province, city, or customer..."
+                                                        className="h-9 pl-9 text-sm border-slate-100 bg-slate-50"
+                                                        value={customerSearch}
+                                                        onChange={(e) => setCustomerSearch(e.target.value)}
+                                                    />
+                                                </div>
+                                            )}
+
+                                            {isSiteSales && (
+                                                <div className="space-y-2">
+                                                    <div className="grid grid-cols-2 gap-2">
+                                                        <Select value={selectedProvinceCode} onValueChange={setSelectedProvinceCode}>
+                                                            <SelectTrigger className="h-9 text-[10px] font-bold bg-slate-50 border-slate-100">
+                                                                <SelectValue placeholder={isLoadingProvinces ? "Loading Provinces..." : "Select Province"} />
+                                                            </SelectTrigger>
+                                                            <SelectContent>
+                                                                {provinces.map(p => (
+                                                                    <SelectItem key={p.code} value={p.code} className="text-[10px] font-medium">{p.name}</SelectItem>
+                                                                ))}
+                                                            </SelectContent>
+                                                        </Select>
+                                                        <Select value={selectedCityName} onValueChange={setSelectedCityName} disabled={!selectedProvinceCode || isLoadingCities}>
+                                                            <SelectTrigger className="h-9 text-[10px] font-bold bg-slate-50 border-slate-100">
+                                                                <SelectValue placeholder={isLoadingCities ? "Loading Cities..." : "Select City"} />
+                                                            </SelectTrigger>
+                                                            <SelectContent>
+                                                                {cities.map(c => (
+                                                                    <SelectItem key={c.code} value={c.name} className="text-[10px] font-medium">{c.name}</SelectItem>
+                                                                ))}
+                                                            </SelectContent>
+                                                        </Select>
+                                                    </div>
+                                                    <Button 
+                                                        onClick={handleAddArea} 
+                                                        className="w-full h-8 text-[10px] font-black uppercase tracking-widest bg-primary text-white"
+                                                        disabled={!selectedProvinceCode || !selectedCityName}
+                                                    >
+                                                        <Plus className="w-3 h-3 mr-1" /> Add Area
+                                                    </Button>
+                                                </div>
+                                            )}
                                         </div>
 
                                         <div className="flex-1 overflow-y-auto min-h-0 scrollbar-thin scrollbar-thumb-slate-200">
-                                            <Accordion type="multiple" className="w-full">
-                                                {Object.entries(groupedCustomers).length > 0 ? (
-                                                    Object.entries(groupedCustomers).map(([province, data]) => (
-                                                        <AccordionItem key={province} value={province} className="border-b border-slate-100 px-4">
-                                                            <AccordionTrigger className="hover:no-underline py-3 group">
-                                                                <div className="flex items-center justify-between w-full pr-4">
-                                                                    <div className="flex items-center gap-2">
-                                                                        <span className="text-xs font-black text-slate-900 tracking-tight uppercase">{province}</span>
+                                            {isBooking && (
+                                                <Accordion type="multiple" className="w-full">
+                                                    {Object.entries(groupedCustomers).length > 0 ? (
+                                                        Object.entries(groupedCustomers).map(([province, data]) => (
+                                                            <AccordionItem key={province} value={province} className="border-b border-slate-100 px-4">
+                                                                <AccordionTrigger className="hover:no-underline py-3 group">
+                                                                    <div className="flex items-center justify-between w-full pr-4">
+                                                                        <div className="flex items-center gap-2">
+                                                                            <span className="text-xs font-black text-slate-900 tracking-tight uppercase">{province}</span>
+                                                                        </div>
+                                                                        <Badge variant="outline" className="bg-primary/5 border-primary/20 text-primary font-bold text-[10px]">
+                                                                            ₱{(data.totalAllocation || 0).toLocaleString()}
+                                                                        </Badge>
                                                                     </div>
-                                                                    <Badge variant="outline" className="bg-primary/5 border-primary/20 text-primary font-bold text-[10px]">
-                                                                        ₱{(data.totalAllocation || 0).toLocaleString()}
-                                                                    </Badge>
-                                                                </div>
-                                                            </AccordionTrigger>
-                                                            <AccordionContent className="pb-4 pt-1 px-2">
-                                                                <Accordion type="multiple" className="w-full space-y-1">
-                                                                    {Object.entries(data.cities).map(([city, cityData]) => (
-                                                                        <AccordionItem key={city} value={city} className="border-none">
-                                                                            <AccordionTrigger className="hover:no-underline py-2 px-2 rounded-lg hover:bg-slate-100/50 transition-colors group/city">
-                                                                                <div className="flex items-center justify-between w-full pr-4">
-                                                                                    <div className="flex items-center gap-2">
-                                                                                        <Map className="w-3.5 h-3.5 text-slate-400 group-hover/city:text-primary transition-colors" />
-                                                                                        <span className="text-[10px] font-bold text-slate-600 uppercase tracking-wider">{city}</span>
-                                                                                        <Badge variant="secondary" className="ml-2 h-4 px-1 text-[9px] font-black bg-slate-100 text-slate-500 border-none">
-                                                                                            {cityData.customers.length}
+                                                                </AccordionTrigger>
+                                                                <AccordionContent className="pb-4 pt-1 px-2">
+                                                                    <Accordion type="multiple" className="w-full space-y-1">
+                                                                        {Object.entries(data.cities).map(([city, cityData]) => (
+                                                                            <AccordionItem key={city} value={city} className="border-none">
+                                                                                <AccordionTrigger className="hover:no-underline py-2 px-2 rounded-lg hover:bg-slate-100/50 transition-colors group/city">
+                                                                                    <div className="flex items-center justify-between w-full pr-4">
+                                                                                        <div className="flex items-center gap-2">
+                                                                                            <Map className="w-3.5 h-3.5 text-slate-400 group-hover/city:text-primary transition-colors" />
+                                                                                            <span className="text-[10px] font-bold text-slate-600 uppercase tracking-wider">{city}</span>
+                                                                                            <Badge variant="secondary" className="ml-2 h-4 px-1 text-[9px] font-black bg-slate-100 text-slate-500 border-none">
+                                                                                                {cityData.customers.length}
+                                                                                            </Badge>
+                                                                                        </div>
+                                                                                        <Badge variant="outline" className="bg-white border-slate-200 text-slate-500 font-bold text-[9px] h-5 shadow-sm">
+                                                                                            ₱{(cityData.totalAllocation || 0).toLocaleString()}
                                                                                         </Badge>
                                                                                     </div>
-                                                                                    <Badge variant="outline" className="bg-white border-slate-200 text-slate-500 font-bold text-[9px] h-5 shadow-sm">
-                                                                                        ₱{(cityData.totalAllocation || 0).toLocaleString()}
-                                                                                    </Badge>
-                                                                                </div>
-                                                                            </AccordionTrigger>
-                                                                            <AccordionContent className="pt-2 pb-1 pl-4 space-y-1.5">
-                                                                                {cityData.customers.map(customer => {
-                                                                                    const targetValue = customerTargets.find(ct => ct.customer_id === customer.id)?.target_amount || 0;
-                                                                                    return (
-                                                                                        <div key={customer.id} className="p-3 bg-white rounded-xl border border-slate-100 shadow-sm flex items-center justify-between group hover:border-primary/40 transition-colors">
-                                                                                            <div className="flex-1 min-w-0 pr-4">
-                                                                                                <p className="text-[10px] font-bold text-slate-900 truncate uppercase">{customer.customer_name}</p>
-                                                                                                <p className="text-[9px] text-slate-400 font-medium truncate italic">{customer.brgy || 'N/A'}</p>
+                                                                                </AccordionTrigger>
+                                                                                <AccordionContent className="pt-2 pb-1 pl-4 space-y-1.5">
+                                                                                    {cityData.customers.map(customer => {
+                                                                                        const targetValue = customerTargets.find(ct => ct.customer_id === customer.id)?.target_amount || 0;
+                                                                                        return (
+                                                                                            <div key={customer.id} className="p-3 bg-white rounded-xl border border-slate-100 shadow-sm flex items-center justify-between group hover:border-primary/40 transition-colors">
+                                                                                                <div className="flex-1 min-w-0 pr-4">
+                                                                                                    <p className="text-[10px] font-bold text-slate-900 truncate uppercase">{customer.customer_name}</p>
+                                                                                                    <p className="text-[9px] text-slate-400 font-medium truncate italic">{customer.brgy || 'N/A'}</p>
+                                                                                                </div>
+                                                                                                <div className="relative w-28">
+                                                                                                    <Input
+                                                                                                        type="number"
+                                                                                                        value={targetValue || ""}
+                                                                                                        onChange={(e) => handleCustomerTargetChange(customer.id, Number(e.target.value))}
+                                                                                                        className="h-7 pl-5 text-[10px] font-bold bg-slate-50 border-none rounded-lg focus:ring-primary"
+                                                                                                        placeholder="0"
+                                                                                                    />
+                                                                                                    <span className="absolute left-1.5 top-1/2 -translate-y-1/2 text-[9px] font-bold text-slate-400">₱</span>
+                                                                                                </div>
                                                                                             </div>
-                                                                                            <div className="relative w-28">
-                                                                                                <Input
-                                                                                                    type="number"
-                                                                                                    value={targetValue || ""}
-                                                                                                    onChange={(e) => handleCustomerTargetChange(customer.id, Number(e.target.value))}
-                                                                                                    className="h-7 pl-5 text-[10px] font-bold bg-slate-50 border-none rounded-lg focus:ring-primary"
-                                                                                                    placeholder="0"
-                                                                                                />
-                                                                                                <span className="absolute left-1.5 top-1/2 -translate-y-1/2 text-[9px] font-bold text-slate-400">₱</span>
-                                                                                            </div>
-                                                                                        </div>
-                                                                                    );
-                                                                                })}
-                                                                            </AccordionContent>
-                                                                        </AccordionItem>
+                                                                                        );
+                                                                                    })}
+                                                                                </AccordionContent>
+                                                                            </AccordionItem>
+                                                                        ))}
+                                                                    </Accordion>
+                                                                </AccordionContent>
+                                                            </AccordionItem>
+                                                        ))
+                                                    ) : (
+                                                        <div className="flex flex-col items-center justify-center py-20 text-slate-400 bg-white/50 rounded-2xl border-2 border-dashed border-slate-100 m-2">
+                                                            <Users className="w-8 h-8 mb-2 opacity-20" />
+                                                            <p className="text-[10px] font-black uppercase tracking-widest">No areas found</p>
+                                                        </div>
+                                                    )}
+                                                </Accordion>
+                                            )}
+
+                                            {isSiteSales && (
+                                                <Accordion type="multiple" className="w-full">
+                                                    {Object.entries(groupedAreas).length > 0 ? (
+                                                        Object.entries(groupedAreas).map(([province, data]) => (
+                                                            <AccordionItem key={province} value={province} className="border-b border-slate-100 px-4">
+                                                                <AccordionTrigger className="hover:no-underline py-3 group">
+                                                                    <div className="flex items-center justify-between w-full pr-4">
+                                                                        <div className="flex items-center gap-2">
+                                                                            <span className="text-xs font-black text-slate-900 tracking-tight uppercase">{province}</span>
+                                                                        </div>
+                                                                        <Badge variant="outline" className="bg-primary/5 border-primary/20 text-primary font-bold text-[10px]">
+                                                                            ₱{(data.totalAllocation || 0).toLocaleString()}
+                                                                        </Badge>
+                                                                    </div>
+                                                                </AccordionTrigger>
+                                                                <AccordionContent className="pb-4 pt-1 px-4 space-y-2">
+                                                                    {Object.entries(data.cities).map(([city, cityData]) => (
+                                                                        <div key={city} className="p-3 bg-white rounded-xl border border-slate-100 shadow-sm flex items-center justify-between group hover:border-primary/40 transition-colors">
+                                                                            <div className="flex-1 min-w-0 pr-4">
+                                                                                <p className="text-[10px] font-bold text-slate-900 truncate uppercase">{city}</p>
+                                                                                <button 
+                                                                                    onClick={() => handleRemoveArea(province, city)}
+                                                                                    className="text-[9px] text-destructive font-black uppercase tracking-widest mt-1 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1"
+                                                                                >
+                                                                                    <Trash2 className="w-3 h-3" /> Remove
+                                                                                </button>
+                                                                            </div>
+                                                                            <div className="relative w-32">
+                                                                                <Input
+                                                                                    type="number"
+                                                                                    value={cityData.targetAmount || ""}
+                                                                                    onChange={(e) => handleAreaTargetChange(province, city, Number(e.target.value))}
+                                                                                    className="h-8 pl-6 text-[10px] font-bold bg-slate-50 border-none rounded-lg focus:ring-primary"
+                                                                                    placeholder="0"
+                                                                                />
+                                                                                <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[9px] font-bold text-slate-400">₱</span>
+                                                                            </div>
+                                                                        </div>
                                                                     ))}
-                                                                </Accordion>
-                                                            </AccordionContent>
-                                                        </AccordionItem>
-                                                    ))
-                                                ) : (
-                                                    <div className="flex flex-col items-center justify-center py-20 text-slate-400 bg-white/50 rounded-2xl border-2 border-dashed border-slate-100 m-2">
-                                                        <Users className="w-8 h-8 mb-2 opacity-20" />
-                                                        <p className="text-[10px] font-black uppercase tracking-widest">No areas found</p>
-                                                    </div>
-                                                )}
-                                            </Accordion>
+                                                                </AccordionContent>
+                                                            </AccordionItem>
+                                                        ))
+                                                    ) : (
+                                                        <div className="flex flex-col items-center justify-center py-20 text-slate-400 bg-white/50 rounded-2xl border-2 border-dashed border-slate-100 m-2">
+                                                            <MapPin className="w-8 h-8 mb-2 opacity-20" />
+                                                            <p className="text-[10px] font-black uppercase tracking-widest">No areas added</p>
+                                                        </div>
+                                                    )}
+                                                </Accordion>
+                                            )}
                                         </div>
                                     </div>
 
