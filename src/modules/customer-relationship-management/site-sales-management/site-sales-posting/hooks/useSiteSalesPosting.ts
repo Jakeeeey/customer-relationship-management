@@ -60,6 +60,7 @@ interface UseSiteSalesPostingReturn {
         branchId?: number | string | null, 
         customerCode?: string | null 
     }) => Promise<SearchProduct[]>;
+    createInvoice: (payload: any) => Promise<{ success: boolean; invoiceId: number }>;
 }
 
 export const useSiteSalesPosting = (): UseSiteSalesPostingReturn => {
@@ -209,6 +210,15 @@ export const useSiteSalesPosting = (): UseSiteSalesPostingReturn => {
         }
     }, []);
 
+    const createInvoice = useCallback(async (payload: any) => {
+        try {
+            return await siteSalesPostingProvider.createInvoice(payload);
+        } catch (err) {
+            console.error("Create invoice error:", err);
+            throw err;
+        }
+    }, []);
+
     return {
         worklist,
         salesmen,
@@ -226,6 +236,7 @@ export const useSiteSalesPosting = (): UseSiteSalesPostingReturn => {
         getCustomerSalesman,
         getSalesmanByCustomer,
         getAccounts,
-        searchProducts
+        searchProducts,
+        createInvoice
     };
 };

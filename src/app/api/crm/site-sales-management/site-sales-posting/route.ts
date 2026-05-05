@@ -154,8 +154,14 @@ export async function GET(req: NextRequest) {
                 filters._and.push({ salesman_id: { _eq: salesmanId } });
             }
 
-            if (startDate && endDate) {
-                filters._and.push({ created_date: { _between: [startDate, endDate] } });
+            if (startDate) {
+                filters._and.push({ invoice_date: { _gte: startDate } });
+            }
+
+            if (endDate) {
+                // Ensure the entire end day is included by appending the end-of-day time
+                const endOfDay = endDate.includes("T") || endDate.includes(" ") ? endDate : `${endDate}T23:59:59`;
+                filters._and.push({ invoice_date: { _lte: endOfDay } });
             }
 
             if (search) {
@@ -187,17 +193,18 @@ export async function GET(req: NextRequest) {
             const rawData = json.data || [];
 
             // Fetch customer names manually to avoid NaN join error
-            const customerCodes = Array.from(new Set(rawData.map((item: { customer_code: string }) => item.customer_code).filter(Boolean)));
+            const customerCodes = Array.from(new Set((rawData as { customer_code: string }[]).map((item) => item.customer_code).filter(Boolean))) as (string | number)[];
             const customerMap: Record<string, string> = {};
 
             if (customerCodes.length > 0) {
-                const cRes = await fetch(`${DIRECTUS_URL}/items/customer?filter[customer_code][_in]=${customerCodes.join(",")}&fields=customer_code,customer_name,store_name`, { headers: fetchHeaders });
-                if (cRes.ok) {
-                    const cData = (await cRes.json()).data || [];
-                    cData.forEach((c: { customer_code: string; store_name?: string; customer_name?: string }) => {
-                        customerMap[c.customer_code] = c.store_name || c.customer_name || "N/A";
-                    });
-                }
+                const cData = await fetchInChunks<{ customer_code: string; store_name?: string; customer_name?: string }>(
+                    `${DIRECTUS_URL}/items/customer?fields=customer_code,customer_name,store_name`,
+                    customerCodes,
+                    "customer_code"
+                );
+                cData.forEach((c) => {
+                    customerMap[c.customer_code?.trim()] = c.customer_name || c.store_name || "N/A";
+                });
             }
 
             const data = rawData.map((item: {
@@ -206,7 +213,7 @@ export async function GET(req: NextRequest) {
             }) => ({
                 ...item,
                 salesman_name: typeof item.salesman_id === 'object' ? item.salesman_id?.salesman_name : "N/A",
-                customer_name: customerMap[item.customer_code] || item.customer_code || "N/A",
+                customer_name: customerMap[item.customer_code?.trim()] || item.customer_code || "N/A",
                 salesman_id: typeof item.salesman_id === 'object' ? item.salesman_id?.id : item.salesman_id
             }));
 
@@ -227,7 +234,7 @@ export async function GET(req: NextRequest) {
             if (!invoiceId) return NextResponse.json({ error: "invoiceId required" }, { status: 400 });
 
             // Fetch Header with expanded info
-            const headerRes = await fetch(`${DIRECTUS_URL}/items/sales_invoice/${invoiceId}?fields=*,salesman_id.salesman_name,salesman_id.salesman_code,salesman_id.price_type_id,branch_id.*`, { headers: fetchHeaders });
+            const headerRes = await fetch(`${DIRECTUS_URL}/items/sales_invoice/${invoiceId}?fields=*,salesman_id.salesman_name,salesman_id.salesman_code,salesman_id.price_type_id,branch_id.*,invoice_type.type`, { headers: fetchHeaders });
             const header = (await headerRes.json()).data || {};
 
             // Resolve Customer Name
@@ -454,8 +461,15 @@ export async function GET(req: NextRequest) {
                 // Filter by search and strict price requirement
                 const sellableItems = initialProducts.filter((p) => {
                     const hasPrice = Object.prototype.hasOwnProperty.call(priceOverrides, Number(p.product_id));
-                    const q = search.toLowerCase();
-                    const matchesSearch = (p.product_name || "").toLowerCase().includes(q) || (p.product_code || "").toLowerCase().includes(q) || (p.description || "").toLowerCase().includes(q);
+                    const q = search.toLowerCase().trim();
+                    if (!q) return hasPrice;
+
+                    const terms = q.split(/\s+/).filter(Boolean);
+                    const matchesSearch = terms.every(term => 
+                        (p.product_name || "").toLowerCase().includes(term) || 
+                        (p.product_code || "").toLowerCase().includes(term) || 
+                        (p.description || "").toLowerCase().includes(term)
+                    );
                     return hasPrice && matchesSearch;
                 });
 
@@ -545,7 +559,7 @@ export async function GET(req: NextRequest) {
                 // 7. Unit Mapping
                 const unitsRes = await fetch(`${DIRECTUS_URL}/items/units?limit=-1`, { headers: fetchHeaders });
                 const unitsData = (await unitsRes.json()).data || [];
-                const unitMap: Record<number, string> = unitsData.reduce((acc: Record<number, string>, u: { unit_id: number; unit_shortcut?: string; unit_name?: string }) => ({ ...acc, [Number(u.unit_id)]: u.unit_shortcut || u.unit_name || "PCS" }), {});
+                const unitMap: Record<number, string> = unitsData.reduce((acc: Record<number, string>, u: { unit_id: number; unit_shortcut?: string; unit_name?: string }) => ({ ...acc, [Number(u.unit_id)]: u.unit_name || u.unit_shortcut || "PCS" }), {});
 
                 // 8. Sorting Priority
                 const uomPriority: Record<string, number> = { 'BOX': 1, 'CASE': 1, 'CS': 1, 'TIE': 2, 'PACK': 3, 'PCK': 3, 'BNDL': 3, 'PCS': 4, 'PC': 4 };
@@ -577,7 +591,7 @@ export async function GET(req: NextRequest) {
                     if (!winId && customerData?.discount_type) winId = customerData.discount_type;
 
                     const inv = inventoryMap[Number(p.product_id)] || { available: 0, unitCount: Number(p.unit_of_measurement_count) || 1 };
-                    const unitShortcut = unitMap[Number(p.unit_of_measurement)] || "PCS";
+                    const unitName = unitMap[Number(p.unit_of_measurement)] || "PCS";
 
                     return {
                         product_id: p.product_id,
@@ -587,13 +601,14 @@ export async function GET(req: NextRequest) {
                         category_name: (p.product_category as CategoryBrand)?.category_name || null,
                         brand_name: (p.product_brand as CategoryBrand)?.brand_name || null,
                         unit_price: price,
-                        unit: unitShortcut,
+                        unit: unitName,
                         available_qty: inv.available,
                         unit_count: inv.unitCount,
                         discount_type: winId,
                         discount_type_name: winId ? discountTypeNameMap[Number(winId)] : null,
                         discounts: winId ? (discountMap[winId] || []) : [],
-                        _uomRank: uomPriority[unitShortcut.toUpperCase()] || 99
+                        unit_id: p.unit_of_measurement,
+                        _uomRank: uomPriority[unitName.toUpperCase()] || 99
                     };
                 }).sort((a, b) => {
                     if (a._uomRank !== b._uomRank) return a._uomRank - b._uomRank;
@@ -628,7 +643,7 @@ export async function GET(req: NextRequest) {
 
         if (type === "accounts") {
             const userId = searchParams.get("userId");
-            const url = `${DIRECTUS_URL}/items/salesman?filter[_or][0][employee_id][_eq]=${userId}&filter[_or][1][encoder_id][_eq]=${userId}&filter[_or][2][user_id][_eq]=${userId}&filter[isActive][_eq]=1&fields=id,salesman_name,salesman_code,price_type,price_type_id,branch_code&limit=-1`;
+            const url = `${DIRECTUS_URL}/items/salesman?filter[_or][0][employee_id][_eq]=${userId}&filter[_or][1][encoder_id][_eq]=${userId}&filter[isActive][_eq]=1&fields=id,salesman_name,salesman_code,price_type,price_type_id,branch_code&limit=-1`;
             const res = await fetch(url, { headers: fetchHeaders, cache: "no-store" });
             return NextResponse.json((await res.json()).data || []);
         }
@@ -657,16 +672,17 @@ export async function GET(req: NextRequest) {
             });
             if (userIds.size === 0) return NextResponse.json([]);
 
-            // 3. Fetch full User records for the distinct user IDs
-            const uRes = await fetch(`${DIRECTUS_URL}/items/user?filter[user_id][_in]=${Array.from(userIds).join(',')}&limit=-1`, { headers: fetchHeaders });
+            // 3. Fetch full User records for the distinct user IDs - Explicitly request fields to avoid missing user_id
+            const uRes = await fetch(`${DIRECTUS_URL}/items/user?filter[user_id][_in]=${Array.from(userIds).join(',')}&fields=*,user_id,user_fname,user_lname,user_email&limit=-1`, { headers: fetchHeaders });
             const uData = (await uRes.json()).data || [];
 
             // Attach the specific accounts (salesman_id) linked to this customer for each Master User
-            const finalUsers = uData.map((user: { user_id: number | string }) => {
+            const finalUsers = uData.map((user: { user_id: number | string; id: number | string }) => {
                 const myLinkedAccounts = sData
                     .filter((s: { employee_id?: number | string; encoder_id?: number | string; user_id?: number | string; id: number | string }) => {
                         const sid = (s.employee_id || s.encoder_id || s.user_id)?.toString();
-                        return sid === user.user_id.toString();
+                        const targetUid = (user.user_id || user.id)?.toString();
+                        return sid === targetUid;
                     })
                     .map((s: { id: number | string }) => s.id);
 
@@ -776,7 +792,11 @@ export async function GET(req: NextRequest) {
 
 
         if (type === "suppliers") {
-            const res = await fetch(`${DIRECTUS_URL}/items/suppliers?filter[supplier_type][_eq]=Trade&filter[isActive][_eq]=1&fields=id,supplier_name,supplier_shortcut&sort=supplier_name&limit=-1`, { headers: fetchHeaders });
+            // Matching the exact query from Create Sales Order for parity
+            const res = await fetch(`${DIRECTUS_URL}/items/suppliers?filter[supplier_type][_eq]=Trade&filter[isActive][_eq]=1&limit=-1`, { 
+                headers: fetchHeaders,
+                cache: "no-store" 
+            });
             if (!res.ok) throw new Error("Failed to fetch suppliers");
             return NextResponse.json((await res.json()).data || []);
         }
@@ -784,10 +804,10 @@ export async function GET(req: NextRequest) {
         if (type === "utility_info") {
             // Fetch Invoice Types, Price Types, Branches, and Payment Terms in parallel
             const [itRes, ptRes, brRes, pyRes] = await Promise.all([
-                fetch(`${DIRECTUS_URL}/items/sales_invoice_type?fields=*&limit=-1`, { headers: fetchHeaders }),
-                fetch(`${DIRECTUS_URL}/items/price_types?fields=*&limit=-1`, { headers: fetchHeaders }),
-                fetch(`${DIRECTUS_URL}/items/branches?fields=*&limit=-1`, { headers: fetchHeaders }),
-                fetch(`${DIRECTUS_URL}/items/payment_terms?fields=*&limit=-1`, { headers: fetchHeaders })
+                fetch(`${DIRECTUS_URL}/items/sales_invoice_type?fields=*&limit=-1`, { headers: fetchHeaders, cache: "no-store" }),
+                fetch(`${DIRECTUS_URL}/items/price_types?fields=*&limit=-1`, { headers: fetchHeaders, cache: "no-store" }),
+                fetch(`${DIRECTUS_URL}/items/branches?fields=*&limit=-1`, { headers: fetchHeaders, cache: "no-store" }),
+                fetch(`${DIRECTUS_URL}/items/payment_terms?fields=*&limit=-1`, { headers: fetchHeaders, cache: "no-store" })
             ]);
 
             const [itData, ptData, brData, pyData] = await Promise.all([
@@ -897,8 +917,14 @@ export async function PATCH(req: NextRequest) {
             }
 
             // 3. Recalculate totals and Update Header
-            const detRes = await fetch(`${DIRECTUS_URL}/items/sales_invoice_details?filter[invoice_no][_eq]=${invoiceId}&fields=*&limit=-1`, { headers: fetchHeaders });
+            const [detRes, hInfoRes] = await Promise.all([
+                fetch(`${DIRECTUS_URL}/items/sales_invoice_details?filter[invoice_no][_eq]=${invoiceId}&fields=*&limit=-1`, { headers: fetchHeaders }),
+                fetch(`${DIRECTUS_URL}/items/sales_invoice/${invoiceId}?fields=invoice_type`, { headers: fetchHeaders })
+            ]);
+            
             const currentDetails = ((await detRes.json()).data || []) as { quantity: number | string; unit_price: number | string; discount_amount: number | string }[];
+            const headerInfo = (await hInfoRes.json()).data || {};
+            const isVatApplicable = Number(headerInfo.invoice_type) !== 3;
 
             let totalGross = 0;
             let totalNet = 0;
@@ -916,8 +942,8 @@ export async function PATCH(req: NextRequest) {
 
                 const lineGross = qty * price;
                 const lineNet = lineGross - disc;
-                // VAT Extraction (Assuming VAT-inclusive prices)
-                const lineVat = (lineNet / 1.12) * 0.12;
+                // VAT Extraction (Assuming VAT-inclusive prices) - Skip for Delivery Receipt (3)
+                const lineVat = isVatApplicable ? (lineNet / 1.12) * 0.12 : 0;
 
                 totalGross += lineGross;
                 totalDiscount += disc;
@@ -968,16 +994,27 @@ export async function POST(req: NextRequest) {
             const now = new Date().toISOString();
 
             for (const id of invoiceIds) {
+                // Fetch current invoice to check type for VAT safety
+                const invRes = await fetch(`${DIRECTUS_URL}/items/sales_invoice/${id}?fields=invoice_type`, { headers: fetchHeaders });
+                const invData = (await invRes.json()).data || {};
+                
+                const updatePayload: Record<string, unknown> = {
+                    transaction_status: "Dispatched",
+                    isDispatched: 1,
+                    dispatch_date: now,
+                    modified_by: userId,
+                    modified_date: now
+                };
+
+                // SAFETY GUARD: If it's a Delivery Receipt (3), force VAT to 0
+                if (Number(invData.invoice_type) === 3) {
+                    updatePayload.vat_amount = 0;
+                }
+
                 await fetch(`${DIRECTUS_URL}/items/sales_invoice/${id}`, {
                     method: "PATCH",
                     headers: fetchHeaders,
-                    body: JSON.stringify({
-                        transaction_status: "Dispatched",
-                        isDispatched: 1,
-                        dispatch_date: now,
-                        modified_by: userId,
-                        modified_date: now
-                    })
+                    body: JSON.stringify(updatePayload)
                 });
             }
 
@@ -1072,6 +1109,90 @@ export async function POST(req: NextRequest) {
             }
 
             return NextResponse.json({ success: true });
+        }
+
+        if (action === "create_invoice") {
+            const userId = await resolveUserId();
+            const now = new Date().toISOString();
+            
+            // 1. Create Header (sales_invoice)
+            const headerPayload = {
+                order_id: body.order_id,
+                invoice_no: body.invoice_no,
+                customer_code: body.customer_code,
+                salesman_id: body.salesman_id,
+                branch_id: body.branch_id,
+                invoice_date: body.invoice_date || now,
+                dispatch_date: null,
+                due_date: body.due_date,
+                payment_terms: (body.payment_terms && Number(body.payment_terms) > 0) ? Number(body.payment_terms) : null,
+                transaction_status: "New Invoice",
+                payment_status: "Awaiting Payment",
+                total_amount: body.net_amount, // Net amount is the payable total
+                sales_type: body.sales_type,
+                invoice_type: body.invoice_type,
+                price_type: body.price_type,
+                vat_amount: body.vat_amount,
+                gross_amount: body.gross_amount,
+                discount_amount: body.discount_amount,
+                net_amount: body.net_amount,
+                created_by: userId,
+                created_date: now,
+                remarks: body.remarks,
+                isDispatched: 0,
+                isPosted: 0,
+                isReceipt: 0,
+                isRemitted: 0
+            };
+
+            const hRes = await fetch(`${DIRECTUS_URL}/items/sales_invoice`, {
+                method: "POST",
+                headers: fetchHeaders,
+                body: JSON.stringify(headerPayload)
+            });
+
+            if (!hRes.ok) {
+                const errorData = await hRes.json();
+                console.error("[CreateInvoice] Header creation failed:", errorData);
+                throw new Error("Failed to create invoice header");
+            }
+
+            const headerData = (await hRes.json()).data;
+            const newInvoiceId = headerData.invoice_id;
+
+            // 2. Create Details (sales_invoice_details)
+            if (body.items && body.items.length > 0) {
+                const detailsPayload = body.items.map((item: { product_id: number; unit_id: number; unit_price: number; quantity: number; discount_amount: number; discount_type: number | string; total_amount: number }) => ({
+                    order_id: body.order_id,
+                    invoice_no: newInvoiceId,
+                    serial_no: null,
+                    product_id: item.product_id,
+                    unit: item.unit_id,
+                    unit_price: item.unit_price,
+                    quantity: item.quantity,
+                    discount_amount: item.discount_amount || 0,
+                    discount_type: item.discount_type,
+                    gross_amount: item.quantity * item.unit_price,
+                    total_amount: item.total_amount, // Line net
+                    created_date: now
+                }));
+
+                // Batch create details
+                const dRes = await fetch(`${DIRECTUS_URL}/items/sales_invoice_details`, {
+                    method: "POST",
+                    headers: fetchHeaders,
+                    body: JSON.stringify(detailsPayload)
+                });
+
+                if (!dRes.ok) {
+                    const errorData = await dRes.json();
+                    console.error("[CreateInvoice] Details creation failed:", errorData);
+                    // Optionally cleanup header if details fail, but Directus doesn't have built-in transactions via fetch
+                    throw new Error("Failed to create invoice details");
+                }
+            }
+
+            return NextResponse.json({ success: true, invoiceId: newInvoiceId });
         }
 
         return NextResponse.json({ error: "Invalid action" }, { status: 400 });

@@ -216,5 +216,18 @@ export const siteSalesPostingProvider = {
         });
         if (!res.ok) throw new Error("Failed to link memo");
         return res.json();
+    },
+
+    createInvoice: async (payload: Record<string, unknown>): Promise<{ success: boolean; invoiceId: number }> => {
+        const res = await fetch(API_BASE, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                action: "create_invoice",
+                ...payload
+            })
+        });
+        if (!res.ok) throw new Error("Failed to create invoice");
+        return res.json();
     }
 };

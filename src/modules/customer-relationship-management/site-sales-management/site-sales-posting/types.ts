@@ -25,7 +25,7 @@ export const SalesInvoiceHeaderSchema = z.object({
     remarks: z.string().nullable().optional(),
     isDispatched: z.boolean().or(z.number().transform(n => n === 1)).nullable().optional(),
     isPaid: z.boolean().or(z.number().transform(n => n === 1)).nullable().optional(), // Mapped from UI toggles if needed
-    
+
     // Virtual fields from Joins/UI
     customer_name: z.string().optional(),
     salesman_name: z.string().optional(),
@@ -80,7 +80,7 @@ export const SalesInvoiceDetailSchema = z.object({
     brand_name: z.string().nullable().optional(),
     category_name: z.string().nullable().optional(),
     unit_name: z.string().nullable().optional(),
-    
+
     // Virtual fields for calculation
     gross_amount: z.number().optional(),
     net_amount: z.number().optional(),
@@ -188,6 +188,7 @@ export interface InvoiceDetailsResponse {
 
 export interface SearchProduct {
     product_id: number;
+    parent_id?: number | null;
     product_name: string;
     description?: string;
     product_code: string;
@@ -200,10 +201,12 @@ export interface SearchProduct {
     discount_type?: string | number | null;
     discount_type_name?: string | null;
     discounts?: number[];
+    unit_id?: number;
 }
 
 export interface CartItem extends SearchProduct {
     detail_id?: number;
+    parent_id?: number | null;
     quantity: number;
     discount_amount: number;
     total_amount: number;

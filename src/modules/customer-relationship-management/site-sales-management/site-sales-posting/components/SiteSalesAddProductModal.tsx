@@ -28,7 +28,8 @@ import {
     Package,
     ArrowRight,
     Check,
-    ChevronsUpDown
+    ChevronsUpDown,
+    RotateCw
 } from 'lucide-react';
 import {
     Popover,
@@ -274,7 +275,7 @@ export const SiteSalesAddProductModal: React.FC<SiteSalesAddProductModalProps> =
                                     <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-300 group-focus-within:text-primary transition-colors" />
                                     <Input
                                         placeholder="Search products..."
-                                        className="pl-11 h-12 bg-slate-50 dark:bg-slate-900 border-transparent focus:border-primary/30 focus:bg-white rounded-2xl transition-all text-xs font-bold shadow-inner"
+                                        className="pl-11 pr-4 h-12 bg-slate-50 dark:bg-slate-900 border-transparent focus:border-primary/30 focus:bg-white rounded-2xl transition-all text-xs font-bold shadow-inner"
                                         value={searchQuery}
                                         onChange={(e) => setSearchQuery(e.target.value)}
                                     />
@@ -343,7 +344,7 @@ export const SiteSalesAddProductModal: React.FC<SiteSalesAddProductModalProps> =
                                                 </div>
                                                 <Button
                                                     size="icon"
-                                                    className="h-11 w-11 rounded-[18px] bg-pink-500 text-white hover:bg-pink-600 shadow-lg shadow-pink-500/30 transition-all active:scale-90"
+                                                    className="h-11 w-11 rounded-[18px] bg-rose-500 text-white hover:bg-rose-600 shadow-lg shadow-rose-500/30 transition-all active:scale-90"
                                                     onClick={() => addToCart(p)}
                                                 >
                                                     <Plus className="h-5 w-5" />
@@ -445,7 +446,7 @@ export const SiteSalesAddProductModal: React.FC<SiteSalesAddProductModalProps> =
                                                         "text-[9px] font-black h-5 uppercase px-2",
                                                         item.discount_amount > 0 ? "bg-rose-500 hover:bg-rose-600" : "bg-emerald-500 hover:bg-emerald-600"
                                                     )}>
-                                                        {item.discount_amount > 0 ? `₱${item.discount_amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}` : 'NONE'}
+                                                        {item.discount_amount > 0 ? `₱${item.discount_amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}` : '0.0'}
                                                     </Badge>
                                                 </TableCell>
                                                 <TableCell className="text-center">
@@ -454,7 +455,7 @@ export const SiteSalesAddProductModal: React.FC<SiteSalesAddProductModalProps> =
                                                             {item.discount_type_name}
                                                         </Badge>
                                                     ) : (
-                                                        <span className="text-[10px] text-slate-300 italic">--</span>
+                                                        <span className="text-[10px] text-slate-300 italic">NONE</span>
                                                     )}
                                                 </TableCell>
                                                 {/* Avail cell removed */}

@@ -73,11 +73,16 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
 
 
 
-    const { computedGross, computedDiscount, computedVat, computedNet, returnAmount, creditMemoAmount, debitMemoAmount, balance } = React.useMemo(() => {
+    const { computedGross, computedDiscount, computedVat, computedNet, returnAmount, creditMemoAmount, debitMemoAmount, balance, isVatApplicable } = React.useMemo(() => {
         const g = details.reduce((acc, item) => acc + (Number(item.quantity) * Number(item.unit_price)), 0);
         const d = details.reduce((acc, item) => acc + Number(item.discount_amount || 0), 0);
         const net = g - d;
-        const v = (net / 1.12) * 0.12; // VAT-Inclusive calculation (12%)
+        const invoiceTypeId = (header?.invoice_type as any)?.id || header?.invoice_type;
+        const invoiceTypeName = (header?.invoice_type as any)?.type || "";
+        
+        // Hide VAT if ID is 3 OR the type name is "Delivery Receipt"
+        const isVatApplicable = Number(invoiceTypeId) !== 3 && invoiceTypeName !== "Delivery Receipt";
+        const v = isVatApplicable ? (net / 1.12) * 0.12 : 0; // VAT-Inclusive calculation (12%)
         
         // Sum of all linked returns
         const r = linkedDocs
@@ -103,9 +108,10 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
             returnAmount: r,
             creditMemoAmount: cm,
             debitMemoAmount: dm,
-            balance: b
+            balance: b,
+            isVatApplicable
         };
-    }, [details, linkedDocs, isItemsModified, initialNet]);
+    }, [details, linkedDocs, isItemsModified, initialNet, header?.invoice_type]);
 
     // Display values (Use initial if not modified)
     const displayGross = isItemsModified ? computedGross : initialGross;
@@ -493,7 +499,11 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
                         <div className="space-y-4">
                             <div className="space-y-1.5">
                                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Receipt Type</label>
-                                <Input readOnly value="DIRECT SALES" className="h-10 bg-slate-50 dark:bg-slate-800 border-none font-bold text-slate-700 dark:text-slate-200" />
+                                <Input 
+                                    readOnly 
+                                    value={typeof header.invoice_type === 'object' ? (header.invoice_type as any)?.type : 'DIRECT SALES'} 
+                                    className="h-10 bg-slate-50 dark:bg-slate-800 border-none font-bold text-slate-700 dark:text-slate-200" 
+                                />
                             </div>
                             <div className="space-y-1.5">
                                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Dispatch Date</label>
@@ -779,15 +789,17 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
                                         <span className="text-slate-400 uppercase tracking-wider">Discount</span>
                                         <span className="text-rose-500 font-black">-₱{displayDiscount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                                     </div>
-                                    <div className="flex justify-between text-xs font-bold">
-                                        <span className="text-slate-400 uppercase tracking-wider">Vat (12%)</span>
-                                        <span className={cn(
-                                            "font-black transition-colors",
-                                            isItemsModified ? "text-primary animate-pulse" : "text-slate-700 dark:text-slate-200"
-                                        )}>
-                                            ₱{displayVat.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                                        </span>
-                                    </div>
+                                    {isVatApplicable && (
+                                        <div className="flex justify-between text-xs font-bold">
+                                            <span className="text-slate-400 uppercase tracking-wider">Vat (12%)</span>
+                                            <span className={cn(
+                                                "font-black transition-colors",
+                                                isItemsModified ? "text-primary animate-pulse" : "text-slate-700 dark:text-slate-200"
+                                            )}>
+                                                ₱{displayVat.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                            </span>
+                                        </div>
+                                    )}
                                     <div className="flex justify-between text-sm font-black pt-1">
                                         <span className="text-slate-900 dark:text-white uppercase tracking-wider">Total Amount</span>
                                         <span className="text-slate-900 dark:text-white">₱{displayTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>

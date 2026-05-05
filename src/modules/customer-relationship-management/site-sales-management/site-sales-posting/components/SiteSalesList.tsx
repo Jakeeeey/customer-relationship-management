@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Download, Check, ChevronsUpDown, Plus, Loader2 } from "lucide-react";
+import { Download, Check, ChevronsUpDown, Plus, Loader2, ArrowUpDown } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { format, isValid, parseISO } from "date-fns";
@@ -46,6 +46,7 @@ export const SiteSalesList: React.FC<SiteSalesListProps> = ({
     const [isPaid, setIsPaid] = useState(false);
     const [dateFrom, setDateFrom] = useState("");
     const [dateTo, setDateTo] = useState("");
+    const [sorting, setSorting] = useState<SortingState>([{ id: "invoice_date", desc: true }]);
     const [openCustomer, setOpenCustomer] = useState(false);
     const [openSalesman, setOpenSalesman] = useState(false);
 
@@ -100,7 +101,7 @@ export const SiteSalesList: React.FC<SiteSalesListProps> = ({
                     href={`/crm/site-sales-management/site-sales-posting/${row.original.invoice_id}`}
                     className="block -m-3 p-3 hover:bg-primary/5 transition-colors"
                 >
-                    <span className="font-bold text-slate-900 dark:text-slate-100">{row.original.customer_name || row.original.customer_code}</span>
+                    <span className="font-bold text-slate-900 dark:text-slate-100">{row.original.customer_name || "N/A"}</span>
                 </Link>
             )
         },
@@ -111,7 +112,18 @@ export const SiteSalesList: React.FC<SiteSalesListProps> = ({
         },
         {
             accessorKey: "invoice_date",
-            header: "Receipt Date",
+            header: ({ column }) => {
+                return (
+                    <Button
+                        variant="ghost"
+                        onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+                        className="p-0 hover:bg-transparent font-black uppercase tracking-widest text-[10px]"
+                    >
+                        Receipt Date
+                        <ArrowUpDown className="ml-2 h-3 w-3" />
+                    </Button>
+                );
+            },
             cell: ({ row }) => (
                 <Link 
                     href={`/crm/site-sales-management/site-sales-posting/${row.original.invoice_id}`}
@@ -123,7 +135,18 @@ export const SiteSalesList: React.FC<SiteSalesListProps> = ({
         },
         {
             accessorKey: "dispatch_date",
-            header: "Dispatch Date",
+            header: ({ column }) => {
+                return (
+                    <Button
+                        variant="ghost"
+                        onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+                        className="p-0 hover:bg-transparent font-black uppercase tracking-widest text-[10px]"
+                    >
+                        Dispatch Date
+                        <ArrowUpDown className="ml-2 h-3 w-3" />
+                    </Button>
+                );
+            },
             cell: ({ row }) => (
                 <Link 
                     href={`/crm/site-sales-management/site-sales-posting/${row.original.invoice_id}`}
@@ -190,28 +213,10 @@ export const SiteSalesList: React.FC<SiteSalesListProps> = ({
                 </div>
             )
         },
-        {
-            accessorKey: "isDispatched",
-            header: () => <div className="text-center">Posted</div>,
-            cell: ({ row }) => (
-                <div className="flex justify-center">
-                    {row.original.isDispatched ? (
-                        <div className="h-5 w-5 bg-slate-900 rounded-full flex items-center justify-center shadow-lg">
-                            <svg className="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
-                        </div>
-                    ) : (
-                        <div className="h-5 w-5 border-2 border-slate-200 rounded-full bg-white shadow-inner"></div>
-                    )}
-                </div>
-            )
-        }
     ];
 
     const ActionComponent = (
         <div className="flex gap-2">
-            <Button variant="outline" size="sm" className="rounded-lg gap-2 border-slate-200">
-                <Download className="w-4 h-4" /> Export
-            </Button>
             <Button 
                 size="sm" 
                 className="rounded-lg gap-2 bg-slate-900 hover:bg-slate-800"
@@ -253,8 +258,8 @@ export const SiteSalesList: React.FC<SiteSalesListProps> = ({
                                         <span className="font-medium text-slate-900 dark:text-slate-100 truncate w-full">
                                             {customer === "all" 
                                                 ? "Select Customer" 
-                                                : (customers.find(c => c.customer_code === customer)?.store_name || 
-                                                   customers.find(c => c.customer_code === customer)?.customer_name || 
+                                                : (customers.find(c => c.customer_code === customer)?.customer_name || 
+                                                   customers.find(c => c.customer_code === customer)?.store_name || 
                                                    customer)}
                                         </span>
                                         {customer !== "all" && (
@@ -296,7 +301,7 @@ export const SiteSalesList: React.FC<SiteSalesListProps> = ({
                                                     <Check className={cn("h-4 w-4 shrink-0", customer === c.customer_code ? "opacity-100" : "opacity-0")} />
                                                     <div className="flex flex-col overflow-hidden flex-1 min-w-0">
                                                         <span className="font-medium text-slate-900 dark:text-slate-100 leading-tight whitespace-normal break-words overflow-hidden" style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
-                                                            {c.store_name || c.customer_name}
+                                                            {c.customer_name || c.store_name}
                                                         </span>
                                                         {(c.city || c.province) && (
                                                             <span className="text-[10px] text-muted-foreground truncate block">
@@ -315,53 +320,12 @@ export const SiteSalesList: React.FC<SiteSalesListProps> = ({
 
                     <div className="space-y-1.5">
                         <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Sales Type</label>
-                        <Popover>
-                            <PopoverTrigger asChild>
-                                <Button
-                                    variant="outline"
-                                    role="combobox"
-                                    className={cn("w-full justify-between h-9 text-xs font-normal", salesType === "all" && "text-muted-foreground")}
-                                >
-                                    {salesType === "all" 
-                                        ? "Select Type" 
-                                        : (salesTypes.find(st => st.id.toString() === salesType)?.operation_name || salesType)}
-                                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                                </Button>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-[300px] p-0" align="start">
-                                <Command>
-                                    <CommandInput placeholder="Search type..." />
-                                    <CommandList>
-                                        <CommandEmpty>No results found.</CommandEmpty>
-                                        <CommandGroup>
-                                            <CommandItem
-                                                value="all"
-                                                onSelect={() => {
-                                                    setSalesType("all");
-                                                }}
-                                                className="flex items-center gap-2 py-2 cursor-pointer"
-                                            >
-                                                <Check className={cn("h-4 w-4 shrink-0", salesType === "all" ? "opacity-100" : "opacity-0")} />
-                                                All Types
-                                            </CommandItem>
-                                            {salesTypes.map((st) => (
-                                                <CommandItem
-                                                    key={st.id}
-                                                    value={st.operation_name}
-                                                    onSelect={() => {
-                                                        setSalesType(st.id.toString());
-                                                    }}
-                                                    className="flex items-center gap-2 py-2 cursor-pointer"
-                                                >
-                                                    <Check className={cn("h-4 w-4 shrink-0", salesType === st.id.toString() ? "opacity-100" : "opacity-0")} />
-                                                    {st.operation_name}
-                                                </CommandItem>
-                                            ))}
-                                        </CommandGroup>
-                                    </CommandList>
-                                </Command>
-                            </PopoverContent>
-                        </Popover>
+                        <Input 
+                            value={salesTypes.find(st => st.id.toString() === salesType)?.operation_name || "SITE SALES"} 
+                            readOnly 
+                            disabled
+                            className="h-9 rounded-lg border-slate-200 bg-slate-50/50 text-[10px] font-black uppercase tracking-tight cursor-not-allowed italic text-slate-400 shadow-none" 
+                        />
                     </div>
 
                     <div className="space-y-1.5">
@@ -492,6 +456,8 @@ export const SiteSalesList: React.FC<SiteSalesListProps> = ({
                     columns={columns} 
                     data={data} 
                     isLoading={isLoading}
+                    sorting={sorting}
+                    onSortingChange={setSorting}
                     actionComponent={ActionComponent}
                     emptyTitle="No Site Sales Found"
                     emptyDescription="Try adjusting your filters or wait for new transactions to be uploaded."
