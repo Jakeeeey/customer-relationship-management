@@ -67,6 +67,7 @@ import {
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { AreaSearchSelect } from "./AreaSearchSelect";
 
 interface TargetFormDialogProps {
     isOpen: boolean;
@@ -152,6 +153,7 @@ export function TargetFormDialog({
 
     const [customerSearch, setCustomerSearch] = useState("");
     const [supplierSearch, setSupplierSearch] = useState("");
+    const [activeAllocationTab, setActiveAllocationTab] = useState<"customer" | "area">("customer");
 
     // --- PSGC State ---
     const [provinces, setProvinces] = useState<{ code: string; name: string }[]>([]);
@@ -495,14 +497,33 @@ export function TargetFormDialog({
         const dateFrom = `${year}-${String(month).padStart(2, '0')}-01 00:00:00`;
         const lastDay = new Date(year, month, 0).getDate();
         const dateTo = `${year}-${String(month).padStart(2, '0')}-${lastDay} 23:59:59`;
+ 
+        const hasBasicTargets = 
+            targetData.volume > 0 || 
+            targetData.productive_outlets > 0 || 
+            targetData.reach > 0 || 
+            targetData.frequency > 0 || 
+            targetData.line_sales > 0 || 
+            targetData.line_sales_target > 0 || 
+            targetData.basket_count > 0 || 
+            targetData.basket_count_target > 0 || 
+            targetData.new_accounts > 0;
 
-        if (totalAllocatedCustomer > targetData.volume) {
+        const hasTacticalSkus = tacticalSkus.some(s => s.product_id !== 0);
+
+        if (!hasBasicTargets && !hasTacticalSkus) {
+            toast.error("Please set at least one target before saving.");
+            setLoading(false);
+            return;
+        }
+
+        if (isBooking && totalAllocatedCustomer > targetData.volume) {
             toast.error(`Total customer allocation (₱${(totalAllocatedCustomer || 0).toLocaleString()}) exceeds total volume (₱${(targetData.volume || 0).toLocaleString()})`);
             setLoading(false);
             return;
         }
 
-        if (isSiteSales && totalAllocatedArea > targetData.volume) {
+        if ((isSiteSales || isBooking) && totalAllocatedArea > targetData.volume) {
             toast.error(`Total area allocation (₱${(totalAllocatedArea || 0).toLocaleString()}) exceeds total volume (₱${(targetData.volume || 0).toLocaleString()})`);
             setLoading(false);
             return;
@@ -525,7 +546,7 @@ export function TargetFormDialog({
                 tacticalSkus: tacticalSkus.filter(s => s.product_id !== 0),
                 customerTargets: isBooking ? customerTargets.filter(ct => (ct.target_amount || 0) > 0) as CustomerTarget[] : [],
                 supplierTargets: supplierTargets.filter(st => (st.target_amount || 0) > 0) as SupplierTarget[],
-                areaTargets: isSiteSales ? areaTargets.filter(at => (at.target_amount || 0) > 0) as AreaTarget[] : []
+                areaTargets: (isSiteSales || isBooking) ? areaTargets.filter(at => (at.target_amount || 0) > 0) as AreaTarget[] : []
             });
             toast.success("Target settings saved successfully");
             onSuccess();
@@ -746,12 +767,22 @@ export function TargetFormDialog({
                                     </div>
 
                                     <div className="flex gap-4">
-                                        <div className="text-right">
-                                            <p className="text-[10px] font-black text-slate-400 uppercase">Allocated ({isBooking ? 'Customers' : 'Areas'})</p>
-                                            <p className={`text-sm font-bold ${(isBooking ? totalAllocatedCustomer : totalAllocatedArea) > targetData.volume ? 'text-destructive' : 'text-slate-900'}`}>
-                                                ₱{(isBooking ? totalAllocatedCustomer : totalAllocatedArea || 0).toLocaleString()} / ₱{(targetData.volume || 0).toLocaleString()}
-                                            </p>
-                                        </div>
+                                        {isBooking && (
+                                            <div className="text-right">
+                                                <p className="text-[10px] font-black text-slate-400 uppercase">Allocated (Customers)</p>
+                                                <p className={`text-sm font-bold ${totalAllocatedCustomer > targetData.volume ? 'text-destructive' : 'text-slate-900'}`}>
+                                                    ₱{(totalAllocatedCustomer || 0).toLocaleString()} / ₱{(targetData.volume || 0).toLocaleString()}
+                                                </p>
+                                            </div>
+                                        )}
+                                        {(isSiteSales || isBooking) && (
+                                            <div className="text-right">
+                                                <p className="text-[10px] font-black text-slate-400 uppercase">Allocated (Areas)</p>
+                                                <p className={`text-sm font-bold ${totalAllocatedArea > targetData.volume ? 'text-destructive' : 'text-slate-900'}`}>
+                                                    ₱{(totalAllocatedArea || 0).toLocaleString()} / ₱{(targetData.volume || 0).toLocaleString()}
+                                                </p>
+                                            </div>
+                                        )}
                                         <div className="text-right">
                                             <p className="text-[10px] font-black text-slate-400 uppercase">Allocated (Suppliers)</p>
                                             <p className={`text-sm font-bold ${totalAllocatedSupplier > targetData.volume ? 'text-destructive' : 'text-slate-900'}`}>
@@ -768,17 +799,40 @@ export function TargetFormDialog({
                                             <div className="flex items-center justify-between w-full">
                                                 <div className="flex items-center gap-2 text-primary font-black text-xs uppercase tracking-widest">
                                                     {isBooking ? (
-                                                        <><Users className="w-4 h-4" /> Customer Allocation</>
+                                                        <div className="flex bg-slate-100 p-0.5 rounded-lg">
+                                                            <button 
+                                                                onClick={() => setActiveAllocationTab("customer")}
+                                                                className={cn(
+                                                                    "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[10px] transition-all",
+                                                                    activeAllocationTab === "customer" ? "bg-white shadow-sm text-primary" : "text-slate-400 hover:text-slate-600"
+                                                                )}
+                                                            >
+                                                                <Users className="w-3.5 h-3.5" /> Customer
+                                                            </button>
+                                                            <button 
+                                                                onClick={() => setActiveAllocationTab("area")}
+                                                                className={cn(
+                                                                    "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[10px] transition-all",
+                                                                    activeAllocationTab === "area" ? "bg-white shadow-sm text-primary" : "text-slate-400 hover:text-slate-600"
+                                                                )}
+                                                            >
+                                                                <MapPin className="w-3.5 h-3.5" /> Area
+                                                            </button>
+                                                        </div>
                                                     ) : (
                                                         <><MapPin className="w-4 h-4" /> Area Allocation</>
                                                     )}
                                                 </div>
                                                 <Badge variant="secondary" className="bg-primary/10 text-primary border-none font-bold text-[10px] h-5">
-                                                    {isBooking ? `${activeCustomerCount} Customers Set` : `${activeAreaCount} Areas Set`}
+                                                    {isBooking ? (
+                                                        activeAllocationTab === "customer" ? `${activeCustomerCount} Customers Set` : `${activeAreaCount} Areas Set`
+                                                    ) : (
+                                                        `${activeAreaCount} Areas Set`
+                                                    )}
                                                 </Badge>
                                             </div>
 
-                                            {isBooking && (
+                                            {(isBooking && activeAllocationTab === "customer") && (
                                                 <div className="relative">
                                                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
                                                     <Input
@@ -790,29 +844,24 @@ export function TargetFormDialog({
                                                 </div>
                                             )}
 
-                                            {isSiteSales && (
+                                            {((isBooking && activeAllocationTab === "area") || isSiteSales) && (
                                                 <div className="space-y-2">
                                                     <div className="grid grid-cols-2 gap-2">
-                                                        <Select value={selectedProvinceCode} onValueChange={setSelectedProvinceCode}>
-                                                            <SelectTrigger className="h-9 text-[10px] font-bold bg-slate-50 border-slate-100">
-                                                                <SelectValue placeholder={isLoadingProvinces ? "Loading Provinces..." : "Select Province"} />
-                                                            </SelectTrigger>
-                                                            <SelectContent>
-                                                                {provinces.map(p => (
-                                                                    <SelectItem key={p.code} value={p.code} className="text-[10px] font-medium">{p.name}</SelectItem>
-                                                                ))}
-                                                            </SelectContent>
-                                                        </Select>
-                                                        <Select value={selectedCityName} onValueChange={setSelectedCityName} disabled={!selectedProvinceCode || isLoadingCities}>
-                                                            <SelectTrigger className="h-9 text-[10px] font-bold bg-slate-50 border-slate-100">
-                                                                <SelectValue placeholder={isLoadingCities ? "Loading Cities..." : "Select City"} />
-                                                            </SelectTrigger>
-                                                            <SelectContent>
-                                                                {cities.map(c => (
-                                                                    <SelectItem key={c.code} value={c.name} className="text-[10px] font-medium">{c.name}</SelectItem>
-                                                                ))}
-                                                            </SelectContent>
-                                                        </Select>
+                                                        <AreaSearchSelect 
+                                                            options={provinces.map(p => ({ value: p.code, label: p.name }))}
+                                                            value={selectedProvinceCode}
+                                                            onValueChange={setSelectedProvinceCode}
+                                                            placeholder={isLoadingProvinces ? "Loading..." : "Province"}
+                                                            className="h-9 text-[10px] font-bold bg-slate-50 border-slate-100"
+                                                        />
+                                                        <AreaSearchSelect 
+                                                            options={cities.map(c => ({ value: c.name, label: c.name }))}
+                                                            value={selectedCityName}
+                                                            onValueChange={setSelectedCityName}
+                                                            placeholder={isLoadingCities ? "Loading..." : "City"}
+                                                            disabled={!selectedProvinceCode || isLoadingCities}
+                                                            className="h-9 text-[10px] font-bold bg-slate-50 border-slate-100"
+                                                        />
                                                     </div>
                                                     <Button 
                                                         onClick={handleAddArea} 
@@ -826,7 +875,7 @@ export function TargetFormDialog({
                                         </div>
 
                                         <div className="flex-1 overflow-y-auto min-h-0 scrollbar-thin scrollbar-thumb-slate-200">
-                                            {isBooking && (
+                                            {(isBooking && activeAllocationTab === "customer") && (
                                                 <Accordion type="multiple" className="w-full">
                                                     {Object.entries(groupedCustomers).length > 0 ? (
                                                         Object.entries(groupedCustomers).map(([province, data]) => (
@@ -891,13 +940,13 @@ export function TargetFormDialog({
                                                     ) : (
                                                         <div className="flex flex-col items-center justify-center py-20 text-slate-400 bg-white/50 rounded-2xl border-2 border-dashed border-slate-100 m-2">
                                                             <Users className="w-8 h-8 mb-2 opacity-20" />
-                                                            <p className="text-[10px] font-black uppercase tracking-widest">No areas found</p>
+                                                            <p className="text-[10px] font-black uppercase tracking-widest">No customers found</p>
                                                         </div>
                                                     )}
                                                 </Accordion>
                                             )}
 
-                                            {isSiteSales && (
+                                            {((isBooking && activeAllocationTab === "area") || isSiteSales) && (
                                                 <Accordion type="multiple" className="w-full">
                                                     {Object.entries(groupedAreas).length > 0 ? (
                                                         Object.entries(groupedAreas).map(([province, data]) => (
