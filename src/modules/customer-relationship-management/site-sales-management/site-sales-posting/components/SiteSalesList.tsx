@@ -2,13 +2,13 @@
 import { cn } from "@/lib/utils";
 
 import React, { useState, useEffect, useCallback } from "react";
-import { ColumnDef } from "@tanstack/react-table";
+import { ColumnDef, SortingState } from "@tanstack/react-table";
 import { DataTable } from "@/components/ui/new-data-table";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Download, Check, ChevronsUpDown, Plus, Loader2, ArrowUpDown } from "lucide-react";
+import { Check, ChevronsUpDown, Plus, Loader2, ArrowUpDown } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { format, isValid, parseISO } from "date-fns";
@@ -41,7 +41,7 @@ export const SiteSalesList: React.FC<SiteSalesListProps> = ({
     const [search, setSearch] = useState("");
     const [customer, setCustomer] = useState("all");
     const [salesman, setSalesman] = useState("all");
-    const [salesType, setSalesType] = useState("3");
+    const [salesType] = useState("3");
     const [isDispatched, setIsDispatched] = useState(false);
     const [isPaid, setIsPaid] = useState(false);
     const [dateFrom, setDateFrom] = useState("");
@@ -231,7 +231,6 @@ export const SiteSalesList: React.FC<SiteSalesListProps> = ({
 
     return (
         <div className="space-y-6">
-            {/* ShadCN Card style for filters */}
             <div className="bg-card p-6 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4 hover:shadow-md transition-shadow duration-300">
                 <div className="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-7 gap-4 items-end">
                     <div className="space-y-1.5">

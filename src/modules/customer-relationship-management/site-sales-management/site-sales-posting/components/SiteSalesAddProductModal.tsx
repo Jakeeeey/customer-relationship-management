@@ -28,8 +28,7 @@ import {
     Package,
     ArrowRight,
     Check,
-    ChevronsUpDown,
-    RotateCw
+    ChevronsUpDown
 } from 'lucide-react';
 import {
     Popover,

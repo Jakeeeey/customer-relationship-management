@@ -149,15 +149,6 @@ export function DataTable<TData, TValue>({
   actionComponent,
 }: DataTableProps<TData, TValue>) {
   "use no memo"
-  
-  // Custom animation for the progress bar
-  const loadingStyles = `
-    @keyframes loading {
-      0% { transform: translateX(-100%) scaleX(0.5); }
-      50% { transform: translateX(100%) scaleX(1); }
-      100% { transform: translateX(300%) scaleX(0.5); }
-    }
-  `;
   const [internalSorting, setInternalSorting] = React.useState<SortingState>(
     [],
   );
@@ -253,7 +244,6 @@ export function DataTable<TData, TValue>({
 
   return (
     <div className="space-y-4">
-      <style>{loadingStyles}</style>
       <div className="flex items-center gap-4">
         {searchKey && (
           <div className="max-w-sm w-full">
@@ -300,13 +290,7 @@ export function DataTable<TData, TValue>({
           </DropdownMenu>
         </div>
       </div>
-      <div className="rounded-xl border bg-card shadow-sm overflow-hidden relative">
-        {/* Top Progress Bar for Loading */}
-        {isLoading && (
-          <div className="absolute top-0 left-0 right-0 h-[2px] z-30 overflow-hidden bg-primary/10">
-            <div className="h-full bg-primary animate-[loading_1.5s_infinite_linear] w-1/3 origin-left" />
-          </div>
-        )}
+      <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
         <Table>
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup: HeaderGroup<TData>) => (

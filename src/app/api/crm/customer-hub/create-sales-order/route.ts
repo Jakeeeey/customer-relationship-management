@@ -351,7 +351,7 @@ export async function GET(req: NextRequest) {
                 }
 
                 // --- Start Inventory Fetch from Spring Boot ---
-                const inventoryMap: Record<number, { available: number; unitCount: number }> = {};
+                const inventoryMap: Record<string | number, { available: number; unitCount: number }> = {};
                 const queryBranchId = req.nextUrl.searchParams.get("branch_id") || req.nextUrl.searchParams.get("branchId");
 
                 if (salesmanId || queryBranchId) {
@@ -399,8 +399,14 @@ export async function GET(req: NextRequest) {
                             const cookieStore = await cookies();
                             const token = cookieStore.get(COOKIE_NAME)?.value;
 
-                            // Added date filter as suggested
-                            const invUrl = `${SPRING_API_BASE_URL.replace(/\/$/, "")}/api/view-running-inventory-by-unit/all?startDate=2025-01-01&endDate=2026-12-30`;
+                            // 📅 Forever Dynamic Dates: Automatically updates every year!
+                            const today = new Date().toISOString().split('T')[0];
+                            const lastYearStart = `${new Date().getFullYear() - 1}-01-01`;
+
+                            const invStartDate = searchParams.get("startDate") || lastYearStart;
+                            const invEndDate = searchParams.get("endDate") || today;
+
+                            const invUrl = `${SPRING_API_BASE_URL.replace(/\/$/, "")}/api/view-running-inventory-by-unit/all?startDate=${invStartDate}&endDate=${invEndDate}`;
                             console.log(`[InventoryDebug] Fetching: ${invUrl}`);
 
                             const inventoryRes = await fetch(invUrl, {
@@ -418,19 +424,29 @@ export async function GET(req: NextRequest) {
 
                                 if (Array.isArray(invData)) {
                                     const branchesInStock = new Set<string>();
+                                    // 🎓 Smart Matching: Handles both numeric IDs and string Codes
                                     invData.forEach((item: Record<string, unknown>) => {
-                                        const itemBId = item.branchId ?? item.branch_id ?? item.BranchId;
+                                        const itemBId = item.branchId ?? item.branch_id ?? item.BranchId ?? item.Branch_Id;
                                         if (itemBId) branchesInStock.add(itemBId.toString());
 
-                                        const matchId = (itemBId && Number(itemBId) === Number(branchId));
+                                        const matchId = (itemBId && !isNaN(Number(itemBId)) && Number(itemBId) === Number(branchId));
                                         const matchCode = (branchCodeStr && itemBId && String(itemBId).toUpperCase() === String(branchCodeStr).toUpperCase());
 
                                         if (matchId || matchCode) {
-                                            const pid = item.productId ?? item.product_id ?? item.ProductId;
+                                            const pid = item.productId ?? item.product_id ?? item.ProductId ?? item.Product_Id ?? item.id;
                                             if (pid) {
-                                                const available = Number(item.runningInventoryUnit ?? item.running_inventory_unit ?? item.runningInventory ?? item.running_inventory ?? 0);
+                                                const available = Number(
+                                                    item.runningInventoryUnit ?? 
+                                                    item.running_inventory_unit ?? 
+                                                    item.runningInventory ?? 
+                                                    item.running_inventory ?? 
+                                                    0
+                                                );
                                                 const unitCount = Number(item.unitCount ?? item.unit_count ?? 1);
-                                                inventoryMap[Number(pid)] = { available, unitCount };
+                                                
+                                                // Map by both numeric ID and string for resilience 💎
+                                                if (!isNaN(Number(pid))) inventoryMap[Number(pid)] = { available, unitCount };
+                                                inventoryMap[String(pid)] = { available, unitCount };
                                             }
                                         }
                                     });
@@ -521,9 +537,23 @@ export async function GET(req: NextRequest) {
 
                 const sellableItems = Array.from(allProductsMap.values()).filter(p => {
                     const isActive = p.isActive === 1 || p.isActive === true;
-                    // Strict Mode: Only products with a price record in product_per_price_type are allowed
-                    const hasPriceRecord = Object.prototype.hasOwnProperty.call(priceOverrides, Number(p.product_id));
-                    return isActive && hasPriceRecord;
+
+                    // Smart Price Check: 🚀
+                    // 1. Check if we have a specific override for this Price Type ID (e.g. Price Type ID 26)
+                    const hasOverride = Object.prototype.hasOwnProperty.call(priceOverrides, Number(p.product_id));
+
+                    // 2. Check if we have a standard fallback price from the product record (e.g. priceA, priceB, etc.)
+                    const hasBasePrice = Number(p[priceField] as number || 0) > 0 || Number(p.price_per_unit || 0) > 0;
+
+                    // A product is sellable if it's active AND has at least ONE price source.
+                    // This makes our code resilient kahit missing yung records sa product_per_price_type! 💎
+                    const isSellable = isActive && (hasOverride || hasBasePrice);
+
+                    if (!isSellable && isActive) {
+                        console.log(`[InventoryDebug] Product ${p.product_id} (${p.product_name}) filtered out: No price found (Override: ${hasOverride}, Base: ${hasBasePrice})`);
+                    }
+
+                    return isSellable;
                 });
 
                 const finalProducts = sellableItems.map((p) => {

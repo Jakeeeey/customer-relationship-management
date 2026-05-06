@@ -7,7 +7,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Check, ChevronsUpDown, Calendar as CalendarIcon, Hash, RotateCw, Info } from "lucide-react";
+import { Check, ChevronsUpDown, Calendar as CalendarIcon, Hash, RotateCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { 
     Customer, 
@@ -76,10 +76,10 @@ export function SiteSalesHeader({
     accounts, selectedAccount, loadingAccounts, onAccountSelect,
     suppliers, selectedSupplier, onSupplierSelect,
     invoiceTypes, selectedInvoiceType, onInvoiceTypeChange,
-    salesTypes, selectedSalesType, onSalesTypeChange,
     branches, selectedBranch, onBranchChange,
     priceTypes, selectedPriceType, onPriceTypeChange,
     paymentTerms,
+    salesTypes, selectedSalesType,
     dueDate, onDueDateChange,
     deliveryDate, onDeliveryDateChange,
     previewInvoiceNo
@@ -91,7 +91,7 @@ export function SiteSalesHeader({
     const [openBranch, setOpenBranch] = useState(false);
 
     const activeCustomerPaymentTerm = selectedCustomer?.payment_term 
-        ? paymentTerms.find(t => t.id === selectedCustomer.payment_term)
+        ? paymentTerms.find(t => t.id.toString() === selectedCustomer.payment_term?.toString())
         : null;
 
     return (

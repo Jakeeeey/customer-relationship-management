@@ -4,14 +4,9 @@ import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
-    Calendar as CalendarIcon,
-    ShoppingCart,
-    Info,
-    Package,
     ArrowLeft,
     Loader2
 } from "lucide-react";
-import { cn } from "@/lib/utils";
 import { format, addDays } from "date-fns";
 import {
     Customer,
@@ -27,11 +22,8 @@ import {
     SalesType
 } from "./types";
 import { useSiteSalesPosting } from "./hooks/useSiteSalesPosting";
-import { calculateChainNetPrice, formatCurrency } from "./utils";
-import { Badge } from "@/components/ui/badge";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { calculateChainNetPrice } from "./utils";
 import { toast } from "sonner";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { SiteSalesHeader } from "./components/SiteSalesHeader";
 import { SiteSalesEncoding } from "./components/SiteSalesEncoding";
 
@@ -68,7 +60,6 @@ export default function SiteSalesNewRecordPage() {
     const [selectedSalesType, setSelectedSalesType] = useState<string>("3"); // Default to Site Sale (3)
     const [selectedBranch, setSelectedBranch] = useState<string>("");
     // Internal states for auto-calculated values
-    const [invoiceDate, setInvoiceDate] = useState<string>(format(new Date(), "yyyy-MM-dd"));
     const [dueDate, setDueDate] = useState<string>(format(new Date(), "yyyy-MM-dd"));
     const [deliveryDate, setDeliveryDate] = useState<string>(format(new Date(), "yyyy-MM-dd"));
 
@@ -146,7 +137,7 @@ export default function SiteSalesNewRecordPage() {
 
                 setLoadingAccounts(true);
                 // Robust ID resolution for fetching accounts
-                const userIdToFetch = user.user_id || (user as any).id;
+                const userIdToFetch = user.user_id || (user as { id?: number | string }).id || "";
                 const userAccounts = await getAccounts(userIdToFetch);
                 setAccounts(userAccounts);
                 setLoadingAccounts(false);
@@ -187,7 +178,7 @@ export default function SiteSalesNewRecordPage() {
 
         setLoadingAccounts(true);
         try {
-            const userIdToFetch = user.user_id || (user as any).id;
+            const userIdToFetch = user.user_id || (user as { id?: number | string }).id || "";
             const userAccounts = await getAccounts(userIdToFetch);
             setAccounts(userAccounts);
 
@@ -215,7 +206,7 @@ export default function SiteSalesNewRecordPage() {
         // Robust metadata resolution matching Sales Order patterns
         if (account.branch_code) {
             const bId = typeof account.branch_code === "object" && account.branch_code !== null
-                ? (account.branch_code as any).id || (account.branch_code as any).branch_id
+                ? (account.branch_code as { id?: number; branch_id?: number }).id || (account.branch_code as { id?: number; branch_id?: number }).branch_id
                 : account.branch_code;
             if (bId) setSelectedBranch(bId.toString());
         }

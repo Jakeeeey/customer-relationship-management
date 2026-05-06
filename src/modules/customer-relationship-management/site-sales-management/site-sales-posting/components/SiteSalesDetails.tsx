@@ -77,8 +77,8 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
         const g = details.reduce((acc, item) => acc + (Number(item.quantity) * Number(item.unit_price)), 0);
         const d = details.reduce((acc, item) => acc + Number(item.discount_amount || 0), 0);
         const net = g - d;
-        const invoiceTypeId = (header?.invoice_type as any)?.id || header?.invoice_type;
-        const invoiceTypeName = (header?.invoice_type as any)?.type || "";
+        const invoiceTypeId = (header?.invoice_type as { id?: number })?.id || header?.invoice_type;
+        const invoiceTypeName = (header?.invoice_type as { type?: string })?.type || "";
         
         // Hide VAT if ID is 3 OR the type name is "Delivery Receipt"
         const isVatApplicable = Number(invoiceTypeId) !== 3 && invoiceTypeName !== "Delivery Receipt";
@@ -501,7 +501,7 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
                                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Receipt Type</label>
                                 <Input 
                                     readOnly 
-                                    value={typeof header.invoice_type === 'object' ? (header.invoice_type as any)?.type : 'DIRECT SALES'} 
+                                    value={(header.invoice_type && typeof header.invoice_type === 'object') ? (header.invoice_type as unknown as { type?: string }).type : 'DIRECT SALES'} 
                                     className="h-10 bg-slate-50 dark:bg-slate-800 border-none font-bold text-slate-700 dark:text-slate-200" 
                                 />
                             </div>
