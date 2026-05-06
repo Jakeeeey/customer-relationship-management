@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Search, Plus, Trash2, Loader2, ShoppingCart } from "lucide-react";
+import { Search, Plus, Trash2, Loader2, ShoppingCart, Package } from "lucide-react";
 import { formatCurrency, calculateChainNetPrice } from "../utils/priceCalc";
 import { LineItem, Product } from "../types";
 
@@ -41,14 +41,21 @@ export function SalesOrderEncoding({
     summary, onSubmit, submitting
 }: SalesOrderEncodingProps) {
     const [search, setSearch] = useState("");
+    const [showOnlyAvailable, setShowOnlyAvailable] = useState(false);
 
     const displayProducts = Array.isArray(products)
         ? products.filter(p => {
+            // Text Search Filter
             const pName = (p.display_name || p.product_name || "").toLowerCase();
             const pCode = (p.product_code || "").toLowerCase();
             const parentName = (p.parent_product_name || "").toLowerCase();
             const s = search.toLowerCase();
-            return pName.includes(s) || pCode.includes(s) || parentName.includes(s);
+            const matchesText = pName.includes(s) || pCode.includes(s) || parentName.includes(s);
+
+            // Availability Filter
+            const matchesAvailability = !showOnlyAvailable || (Number(p.available_qty) || 0) > 0;
+
+            return matchesText && matchesAvailability;
         })
         : [];
 
@@ -62,16 +69,29 @@ export function SalesOrderEncoding({
                             Product Catalog ({displayProducts.length} of {products.length})
                         </CardTitle>
                     </CardHeader>
-                    <div className="p-3 border-b">
-                        <div className="relative">
+                    <div className="p-3 border-b flex gap-2">
+                        <div className="relative flex-1">
                             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                             <Input
                                 placeholder="Search products..."
-                                className="pl-9 h-9 text-xs"
+                                className="pl-9 h-9 text-xs shadow-inner bg-slate-50/50"
                                 value={search}
                                 onChange={(e) => setSearch(e.target.value)}
                             />
                         </div>
+                        <Button
+                            variant="outline"
+                            size="icon"
+                            className={`h-9 w-9 border-slate-200 transition-all ${
+                                showOnlyAvailable 
+                                ? "bg-emerald-500 text-white border-emerald-500 hover:bg-emerald-600 shadow-md shadow-emerald-500/20" 
+                                : "bg-white text-slate-400 hover:bg-slate-50"
+                            }`}
+                            onClick={() => setShowOnlyAvailable(!showOnlyAvailable)}
+                            title={showOnlyAvailable ? "Showing In-Stock Only" : "Show All Products"}
+                        >
+                            <Package className={`h-4 w-4 ${showOnlyAvailable ? "animate-pulse" : ""}`} />
+                        </Button>
                     </div>
                     <CardContent className="p-0 flex-1 overflow-y-auto max-h-[600px] custom-scrollbar">
                         {loadingProducts ? (
@@ -132,7 +152,7 @@ export function SalesOrderEncoding({
                                             <Button
                                                 size="icon"
                                                 variant="secondary"
-                                                className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8 hover:bg-primary hover:text-white transition-all shadow-sm"
+                                                className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8 transition-all shadow-sm hover:bg-primary hover:text-white"
                                                 onClick={() => addProduct(p, 1, p.uom || "PCS")}
                                             >
                                                 <Plus className="w-4 h-4" />
