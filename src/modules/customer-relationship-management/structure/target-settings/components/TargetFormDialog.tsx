@@ -57,13 +57,6 @@ import {
     SupplierRecord
 } from "@/modules/customer-relationship-management/structure/target-settings/types";
 import { targetSettingsProvider } from "@/modules/customer-relationship-management/structure/target-settings/providers/fetchProvider";
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from "@/components/ui/select";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
