@@ -10,15 +10,19 @@ export const formatToPHT = (date: string | number | Date | null | undefined, for
     if (!date) return "N/A";
     
     try {
-        const d = typeof date === 'string' && !date.endsWith('Z') && !date.includes('+') 
-            ? new Date(date + 'Z') // Force UTC if missing timezone info (common for Directus)
-            : new Date(date);
+        // Literal/Raw parsing: Remove 'Z' or timezone offsets to treat the string as local time
+        let d: Date;
+        if (typeof date === 'string') {
+            const literalStr = date.replace(/Z$|[+-]\d{2}:\d{2}$/, '');
+            d = new Date(literalStr);
+        } else {
+            d = new Date(date);
+        }
 
         if (isNaN(d.getTime())) return String(date);
 
-        // Standard formatting using Intl for precise timezone control
+        // Format as is (Literal) - we removed the timeZone: "Asia/Manila" constraint
         return new Intl.DateTimeFormat("en-US", {
-            timeZone: "Asia/Manila",
             year: formatStr.includes("yyyy") ? "numeric" : undefined,
             month: formatStr.includes("MMM") ? "short" : formatStr.includes("MM") ? "2-digit" : undefined,
             day: formatStr.includes("dd") ? "2-digit" : undefined,
@@ -27,28 +31,23 @@ export const formatToPHT = (date: string | number | Date | null | undefined, for
             hour12: formatStr.includes("a"),
         }).format(d).replace(",", "");
     } catch (error) {
-        console.warn("[DateUtils] PHT conversion failed:", error);
+        console.warn("[DateUtils] Literal conversion failed:", error);
         return String(date);
     }
 };
 
 /**
- * Converts a local date string (from picker) to a UTC ISO string.
- * Used for filtering to ensure the 8-hour gap is handled.
+ * Converts a local date string (from picker) to a Literal ISO string for API filtering.
+ * No longer shifts by 8 hours to maintain "Literal" consistency.
  * 
  * @param dateStr - The date string from input (YYYY-MM-DD)
  * @param type - 'start' for 00:00:00 or 'end' for 23:59:59
- * @returns UTC ISO string
+ * @returns Literal ISO string
  */
 export const normalizeToUTC = (dateStr: string, type: 'start' | 'end'): string => {
     if (!dateStr) return "";
     
-    // Create date object in Asia/Manila context
-    const [year, month, day] = dateStr.split("-").map(Number);
-    const date = new Date(year, month - 1, day, type === 'start' ? 0 : 23, type === 'start' ? 0 : 59, type === 'start' ? 0 : 59);
-    
-    // Shift by 8 hours manually if not using date-fns-tz
-    // PHT is UTC+8, so UTC is PHT - 8 hours
-    const utcDate = new Date(date.getTime() - (8 * 60 * 60 * 1000));
-    return utcDate.toISOString();
+    // Truly literal: just append the time without letting the Date object shift it to UTC
+    const time = type === 'start' ? 'T00:00:00' : 'T23:59:59';
+    return `${dateStr}${time}`;
 };
