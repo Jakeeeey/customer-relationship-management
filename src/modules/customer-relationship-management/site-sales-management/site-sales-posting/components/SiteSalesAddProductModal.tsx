@@ -92,7 +92,7 @@ export const SiteSalesAddProductModal: React.FC<SiteSalesAddProductModalProps> =
                     total_amount: Number(item.total_amount),
                     discount_type: item.discount_type?.toString() || null,
                     discount_type_name: item.discount_type_name || null,
-                    unit_count: 1, // Default or fetch if needed
+                    unit_count: Number(item.unit_count) || 1, // Use actual unit count from API
                     available_qty: 0, // Not needed for existing items
                     brand_name: item.brand_name || null,
                     category_name: item.category_name || null,
@@ -200,7 +200,8 @@ export const SiteSalesAddProductModal: React.FC<SiteSalesAddProductModalProps> =
             unit: item.unit?.toString() || 'PCS',
             unit_name: item.unit?.toString() || 'PCS',
             brand_name: item.brand_name,
-            category_name: item.category_name
+            category_name: item.category_name,
+            unit_count: item.unit_count
         }));
         onConfirm(details);
         setCart([]); // Clear cart after submit

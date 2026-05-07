@@ -88,6 +88,7 @@ export const SalesInvoiceDetailSchema = z.object({
     net_amount: z.number().optional(),
     vat_amount: z.number().optional(),
     total_amount: z.number().optional(),
+    unit_count: z.number().optional(),
 });
 
 export type SalesInvoiceDetail = Omit<z.infer<typeof SalesInvoiceDetailSchema>, 'product_id'> & {

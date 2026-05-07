@@ -107,7 +107,18 @@ export const SiteSalesList: React.FC<SiteSalesListProps> = ({
     const columns: ColumnDef<SalesInvoiceHeader>[] = [
         {
             accessorKey: "invoice_no",
-            header: "Receipt No.",
+            header: ({ column }) => {
+                return (
+                    <Button
+                        variant="ghost"
+                        onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+                        className="p-0 hover:bg-transparent font-black uppercase tracking-widest text-[10px]"
+                    >
+                        Receipt No.
+                        <ArrowUpDown className="ml-2 h-3 w-3" />
+                    </Button>
+                );
+            },
             cell: ({ row }) => (
                 <Link 
                     href={`/crm/site-sales-management/site-sales-posting/${row.original.invoice_id}`}
@@ -119,7 +130,18 @@ export const SiteSalesList: React.FC<SiteSalesListProps> = ({
         },
         {
             accessorKey: "salesman_name",
-            header: "Salesman",
+            header: ({ column }) => {
+                return (
+                    <Button
+                        variant="ghost"
+                        onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+                        className="p-0 hover:bg-transparent font-black uppercase tracking-widest text-[10px]"
+                    >
+                        Salesman
+                        <ArrowUpDown className="ml-2 h-3 w-3" />
+                    </Button>
+                );
+            },
             cell: ({ row }) => (
                 <Link 
                     href={`/crm/site-sales-management/site-sales-posting/${row.original.invoice_id}`}
@@ -131,7 +153,18 @@ export const SiteSalesList: React.FC<SiteSalesListProps> = ({
         },
         {
             accessorKey: "customer_name",
-            header: "Customer",
+            header: ({ column }) => {
+                return (
+                    <Button
+                        variant="ghost"
+                        onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+                        className="p-0 hover:bg-transparent font-black uppercase tracking-widest text-[10px]"
+                    >
+                        Customer
+                        <ArrowUpDown className="ml-2 h-3 w-3" />
+                    </Button>
+                );
+            },
             cell: ({ row }) => (
                 <Link 
                     href={`/crm/site-sales-management/site-sales-posting/${row.original.invoice_id}`}
@@ -236,6 +269,28 @@ export const SiteSalesList: React.FC<SiteSalesListProps> = ({
                         <span className={cn("text-[10px] font-black uppercase tracking-tight", isPaid ? "text-emerald-700" : "text-amber-700")}>
                             {status}
                         </span>
+                    </div>
+                );
+            }
+        },
+        {
+            accessorKey: "isPosted",
+            header: "Posted",
+            cell: ({ row }) => {
+                const isPosted = !!row.original.isPosted;
+                return (
+                    <div className="flex justify-center">
+                        <div 
+                            className={cn(
+                                "h-4 w-4 rounded-full border-2 transition-all duration-500 ease-out flex items-center justify-center",
+                                isPosted 
+                                    ? "bg-slate-900 border-slate-900 shadow-[0_0_12px_rgba(15,23,42,0.3)] dark:bg-white dark:border-white dark:shadow-[0_0_12px_rgba(255,255,255,0.2)]" 
+                                    : "bg-transparent border-slate-200 dark:border-slate-800"
+                            )}
+                            title={isPosted ? "Posted to Ledger" : "Draft / Unposted"}
+                        >
+                            {isPosted && <Check className="h-2.5 w-2.5 text-white dark:text-slate-950 stroke-[4px]" />}
+                        </div>
                     </div>
                 );
             }
@@ -471,14 +526,14 @@ export const SiteSalesList: React.FC<SiteSalesListProps> = ({
                         />
                     </div>
 
-                    <div className="flex items-center gap-4 h-9 px-2 col-span-1 md:col-span-2 text-right justify-end ml-auto">
+                    <div className="flex flex-col justify-end gap-2 pb-1.5 h-full">
                         <div className="flex items-center space-x-2">
                             <Checkbox 
                                 id="isDispatched" 
                                 checked={isDispatched} 
                                 onCheckedChange={(c) => setIsDispatched(c === true)} 
                             />
-                            <label htmlFor="isDispatched" className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider cursor-pointer">isDispatched</label>
+                            <label htmlFor="isDispatched" className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest cursor-pointer">isDispatched</label>
                         </div>
                         <div className="flex items-center space-x-2">
                             <Checkbox 
@@ -486,7 +541,7 @@ export const SiteSalesList: React.FC<SiteSalesListProps> = ({
                                 checked={isPaid} 
                                 onCheckedChange={(c) => setIsPaid(c === true)} 
                             />
-                            <label htmlFor="isPaid" className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider cursor-pointer">isPaid</label>
+                            <label htmlFor="isPaid" className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest cursor-pointer">isPaid</label>
                         </div>
                     </div>
                 </div>
