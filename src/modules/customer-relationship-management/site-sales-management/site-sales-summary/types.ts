@@ -150,11 +150,14 @@ export interface LinkedDocument {
     items?: {
         id: number;
         product_name: string;
+        brand_name?: string | null;
+        category_name?: string | null;
         quantity: number;
         unit_price: number;
         total_amount: number;
         discount_amount: number;
         discount_type_name?: string | null;
+        unit_name?: string;
         reason?: string;
     }[];
 }

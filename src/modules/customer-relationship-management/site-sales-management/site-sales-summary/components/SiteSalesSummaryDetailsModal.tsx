@@ -19,6 +19,12 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import {
+    Accordion,
+    AccordionContent,
+    AccordionItem,
+    AccordionTrigger,
+} from "@/components/ui/accordion";
 import { Separator } from '@/components/ui/separator';
 import {
     Dialog,
@@ -152,9 +158,21 @@ export const SiteSalesSummaryDetailsModal: React.FC<SiteSalesSummaryDetailsModal
                                         <FileText className="h-8 w-8 text-white" />
                                     </div>
                                     <div className="min-w-0">
-                                        <h2 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white leading-tight truncate">
-                                            Invoice #{header.invoice_no}
-                                        </h2>
+                                        <div className="space-y-1">
+                                            <div className="flex items-center gap-3">
+                                                <Badge variant="outline" className={cn(
+                                                    "text-[10px] font-black px-3 py-0.5 rounded-full uppercase tracking-widest",
+                                                    (Number((header.invoice_type as { id?: number })?.id || header.invoice_type) === 3) 
+                                                        ? "bg-slate-100 text-slate-600 border-slate-200" 
+                                                        : "bg-blue-100 text-blue-600 border-blue-200"
+                                                )}>
+                                                    {(Number((header.invoice_type as { id?: number })?.id || header.invoice_type) === 3) ? "Delivery Receipt" : "Sales Invoice"}
+                                                </Badge>
+                                            </div>
+                                            <h2 className="text-4xl font-black text-slate-900 dark:text-white tracking-tighter">
+                                                {(Number((header.invoice_type as { id?: number })?.id || header.invoice_type) === 3) ? "DR" : "SI"} # {header.invoice_no}
+                                            </h2>
+                                        </div>
                                         <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">
                                             Transaction Summary View
                                         </p>
@@ -339,92 +357,100 @@ export const SiteSalesSummaryDetailsModal: React.FC<SiteSalesSummaryDetailsModal
                                                 {linkedDocs.filter(d => d.type === "RETURN").length === 0 ? (
                                                     <div className="p-12 text-center text-slate-400 text-xs font-black uppercase tracking-[0.3em] italic opacity-60">No linked returns.</div>
                                                 ) : (
-                                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                                    <Accordion type="single" collapsible className="w-full space-y-4">
                                                         {linkedDocs.filter(d => d.type === "RETURN").map((doc) => (
-                                                            <div key={doc.id} className="p-6 bg-white dark:bg-slate-900 border-2 border-rose-100 dark:border-rose-900/30 rounded-[32px] shadow-sm relative overflow-hidden group h-full flex flex-col">
-                                                                {/* Decorative corner */}
-                                                                <div className="absolute top-0 right-0 w-24 h-24 bg-rose-50/50 dark:bg-rose-950/20 rounded-bl-[80px] -mr-6 -mt-6 transition-all group-hover:scale-110" />
-                                                                
-                                                                <div className="relative z-10 flex-1 flex flex-col">
-                                                                    <div className="flex justify-between items-start mb-6">
-                                                                        <div className="space-y-0.5">
-                                                                            <p className="text-[9px] font-black text-rose-500 uppercase tracking-[0.2em]">Return</p>
-                                                                            <p className="text-base font-black text-slate-900 dark:text-white tracking-tight">{doc.reference_no}</p>
-                                                                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
+                                                            <AccordionItem key={doc.id} value={`return-${doc.id}`} className="border-2 border-rose-100 dark:border-rose-900/30 rounded-[24px] overflow-hidden bg-white dark:bg-slate-950 px-2 shadow-sm transition-all hover:border-rose-200 dark:hover:border-rose-800">
+                                                                <AccordionTrigger className="hover:no-underline py-6 px-4">
+                                                                    <div className="flex flex-1 justify-between items-center text-left">
+                                                                        <div className="space-y-1">
+                                                                            <p className="text-xl font-black text-slate-900 dark:text-white tracking-tight">{doc.reference_no}</p>
+                                                                            <p className="text-xs text-slate-500 font-black uppercase tracking-widest">
                                                                                 {doc.date ? format(parseISO(doc.date), 'MMM dd, yyyy') : '--'}
                                                                             </p>
                                                                         </div>
-                                                                        <div className="flex flex-col items-end gap-2">
-                                                                            <p className="text-xl font-black text-slate-900 dark:text-white tabular-nums tracking-tighter">
-                                                                                ₱{doc.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                                                                            </p>
-                                                                            <Badge className="bg-rose-100 text-rose-600 border-rose-200 text-[8px] font-black px-2 py-0.5 rounded-full uppercase tracking-widest shadow-sm">LINKED</Badge>
+                                                                        <div className="flex items-center gap-8 mr-4">
+                                                                            <div className="text-right">
+                                                                                <p className="text-2xl font-black text-slate-900 dark:text-white tabular-nums tracking-tighter">
+                                                                                    ₱{doc.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                                                                </p>
+                                                                                <Badge className="bg-rose-500 text-white border-none text-[9px] font-black px-2 py-0 rounded-full uppercase tracking-wider">LINKED RETURN</Badge>
+                                                                            </div>
                                                                         </div>
                                                                     </div>
-
-                                                                    <div className="space-y-3 flex-1 flex flex-col">
-                                                                        <div className="flex items-center gap-2">
-                                                                            <div className="h-0.5 w-6 bg-rose-200 dark:bg-rose-800 rounded-full" />
-                                                                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Return Items</p>
-                                                                        </div>
-                                                                        
-                                                                        <div className="border border-slate-100 dark:border-slate-800 rounded-xl overflow-hidden shadow-inner bg-slate-50/30 flex-1">
-                                                                            <ScrollArea className={cn("w-full", (doc.items?.length || 0) > 5 ? "h-[200px]" : "h-auto")}>
-                                                                                <Table>
-                                                                                    <TableHeader className="bg-slate-100/50 dark:bg-slate-800/50 sticky top-0 z-10 backdrop-blur-md">
-                                                                                        <TableRow className="hover:bg-transparent border-b dark:border-slate-800">
-                                                                                            <TableHead className="text-[8px] font-black uppercase tracking-widest py-3 px-4 text-slate-500">Product</TableHead>
-                                                                                            <TableHead className="text-[8px] font-black uppercase tracking-widest text-center py-3 px-2 text-slate-500">Qty</TableHead>
-                                                                                            <TableHead className="text-[8px] font-black uppercase tracking-widest text-right py-3 px-4 text-slate-500">Price</TableHead>
-                                                                                            <TableHead className="text-[8px] font-black uppercase tracking-widest text-right py-3 px-4 text-slate-500">Disc</TableHead>
-                                                                                            <TableHead className="text-[8px] font-black uppercase tracking-widest text-center py-3 px-2 text-slate-500">Type</TableHead>
-                                                                                            <TableHead className="text-[8px] font-black uppercase tracking-widest text-right py-3 px-4 text-slate-500">Total</TableHead>
-                                                                                        </TableRow>
-                                                                                    </TableHeader>
-                                                                                    <TableBody>
-                                                                                        {doc.items && doc.items.length > 0 ? (
-                                                                                            doc.items.map((item, i) => (
-                                                                                                <TableRow key={item.id || i} className="hover:bg-rose-50/30 dark:hover:bg-rose-950/10 border-b dark:border-slate-800 last:border-0 transition-colors">
-                                                                                                    <TableCell className="py-2.5 px-4 font-black text-[9px] text-slate-700 dark:text-slate-300 uppercase leading-snug">
-                                                                                                        {item.product_name}
-                                                                                                    </TableCell>
-                                                                                                    <TableCell className="text-center font-black text-rose-500 py-2.5 px-2 text-[9px] tabular-nums">
-                                                                                                        {item.quantity}
-                                                                                                    </TableCell>
-                                                                                                    <TableCell className="text-right font-bold text-slate-500 py-2.5 px-4 text-[9px] tabular-nums">
-                                                                                                        ₱{Number(item.unit_price).toLocaleString(undefined, { minimumFractionDigits: 1 })}
-                                                                                                    </TableCell>
-                                                                                                    <TableCell className="text-right font-black text-rose-500 py-2.5 px-4 text-[9px] tabular-nums">
-                                                                                                        ₱{Number(item.discount_amount || 0).toLocaleString(undefined, { minimumFractionDigits: 1 })}
-                                                                                                    </TableCell>
-                                                                                                    <TableCell className="text-center py-2.5 px-2">
-                                                                                                        {item.discount_type_name && item.discount_type_name.toUpperCase() !== "DISCOUNT" ? (
-                                                                                                            <Badge className="text-[7px] font-black bg-amber-50 text-amber-600 border-amber-100 px-1 py-0 uppercase">
-                                                                                                                {item.discount_type_name}
-                                                                                                            </Badge>
-                                                                                                        ) : (
-                                                                                                            <span className="text-[8px] font-black text-slate-300 uppercase italic">--</span>
-                                                                                                        )}
-                                                                                                    </TableCell>
-                                                                                                    <TableCell className="text-right font-black text-slate-900 dark:text-white py-2.5 px-4 text-[9px] tabular-nums whitespace-nowrap">
-                                                                                                        ₱{Number(item.total_amount).toLocaleString(undefined, { minimumFractionDigits: 1 })}
-                                                                                                    </TableCell>
-                                                                                                </TableRow>
-                                                                                            ))
-                                                                                        ) : (
-                                                                                            <TableRow>
-                                                                                                <TableCell colSpan={6} className="py-8 text-center text-[9px] font-bold text-slate-400 uppercase tracking-widest italic">No items listed.</TableCell>
+                                                                </AccordionTrigger>
+                                                                <AccordionContent className="px-4 pb-6 pt-2">
+                                                                    <div className="border border-slate-100 dark:border-slate-800 rounded-2xl overflow-hidden shadow-inner bg-slate-50/50 dark:bg-slate-900/50">
+                                                                        <ScrollArea className={cn("w-full", (doc.items?.length || 0) > 8 ? "h-[350px]" : "h-auto")}>
+                                                                            <Table>
+                                                                                <TableHeader className="bg-slate-100/80 dark:bg-slate-800/80 sticky top-0 z-10 backdrop-blur-md">
+                                                                                    <TableRow className="hover:bg-transparent border-b dark:border-slate-800">
+                                                                                        <TableHead className="text-[10px] font-black uppercase tracking-widest py-4 px-6 text-slate-500">Brand</TableHead>
+                                                                                        <TableHead className="text-[10px] font-black uppercase tracking-widest py-4 px-6 text-slate-500">Category</TableHead>
+                                                                                        <TableHead className="text-[10px] font-black uppercase tracking-widest py-4 px-6 text-slate-500">Product</TableHead>
+                                                                                        <TableHead className="text-[10px] font-black uppercase tracking-widest text-center py-4 px-3 text-slate-500">UOM</TableHead>
+                                                                                        <TableHead className="text-[10px] font-black uppercase tracking-widest text-center py-4 px-3 text-slate-500">Qty</TableHead>
+                                                                                        <TableHead className="text-[10px] font-black uppercase tracking-widest text-right py-4 px-6 text-slate-500">Price</TableHead>
+                                                                                        <TableHead className="text-[10px] font-black uppercase tracking-widest text-right py-4 px-6 text-slate-500">Discount</TableHead>
+                                                                                        <TableHead className="text-[10px] font-black uppercase tracking-widest text-center py-4 px-3 text-slate-500">Discount Type</TableHead>
+                                                                                        <TableHead className="text-[10px] font-black uppercase tracking-widest text-right py-4 px-6 text-slate-500">Total</TableHead>
+                                                                                    </TableRow>
+                                                                                </TableHeader>
+                                                                                <TableBody>
+                                                                                    {doc.items && doc.items.length > 0 ? (
+                                                                                        doc.items.map((item, i) => (
+                                                                                            <TableRow key={item.id || i} className="hover:bg-rose-50/50 dark:hover:bg-rose-950/20 border-b dark:border-slate-800 last:border-0 transition-colors">
+                                                                                                <TableCell className="py-4 px-6">
+                                                                                                    <Badge variant="outline" className="text-[9px] font-black uppercase px-2 py-0.5 border-blue-100 bg-blue-50 text-blue-500 whitespace-nowrap">
+                                                                                                        {item.brand_name || 'N/A'}
+                                                                                                    </Badge>
+                                                                                                </TableCell>
+                                                                                                <TableCell className="py-4 px-6">
+                                                                                                    <Badge variant="outline" className="text-[9px] font-black uppercase px-2 py-0.5 border-slate-100 bg-slate-50 text-slate-400 whitespace-nowrap">
+                                                                                                        {item.category_name || 'N/A'}
+                                                                                                    </Badge>
+                                                                                                </TableCell>
+                                                                                                <TableCell className="py-4 px-6 font-black text-[12px] text-slate-800 dark:text-slate-200 uppercase leading-snug">
+                                                                                                    {item.product_name}
+                                                                                                </TableCell>
+                                                                                                <TableCell className="text-center font-black text-slate-500 py-4 px-3 text-[11px] uppercase whitespace-nowrap">
+                                                                                                    {item.unit_name || 'PCS'}
+                                                                                                </TableCell>
+                                                                                                <TableCell className="text-center font-black text-rose-500 py-4 px-3 text-[12px] tabular-nums">
+                                                                                                    {item.quantity}
+                                                                                                </TableCell>
+                                                                                                <TableCell className="text-right font-black text-slate-600 dark:text-slate-400 py-4 px-6 text-[12px] tabular-nums">
+                                                                                                    ₱{Number(item.unit_price).toLocaleString(undefined, { minimumFractionDigits: 1 })}
+                                                                                                </TableCell>
+                                                                                                <TableCell className="text-right font-black text-rose-500 py-4 px-6 text-[12px] tabular-nums">
+                                                                                                    ₱{Number(item.discount_amount || 0).toLocaleString(undefined, { minimumFractionDigits: 1 })}
+                                                                                                </TableCell>
+                                                                                                <TableCell className="text-center py-4 px-3">
+                                                                                                    {item.discount_type_name ? (
+                                                                                                        <Badge className="text-[10px] font-black bg-amber-500 text-white border-none px-2 py-0.5 uppercase shadow-sm">
+                                                                                                            {item.discount_type_name}
+                                                                                                        </Badge>
+                                                                                                    ) : (
+                                                                                                        <span className="text-[11px] font-black text-slate-300 uppercase italic">NONE</span>
+                                                                                                    )}
+                                                                                                </TableCell>
+                                                                                                <TableCell className="text-right font-black text-slate-900 dark:text-white py-4 px-6 text-[14px] tabular-nums whitespace-nowrap">
+                                                                                                    ₱{Number(item.total_amount).toLocaleString(undefined, { minimumFractionDigits: 1 })}
+                                                                                                </TableCell>
                                                                                             </TableRow>
-                                                                                        )}
-                                                                                    </TableBody>
-                                                                                </Table>
-                                                                            </ScrollArea>
-                                                                        </div>
+                                                                                        ))
+                                                                                    ) : (
+                                                                                        <TableRow>
+                                                                                            <TableCell colSpan={9} className="py-16 text-center text-[12px] font-black text-slate-400 uppercase tracking-[0.3em] italic opacity-60">No items listed in this return.</TableCell>
+                                                                                        </TableRow>
+                                                                                    )}
+                                                                                </TableBody>
+                                                                            </Table>
+                                                                        </ScrollArea>
                                                                     </div>
-                                                                </div>
-                                                            </div>
+                                                                </AccordionContent>
+                                                            </AccordionItem>
                                                         ))}
-                                                    </div>
+                                                    </Accordion>
                                                 )}
                                             </TabsContent>
                                             <TabsContent value="memo" className="m-0 p-8">
@@ -433,18 +459,39 @@ export const SiteSalesSummaryDetailsModal: React.FC<SiteSalesSummaryDetailsModal
                                                 ) : (
                                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                                         {linkedDocs.filter(d => d.type === "MEMO").map((doc) => (
-                                                            <div key={doc.id} className="p-6 bg-slate-50/50 dark:bg-slate-800/30 rounded-2xl border dark:border-slate-800 shadow-sm hover:shadow-md transition-shadow">
-                                                                <div className="flex justify-between items-center mb-2">
-                                                                    <p className="text-[13px] font-black text-slate-900 dark:text-slate-100 tracking-tight">{doc.reference_no}</p>
-                                                                    <p className={cn("text-xl font-black tabular-nums", doc.balance_name === "DEBIT" ? "text-blue-600" : "text-amber-600")}>
-                                                                        ₱{doc.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                                                                    </p>
+                                                            <div key={doc.id} className="border-2 border-slate-100 dark:border-slate-800 rounded-[28px] overflow-hidden bg-white dark:bg-slate-950 p-6 shadow-sm transition-all hover:border-blue-100 dark:hover:border-blue-900/30 group">
+                                                                <div className="flex justify-between items-start mb-6">
+                                                                    <div className="space-y-1">
+                                                                        <p className={cn("text-[10px] font-black uppercase tracking-[0.2em]", doc.balance_name === "DEBIT" ? "text-blue-500" : "text-amber-500")}>
+                                                                            {doc.balance_name || "MEMO"}
+                                                                        </p>
+                                                                        <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-tighter leading-none">{doc.reference_no}</h3>
+                                                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                                                                            {doc.date ? format(parseISO(doc.date), 'MMM dd, yyyy') : '--'}
+                                                                        </p>
+                                                                    </div>
+                                                                    <div className="text-right">
+                                                                        <p className={cn("text-2xl font-black tabular-nums tracking-tighter", doc.balance_name === "DEBIT" ? "text-blue-600" : "text-amber-600")}>
+                                                                            ₱{doc.amount.toLocaleString(undefined, { minimumFractionDigits: 0 })}
+                                                                        </p>
+                                                                    </div>
                                                                 </div>
-                                                                <div className="flex justify-between text-[11px] font-bold">
-                                                                    <span className={cn("uppercase tracking-widest", doc.balance_name === "DEBIT" ? "text-blue-500" : "text-amber-500")}>
-                                                                        {doc.balance_name || "MEMO"}
-                                                                    </span>
-                                                                    <span className="text-slate-500 dark:text-slate-400 truncate max-w-[200px]">{doc.account_title || 'N/A'}</span>
+
+                                                                <Separator className="bg-slate-100 dark:bg-slate-800/50 mb-6" />
+
+                                                                <div className="space-y-3">
+                                                                    <div className="flex justify-between items-center">
+                                                                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Account</span>
+                                                                        <span className="text-xs font-black text-slate-700 dark:text-slate-300 uppercase tracking-tight truncate max-w-[150px]">
+                                                                            {doc.account_title || 'N/A'}
+                                                                        </span>
+                                                                    </div>
+                                                                    <div className="flex justify-between items-center">
+                                                                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Status</span>
+                                                                        <span className={cn("text-[10px] font-black uppercase tracking-widest", doc.balance_name === "DEBIT" ? "text-blue-500" : "text-amber-500")}>
+                                                                            {doc.status || "APPLIED"}
+                                                                        </span>
+                                                                    </div>
                                                                 </div>
                                                             </div>
                                                         ))}
@@ -491,7 +538,7 @@ export const SiteSalesSummaryDetailsModal: React.FC<SiteSalesSummaryDetailsModal
                                                 )}
                                                 <Separator className="bg-slate-200 dark:bg-slate-800 my-2" />
                                                 <div className="flex justify-between text-sm font-black">
-                                                    <span className="text-slate-950 dark:text-white uppercase tracking-[0.15em]">Net Payable</span>
+                                                    <span className="text-slate-950 dark:text-white uppercase tracking-[0.15em]">Net Amount</span>
                                                     <span className="text-primary tabular-nums text-lg">
                                                         ₱{Number(header.net_amount || header.total_amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                                                     </span>
@@ -500,7 +547,7 @@ export const SiteSalesSummaryDetailsModal: React.FC<SiteSalesSummaryDetailsModal
 
                                             <div className="space-y-2.5 pt-6 border-t border-dashed dark:border-slate-800">
                                                 <div className="flex justify-between text-[11px] font-black">
-                                                    <span className="text-slate-400 uppercase tracking-tight">Returns Adjustment</span>
+                                                    <span className="text-slate-400 uppercase tracking-tight">Returns </span>
                                                     <span className="text-rose-500 tabular-nums">-₱{returnAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                                                 </div>
                                                 <div className="flex justify-between text-[11px] font-black">

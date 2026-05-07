@@ -150,7 +150,19 @@ export const SiteSalesSummaryList: React.FC<SiteSalesSummaryListProps> = ({
         {
             accessorKey: "invoice_type",
             header: "Type",
-            cell: () => <Badge variant="outline">DR</Badge>
+            cell: ({ row }) => {
+                const typeName = (row.original.invoice_type as { type?: string })?.type || "";
+                const typeId = (row.original.invoice_type as { id?: number })?.id || row.original.invoice_type;
+                
+                const acronym = (Number(typeId) === 3 || typeName === "Delivery Receipt") ? "DR" : "SI";
+                const badgeColor = acronym === "SI" ? "bg-blue-50 text-blue-600 border-blue-100" : "bg-slate-50 text-slate-600 border-slate-100";
+                
+                return (
+                    <Badge variant="outline" className={cn("font-black text-[10px] px-2 py-0", badgeColor)}>
+                        {acronym}
+                    </Badge>
+                );
+            }
         },
         {
             accessorKey: "invoice_date",

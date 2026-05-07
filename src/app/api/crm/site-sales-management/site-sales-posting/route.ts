@@ -428,17 +428,6 @@ export async function GET(req: NextRequest) {
                 items: ReturnItem[];
             }
 
-            interface DirectusReturnItemDetail {
-                detail_id: number;
-                product_id: { product_name: string; product_id?: string | number };
-                quantity: number;
-                unit_price: number;
-                total_amount: number;
-                discount_amount: number;
-                discount_type?: { discount_type: string };
-                reason?: string;
-                return_no: string | number | { return_number: string };
-            }
 
             let linkedDocs: ReturnDoc[] = [];
             try {
@@ -455,30 +444,58 @@ export async function GET(req: NextRequest) {
                         }
                         processedReturns.push({ ...r, headerInfo });
                     }
+                    // Fetch units first to map them
+                    const unitsRes = await fetch(`${DIRECTUS_URL}/items/unit?limit=-1`, { headers: fetchHeaders });
+                    const unitsData = unitsRes.ok ? (await unitsRes.json()).data : [];
+                    const unitMap: Record<number, string> = unitsData.reduce((acc: Record<number, string>, u: { unit_id: number; unit_name?: string }) => ({
+                        ...acc,
+                        [Number(u.unit_id)]: u.unit_name || "PCS"
+                    }), {});
+
                     const returnNumbers = processedReturns.map(p => p.headerInfo?.return_number).filter(Boolean);
                     let allReturnItems = [];
                     if (returnNumbers.length > 0) {
-                        const itemsRes = await fetch(`${DIRECTUS_URL}/items/sales_return_details?filter[return_no][_in]=${returnNumbers.join(",")}&fields=*,product_id.product_name,product_id.product_id,discount_type.discount_type&limit=-1`, { headers: fetchHeaders });
+                        // Added unit.* to fields to get the related unit information
+                        const itemsRes = await fetch(`${DIRECTUS_URL}/items/sales_return_details?filter[return_no][_in]=${returnNumbers.join(",")}&fields=*,product_id.product_name,product_id.product_id,product_id.product_brand.brand_name,product_id.product_category.category_name,discount_type.discount_type,unit.*&limit=-1`, { headers: fetchHeaders });
                         if (itemsRes.ok) allReturnItems = (await itemsRes.json()).data || [];
                     }
                     linkedDocs = processedReturns.map(p => {
                         const returnNumberStr = p.headerInfo?.return_number || null;
                         const displayRef = returnNumberStr || (p.headerInfo ? p.headerInfo.return_id : p.return_no);
-                        const items = allReturnItems.filter((item: DirectusReturnItemDetail) => {
+                        const items = allReturnItems.filter((item: Record<string, unknown>) => {
                             const itemReturnNo = (item.return_no && typeof item.return_no === 'object') ? (item.return_no as { return_number: string }).return_number : item.return_no;
                             return itemReturnNo === returnNumberStr;
-                        }).map((item: DirectusReturnItemDetail) => ({
-                            id: item.detail_id,
-                            product_name: item.product_id?.product_name || `Product ${item.product_id}`,
-                            quantity: item.quantity,
-                            unit_price: item.unit_price,
-                            total_amount: item.total_amount,
-                            discount_amount: item.discount_amount,
-                            discount_type_name: item.discount_type?.discount_type || null,
-                            reason: item.reason
-                        }));
+                        }).map((item: Record<string, unknown>) => {
+                            const discType = item.discount_type as Record<string, unknown> | null;
+                            const discTypeName = (discType && typeof discType === 'object') ? (discType.discount_type as string) : null;
+                            const prod = (item.product_id as Record<string, unknown>) || {};
+                            const brand = (prod.product_brand as Record<string, unknown>) || {};
+                            const cat = (prod.product_category as Record<string, unknown>) || {};
+                            
+                            // Resolve unit name from either the joined object or the unitMap
+                            const unitObj = item.unit as Record<string, unknown> | null;
+                            const resolvedUnitName = (unitObj && typeof unitObj === 'object' ? (unitObj.unit_name as string) : null) || 
+                                                     unitMap[Number(item.unit)] || 
+                                                     (item.unit_name as string) || 
+                                                     'PCS';
+
+                            return {
+                                id: item.detail_id,
+                                product_name: (prod.product_name as string) || `Product ${prod.product_id || 'N/A'}`,
+                                brand_name: (brand.brand_name as string) || 'N/A',
+                                category_name: (cat.category_name as string) || 'N/A',
+                                quantity: Number(item.quantity) || 0,
+                                unit_price: Number(item.unit_price) || 0,
+                                total_amount: Number(item.total_amount) || 0,
+                                discount_amount: Number(item.discount_amount) || 0,
+                                discount_type_name: discTypeName,
+                                unit_name: resolvedUnitName,
+                                reason: item.reason
+                            };
+                        });
                         return {
-                            id: p.id, type: "RETURN", reference_no: displayRef ? `${displayRef}` : `RET-${p.id}`,
+                            id: p.id, type: "RETURN", 
+                            reference_no: displayRef ? `SR-${displayRef}` : `SR-${p.id}`,
                             date: p.headerInfo?.return_date || p.created_at,
                             amount: Number(p.amount) || Number(p.headerInfo?.total_amount) || 0,
                             status: "LINKED", items
@@ -490,32 +507,44 @@ export async function GET(req: NextRequest) {
                 const memosRes = await fetch(`${DIRECTUS_URL}/items/customer_memo_invoices?filter[invoice_id][_eq]=${invoiceId}&fields=*,memo_id.*,memo_id.type.balance_name,memo_id.chart_of_account.account_title,memo_id.chart_of_account.gl_code,memo_id.chart_of_account.account_type&limit=-1`, { headers: fetchHeaders });
                 if (memosRes.ok) {
                     const memosData = (await memosRes.json()).data || [];
-                    const mappedMemos = memosData.map((m: {
+                    interface MemoData {
                         id: number;
                         memo_id: {
                             id: number;
-                            memo_number?: string;
-                            status?: string;
-                            type?: { id: number; balance_name?: string };
-                            chart_of_account?: { account_title?: string; gl_code?: string; account_type?: number };
+                            memo_number: string;
+                            status: string;
+                            type: {
+                                id: number;
+                                balance_name: string;
+                            };
+                            chart_of_account: {
+                                account_title: string;
+                                gl_code: string;
+                            };
                         };
-                        amount: number;
                         date_applied: string;
                         created_at: string;
-                    }) => ({
-                        id: m.id,
-                        type: "MEMO",
-                        reference_no: m.memo_id?.memo_number || `MEMO-${m.memo_id?.id || m.memo_id}`,
-                        date: m.date_applied || m.created_at,
-                        amount: Number(m.amount) || 0,
-                        status: m.memo_id?.status || "LINKED",
-                        balance_name: m.memo_id?.type?.balance_name || "N/A",
-                        account_title: m.memo_id?.chart_of_account?.account_title || "N/A",
-                        gl_code: m.memo_id?.chart_of_account?.gl_code || "N/A",
-                        memo_type_id: m.memo_id?.type?.id || m.memo_id?.type,
-                        memo_id: m.memo_id?.id || m.memo_id
-
-                    }));
+                        amount: number | string;
+                    }
+                    const mappedMemos = memosData.map((m: MemoData) => {
+                        const isDebit = m.memo_id?.type?.balance_name === "DEBIT" || m.memo_id?.type?.id === 2;
+                        const prefix = isDebit ? "DM" : "CM";
+                        const refNo = m.memo_id?.memo_number || `${prefix}-${m.memo_id?.id || m.memo_id}`;
+                        
+                        return {
+                            id: m.id,
+                            type: "MEMO",
+                            reference_no: refNo.startsWith(prefix) ? refNo : `${prefix}-${refNo}`,
+                            date: m.date_applied || m.created_at,
+                            amount: Number(m.amount) || 0,
+                            status: m.memo_id?.status || "LINKED",
+                            balance_name: m.memo_id?.type?.balance_name || "N/A",
+                            account_title: m.memo_id?.chart_of_account?.account_title || "N/A",
+                            gl_code: m.memo_id?.chart_of_account?.gl_code || "N/A",
+                            memo_type_id: m.memo_id?.type?.id || m.memo_id?.type,
+                            memo_id: m.memo_id?.id || m.memo_id
+                        };
+                    });
                     linkedDocs = [...linkedDocs, ...mappedMemos];
                 }
 
