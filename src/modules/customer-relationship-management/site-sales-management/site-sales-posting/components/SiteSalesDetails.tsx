@@ -73,6 +73,14 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
     const [availableMemos, setAvailableMemos] = useState<CustomerMemo[]>([]);
     const [isFetchingMemos, setIsFetchingMemos] = useState(false);
     const [returnSearch, setReturnSearch] = useState('');
+    const [memoSearch, setMemoSearch] = useState('');
+
+
+    // Partial Memo States
+    const [isPartialMemoModalOpen, setIsPartialMemoModalOpen] = useState(false);
+    const [pendingMemoToLink, setPendingMemoToLink] = useState<CustomerMemo | null>(null);
+    const [partialLinkAmount, setPartialLinkAmount] = useState<string>('');
+
 
 
 
@@ -138,12 +146,12 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
         try {
             const data = await siteSalesPostingProvider.getInvoiceDetails(id);
             setHeader(data.header);
-            
+
             // Initial load only or when not modified
             if (!isItemsModified) {
                 setDetails(data.details);
                 setMainSupplierId(data.main_supplier_id || null);
-                
+
                 setInitialVat(Number(data.header.vat_amount || 0));
                 setInitialGross(Number(data.header.gross_amount || 0));
                 setInitialDiscount(Number(data.header.discount_amount || 0));
@@ -316,32 +324,63 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
     };
 
     const handleLinkMemo = async (memo: CustomerMemo) => {
-        const availableAmount = Number(memo.amount) - Number(memo.applied_amount);
-        const memoType = (memo.type && typeof memo.type === 'object') ? (memo.type as { id: number }).id : memo.type;
-        const isCredit = memoType === 1 || memo.balance_name === "CREDIT";
-        const isDebit = memoType === 2 || memo.balance_name === "DEBIT";
+        setPendingMemoToLink(memo);
+        // Default to remaining balance
+        const remaining = Number(memo.amount) - Number(memo.applied_amount || 0);
+        setPartialLinkAmount(remaining.toString());
+        setIsPartialMemoModalOpen(true);
+    };
 
-        // USER RULE: CREDIT memo cannot exceed current summary balance
-        // DEBIT memos (Type 2) are exempt since they add to the balance
-        if (isCredit && availableAmount > balance) {
+    const confirmLinkMemo = async (isFull: boolean) => {
+        if (!pendingMemoToLink) return;
+        
+        const availableAmount = Number(pendingMemoToLink.amount) - Number(pendingMemoToLink.applied_amount || 0);
+        const amountToLink = isFull ? availableAmount : Number(partialLinkAmount);
+
+        // Validation: Must be a valid number and > 0
+        if (isNaN(amountToLink) || amountToLink <= 0) {
+            toast.error("Please enter a valid amount.");
+            return;
+        }
+
+        // Validation: Cannot exceed memo's available amount
+        if (amountToLink > availableAmount) {
+            toast.error(`Amount exceeds memo's remaining balance of ₱${availableAmount.toLocaleString()}`);
+            return;
+        }
+
+        const memoType = (pendingMemoToLink.type && typeof pendingMemoToLink.type === 'object') 
+            ? (pendingMemoToLink.type as { id: number }).id 
+            : pendingMemoToLink.type;
+        const isCredit = memoType === 1 || pendingMemoToLink.balance_name === "CREDIT";
+        const isDebit = memoType === 2 || pendingMemoToLink.balance_name === "DEBIT";
+
+        // Validation: CREDIT memo cannot exceed current summary balance
+        // Rounding to avoid floating point issues
+        const roundedLinkAmount = Math.round(amountToLink * 100) / 100;
+        const roundedInvoiceBalance = Math.round(balance * 100) / 100;
+
+        if (isCredit && roundedLinkAmount > roundedInvoiceBalance) {
             toast.error("Linking failed: This credit memo exceeds the remaining invoice balance.");
             return;
         }
 
         setIsLinking(true);
         try {
-            await siteSalesPostingProvider.linkMemo(id, memo.id, availableAmount, balance);
-            toast.success(`${isDebit ? 'Debit' : 'Credit'} Memo ${memo.memo_number} linked successfully!`);
+            await siteSalesPostingProvider.linkMemo(id, pendingMemoToLink.id, amountToLink, balance);
+            toast.success(`${isDebit ? 'Debit' : 'Credit'} Memo linked successfully!`);
+            setIsPartialMemoModalOpen(false);
             setIsMemoLinkModalOpen(false);
+            setPendingMemoToLink(null);
             refreshLinkedDocs(); // Refresh ONLY linked docs list
         } catch (error: unknown) {
-
             const message = error instanceof Error ? error.message : "Failed to link memo";
             toast.error(message);
         } finally {
             setIsLinking(false);
         }
     };
+
 
 
     const handleOpenAddProductModal = async () => {
@@ -483,6 +522,21 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
             setIsLinking(false);
         }
     };
+
+    const handleUnlinkMemo = async (junctionId: number, memoId: number) => {
+        setIsLinking(true);
+        try {
+            await siteSalesPostingProvider.unlinkMemo(junctionId, memoId);
+            toast.success(`Memo unlinked successfully!`);
+            refreshLinkedDocs(); // Refresh ONLY linked docs list
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : "Failed to unlink memo";
+            toast.error(message);
+        } finally {
+            setIsLinking(false);
+        }
+    };
+
 
     if (isLoading) {
         return (
@@ -857,14 +911,25 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
                                                                 <p className="text-[10px] text-slate-400 font-bold uppercase">{doc.date ? format(parseISO(doc.date), 'MMM dd, yyyy') : '--'}</p>
                                                             </div>
                                                         </div>
-                                                        <div className="text-right">
-                                                            <p className={cn(
-                                                                "text-lg font-black",
-                                                                doc.balance_name === "DEBIT" ? "text-blue-600" : "text-amber-600"
-                                                            )}>
-                                                                ₱{doc.amount.toLocaleString()}
-                                                            </p>
+                                                        <div className="flex items-center gap-4">
+                                                            <div className="text-right">
+                                                                <p className={cn(
+                                                                    "text-lg font-black",
+                                                                    doc.balance_name === "DEBIT" ? "text-blue-600" : "text-amber-600"
+                                                                )}>
+                                                                    ₱{doc.amount.toLocaleString()}
+                                                                </p>
+                                                            </div>
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="icon"
+                                                                className="h-8 w-8 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-full transition-colors"
+                                                                onClick={() => doc.memo_id && handleUnlinkMemo(doc.id, doc.memo_id)}
+                                                            >
+                                                                    <Trash className="h-4 w-4" />
+                                                            </Button>
                                                         </div>
+
                                                     </div>
 
                                                     <div className="space-y-1.5">
@@ -1082,8 +1147,8 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
                     <div className="px-6 py-4 bg-white dark:bg-slate-950 border-b border-slate-100 dark:border-slate-800">
                         <div className="relative">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                            <Input 
-                                placeholder="Search return number or salesman..." 
+                            <Input
+                                placeholder="Search return number or salesman..."
                                 className="pl-10 h-10 bg-slate-50 dark:bg-slate-900 border-none font-bold text-xs uppercase tracking-widest"
                                 value={returnSearch}
                                 onChange={(e) => setReturnSearch(e.target.value)}
@@ -1164,7 +1229,8 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
 
             {/* Link Memo Modal */}
             <Dialog open={isMemoLinkModalOpen} onOpenChange={setIsMemoLinkModalOpen}>
-                <DialogContent className="sm:max-w-[1100px] w-[95vw] p-0 overflow-hidden border-none shadow-2xl dark:bg-slate-950">
+                <DialogContent className="sm:max-w-[600px] w-[95vw] p-0 overflow-hidden border-none shadow-2xl dark:bg-slate-950">
+
                     <DialogHeader className="p-6 bg-slate-50 dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800">
                         <div className="flex items-center gap-3">
                             <div className="p-2 bg-primary rounded-lg shadow-lg shadow-primary/20">
@@ -1178,6 +1244,19 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
                             </div>
                         </div>
                     </DialogHeader>
+
+                    <div className="px-6 py-4 bg-white dark:bg-slate-950 border-b border-slate-100 dark:border-slate-800">
+                        <div className="relative">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                            <Input
+                                placeholder="Search memo number, status or account..."
+                                className="pl-10 h-10 bg-slate-50 dark:bg-slate-900 border-none font-bold text-xs uppercase tracking-widest"
+                                value={memoSearch}
+                                onChange={(e) => setMemoSearch(e.target.value)}
+                            />
+                        </div>
+                    </div>
+
 
                     <div className="p-6 max-h-[60vh] overflow-y-auto">
                         {isFetchingMemos ? (
@@ -1195,7 +1274,14 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
                             </div>
                         ) : (
                             <div className="space-y-4">
-                                {availableMemos.map((memo) => {
+                                {availableMemos
+                                    .filter(memo => 
+                                        memo.memo_number.toLowerCase().includes(memoSearch.toLowerCase()) ||
+                                        memo.status.toLowerCase().includes(memoSearch.toLowerCase()) ||
+                                        (memo.account_title || '').toLowerCase().includes(memoSearch.toLowerCase())
+                                    )
+                                    .map((memo) => {
+
                                     const isDebit = memo.balance_name === "DEBIT";
                                     const remaining = Number(memo.amount) - Number(memo.applied_amount);
 
@@ -1262,8 +1348,10 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
                                                     <span className={cn(
                                                         "text-[10px] font-black",
                                                         memo.status === "APPROVED" ? "text-emerald-500" :
-                                                            memo.status === "FOR APPROVAL" ? "text-amber-500" :
-                                                                "text-slate-700 dark:text-slate-200"
+                                                            memo.status === "PARTIALLY APPLIED" ? "text-indigo-500" :
+                                                                memo.status === "FOR APPROVAL" ? "text-amber-500" :
+                                                                    "text-slate-700 dark:text-slate-200"
+
                                                     )}>
                                                         {memo.status}
                                                     </span>
@@ -1284,6 +1372,79 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
                     </div>
                 </DialogContent>
             </Dialog>
+
+            {/* Partial Memo Link Modal */}
+            <Dialog open={isPartialMemoModalOpen} onOpenChange={setIsPartialMemoModalOpen}>
+                <DialogContent className="sm:max-w-[400px] p-0 overflow-hidden border-none shadow-2xl dark:bg-slate-950">
+                    <DialogHeader className="p-6 bg-slate-50 dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800">
+                        <div className="flex items-center gap-3">
+                            <div className={cn(
+                                "p-2 rounded-lg shadow-lg",
+                                pendingMemoToLink?.balance_name === "DEBIT" ? "bg-blue-500 shadow-blue-500/20" : "bg-amber-500 shadow-amber-500/20"
+                            )}>
+                                <Link2 className="h-5 w-5 text-white" />
+                            </div>
+                            <div>
+                                <DialogTitle className="text-xl font-black tracking-tight text-slate-900 dark:text-white">Apply Memo</DialogTitle>
+                                <DialogDescription className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-0.5">
+                                    Memo #{pendingMemoToLink?.memo_number}
+                                </DialogDescription>
+                            </div>
+                        </div>
+                    </DialogHeader>
+
+                    <div className="p-6 space-y-6">
+                        <div className="space-y-4">
+                            <div className="p-4 bg-slate-50 dark:bg-slate-900 rounded-xl border border-dashed border-slate-200 dark:border-slate-800">
+                                <div className="flex justify-between items-center mb-1">
+                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Available Balance</span>
+                                    <span className="text-sm font-black text-slate-900 dark:text-white">₱{(Number(pendingMemoToLink?.amount || 0) - Number(pendingMemoToLink?.applied_amount || 0)).toLocaleString()}</span>
+                                </div>
+                                <div className="flex justify-between items-center">
+                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Remaining Invoice Balance</span>
+                                    <span className="text-sm font-black text-primary">₱{balance.toLocaleString()}</span>
+                                </div>
+                            </div>
+
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Amount to Apply</label>
+                                <div className="relative">
+                                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-sm">₱</span>
+                                    <Input 
+                                        type="number"
+                                        step="0.01"
+                                        placeholder="0.00"
+                                        className="pl-8 h-12 bg-white dark:bg-slate-900 border-2 border-slate-100 dark:border-slate-800 focus:border-primary font-black text-lg transition-all"
+                                        value={partialLinkAmount}
+                                        onChange={(e) => setPartialLinkAmount(e.target.value)}
+                                    />
+                                </div>
+                                <p className="text-[9px] text-slate-400 italic ml-1">* You can apply the full amount or just a portion.</p>
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3">
+                            <Button
+                                variant="outline"
+                                onClick={() => confirmLinkMemo(true)}
+                                disabled={isLinking}
+                                className="h-11 font-black text-[10px] uppercase tracking-widest border-2 border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-900 rounded-xl"
+                            >
+                                Apply Full
+                            </Button>
+                            <Button
+                                onClick={() => confirmLinkMemo(false)}
+                                disabled={isLinking || !partialLinkAmount || Number(partialLinkAmount) <= 0}
+                                className="h-11 font-black text-[10px] uppercase tracking-widest bg-primary hover:bg-primary/90 text-white shadow-lg shadow-primary/20 rounded-xl gap-2"
+                            >
+                                {isLinking ? <RotateCw className="h-3.5 w-3.5 animate-spin" /> : <PlusCircle className="h-3.5 w-3.5" />}
+                                Confirm Partial
+                            </Button>
+                        </div>
+                    </div>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 };
+

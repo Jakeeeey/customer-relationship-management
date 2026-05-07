@@ -227,7 +227,7 @@ export async function GET(req: NextRequest) {
                 }
             });
         }
-        
+
         if (type === "summary_stats") {
             const search = searchParams.get("search") || "";
             const salesmanId = searchParams.get("salesmanId");
@@ -239,7 +239,7 @@ export async function GET(req: NextRequest) {
 
             // Filter building (Matches worklist logic)
             const filters: { _and: Record<string, unknown>[] } = { _and: [] };
-            
+
             if (salesTypeId && salesTypeId !== "all") {
                 filters._and.push({ sales_type: { _eq: salesTypeId } });
             } else if (!salesTypeId) {
@@ -295,12 +295,12 @@ export async function GET(req: NextRequest) {
             if (!res.ok) throw new Error("Failed to fetch invoices for stats");
 
             const invoices = (await res.json()).data || [];
-            
+
             interface InvoiceStatItem {
                 invoice_id: number;
                 gross_amount: number;
             }
-            
+
             const invoiceIds = invoices.map((i: InvoiceStatItem) => i.invoice_id);
 
             if (invoiceIds.length === 0) {
@@ -488,7 +488,9 @@ export async function GET(req: NextRequest) {
                         balance_name: m.memo_id?.type?.balance_name || "N/A",
                         account_title: m.memo_id?.chart_of_account?.account_title || "N/A",
                         gl_code: m.memo_id?.chart_of_account?.gl_code || "N/A",
-                        memo_type_id: m.memo_id?.type?.id || m.memo_id?.type
+                        memo_type_id: m.memo_id?.type?.id || m.memo_id?.type,
+                        memo_id: m.memo_id?.id || m.memo_id
+
                     }));
                     linkedDocs = [...linkedDocs, ...mappedMemos];
                 }
@@ -574,9 +576,9 @@ export async function GET(req: NextRequest) {
                     if (!q) return hasPrice;
 
                     const terms = q.split(/\s+/).filter(Boolean);
-                    const matchesSearch = terms.every(term => 
-                        (p.product_name || "").toLowerCase().includes(term) || 
-                        (p.product_code || "").toLowerCase().includes(term) || 
+                    const matchesSearch = terms.every(term =>
+                        (p.product_name || "").toLowerCase().includes(term) ||
+                        (p.product_code || "").toLowerCase().includes(term) ||
                         (p.description || "").toLowerCase().includes(term)
                     );
                     return hasPrice && matchesSearch;
@@ -731,7 +733,7 @@ export async function GET(req: NextRequest) {
         }
 
         if (type === "salesmen") {
-            const res = await fetch(`${DIRECTUS_URL}/items/salesman?filter[isActive][_eq]=1&fields=*,branch_code&limit=-1`, { 
+            const res = await fetch(`${DIRECTUS_URL}/items/salesman?filter[isActive][_eq]=1&fields=*,branch_code&limit=-1`, {
                 headers: fetchHeaders,
                 next: { revalidate: 3600 } // Cache for 1 hour
             });
@@ -808,7 +810,7 @@ export async function GET(req: NextRequest) {
         }
 
         if (type === "sales_types") {
-            const res = await fetch(`${DIRECTUS_URL}/items/operation?fields=id,operation_name&limit=-1`, { 
+            const res = await fetch(`${DIRECTUS_URL}/items/operation?fields=id,operation_name&limit=-1`, {
                 headers: fetchHeaders,
                 next: { revalidate: 86400 } // Cache for 24 hours
             });
@@ -819,12 +821,12 @@ export async function GET(req: NextRequest) {
             const search = searchParams.get("search") || "";
             // Remove the 100 limit to show all active customers
             let url = `${DIRECTUS_URL}/items/customer?filter[isActive][_eq]=1&fields=id,customer_code,customer_name,store_name,city,province,isActive,payment_term&limit=-1`;
-            
+
             if (search) {
                 url += `&filter[_or][0][customer_name][_icontains]=${encodeURIComponent(search)}&filter[_or][1][customer_code][_icontains]=${encodeURIComponent(search)}`;
             }
-            
-            const res = await fetch(url, { 
+
+            const res = await fetch(url, {
                 headers: fetchHeaders,
                 next: { revalidate: search ? 0 : 3600 } // Cache default list, don't cache searches
             });
@@ -860,7 +862,8 @@ export async function GET(req: NextRequest) {
 
         if (type === "available_memos") {
             const customerCode = searchParams.get("customerCode");
-            const invoiceId = searchParams.get("invoiceId");
+
+
             if (!customerCode) return NextResponse.json({ error: "customerCode required" }, { status: 400 });
 
             // Resolve customer_id first if customerCode is passed
@@ -870,13 +873,8 @@ export async function GET(req: NextRequest) {
 
             const customerId = custData.id;
 
-            // 1. Get all memos already linked to THIS invoice
-            let linkedMemoIds: (number | string)[] = [];
-            if (invoiceId) {
-                const linkedRes = await fetch(`${DIRECTUS_URL}/items/customer_memo_invoices?filter[invoice_id][_eq]=${invoiceId}&fields=memo_id&limit=-1`, { headers: fetchHeaders });
-                const linkedData = (await linkedRes.json()).data || [];
-                linkedMemoIds = linkedData.map((l: { memo_id: number | string }) => l.memo_id).filter(Boolean);
-            }
+
+
 
             // 2. Fetch memos for this customer (filtered by account_type 7-11)
             const filters: { _and: Record<string, unknown>[] } = {
@@ -887,15 +885,15 @@ export async function GET(req: NextRequest) {
                 ]
             };
 
-            if (linkedMemoIds.length > 0) {
-                filters._and.push({ id: { _nin: linkedMemoIds } });
-            }
+
+
+
 
             const res = await fetch(`${DIRECTUS_URL}/items/customers_memo?filter=${JSON.stringify(filters)}&fields=*,type.balance_name,chart_of_account.account_title,chart_of_account.gl_code,chart_of_account.account_type&limit=-1`, { headers: fetchHeaders });
             if (!res.ok) throw new Error("Failed to fetch available memos");
 
             const memos = (await res.json()).data || [];
-            
+
             // Map the data to include flattened names for the frontend
             const results = memos.map((m: {
                 type?: { balance_name?: string };
@@ -914,9 +912,9 @@ export async function GET(req: NextRequest) {
 
         if (type === "suppliers") {
             // Matching the exact query from Create Sales Order for parity
-            const res = await fetch(`${DIRECTUS_URL}/items/suppliers?filter[supplier_type][_eq]=Trade&filter[isActive][_eq]=1&limit=-1`, { 
+            const res = await fetch(`${DIRECTUS_URL}/items/suppliers?filter[supplier_type][_eq]=Trade&filter[isActive][_eq]=1&limit=-1`, {
                 headers: fetchHeaders,
-                cache: "no-store" 
+                cache: "no-store"
             });
             if (!res.ok) throw new Error("Failed to fetch suppliers");
             return NextResponse.json((await res.json()).data || []);
@@ -952,7 +950,7 @@ export async function GET(req: NextRequest) {
 
             const res = await fetch(`${DIRECTUS_URL}/items/customer_salesmen?filter[customer_id][_eq]=${customerId}&fields=*,salesman_id.*,salesman_id.branch_code.*&limit=1`, { headers: fetchHeaders });
             if (!res.ok) throw new Error("Failed to fetch customer salesman");
-            
+
             const data = (await res.json()).data?.[0];
             return NextResponse.json(data || null);
         }
@@ -1042,7 +1040,7 @@ export async function PATCH(req: NextRequest) {
                 fetch(`${DIRECTUS_URL}/items/sales_invoice_details?filter[invoice_no][_eq]=${invoiceId}&fields=*&limit=-1`, { headers: fetchHeaders }),
                 fetch(`${DIRECTUS_URL}/items/sales_invoice/${invoiceId}?fields=invoice_type`, { headers: fetchHeaders })
             ]);
-            
+
             const currentDetails = ((await detRes.json()).data || []) as { quantity: number | string; unit_price: number | string; discount_amount: number | string }[];
             const headerInfo = (await hInfoRes.json()).data || {};
             const isVatApplicable = Number(headerInfo.invoice_type) !== 3;
@@ -1118,7 +1116,7 @@ export async function POST(req: NextRequest) {
                 // Fetch current invoice to check type for VAT safety
                 const invRes = await fetch(`${DIRECTUS_URL}/items/sales_invoice/${id}?fields=invoice_type`, { headers: fetchHeaders });
                 const invData = (await invRes.json()).data || {};
-                
+
                 const updatePayload: Record<string, unknown> = {
                     transaction_status: "Dispatched",
                     isDispatched: 1,
@@ -1182,6 +1180,74 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ success: true });
         }
 
+        if (action === "unlink_memo") {
+            const { junctionId, memoId } = body;
+            const now = new Date().toISOString();
+
+            console.log(`[UnlinkMemo] Starting unlink for Junction: ${junctionId}, Memo: ${memoId}`);
+
+            // 1. Delete the link from junction table
+            const delRes = await fetch(`${DIRECTUS_URL}/items/customer_memo_invoices/${junctionId}`, {
+                method: "DELETE",
+                headers: fetchHeaders
+            });
+
+            if (!delRes.ok) {
+                const errorData = await delRes.json();
+                console.error("[UnlinkMemo] Junction delete failed:", errorData);
+                throw new Error("Failed to remove memo link from invoice");
+            }
+
+            // 2. Fetch remaining links for this memo to recalculate applied_amount
+            // We sum ALL remaining links across ALL invoices to ensure integrity
+            const remainingRes = await fetch(`${DIRECTUS_URL}/items/customer_memo_invoices?filter[memo_id][id][_eq]=${memoId}&fields=amount&limit=-1`, { headers: fetchHeaders });
+            
+            if (remainingRes.ok) {
+                const remainingData = (await remainingRes.json()).data || [];
+                const newAppliedAmount = remainingData.reduce((acc: number, cur: { amount: number }) => acc + Number(cur.amount || 0), 0);
+
+                console.log(`[UnlinkMemo] Memo: ${memoId}. Remaining Links Found: ${remainingData.length}. New Applied Amount: ${newAppliedAmount}`);
+
+                // 3. Fetch memo total amount to determine new status
+                const memoRes = await fetch(`${DIRECTUS_URL}/items/customers_memo/${memoId}?fields=amount`, { headers: fetchHeaders });
+                if (memoRes.ok) {
+                    const memo = (await memoRes.json()).data;
+                    const totalAmount = Number(memo.amount) || 0;
+                    
+                    // Revert logic:
+                    // 0 applied -> APPROVED
+                    // > 0 but < total -> PARTIALLY APPLIED
+                    // >= total -> APPLIED
+                    let newStatus = "APPROVED"; 
+                    if (newAppliedAmount > 0) {
+                        const isFullyApplied = Math.round(newAppliedAmount * 100) / 100 >= Math.round(totalAmount * 100) / 100;
+                        newStatus = isFullyApplied ? "APPLIED" : "PARTIALLY APPLIED";
+                    }
+
+                    console.log(`[UnlinkMemo] Updating Memo ${memoId}: Applied=${newAppliedAmount}, Status=${newStatus}`);
+
+                    const updateRes = await fetch(`${DIRECTUS_URL}/items/customers_memo/${memoId}`, {
+                        method: "PATCH",
+                        headers: fetchHeaders,
+                        body: JSON.stringify({
+                            applied_amount: newAppliedAmount,
+                            status: newStatus,
+                            updated_at: now
+                        })
+                    });
+
+                    if (!updateRes.ok) {
+                        const errorData = await updateRes.json();
+                        console.error("[UnlinkMemo] Memo update failed:", errorData);
+                    }
+                }
+            }
+
+            return NextResponse.json({ success: true });
+        }
+
+
+
         if (action === "un_dispatch") {
             const { id } = body;
             const userId = await resolveUserId();
@@ -1213,47 +1279,72 @@ export async function POST(req: NextRequest) {
 
             console.log(`[LinkMemo] Starting link for Invoice: ${invoiceId}, Memo: ${memoId}, Amount: ${amount}, Current Balance: ${balance}`);
 
-            // 1. Link to junction table
-            const res = await fetch(`${DIRECTUS_URL}/items/customer_memo_invoices`, {
-                method: "POST", 
-                headers: fetchHeaders,
-                body: JSON.stringify({ 
-                    invoice_id: invoiceId, 
-                    memo_id: memoId, 
-                    amount: Number(amount), 
-                    date_applied: now 
-                })
-            });
+            // 1. Check if link already exists for consolidation
+            const checkRes = await fetch(`${DIRECTUS_URL}/items/customer_memo_invoices?filter[_and][0][invoice_id][_eq]=${invoiceId}&filter[_and][1][memo_id][_eq]=${memoId}&fields=id,amount`, { headers: fetchHeaders });
+            const existingLinks = (await checkRes.json()).data || [];
 
-            if (!res.ok) {
-                const errorData = await res.json();
-                console.error("[LinkMemo] Junction link failed:", errorData);
-                throw new Error("Failed to link memo to invoice");
+            if (existingLinks.length > 0) {
+                // UPDATE existing link
+                const existing = existingLinks[0];
+                const consolidatedAmount = Number(existing.amount || 0) + Number(amount);
+                console.log(`[LinkMemo] Consolidating Memo ${memoId} to Invoice ${invoiceId}. New Total: ${consolidatedAmount}`);
+                
+                const patchRes = await fetch(`${DIRECTUS_URL}/items/customer_memo_invoices/${existing.id}`, {
+                    method: "PATCH",
+                    headers: fetchHeaders,
+                    body: JSON.stringify({ 
+                        amount: consolidatedAmount,
+                        date_applied: now 
+                    })
+                });
+
+                if (!patchRes.ok) throw new Error("Failed to update existing memo link");
+            } else {
+                // CREATE new link
+                const res = await fetch(`${DIRECTUS_URL}/items/customer_memo_invoices`, {
+                    method: "POST",
+                    headers: fetchHeaders,
+                    body: JSON.stringify({
+                        invoice_id: invoiceId,
+                        memo_id: memoId,
+                        amount: Number(amount),
+                        date_applied: now
+                    })
+                });
+
+                if (!res.ok) {
+                    const errorData = await res.json();
+                    console.error("[LinkMemo] Junction link failed:", errorData);
+                    throw new Error("Failed to link memo to invoice");
+                }
             }
+
 
             // 2. Fetch current memo state to update totals
             const memoRes = await fetch(`${DIRECTUS_URL}/items/customers_memo/${memoId}?fields=id,applied_amount,amount,status,type.id,type.balance_name`, { headers: fetchHeaders });
-            
+
             if (memoRes.ok) {
                 const memo = (await memoRes.json()).data;
                 const currentApplied = Number(memo.applied_amount) || 0;
+                const totalAmount = Number(memo.amount) || 0;
                 const newApplied = currentApplied + Number(amount);
-                
-                // USER RULE: 
-                // DEBIT (Type 2) -> APPLIED immediately
-                // CREDIT (Type 1) -> amount < balance ? PARTIALLY APPLIED : APPLIED
-                const memoType = memo.type?.id || memo.type;
-                const memoTypeName = memo.type?.balance_name || "";
-                const isDebit = memoType === 2 || memoTypeName === "DEBIT";
-                const newStatus = isDebit ? "APPLIED" : (Number(amount) < Number(balance) ? "PARTIALLY APPLIED" : "APPLIED");
-                
-                console.log(`[LinkMemo] Updating Memo ${memoId}. TypeID: ${memoType}, Name: ${memoTypeName}. Status Logic: ${amount} vs ${balance} -> ${newStatus}`);
+
+                // Status Logic: 
+                // If newApplied reached totalAmount -> APPLIED
+                // If still has remaining -> PARTIALLY APPLIED
+                let newStatus = "PARTIALLY APPLIED";
+                if (Math.round(newApplied * 100) / 100 >= Math.round(totalAmount * 100) / 100) {
+                    newStatus = "APPLIED";
+                }
+
+
+                console.log(`[LinkMemo] Updating Memo ${memoId}. Applied: ${newApplied}/${totalAmount}. New Status: ${newStatus}`);
 
                 const updateRes = await fetch(`${DIRECTUS_URL}/items/customers_memo/${memoId}`, {
-                    method: "PATCH", 
+                    method: "PATCH",
                     headers: fetchHeaders,
-                    body: JSON.stringify({ 
-                        applied_amount: newApplied, 
+                    body: JSON.stringify({
+                        applied_amount: newApplied,
                         status: newStatus,
                         updated_at: now
                     })
@@ -1262,12 +1353,9 @@ export async function POST(req: NextRequest) {
                 if (!updateRes.ok) {
                     const updateError = await updateRes.json();
                     console.error("[LinkMemo] Memo update failed:", updateError);
-                } else {
-                    console.log("[LinkMemo] Memo updated successfully");
                 }
-            } else {
-                console.error(`[LinkMemo] Could not fetch memo ${memoId} for update`);
             }
+
 
             return NextResponse.json({ success: true });
         }
@@ -1275,7 +1363,7 @@ export async function POST(req: NextRequest) {
         if (action === "create_invoice") {
             const userId = await resolveUserId();
             const now = new Date().toISOString();
-            
+
             // 1. Create Header (sales_invoice)
             const headerPayload = {
                 order_id: body.order_id,

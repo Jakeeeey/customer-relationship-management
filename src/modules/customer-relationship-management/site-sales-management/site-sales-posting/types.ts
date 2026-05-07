@@ -145,6 +145,8 @@ export interface LinkedDocument {
     account_title?: string;
     gl_code?: string;
     memo_type_id?: number;
+    memo_id?: number;
+
     items?: {
         id: number;
         product_name: string;
