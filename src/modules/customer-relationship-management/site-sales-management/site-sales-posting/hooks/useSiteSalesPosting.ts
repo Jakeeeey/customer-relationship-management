@@ -133,13 +133,14 @@ export const useSiteSalesPosting = (): UseSiteSalesPostingReturn => {
 
     const fetchUtilityData = useCallback(async () => {
         try {
-            const [sm, cs, st] = await Promise.all([
-                siteSalesPostingProvider.getSalesmen(),
-                siteSalesPostingProvider.getCustomers(),
-                siteSalesPostingProvider.getSalesTypes()
-            ]);
+            // Sequential fetches to reduce concurrent server pressure
+            const sm = await siteSalesPostingProvider.getSalesmen();
             setSalesmen(sm);
+
+            const cs = await siteSalesPostingProvider.getCustomers();
             setCustomers(cs);
+
+            const st = await siteSalesPostingProvider.getSalesTypes();
             setSalesTypes(st);
         } catch (err) {
             console.error("Utility fetch error:", err);

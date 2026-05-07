@@ -59,6 +59,8 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
     const [isFetchingReturns, setIsFetchingReturns] = useState(false);
     const [isLinking, setIsLinking] = useState(false);
     const [isItemsModified, setIsItemsModified] = useState(false);
+    const isFirstLoad = React.useRef(true);
+
 
     // Initial Financials (from DB)
     const [initialVat, setInitialVat] = useState(0);
@@ -70,6 +72,15 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
     const [isMemoLinkModalOpen, setIsMemoLinkModalOpen] = useState(false);
     const [availableMemos, setAvailableMemos] = useState<CustomerMemo[]>([]);
     const [isFetchingMemos, setIsFetchingMemos] = useState(false);
+    const [returnSearch, setReturnSearch] = useState('');
+    const [memoSearch, setMemoSearch] = useState('');
+
+
+    // Partial Memo States
+    const [isPartialMemoModalOpen, setIsPartialMemoModalOpen] = useState(false);
+    const [pendingMemoToLink, setPendingMemoToLink] = useState<CustomerMemo | null>(null);
+    const [partialLinkAmount, setPartialLinkAmount] = useState<string>('');
+
 
 
 
@@ -79,11 +90,11 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
         const net = g - d;
         const invoiceTypeId = (header?.invoice_type as { id?: number })?.id || header?.invoice_type;
         const invoiceTypeName = (header?.invoice_type as { type?: string })?.type || "";
-        
+
         // Hide VAT if ID is 3 OR the type name is "Delivery Receipt"
         const isVatApplicable = Number(invoiceTypeId) !== 3 && invoiceTypeName !== "Delivery Receipt";
         const v = isVatApplicable ? (net / 1.12) * 0.12 : 0; // VAT-Inclusive calculation (12%)
-        
+
         // Sum of all linked returns
         const r = linkedDocs
             .filter(doc => doc.type === "RETURN")
@@ -99,7 +110,6 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
             .reduce((acc, doc) => acc + Number(doc.amount), 0);
 
         const b = (isItemsModified ? net : initialNet) - r - cm + dm;
-        
         return {
             computedGross: g,
             computedDiscount: d,
@@ -129,41 +139,97 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
     const [deletedDetailIds, setDeletedDetailIds] = useState<number[]>([]);
 
     const fetchData = useCallback(async () => {
-        setIsLoading(true);
+        // Only show skeleton on initial load. Subsequent refreshes will be silent.
+        if (isFirstLoad.current) setIsLoading(true);
+
         try {
             const data = await siteSalesPostingProvider.getInvoiceDetails(id);
             setHeader(data.header);
-            setDetails(data.details);
+
+            // Initial load only or when not modified
+            if (!isItemsModified) {
+                setDetails(data.details);
+                setMainSupplierId(data.main_supplier_id || null);
+
+                setInitialVat(Number(data.header.vat_amount || 0));
+                setInitialGross(Number(data.header.gross_amount || 0));
+                setInitialDiscount(Number(data.header.discount_amount || 0));
+                setInitialNet(Number(data.header.net_amount || data.header.total_amount || 0));
+                setIsItemsModified(false);
+            }
+
             setLinkedDocs(data.linkedDocs || []);
-            setMainSupplierId(data.main_supplier_id || null);
-            
-            // Set Initial Financials for Read-only/No-change scenarios
-            setInitialVat(Number(data.header.vat_amount || 0));
-            setInitialGross(Number(data.header.gross_amount || 0));
-            setInitialDiscount(Number(data.header.discount_amount || 0));
-            setInitialNet(Number(data.header.net_amount || data.header.total_amount || 0));
-            setIsItemsModified(false);
-            
-            // Fetch Suppliers for modal
-            const sData = await siteSalesPostingProvider.getSuppliers();
-            setSuppliers(sData);
         } catch (error) {
             console.error("Failed to fetch invoice details:", error);
+
         } finally {
             setIsLoading(false);
+            isFirstLoad.current = false;
         }
-    }, [id]);
+    }, [id, isItemsModified]); // Added isItemsModified to deps to avoid stale closure
 
-    const handleFinalize = async () => {
+    const refreshLinkedDocs = async () => {
+        try {
+            const data = await siteSalesPostingProvider.getInvoiceDetails(id);
+            setLinkedDocs(data.linkedDocs || []);
+        } catch {
+            toast.error("Failed to refresh linked documents list");
+        }
+    };
+
+
+
+    const handleUpdateOrder = async () => {
         if (!header) return;
         setIsSaving(true);
+        try {
+            console.log("[SiteSalesDetails] Manual update of order items");
+            await siteSalesPostingProvider.saveAdjustments(id, {
+                customer_code: header.customer_code,
+                order_id: header.invoice_no,
+                invoice_date: header.invoice_date,
+                due_date: header.due_date,
+                remarks: header.remarks,
+                gross_amount: displayGross,
+                discount_amount: displayDiscount,
+                vat_amount: displayVat,
+                total_amount: displayTotal,
+                net_amount: displayTotal,
+                details: details,
+                deletedDetailIds: deletedDetailIds
+            });
+
+            toast.success("Order updated successfully!");
+            setDeletedDetailIds([]);
+            setIsItemsModified(false);
+            fetchData(); // Refresh data from DB
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : "Failed to update order";
+            toast.error(message);
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    const handleFinalize = async () => {
+
+        if (!header) return;
+
+        // Final Safety Check: Prevent dispatching if balance is negative
+        if (balance < 0) {
+            toast.error("Cannot dispatch invoice with a negative balance. Please check your items, returns, and memos.");
+            return;
+        }
+
+        setIsSaving(true);
+
         try {
             // 1. Save Header & Details adjustments ONLY if modified
             if (isItemsModified) {
                 console.log("[SiteSalesDetails] Saving items modification before finalize");
                 await siteSalesPostingProvider.saveAdjustments(id, {
                     customer_code: header.customer_code,
-                    order_id: header.invoice_no, 
+                    order_id: header.invoice_no,
                     invoice_date: header.invoice_date,
                     due_date: header.due_date,
                     remarks: header.remarks,
@@ -196,9 +262,37 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
         }
     };
 
+    const handleUnDispatch = async () => {
+        setIsSaving(true);
+        try {
+            await siteSalesPostingProvider.unDispatch(id);
+            toast.success("Invoice un-dispatched successfully!");
+            fetchData(); // Refresh data
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : "Failed to un-dispatch";
+            toast.error(message);
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
     useEffect(() => {
         fetchData();
     }, [fetchData]);
+
+    // Separate effect for master data (suppliers)
+    useEffect(() => {
+        const fetchSuppliers = async () => {
+            try {
+                const sData = await siteSalesPostingProvider.getSuppliers();
+                setSuppliers(sData);
+            } catch (error) {
+                console.error("Failed to fetch suppliers:", error);
+            }
+        };
+        fetchSuppliers();
+    }, []);
+
 
     const handleOpenLinkModal = async () => {
         if (!header?.customer_code) return;
@@ -229,24 +323,55 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
     };
 
     const handleLinkMemo = async (memo: CustomerMemo) => {
-        const availableAmount = Number(memo.amount) - Number(memo.applied_amount);
-        const memoType = (memo.type && typeof memo.type === 'object') ? (memo.type as { id: number }).id : memo.type;
-        const isCredit = memoType === 1 || memo.balance_name === "CREDIT";
-        const isDebit = memoType === 2 || memo.balance_name === "DEBIT";
+        setPendingMemoToLink(memo);
+        // Default to remaining balance
+        const remaining = Number(memo.amount) - Number(memo.applied_amount || 0);
+        setPartialLinkAmount(remaining.toString());
+        setIsPartialMemoModalOpen(true);
+    };
+
+    const confirmLinkMemo = async (isFull: boolean) => {
+        if (!pendingMemoToLink) return;
         
-        // USER RULE: CREDIT memo cannot exceed current summary balance
-        // DEBIT memos (Type 2) are exempt since they add to the balance
-        if (isCredit && availableAmount > balance) {
+        const availableAmount = Number(pendingMemoToLink.amount) - Number(pendingMemoToLink.applied_amount || 0);
+        const amountToLink = isFull ? availableAmount : Number(partialLinkAmount);
+
+        // Validation: Must be a valid number and > 0
+        if (isNaN(amountToLink) || amountToLink <= 0) {
+            toast.error("Please enter a valid amount.");
+            return;
+        }
+
+        // Validation: Cannot exceed memo's available amount
+        if (amountToLink > availableAmount) {
+            toast.error(`Amount exceeds memo's remaining balance of ₱${availableAmount.toLocaleString()}`);
+            return;
+        }
+
+        const memoType = (pendingMemoToLink.type && typeof pendingMemoToLink.type === 'object') 
+            ? (pendingMemoToLink.type as { id: number }).id 
+            : pendingMemoToLink.type;
+        const isCredit = memoType === 1 || pendingMemoToLink.balance_name === "CREDIT";
+        const isDebit = memoType === 2 || pendingMemoToLink.balance_name === "DEBIT";
+
+        // Validation: CREDIT memo cannot exceed current summary balance
+        // Rounding to avoid floating point issues
+        const roundedLinkAmount = Math.round(amountToLink * 100) / 100;
+        const roundedInvoiceBalance = Math.round(balance * 100) / 100;
+
+        if (isCredit && roundedLinkAmount > roundedInvoiceBalance) {
             toast.error("Linking failed: This credit memo exceeds the remaining invoice balance.");
             return;
         }
 
         setIsLinking(true);
         try {
-            await siteSalesPostingProvider.linkMemo(id, memo.id, availableAmount, balance);
-            toast.success(`${isDebit ? 'Debit' : 'Credit'} Memo ${memo.memo_number} linked successfully!`);
+            await siteSalesPostingProvider.linkMemo(id, pendingMemoToLink.id, amountToLink, balance);
+            toast.success(`${isDebit ? 'Debit' : 'Credit'} Memo linked successfully!`);
+            setIsPartialMemoModalOpen(false);
             setIsMemoLinkModalOpen(false);
-            fetchData(); // Refresh list
+            setPendingMemoToLink(null);
+            refreshLinkedDocs(); // Refresh ONLY linked docs list
         } catch (error: unknown) {
             const message = error instanceof Error ? error.message : "Failed to link memo";
             toast.error(message);
@@ -330,10 +455,10 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
 
     const handleAddProducts = (newItems: SalesInvoiceDetail[]) => {
         // Track items removed via the modal
-        const removed = details.filter(old => 
+        const removed = details.filter(old =>
             old.detail_id && !newItems.find(n => n.detail_id === old.detail_id)
         );
-        
+
         if (removed.length > 0) {
             const removedIds = removed.map(r => Number(r.detail_id)).filter(id => !isNaN(id));
             setDeletedDetailIds(prev => [...prev, ...removedIds]);
@@ -357,19 +482,59 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
     };
 
     const handleLinkReturn = async (ret: SalesReturn) => {
+        const returnAmount = Number(ret.total_amount);
+
+        // Validation: Return amount cannot exceed current summary balance
+        if (returnAmount > balance) {
+            toast.error("Linking failed: This return exceeds the remaining invoice balance.");
+            return;
+        }
+
         setIsLinking(true);
         try {
-            await siteSalesPostingProvider.linkReturn(id, ret.return_id, ret.total_amount);
+            await siteSalesPostingProvider.linkReturn(id, ret.return_id, returnAmount);
             toast.success(`Return ${ret.return_number} linked successfully!`);
             setIsLinkModalOpen(false);
-            fetchData(); // Refresh list
+            refreshLinkedDocs(); // Refresh ONLY linked docs list
         } catch (error: unknown) {
+
             const message = error instanceof Error ? error.message : "Failed to link return";
             toast.error(message);
         } finally {
             setIsLinking(false);
         }
     };
+
+
+    const handleUnlinkReturn = async (junctionId: number) => {
+        setIsLinking(true);
+        try {
+            await siteSalesPostingProvider.unlinkReturn(junctionId);
+            toast.success(`Return unlinked successfully!`);
+            refreshLinkedDocs(); // Refresh ONLY linked docs list
+        } catch (error: unknown) {
+
+            const message = error instanceof Error ? error.message : "Failed to unlink return";
+            toast.error(message);
+        } finally {
+            setIsLinking(false);
+        }
+    };
+
+    const handleUnlinkMemo = async (junctionId: number, memoId: number) => {
+        setIsLinking(true);
+        try {
+            await siteSalesPostingProvider.unlinkMemo(junctionId, memoId);
+            toast.success(`Memo unlinked successfully!`);
+            refreshLinkedDocs(); // Refresh ONLY linked docs list
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : "Failed to unlink memo";
+            toast.error(message);
+        } finally {
+            setIsLinking(false);
+        }
+    };
+
 
     if (isLoading) {
         return (
@@ -499,10 +664,10 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
                         <div className="space-y-4">
                             <div className="space-y-1.5">
                                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Receipt Type</label>
-                                <Input 
-                                    readOnly 
-                                    value={(header.invoice_type && typeof header.invoice_type === 'object') ? (header.invoice_type as unknown as { type?: string }).type : 'DIRECT SALES'} 
-                                    className="h-10 bg-slate-50 dark:bg-slate-800 border-none font-bold text-slate-700 dark:text-slate-200" 
+                                <Input
+                                    readOnly
+                                    value={(header.invoice_type && typeof header.invoice_type === 'object') ? (header.invoice_type as unknown as { type?: string }).type : 'DIRECT SALES'}
+                                    className="h-10 bg-slate-50 dark:bg-slate-800 border-none font-bold text-slate-700 dark:text-slate-200"
                                 />
                             </div>
                             <div className="space-y-1.5">
@@ -646,9 +811,19 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
                                                                 <p className="text-[10px] text-slate-400 font-bold uppercase">{doc.date ? format(parseISO(doc.date), 'MMM dd, yyyy') : '--'}</p>
                                                             </div>
                                                         </div>
-                                                        <div className="text-right">
-                                                            <p className="text-lg font-black text-slate-900 dark:text-white">₱{doc.amount.toLocaleString()}</p>
-                                                            <Badge variant="outline" className="text-[9px] font-black bg-white dark:bg-slate-900">{doc.status || 'LINKED'}</Badge>
+                                                        <div className="flex items-center gap-4">
+                                                            <div className="text-right">
+                                                                <p className="text-lg font-black text-slate-900 dark:text-white">₱{doc.amount.toLocaleString()}</p>
+                                                                <Badge variant="outline" className="text-[9px] font-black bg-white dark:bg-slate-900">{doc.status || 'LINKED'}</Badge>
+                                                            </div>
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="icon"
+                                                                className="h-8 w-8 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-full transition-colors"
+                                                                onClick={() => handleUnlinkReturn(doc.id)}
+                                                            >
+                                                                <Trash className="h-4 w-4" />
+                                                            </Button>
                                                         </div>
                                                     </div>
 
@@ -661,10 +836,10 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
                                                                     <TableHeader className="bg-slate-50/50 dark:bg-slate-800/50">
                                                                         <TableRow className="border-none hover:bg-transparent">
                                                                             <TableHead className="text-[9px] font-black uppercase tracking-widest text-slate-400 h-9">Product Name</TableHead>
-                                                                            <TableHead className="text-[9px] font-black uppercase tracking-widest text-slate-400 h-9 text-right">Price</TableHead>
-                                                                            <TableHead className="text-[9px] font-black uppercase tracking-widest text-slate-400 h-9 text-right">Discount</TableHead>
-                                                                            <TableHead className="text-[9px] font-black uppercase tracking-widest text-slate-400 h-9 text-center">Dis Type</TableHead>
                                                                             <TableHead className="text-[9px] font-black uppercase tracking-widest text-slate-400 h-9 text-center">Qty</TableHead>
+                                                                            <TableHead className="text-[9px] font-black uppercase tracking-widest text-slate-400 h-9 text-right">Unit Price</TableHead>
+                                                                            <TableHead className="text-[9px] font-black uppercase tracking-widest text-slate-400 h-9 text-center">Discount Type</TableHead>
+                                                                            <TableHead className="text-[9px] font-black uppercase tracking-widest text-slate-400 h-9 text-right">Discount</TableHead>
                                                                             <TableHead className="text-[9px] font-black uppercase tracking-widest text-slate-400 h-9 text-right">Total Amount</TableHead>
                                                                         </TableRow>
                                                                     </TableHeader>
@@ -677,11 +852,11 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
                                                                                         {item.reason && <p className="text-[9px] text-slate-400 italic mt-1 font-medium truncate">Reason: {item.reason}</p>}
                                                                                     </div>
                                                                                 </TableCell>
+                                                                                <TableCell className="text-center font-black text-rose-500 text-[12px]">
+                                                                                    {item.quantity}
+                                                                                </TableCell>
                                                                                 <TableCell className="text-right font-bold text-slate-500 dark:text-slate-400 text-[10px]">
                                                                                     ₱{Number(item.unit_price).toLocaleString()}
-                                                                                </TableCell>
-                                                                                <TableCell className="text-right font-black text-rose-500 text-[11px]">
-                                                                                    ₱{Number(item.discount_amount || 0).toLocaleString()}
                                                                                 </TableCell>
                                                                                 <TableCell className="text-center">
                                                                                     {item.discount_type_name ? (
@@ -689,11 +864,11 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
                                                                                             {item.discount_type_name}
                                                                                         </span>
                                                                                     ) : (
-                                                                                        <span className="text-[9px] font-bold text-slate-300 uppercase tracking-tighter">--</span>
+                                                                                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">NONE</span>
                                                                                     )}
                                                                                 </TableCell>
-                                                                                <TableCell className="text-center font-black text-rose-500 text-[12px]">
-                                                                                    x{item.quantity}
+                                                                                <TableCell className="text-right font-black text-rose-500 text-[11px]">
+                                                                                    ₱{Number(item.discount_amount || 0).toLocaleString()}
                                                                                 </TableCell>
                                                                                 <TableCell className="text-right font-black text-slate-900 dark:text-white text-[13px] tracking-tighter">
                                                                                     ₱{Number(item.total_amount).toLocaleString()}
@@ -734,15 +909,25 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
                                                                 <p className="text-[10px] text-slate-400 font-bold uppercase">{doc.date ? format(parseISO(doc.date), 'MMM dd, yyyy') : '--'}</p>
                                                             </div>
                                                         </div>
-                                                        <div className="text-right">
-                                                            <p className={cn(
-                                                                "text-lg font-black",
-                                                                doc.balance_name === "DEBIT" ? "text-blue-600" : "text-amber-600"
-                                                            )}>
-                                                                {doc.balance_name === "DEBIT" ? "+" : "-"}₱{doc.amount.toLocaleString()}
-                                            
-                                                            </p>
+                                                        <div className="flex items-center gap-4">
+                                                            <div className="text-right">
+                                                                <p className={cn(
+                                                                    "text-lg font-black",
+                                                                    doc.balance_name === "DEBIT" ? "text-blue-600" : "text-amber-600"
+                                                                )}>
+                                                                    ₱{doc.amount.toLocaleString()}
+                                                                </p>
+                                                            </div>
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="icon"
+                                                                className="h-8 w-8 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-full transition-colors"
+                                                                onClick={() => doc.memo_id && handleUnlinkMemo(doc.id, doc.memo_id)}
+                                                            >
+                                                                    <Trash className="h-4 w-4" />
+                                                            </Button>
                                                         </div>
+
                                                     </div>
 
                                                     <div className="space-y-1.5">
@@ -757,8 +942,8 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
                                                             <span className={cn(
                                                                 "text-[10px] font-bold",
                                                                 doc.status === "APPROVED" ? "text-emerald-500" :
-                                                                doc.status === "FOR APPROVAL" ? "text-amber-500" :
-                                                                "text-indigo-500"
+                                                                    doc.status === "FOR APPROVAL" ? "text-amber-500" :
+                                                                        "text-indigo-500"
                                                             )}>
                                                                 {doc.status || 'LINKED'}
                                                             </span>
@@ -811,15 +996,15 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
                                 <div className="space-y-2.5">
                                     <div className="flex justify-between text-xs font-bold">
                                         <span className="text-rose-500 uppercase tracking-wider">Returns</span>
-                                        <span className="text-rose-600 font-black">-₱{returnAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                                        <span className="text-rose-600 font-black">₱{returnAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                                     </div>
                                     <div className="flex justify-between text-xs font-bold">
                                         <span className="text-amber-500 uppercase tracking-wider">Credit Memo</span>
-                                        <span className="text-amber-600 font-black">-₱{creditMemoAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                                        <span className="text-amber-600 font-black">₱{creditMemoAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                                     </div>
                                     <div className="flex justify-between text-xs font-bold">
                                         <span className="text-blue-500 uppercase tracking-wider">Debit Memo</span>
-                                        <span className="text-blue-600 font-black">+₱{debitMemoAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                                        <span className="text-blue-600 font-black">₱{debitMemoAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                                     </div>
                                 </div>
 
@@ -867,19 +1052,75 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
                 {/* Bottom Actions */}
                 <div className="mt-auto pt-6 flex justify-end items-center">
                     <div className="flex gap-3">
-                        <Button variant="outline" className="rounded-xl font-black text-xs uppercase tracking-widest">Print Invoice</Button>
-                        <Button
-                            disabled={isSaving}
-                            onClick={handleFinalize}
-                            className="bg-primary hover:bg-primary/90 rounded-xl px-8 font-black text-xs uppercase tracking-widest shadow-lg shadow-primary/20 gap-2"
-                        >
-                            {isSaving ? (
-                                <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                            ) : (
-                                <CheckCircle2 className="h-4 w-4" />
-                            )}
-                            Finalize Posting
-                        </Button>
+                        {(() => {
+                            // Helper to handle BIT(1) from DB (can be boolean, number, or Buffer)
+                            const checkBit = (val: unknown) => {
+                                if (typeof val === 'boolean') return val;
+                                if (typeof val === 'number') return val === 1;
+                                if (val && typeof val === 'object' && val !== null && 'data' in val && Array.isArray((val as { data: unknown }).data)) return (val as { data: number[] }).data[0] === 1;
+                                return false;
+                            };
+
+                            const isPosted = checkBit(header.isPosted) || header.transaction_status === 'Completed' || header.transaction_status === 'Posted';
+                            const isDispatched = checkBit(header.isDispatched) || header.transaction_status === 'Dispatched';
+
+                            if (isPosted) {
+                                return (
+                                    <div className="px-6 py-2 bg-slate-100 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
+                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">View Only (Posted)</p>
+                                    </div>
+                                );
+                            }
+
+                            if (isDispatched) {
+                                return (
+                                    <Button
+                                        disabled={isSaving}
+                                        onClick={handleUnDispatch}
+                                        variant="outline"
+                                        className="border-rose-500 text-rose-500 hover:bg-rose-50 rounded-xl px-8 font-black text-xs uppercase tracking-widest gap-2 shadow-lg shadow-rose-500/5"
+                                    >
+                                        {isSaving && (
+                                            <div className="h-4 w-4 animate-spin rounded-full border-2 border-rose-500 border-t-transparent" />
+                                        )}
+                                        Un Dispatch
+                                    </Button>
+                                );
+                            }
+
+                            return (
+                                <div className="flex items-center gap-3">
+                                    {isItemsModified && (
+                                        <Button
+                                            disabled={isSaving}
+                                            onClick={handleUpdateOrder}
+                                            variant="outline"
+                                            className="border-primary text-primary hover:bg-primary/5 rounded-xl px-6 font-black text-xs uppercase tracking-widest gap-2 shadow-sm transition-all hover:scale-105 active:scale-95"
+                                        >
+                                            {isSaving ? (
+                                                <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                                            ) : (
+                                                <RotateCw className="h-4 w-4" />
+                                            )}
+                                            Update Order
+                                        </Button>
+                                    )}
+                                    <Button
+                                        disabled={isSaving}
+                                        onClick={handleFinalize}
+                                        className="bg-primary hover:bg-primary/90 rounded-xl px-8 font-black text-xs uppercase tracking-widest shadow-lg shadow-primary/20 gap-2 transition-all hover:scale-105 active:scale-95"
+                                    >
+                                        {isSaving ? (
+                                            <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                                        ) : (
+                                            <CheckCircle2 className="h-4 w-4" />
+                                        )}
+                                        Dispatch
+                                    </Button>
+                                </div>
+                            );
+
+                        })()}
                     </div>
                 </div>
             </div>
@@ -901,6 +1142,18 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
                         </div>
                     </DialogHeader>
 
+                    <div className="px-6 py-4 bg-white dark:bg-slate-950 border-b border-slate-100 dark:border-slate-800">
+                        <div className="relative">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                            <Input
+                                placeholder="Search return number or salesman..."
+                                className="pl-10 h-10 bg-slate-50 dark:bg-slate-900 border-none font-bold text-xs uppercase tracking-widest"
+                                value={returnSearch}
+                                onChange={(e) => setReturnSearch(e.target.value)}
+                            />
+                        </div>
+                    </div>
+
                     <div className="p-6 max-h-[60vh] overflow-y-auto">
                         {isFetchingReturns ? (
                             <div className="flex flex-col items-center justify-center py-12 gap-4">
@@ -917,37 +1170,42 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
                             </div>
                         ) : (
                             <div className="space-y-3">
-                                {availableReturns.map((ret) => (
-                                    <div key={ret.return_id} className="group flex items-center justify-between p-4 bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 hover:border-rose-500/30 transition-all shadow-sm">
-                                        <div className="flex items-center gap-4">
-                                            <div className="h-10 w-10 rounded-lg bg-rose-50 dark:bg-rose-950/30 flex items-center justify-center group-hover:scale-110 transition-transform">
-                                                <FileText className="h-5 w-5 text-rose-500" />
-                                            </div>
-                                            <div>
-                                                <p className="text-sm font-black text-slate-800 dark:text-slate-200">#{ret.return_number}</p>
-                                                <div className="flex items-center gap-2 mt-0.5">
-                                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">{ret.return_date ? format(parseISO(ret.return_date), 'MMM dd, yyyy') : '--'}</p>
-                                                    <span className="text-[8px] text-slate-300">•</span>
-                                                    <p className="text-[10px] font-black text-primary uppercase tracking-tighter">{ret.salesman_id?.salesman_name || 'N/A'}</p>
+                                {availableReturns
+                                    .filter(ret =>
+                                        ret.return_number.toLowerCase().includes(returnSearch.toLowerCase()) ||
+                                        (ret.salesman_id?.salesman_name || '').toLowerCase().includes(returnSearch.toLowerCase())
+                                    )
+                                    .map((ret) => (
+                                        <div key={ret.return_id} className="group flex items-center justify-between p-4 bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 hover:border-rose-500/30 transition-all shadow-sm">
+                                            <div className="flex items-center gap-4">
+                                                <div className="h-10 w-10 rounded-lg bg-rose-50 dark:bg-rose-950/30 flex items-center justify-center group-hover:scale-110 transition-transform">
+                                                    <FileText className="h-5 w-5 text-rose-500" />
+                                                </div>
+                                                <div>
+                                                    <p className="text-sm font-black text-slate-800 dark:text-slate-200">#{ret.return_number}</p>
+                                                    <div className="flex items-center gap-2 mt-0.5">
+                                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">{ret.return_date ? format(parseISO(ret.return_date), 'MMM dd, yyyy') : '--'}</p>
+                                                        <span className="text-[8px] text-slate-300">•</span>
+                                                        <p className="text-[10px] font-black text-primary uppercase tracking-tighter">{ret.salesman_id?.salesman_name || 'N/A'}</p>
+                                                    </div>
                                                 </div>
                                             </div>
-                                        </div>
-                                        <div className="flex items-center gap-6">
-                                            <div className="text-right">
-                                                <p className="text-base font-black text-slate-900 dark:text-white">₱{Number(ret.total_amount).toLocaleString()}</p>
-                                                <p className="text-[9px] font-black text-rose-500 uppercase tracking-widest opacity-70">Total Amount</p>
+                                            <div className="flex items-center gap-6">
+                                                <div className="text-right">
+                                                    <p className="text-base font-black text-slate-900 dark:text-white">₱{Number(ret.total_amount).toLocaleString()}</p>
+                                                    <p className="text-[9px] font-black text-rose-500 uppercase tracking-widest opacity-70">Total Amount</p>
+                                                </div>
+                                                <Button
+                                                    disabled={isLinking}
+                                                    onClick={() => handleLinkReturn(ret)}
+                                                    className="bg-rose-500 hover:bg-rose-600 text-white rounded-lg px-4 h-9 font-black text-[10px] uppercase tracking-widest shadow-lg shadow-rose-500/20 gap-2"
+                                                >
+                                                    {isLinking ? <RotateCw className="h-3 w-3 animate-spin" /> : <PlusCircle className="h-3.5 w-3.5" />}
+                                                    Add
+                                                </Button>
                                             </div>
-                                            <Button
-                                                disabled={isLinking}
-                                                onClick={() => handleLinkReturn(ret)}
-                                                className="bg-rose-500 hover:bg-rose-600 text-white rounded-lg px-4 h-9 font-black text-[10px] uppercase tracking-widest shadow-lg shadow-rose-500/20 gap-2"
-                                            >
-                                                {isLinking ? <RotateCw className="h-3 w-3 animate-spin" /> : <PlusCircle className="h-3.5 w-3.5" />}
-                                                Add
-                                            </Button>
                                         </div>
-                                    </div>
-                                ))}
+                                    ))}
                             </div>
                         )}
                     </div>
@@ -969,7 +1227,8 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
 
             {/* Link Memo Modal */}
             <Dialog open={isMemoLinkModalOpen} onOpenChange={setIsMemoLinkModalOpen}>
-                <DialogContent className="sm:max-w-[1100px] w-[95vw] p-0 overflow-hidden border-none shadow-2xl dark:bg-slate-950">
+                <DialogContent className="sm:max-w-[600px] w-[95vw] p-0 overflow-hidden border-none shadow-2xl dark:bg-slate-950">
+
                     <DialogHeader className="p-6 bg-slate-50 dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800">
                         <div className="flex items-center gap-3">
                             <div className="p-2 bg-primary rounded-lg shadow-lg shadow-primary/20">
@@ -983,6 +1242,19 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
                             </div>
                         </div>
                     </DialogHeader>
+
+                    <div className="px-6 py-4 bg-white dark:bg-slate-950 border-b border-slate-100 dark:border-slate-800">
+                        <div className="relative">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                            <Input
+                                placeholder="Search memo number, status or account..."
+                                className="pl-10 h-10 bg-slate-50 dark:bg-slate-900 border-none font-bold text-xs uppercase tracking-widest"
+                                value={memoSearch}
+                                onChange={(e) => setMemoSearch(e.target.value)}
+                            />
+                        </div>
+                    </div>
+
 
                     <div className="p-6 max-h-[60vh] overflow-y-auto">
                         {isFetchingMemos ? (
@@ -1000,10 +1272,17 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
                             </div>
                         ) : (
                             <div className="space-y-4">
-                                {availableMemos.map((memo) => {
+                                {availableMemos
+                                    .filter(memo => 
+                                        memo.memo_number.toLowerCase().includes(memoSearch.toLowerCase()) ||
+                                        memo.status.toLowerCase().includes(memoSearch.toLowerCase()) ||
+                                        (memo.account_title || '').toLowerCase().includes(memoSearch.toLowerCase())
+                                    )
+                                    .map((memo) => {
+
                                     const isDebit = memo.balance_name === "DEBIT";
                                     const remaining = Number(memo.amount) - Number(memo.applied_amount);
-                                    
+
                                     return (
                                         <div key={memo.id} className="group flex flex-col p-4 bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 hover:border-primary/30 transition-all shadow-sm">
                                             <div className="flex items-center justify-between mb-3">
@@ -1046,7 +1325,6 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
                                             </div>
 
                                             <Separator className="my-2 bg-slate-50 dark:bg-slate-800" />
-                                            
                                             <div className="grid grid-cols-2 gap-x-8 gap-y-2 mt-1">
                                                 <div className="flex justify-between items-center">
                                                     <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Total Amount</span>
@@ -1067,8 +1345,10 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
                                                     <span className={cn(
                                                         "text-[10px] font-black",
                                                         memo.status === "APPROVED" ? "text-emerald-500" :
-                                                        memo.status === "FOR APPROVAL" ? "text-amber-500" :
-                                                        "text-slate-700 dark:text-slate-200"
+                                                            memo.status === "PARTIALLY APPLIED" ? "text-indigo-500" :
+                                                                memo.status === "FOR APPROVAL" ? "text-amber-500" :
+                                                                    "text-slate-700 dark:text-slate-200"
+
                                                     )}>
                                                         {memo.status}
                                                     </span>
@@ -1089,6 +1369,79 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
                     </div>
                 </DialogContent>
             </Dialog>
+
+            {/* Partial Memo Link Modal */}
+            <Dialog open={isPartialMemoModalOpen} onOpenChange={setIsPartialMemoModalOpen}>
+                <DialogContent className="sm:max-w-[400px] p-0 overflow-hidden border-none shadow-2xl dark:bg-slate-950">
+                    <DialogHeader className="p-6 bg-slate-50 dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800">
+                        <div className="flex items-center gap-3">
+                            <div className={cn(
+                                "p-2 rounded-lg shadow-lg",
+                                pendingMemoToLink?.balance_name === "DEBIT" ? "bg-blue-500 shadow-blue-500/20" : "bg-amber-500 shadow-amber-500/20"
+                            )}>
+                                <Link2 className="h-5 w-5 text-white" />
+                            </div>
+                            <div>
+                                <DialogTitle className="text-xl font-black tracking-tight text-slate-900 dark:text-white">Apply Memo</DialogTitle>
+                                <DialogDescription className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-0.5">
+                                    Memo #{pendingMemoToLink?.memo_number}
+                                </DialogDescription>
+                            </div>
+                        </div>
+                    </DialogHeader>
+
+                    <div className="p-6 space-y-6">
+                        <div className="space-y-4">
+                            <div className="p-4 bg-slate-50 dark:bg-slate-900 rounded-xl border border-dashed border-slate-200 dark:border-slate-800">
+                                <div className="flex justify-between items-center mb-1">
+                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Available Balance</span>
+                                    <span className="text-sm font-black text-slate-900 dark:text-white">₱{(Number(pendingMemoToLink?.amount || 0) - Number(pendingMemoToLink?.applied_amount || 0)).toLocaleString()}</span>
+                                </div>
+                                <div className="flex justify-between items-center">
+                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Remaining Invoice Balance</span>
+                                    <span className="text-sm font-black text-primary">₱{balance.toLocaleString()}</span>
+                                </div>
+                            </div>
+
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Amount to Apply</label>
+                                <div className="relative">
+                                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-sm">₱</span>
+                                    <Input 
+                                        type="number"
+                                        step="0.01"
+                                        placeholder="0.00"
+                                        className="pl-8 h-12 bg-white dark:bg-slate-900 border-2 border-slate-100 dark:border-slate-800 focus:border-primary font-black text-lg transition-all"
+                                        value={partialLinkAmount}
+                                        onChange={(e) => setPartialLinkAmount(e.target.value)}
+                                    />
+                                </div>
+                                <p className="text-[9px] text-slate-400 italic ml-1">* You can apply the full amount or just a portion.</p>
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3">
+                            <Button
+                                variant="outline"
+                                onClick={() => confirmLinkMemo(true)}
+                                disabled={isLinking}
+                                className="h-11 font-black text-[10px] uppercase tracking-widest border-2 border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-900 rounded-xl"
+                            >
+                                Apply Full
+                            </Button>
+                            <Button
+                                onClick={() => confirmLinkMemo(false)}
+                                disabled={isLinking || !partialLinkAmount || Number(partialLinkAmount) <= 0}
+                                className="h-11 font-black text-[10px] uppercase tracking-widest bg-primary hover:bg-primary/90 text-white shadow-lg shadow-primary/20 rounded-xl gap-2"
+                            >
+                                {isLinking ? <RotateCw className="h-3.5 w-3.5 animate-spin" /> : <PlusCircle className="h-3.5 w-3.5" />}
+                                Confirm Partial
+                            </Button>
+                        </div>
+                    </div>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 };
+

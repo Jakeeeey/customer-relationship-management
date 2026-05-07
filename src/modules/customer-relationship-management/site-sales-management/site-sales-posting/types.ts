@@ -24,6 +24,7 @@ export const SalesInvoiceHeaderSchema = z.object({
     net_amount: z.number().nullable().optional(),
     remarks: z.string().nullable().optional(),
     isDispatched: z.boolean().or(z.number().transform(n => n === 1)).nullable().optional(),
+    isPosted: z.boolean().or(z.number().transform(n => n === 1)).nullable().optional(),
     isPaid: z.boolean().or(z.number().transform(n => n === 1)).nullable().optional(), // Mapped from UI toggles if needed
 
     // Virtual fields from Joins/UI
@@ -144,6 +145,8 @@ export interface LinkedDocument {
     account_title?: string;
     gl_code?: string;
     memo_type_id?: number;
+    memo_id?: number;
+
     items?: {
         id: number;
         product_name: string;
