@@ -84,17 +84,26 @@ async function resolveUserId() {
 }
 
 const fetchInChunks = async <T = Record<string, unknown>>(urlBase: string, ids: (string | number)[], filterField: string): Promise<T[]> => {
+    if (!ids || ids.length === 0) return [];
+
     let results: T[] = [];
-    const chunkSize = 80;
+    const chunkSize = 500; // Large chunks to minimize requests
     const cleanBase = urlBase.replace(/[?&]limit=-1$/, "");
     const connector = cleanBase.includes("?") ? "&" : "?";
+
     for (let i = 0; i < ids.length; i += chunkSize) {
         const chunk = ids.slice(i, i + chunkSize);
         const url = `${cleanBase}${connector}filter[${filterField}][_in]=${chunk.join(",")}&limit=-1`;
-        const res = await fetch(url, { headers: fetchHeaders });
-        if (res.ok) {
+        try {
+            const res = await fetch(url, { headers: fetchHeaders });
+            if (!res.ok) {
+                console.error(`[fetchInChunks] Chunk ${i / chunkSize} failed (${res.status})`);
+                continue;
+            }
             const json = await res.json();
             if (json.data) results = results.concat(json.data);
+        } catch (e) {
+            console.error(`[fetchInChunks] Chunk ${i / chunkSize} exception:`, e);
         }
     }
     return results;
@@ -229,6 +238,7 @@ export async function GET(req: NextRequest) {
         }
 
         if (type === "summary_stats") {
+            console.log("[SummaryStats] Starting stats calculation...");
             const search = searchParams.get("search") || "";
             const salesmanId = searchParams.get("salesmanId");
             const customerId = searchParams.get("customerId");
@@ -239,13 +249,12 @@ export async function GET(req: NextRequest) {
 
             // Filter building (Matches worklist logic)
             const filters: { _and: Record<string, unknown>[] } = { _and: [] };
-
+            
             if (salesTypeId && salesTypeId !== "all") {
                 filters._and.push({ sales_type: { _eq: salesTypeId } });
             } else if (!salesTypeId) {
                 filters._and.push({ sales_type: { _eq: 3 } });
             }
-
             if (searchParams.has("isDispatched")) {
                 if (isDispatched) {
                     filters._and.push({ isDispatched: { _eq: true } });
@@ -253,7 +262,6 @@ export async function GET(req: NextRequest) {
                     filters._and.push({ isDispatched: { _neq: true } });
                 }
             }
-
             if (searchParams.has("isPaid")) {
                 const paidValue = searchParams.get("isPaid") === "true";
                 if (paidValue) {
@@ -262,73 +270,66 @@ export async function GET(req: NextRequest) {
                     filters._and.push({ payment_status: { _neq: "Paid" } });
                 }
             }
-
             if (salesmanId && salesmanId !== "all") {
                 filters._and.push({ salesman_id: { _eq: salesmanId } });
             }
-
             if (startDate) {
                 filters._and.push({ invoice_date: { _gte: startDate } });
             }
-
             if (endDate) {
                 const endOfDay = endDate.includes("T") || endDate.includes(" ") ? endDate : `${endDate}T23:59:59`;
                 filters._and.push({ invoice_date: { _lte: endOfDay } });
             }
-
             if (search) {
                 filters._and.push({ invoice_no: { _icontains: search } });
             }
-
             if (customerId && customerId !== "all") {
                 filters._and.push({ customer_code: { _eq: customerId } });
             }
 
-            // 1. Fetch matching invoice IDs and their gross amounts
-            const query = new URLSearchParams({
+            console.log("[SummaryStats] Filters:", JSON.stringify(filters));
+
+            // 1. Fetch Total Gross
+            const grossQuery = new URLSearchParams({
                 filter: JSON.stringify(filters),
-                fields: "invoice_id,gross_amount",
-                limit: "-1"
+                "aggregate[sum]": "gross_amount"
             });
-
-            const res = await fetch(`${DIRECTUS_URL}/items/sales_invoice?${query.toString()}`, { headers: fetchHeaders });
-            if (!res.ok) throw new Error("Failed to fetch invoices for stats");
-
-            const invoices = (await res.json()).data || [];
-
-            interface InvoiceStatItem {
-                invoice_id: number;
-                gross_amount: number;
+            console.log("[SummaryStats] Fetching Gross...");
+            const grossRes = await fetch(`${DIRECTUS_URL}/items/sales_invoice?${grossQuery.toString()}`, { headers: fetchHeaders });
+            if (!grossRes.ok) {
+                const err = await grossRes.json();
+                console.error("[SummaryStats] Gross Fetch Failed:", err);
+                throw new Error("Failed to fetch aggregate gross");
             }
+            const grossData = await grossRes.json();
+            const totalGross = Number(grossData.data?.[0]?.sum?.gross_amount || 0);
+            console.log("[SummaryStats] Total Gross:", totalGross);
 
-            const invoiceIds = invoices.map((i: InvoiceStatItem) => i.invoice_id);
-
-            if (invoiceIds.length === 0) {
-                return NextResponse.json({ totalGross: 0, totalReturns: 0, totalMemos: 0 });
-            }
-
-            const totalGross = invoices.reduce((acc: number, cur: InvoiceStatItem) => acc + Number(cur.gross_amount || 0), 0);
-
-            // 2. Fetch linked returns and memos in parallel for efficiency
-            const returnsFilter = { invoice_no: { _in: invoiceIds } };
-            const memosFilter = { invoice_id: { _in: invoiceIds } };
+            // 2. Fetch linked returns and memos using NESTED FILTERS (The High-Performance Way)
+            // Instead of fetching 5k IDs, we tell Directus to filter the returns/memos 
+            // by the same invoice criteria in a single query.
+            console.log("[SummaryStats] Fetching Returns & Memos using nested filters...");
+            
+            const returnsNestedFilter = { invoice_no: filters };
+            const memosNestedFilter = { invoice_id: filters };
 
             const [returnsRes, memosRes] = await Promise.all([
-                fetch(`${DIRECTUS_URL}/items/sales_invoice_sales_return?filter=${JSON.stringify(returnsFilter)}&fields=amount&limit=-1`, { headers: fetchHeaders }),
-                fetch(`${DIRECTUS_URL}/items/customer_memo_invoices?filter=${JSON.stringify(memosFilter)}&fields=amount&limit=-1`, { headers: fetchHeaders })
+                fetch(`${DIRECTUS_URL}/items/sales_invoice_sales_return?filter=${JSON.stringify(returnsNestedFilter)}&aggregate[sum]=amount`, { headers: fetchHeaders }),
+                fetch(`${DIRECTUS_URL}/items/customer_memo_invoices?filter=${JSON.stringify(memosNestedFilter)}&aggregate[sum]=amount`, { headers: fetchHeaders })
             ]);
+
+            if (!returnsRes.ok) console.error("[SummaryStats] Returns Fetch Failed:", await returnsRes.text());
+            if (!memosRes.ok) console.error("[SummaryStats] Memos Fetch Failed:", await memosRes.text());
 
             const [returnsJson, memosJson] = await Promise.all([
                 returnsRes.ok ? returnsRes.json() : Promise.resolve({ data: [] }),
                 memosRes.ok ? memosRes.json() : Promise.resolve({ data: [] })
             ]);
 
-            interface AmountStatItem {
-                amount: number;
-            }
+            const totalReturns = Number(returnsJson.data?.[0]?.sum?.amount || 0);
+            const totalMemos = Number(memosJson.data?.[0]?.sum?.amount || 0);
 
-            const totalReturns = (returnsJson.data as AmountStatItem[] || []).reduce((acc: number, cur: AmountStatItem) => acc + Number(cur.amount || 0), 0);
-            const totalMemos = (memosJson.data as AmountStatItem[] || []).reduce((acc: number, cur: AmountStatItem) => acc + Number(cur.amount || 0), 0);
+            console.log("[SummaryStats] Results:", { totalGross, totalReturns, totalMemos });
 
             return NextResponse.json({
                 totalGross,
@@ -343,7 +344,7 @@ export async function GET(req: NextRequest) {
             if (!invoiceId) return NextResponse.json({ error: "invoiceId required" }, { status: 400 });
 
             // Fetch Header with expanded info
-            const headerRes = await fetch(`${DIRECTUS_URL}/items/sales_invoice/${invoiceId}?fields=*,salesman_id.salesman_name,salesman_id.salesman_code,salesman_id.price_type_id,branch_id.*,invoice_type.type`, { headers: fetchHeaders });
+            const headerRes = await fetch(`${DIRECTUS_URL}/items/sales_invoice/${invoiceId}?fields=*,salesman_id.salesman_name,salesman_id.salesman_code,salesman_id.price_type_id,branch_id.*,invoice_type.type,sales_type.operation_name`, { headers: fetchHeaders });
             const header = (await headerRes.json()).data || {};
 
             // Resolve Customer Name
@@ -1197,7 +1198,7 @@ export async function POST(req: NextRequest) {
             // 2. Fetch remaining links for this memo to recalculate applied_amount
             // We sum ALL remaining links across ALL invoices to ensure integrity
             const remainingRes = await fetch(`${DIRECTUS_URL}/items/customer_memo_invoices?filter[memo_id][id][_eq]=${memoId}&fields=amount&limit=-1`, { headers: fetchHeaders });
-            
+
             if (remainingRes.ok) {
                 const remainingData = (await remainingRes.json()).data || [];
                 const newAppliedAmount = remainingData.reduce((acc: number, cur: { amount: number }) => acc + Number(cur.amount || 0), 0);
@@ -1209,12 +1210,12 @@ export async function POST(req: NextRequest) {
                 if (memoRes.ok) {
                     const memo = (await memoRes.json()).data;
                     const totalAmount = Number(memo.amount) || 0;
-                    
+
                     // Revert logic:
                     // 0 applied -> APPROVED
                     // > 0 but < total -> PARTIALLY APPLIED
                     // >= total -> APPLIED
-                    let newStatus = "APPROVED"; 
+                    let newStatus = "APPROVED";
                     if (newAppliedAmount > 0) {
                         const isFullyApplied = Math.round(newAppliedAmount * 100) / 100 >= Math.round(totalAmount * 100) / 100;
                         newStatus = isFullyApplied ? "APPLIED" : "PARTIALLY APPLIED";
@@ -1284,13 +1285,13 @@ export async function POST(req: NextRequest) {
                 const existing = existingLinks[0];
                 const consolidatedAmount = Number(existing.amount || 0) + Number(amount);
                 console.log(`[LinkMemo] Consolidating Memo ${memoId} to Invoice ${invoiceId}. New Total: ${consolidatedAmount}`);
-                
+
                 const patchRes = await fetch(`${DIRECTUS_URL}/items/customer_memo_invoices/${existing.id}`, {
                     method: "PATCH",
                     headers: fetchHeaders,
-                    body: JSON.stringify({ 
+                    body: JSON.stringify({
                         amount: consolidatedAmount,
-                        date_applied: now 
+                        date_applied: now
                     })
                 });
 

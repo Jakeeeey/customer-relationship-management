@@ -60,10 +60,12 @@ export interface Product {
     description?: string;
 }
 
-export type SalesInvoiceHeader = z.infer<typeof SalesInvoiceHeaderSchema> & {
+export type SalesInvoiceHeader = Omit<z.infer<typeof SalesInvoiceHeaderSchema>, 'salesman_id' | 'branch_id' | 'sales_type' | 'invoice_type'> & {
     // Allow expanded objects from Directus
     branch_id?: Branch | null;
     salesman_id?: Salesman | null;
+    sales_type?: SalesType | number | null;
+    invoice_type?: InvoiceType | number | null;
 };
 
 // --- Detail Schema ---
