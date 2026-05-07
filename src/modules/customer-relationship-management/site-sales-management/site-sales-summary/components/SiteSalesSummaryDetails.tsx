@@ -317,12 +317,15 @@ export const SiteSalesSummaryDetails: React.FC<SiteSalesSummaryDetailsProps> = (
                                         <span className="text-slate-400 uppercase">Debit Memos</span>
                                         <span className="text-blue-500">+₱{debitMemoAmount.toLocaleString()}</span>
                                     </div>
-                                    <div className="p-4 bg-slate-900 dark:bg-primary/10 rounded-2xl mt-4">
-                                        <p className="text-[10px] font-black text-slate-400 dark:text-primary/60 uppercase tracking-widest mb-1 text-center">Remaining Balance</p>
-                                        <p className="text-2xl font-black text-white dark:text-primary text-center tracking-tighter">
-                                            ₱{balance.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                                        </p>
-                                    </div>
+                                    
+                                    {header.payment_status?.toLowerCase() !== 'paid' && (
+                                        <div className="p-4 bg-primary rounded-2xl mt-4 shadow-lg shadow-primary/20 transition-all duration-300 hover:scale-[1.02]">
+                                            <p className="text-[10px] font-black text-white/60 uppercase tracking-widest mb-1 text-center">Remaining Balance</p>
+                                            <p className="text-2xl font-black text-white text-center tracking-tighter">
+                                                ₱{balance.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                            </p>
+                                        </div>
+                                    )}
                                 </div>
                             </CardContent>
                         </Card>
