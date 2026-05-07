@@ -817,8 +817,8 @@ export async function GET(req: NextRequest) {
 
         if (type === "customers") {
             const search = searchParams.get("search") || "";
-            const limit = search ? "-1" : "100"; // Cap at 100 if no search term
-            let url = `${DIRECTUS_URL}/items/customer?filter[isActive][_eq]=1&fields=id,customer_code,customer_name,store_name,city,province,isActive,payment_term&limit=${limit}`;
+            // Remove the 100 limit to show all active customers
+            let url = `${DIRECTUS_URL}/items/customer?filter[isActive][_eq]=1&fields=id,customer_code,customer_name,store_name,city,province,isActive,payment_term&limit=-1`;
             
             if (search) {
                 url += `&filter[_or][0][customer_name][_icontains]=${encodeURIComponent(search)}&filter[_or][1][customer_code][_icontains]=${encodeURIComponent(search)}`;
