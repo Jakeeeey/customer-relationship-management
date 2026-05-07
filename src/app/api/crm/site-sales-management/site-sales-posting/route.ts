@@ -586,7 +586,7 @@ export async function GET(req: NextRequest) {
                         });
                         return {
                             id: p.id, type: "RETURN",
-                            reference_no: displayRef ? `SR-${displayRef}` : `SR-${p.id}`,
+                            reference_no: displayRef ? `${displayRef}` : `${p.id}`,
                             date: p.headerInfo?.return_date || p.created_at,
                             amount: Number(p.amount) || Number(p.headerInfo?.total_amount) || 0,
                             status: "LINKED", items
