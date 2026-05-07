@@ -622,7 +622,10 @@ export async function GET(req: NextRequest) {
         }
 
         if (type === "salesmen") {
-            const res = await fetch(`${DIRECTUS_URL}/items/salesman?filter[isActive][_eq]=1&fields=*,branch_code&limit=-1`, { headers: fetchHeaders, cache: "no-store" });
+            const res = await fetch(`${DIRECTUS_URL}/items/salesman?filter[isActive][_eq]=1&fields=*,branch_code&limit=-1`, { 
+                headers: fetchHeaders,
+                next: { revalidate: 3600 } // Cache for 1 hour
+            });
             return NextResponse.json((await res.json()).data || []);
         }
 
@@ -696,17 +699,26 @@ export async function GET(req: NextRequest) {
         }
 
         if (type === "sales_types") {
-            const res = await fetch(`${DIRECTUS_URL}/items/operation?fields=id,operation_name&limit=-1`, { headers: fetchHeaders, cache: "no-store" });
+            const res = await fetch(`${DIRECTUS_URL}/items/operation?fields=id,operation_name&limit=-1`, { 
+                headers: fetchHeaders,
+                next: { revalidate: 86400 } // Cache for 24 hours
+            });
             return NextResponse.json((await res.json()).data || []);
         }
 
         if (type === "customers") {
             const search = searchParams.get("search") || "";
-            let url = `${DIRECTUS_URL}/items/customer?filter[isActive][_eq]=1&fields=id,customer_code,customer_name,store_name,city,province,isActive,payment_term&limit=-1`;
+            const limit = search ? "-1" : "100"; // Cap at 100 if no search term
+            let url = `${DIRECTUS_URL}/items/customer?filter[isActive][_eq]=1&fields=id,customer_code,customer_name,store_name,city,province,isActive,payment_term&limit=${limit}`;
+            
             if (search) {
                 url += `&filter[_or][0][customer_name][_icontains]=${encodeURIComponent(search)}&filter[_or][1][customer_code][_icontains]=${encodeURIComponent(search)}`;
             }
-            const res = await fetch(url, { headers: fetchHeaders, cache: "no-store" });
+            
+            const res = await fetch(url, { 
+                headers: fetchHeaders,
+                next: { revalidate: search ? 0 : 3600 } // Cache default list, don't cache searches
+            });
             return NextResponse.json((await res.json()).data || []);
         }
 

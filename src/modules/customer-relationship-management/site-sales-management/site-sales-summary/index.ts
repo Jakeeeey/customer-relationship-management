@@ -1,3 +1,3 @@
-
-export * from "./SiteSalesSummaryPage";
-export * from "./types";
+export * from './SiteSalesSummaryPage';
+export * from './components/SiteSalesSummaryDetails';
+export * from './types';
