@@ -227,6 +227,115 @@ export async function GET(req: NextRequest) {
                 }
             });
         }
+        
+        if (type === "summary_stats") {
+            const search = searchParams.get("search") || "";
+            const salesmanId = searchParams.get("salesmanId");
+            const customerId = searchParams.get("customerId");
+            const salesTypeId = searchParams.get("salesTypeId");
+            const startDate = searchParams.get("startDate");
+            const endDate = searchParams.get("endDate");
+            const isDispatched = searchParams.get("isDispatched") === "true";
+
+            // Filter building (Matches worklist logic)
+            const filters: { _and: Record<string, unknown>[] } = { _and: [] };
+            
+            if (salesTypeId && salesTypeId !== "all") {
+                filters._and.push({ sales_type: { _eq: salesTypeId } });
+            } else if (!salesTypeId) {
+                filters._and.push({ sales_type: { _eq: 3 } });
+            }
+
+            if (searchParams.has("isDispatched")) {
+                if (isDispatched) {
+                    filters._and.push({ isDispatched: { _eq: true } });
+                } else {
+                    filters._and.push({ isDispatched: { _neq: true } });
+                }
+            }
+
+            if (searchParams.has("isPaid")) {
+                const paidValue = searchParams.get("isPaid") === "true";
+                if (paidValue) {
+                    filters._and.push({ payment_status: { _eq: "Paid" } });
+                } else {
+                    filters._and.push({ payment_status: { _neq: "Paid" } });
+                }
+            }
+
+            if (salesmanId && salesmanId !== "all") {
+                filters._and.push({ salesman_id: { _eq: salesmanId } });
+            }
+
+            if (startDate) {
+                filters._and.push({ invoice_date: { _gte: startDate } });
+            }
+
+            if (endDate) {
+                const endOfDay = endDate.includes("T") || endDate.includes(" ") ? endDate : `${endDate}T23:59:59`;
+                filters._and.push({ invoice_date: { _lte: endOfDay } });
+            }
+
+            if (search) {
+                filters._and.push({ invoice_no: { _icontains: search } });
+            }
+
+            if (customerId && customerId !== "all") {
+                filters._and.push({ customer_code: { _eq: customerId } });
+            }
+
+            // 1. Fetch matching invoice IDs and their gross amounts
+            const query = new URLSearchParams({
+                filter: JSON.stringify(filters),
+                fields: "invoice_id,gross_amount",
+                limit: "-1"
+            });
+
+            const res = await fetch(`${DIRECTUS_URL}/items/sales_invoice?${query.toString()}`, { headers: fetchHeaders });
+            if (!res.ok) throw new Error("Failed to fetch invoices for stats");
+
+            const invoices = (await res.json()).data || [];
+            
+            interface InvoiceStatItem {
+                invoice_id: number;
+                gross_amount: number;
+            }
+            
+            const invoiceIds = invoices.map((i: InvoiceStatItem) => i.invoice_id);
+
+            if (invoiceIds.length === 0) {
+                return NextResponse.json({ totalGross: 0, totalReturns: 0, totalMemos: 0 });
+            }
+
+            const totalGross = invoices.reduce((acc: number, cur: InvoiceStatItem) => acc + Number(cur.gross_amount || 0), 0);
+
+            // 2. Fetch linked returns and memos in parallel for efficiency
+            const returnsFilter = { invoice_no: { _in: invoiceIds } };
+            const memosFilter = { invoice_id: { _in: invoiceIds } };
+
+            const [returnsRes, memosRes] = await Promise.all([
+                fetch(`${DIRECTUS_URL}/items/sales_invoice_sales_return?filter=${JSON.stringify(returnsFilter)}&fields=amount&limit=-1`, { headers: fetchHeaders }),
+                fetch(`${DIRECTUS_URL}/items/customer_memo_invoices?filter=${JSON.stringify(memosFilter)}&fields=amount&limit=-1`, { headers: fetchHeaders })
+            ]);
+
+            const [returnsJson, memosJson] = await Promise.all([
+                returnsRes.ok ? returnsRes.json() : Promise.resolve({ data: [] }),
+                memosRes.ok ? memosRes.json() : Promise.resolve({ data: [] })
+            ]);
+
+            interface AmountStatItem {
+                amount: number;
+            }
+
+            const totalReturns = (returnsJson.data as AmountStatItem[] || []).reduce((acc: number, cur: AmountStatItem) => acc + Number(cur.amount || 0), 0);
+            const totalMemos = (memosJson.data as AmountStatItem[] || []).reduce((acc: number, cur: AmountStatItem) => acc + Number(cur.amount || 0), 0);
+
+            return NextResponse.json({
+                totalGross,
+                totalReturns,
+                totalMemos
+            });
+        }
 
 
         if (type === "details") {

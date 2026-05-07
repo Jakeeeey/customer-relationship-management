@@ -235,3 +235,9 @@ export interface CustomerSalesmanLink {
     customer_id: number;
     salesman_id: Salesman;
 }
+
+export interface SiteSalesSummaryStats {
+    totalGross: number;
+    totalReturns: number;
+    totalMemos: number;
+}

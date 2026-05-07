@@ -5,13 +5,17 @@ import { useSiteSalesSummary } from './hooks/useSiteSalesSummary';
 import { Separator } from '@/components/ui/separator';
 import { WorklistFilters } from './types';
 import { SiteSalesSummaryList } from './components/SiteSalesSummaryList';
+import SiteSalesSummaryStatsCards from './components/SiteSalesSummaryStatsCards';
 
 
 export const SiteSalesSummaryPage = () => {
     const { 
         worklist, 
         isLoading, 
+        isStatsLoading,
+        stats,
         fetchWorklist, 
+        fetchStats,
         fetchUtilityData, 
         salesmen, 
         customers,
@@ -24,7 +28,8 @@ export const SiteSalesSummaryPage = () => {
 
     const handleFilterChange = React.useCallback((filters: WorklistFilters) => {
         fetchWorklist(filters);
-    }, [fetchWorklist]);
+        fetchStats(filters);
+    }, [fetchWorklist, fetchStats]);
 
     return (
         <div className="flex flex-col gap-6 p-4 md:p-8 bg-slate-50/50 dark:bg-[#020617] dark:bg-[radial-gradient(circle_at_top_right,_var(--tw-gradient-stops))] dark:from-slate-900/20 dark:via-slate-950 dark:to-slate-950 min-h-screen transition-colors duration-300 relative overflow-hidden">
@@ -36,6 +41,8 @@ export const SiteSalesSummaryPage = () => {
                 <p className="text-slate-500 dark:text-slate-400 font-medium">Historical record of all site sales transactions.</p>
                 <Separator className="mt-2 bg-slate-200 dark:bg-slate-800" />
             </div>
+
+            <SiteSalesSummaryStatsCards stats={stats} isLoading={isStatsLoading} />
             
             <SiteSalesSummaryList 
                 data={worklist} 
