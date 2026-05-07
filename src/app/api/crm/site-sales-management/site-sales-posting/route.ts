@@ -47,6 +47,29 @@ interface DiscountItem {
     unit_price?: number | string;
 }
 
+interface InvoiceDetailItem {
+    detail_id?: number;
+    product_id?: {
+        product_id: number;
+        product_name?: string;
+        product_code?: string;
+        product_brand?: CategoryBrand | number | null;
+        product_category?: CategoryBrand | number | null;
+    } | number | null;
+    quantity: number;
+    unit_price: number;
+    discount_amount: number;
+    discount_type?: {
+        id?: number | string;
+        discount_type?: string;
+    } | number | string | null;
+    total_amount: number;
+    unit?: {
+        unit_id: number;
+        unit_name?: string;
+    } | number | string | null;
+}
+
 function decodeJwtPayload(token: string): JwtPayload | null {
     try {
         const parts = token.split(".");
@@ -84,17 +107,26 @@ async function resolveUserId() {
 }
 
 const fetchInChunks = async <T = Record<string, unknown>>(urlBase: string, ids: (string | number)[], filterField: string): Promise<T[]> => {
+    if (!ids || ids.length === 0) return [];
+
     let results: T[] = [];
-    const chunkSize = 80;
+    const chunkSize = 500; // Large chunks to minimize requests
     const cleanBase = urlBase.replace(/[?&]limit=-1$/, "");
     const connector = cleanBase.includes("?") ? "&" : "?";
+
     for (let i = 0; i < ids.length; i += chunkSize) {
         const chunk = ids.slice(i, i + chunkSize);
         const url = `${cleanBase}${connector}filter[${filterField}][_in]=${chunk.join(",")}&limit=-1`;
-        const res = await fetch(url, { headers: fetchHeaders });
-        if (res.ok) {
+        try {
+            const res = await fetch(url, { headers: fetchHeaders });
+            if (!res.ok) {
+                console.error(`[fetchInChunks] Chunk ${i / chunkSize} failed (${res.status})`);
+                continue;
+            }
             const json = await res.json();
             if (json.data) results = results.concat(json.data);
+        } catch (e) {
+            console.error(`[fetchInChunks] Chunk ${i / chunkSize} exception:`, e);
         }
     }
     return results;
@@ -207,15 +239,68 @@ export async function GET(req: NextRequest) {
                 });
             }
 
+            // 3. Batch Fetch Returns and Memos for the current page
+            const invoiceIds = rawData.map((item: { invoice_id: number | string }) => item.invoice_id);
+            const returnsMap: Record<string, number> = {};
+            const creditsMap: Record<string, number> = {};
+            const debitsMap: Record<string, number> = {};
+
+            if (invoiceIds.length > 0) {
+                const [returnsBatch, memosBatch] = await Promise.all([
+                    fetchInChunks<{ invoice_no: number | string; amount: number }>(
+                        `${DIRECTUS_URL}/items/sales_invoice_sales_return?fields=invoice_no,amount`,
+                        invoiceIds,
+                        "invoice_no"
+                    ),
+                    fetchInChunks<{ invoice_id: number | string; amount: number; memo_id: { type: { id: number; balance_name: string } } | number }>(
+                        `${DIRECTUS_URL}/items/customer_memo_invoices?fields=invoice_id,amount,memo_id.type.id,memo_id.type.balance_name`,
+                        invoiceIds,
+                        "invoice_id"
+                    )
+                ]);
+
+                returnsBatch.forEach(r => {
+                    const id = String(r.invoice_no);
+                    returnsMap[id] = (returnsMap[id] || 0) + Number(r.amount || 0);
+                });
+
+                memosBatch.forEach(m => {
+                    const id = String(m.invoice_id);
+                    const memoType = typeof m.memo_id === 'object' ? m.memo_id?.type : null;
+                    const isDebit = (memoType && (memoType.balance_name === "DEBIT" || memoType.id === 2));
+
+                    if (isDebit) {
+                        debitsMap[id] = (debitsMap[id] || 0) + Number(m.amount || 0);
+                    } else {
+                        creditsMap[id] = (creditsMap[id] || 0) + Number(m.amount || 0);
+                    }
+                });
+            }
+
             const data = rawData.map((item: {
+                invoice_id: number | string;
                 customer_code: string;
                 salesman_id: { id: string | number; salesman_name: string } | string | number;
-            }) => ({
-                ...item,
-                salesman_name: typeof item.salesman_id === 'object' ? item.salesman_id?.salesman_name : "N/A",
-                customer_name: customerMap[item.customer_code?.trim()] || item.customer_code || "N/A",
-                salesman_id: typeof item.salesman_id === 'object' ? item.salesman_id?.id : item.salesman_id
-            }));
+                net_amount: number;
+            }) => {
+                const id = String(item.invoice_id);
+                const ret = returnsMap[id] || 0;
+                const cre = creditsMap[id] || 0;
+                const deb = debitsMap[id] || 0;
+                const net = Number(item.net_amount || 0);
+                const bal = net - cre - ret + deb;
+
+                return {
+                    ...item,
+                    salesman_name: typeof item.salesman_id === 'object' ? item.salesman_id?.salesman_name : "N/A",
+                    customer_name: customerMap[item.customer_code?.trim()] || item.customer_code || "N/A",
+                    salesman_id: typeof item.salesman_id === 'object' ? item.salesman_id?.id : item.salesman_id,
+                    credits: cre,
+                    debits: deb,
+                    returns: ret,
+                    balance: bal
+                };
+            });
 
 
             return NextResponse.json({
@@ -229,6 +314,7 @@ export async function GET(req: NextRequest) {
         }
 
         if (type === "summary_stats") {
+            console.log("[SummaryStats] Starting stats calculation...");
             const search = searchParams.get("search") || "";
             const salesmanId = searchParams.get("salesmanId");
             const customerId = searchParams.get("customerId");
@@ -245,7 +331,6 @@ export async function GET(req: NextRequest) {
             } else if (!salesTypeId) {
                 filters._and.push({ sales_type: { _eq: 3 } });
             }
-
             if (searchParams.has("isDispatched")) {
                 if (isDispatched) {
                     filters._and.push({ isDispatched: { _eq: true } });
@@ -253,7 +338,6 @@ export async function GET(req: NextRequest) {
                     filters._and.push({ isDispatched: { _neq: true } });
                 }
             }
-
             if (searchParams.has("isPaid")) {
                 const paidValue = searchParams.get("isPaid") === "true";
                 if (paidValue) {
@@ -262,78 +346,94 @@ export async function GET(req: NextRequest) {
                     filters._and.push({ payment_status: { _neq: "Paid" } });
                 }
             }
-
             if (salesmanId && salesmanId !== "all") {
                 filters._and.push({ salesman_id: { _eq: salesmanId } });
             }
-
             if (startDate) {
                 filters._and.push({ invoice_date: { _gte: startDate } });
             }
-
             if (endDate) {
                 const endOfDay = endDate.includes("T") || endDate.includes(" ") ? endDate : `${endDate}T23:59:59`;
                 filters._and.push({ invoice_date: { _lte: endOfDay } });
             }
-
             if (search) {
                 filters._and.push({ invoice_no: { _icontains: search } });
             }
-
             if (customerId && customerId !== "all") {
                 filters._and.push({ customer_code: { _eq: customerId } });
             }
 
-            // 1. Fetch matching invoice IDs and their gross amounts
-            const query = new URLSearchParams({
+            console.log("[SummaryStats] Filters:", JSON.stringify(filters));
+
+            // 1. Fetch Total Gross
+            const grossQuery = new URLSearchParams({
                 filter: JSON.stringify(filters),
-                fields: "invoice_id,gross_amount",
-                limit: "-1"
+                "aggregate[sum]": "gross_amount"
             });
-
-            const res = await fetch(`${DIRECTUS_URL}/items/sales_invoice?${query.toString()}`, { headers: fetchHeaders });
-            if (!res.ok) throw new Error("Failed to fetch invoices for stats");
-
-            const invoices = (await res.json()).data || [];
-
-            interface InvoiceStatItem {
-                invoice_id: number;
-                gross_amount: number;
+            console.log("[SummaryStats] Fetching Gross...");
+            const grossRes = await fetch(`${DIRECTUS_URL}/items/sales_invoice?${grossQuery.toString()}`, { headers: fetchHeaders });
+            if (!grossRes.ok) {
+                const err = await grossRes.json();
+                console.error("[SummaryStats] Gross Fetch Failed:", err);
+                throw new Error("Failed to fetch aggregate gross");
             }
+            const grossData = await grossRes.json();
+            const totalGross = Number(grossData.data?.[0]?.sum?.gross_amount || 0);
+            console.log("[SummaryStats] Total Gross:", totalGross);
 
-            const invoiceIds = invoices.map((i: InvoiceStatItem) => i.invoice_id);
+            // 2. Fetch linked returns and memos using NESTED FILTERS
+            console.log("[SummaryStats] Fetching Returns & Memos using nested filters...");
 
-            if (invoiceIds.length === 0) {
-                return NextResponse.json({ totalGross: 0, totalReturns: 0, totalMemos: 0 });
-            }
+            const returnsNestedFilter = { invoice_no: filters };
+            const memosNestedFilter = { invoice_id: filters };
 
-            const totalGross = invoices.reduce((acc: number, cur: InvoiceStatItem) => acc + Number(cur.gross_amount || 0), 0);
-
-            // 2. Fetch linked returns and memos in parallel for efficiency
-            const returnsFilter = { invoice_no: { _in: invoiceIds } };
-            const memosFilter = { invoice_id: { _in: invoiceIds } };
-
-            const [returnsRes, memosRes] = await Promise.all([
-                fetch(`${DIRECTUS_URL}/items/sales_invoice_sales_return?filter=${JSON.stringify(returnsFilter)}&fields=amount&limit=-1`, { headers: fetchHeaders }),
-                fetch(`${DIRECTUS_URL}/items/customer_memo_invoices?filter=${JSON.stringify(memosFilter)}&fields=amount&limit=-1`, { headers: fetchHeaders })
+            // For memos, we need to separate Credits and Debits
+            const [returnsRes, creditsRes, debitsRes] = await Promise.all([
+                fetch(`${DIRECTUS_URL}/items/sales_invoice_sales_return?filter=${JSON.stringify(returnsNestedFilter)}&aggregate[sum]=amount`, { headers: fetchHeaders }),
+                fetch(`${DIRECTUS_URL}/items/customer_memo_invoices?filter=${JSON.stringify({
+                    ...memosNestedFilter,
+                    memo_id: { type: { balance_name: { _eq: "CREDIT" } } }
+                })}&aggregate[sum]=amount`, { headers: fetchHeaders }),
+                fetch(`${DIRECTUS_URL}/items/customer_memo_invoices?filter=${JSON.stringify({
+                    ...memosNestedFilter,
+                    memo_id: { type: { balance_name: { _eq: "DEBIT" } } }
+                })}&aggregate[sum]=amount`, { headers: fetchHeaders })
             ]);
 
-            const [returnsJson, memosJson] = await Promise.all([
+            if (!returnsRes.ok) console.error("[SummaryStats] Returns Fetch Failed:", await returnsRes.text());
+            if (!creditsRes.ok) console.error("[SummaryStats] Credits Fetch Failed:", await creditsRes.text());
+            if (!debitsRes.ok) console.error("[SummaryStats] Debits Fetch Failed:", await debitsRes.text());
+
+            const [returnsJson, creditsJson, debitsJson] = await Promise.all([
                 returnsRes.ok ? returnsRes.json() : Promise.resolve({ data: [] }),
-                memosRes.ok ? memosRes.json() : Promise.resolve({ data: [] })
+                creditsRes.ok ? creditsRes.json() : Promise.resolve({ data: [] }),
+                debitsRes.ok ? debitsRes.json() : Promise.resolve({ data: [] })
             ]);
 
-            interface AmountStatItem {
-                amount: number;
-            }
+            const totalReturns = Number(returnsJson.data?.[0]?.sum?.amount || 0);
+            const totalCredits = Number(creditsJson.data?.[0]?.sum?.amount || 0);
+            const totalDebits = Number(debitsJson.data?.[0]?.sum?.amount || 0);
 
-            const totalReturns = (returnsJson.data as AmountStatItem[] || []).reduce((acc: number, cur: AmountStatItem) => acc + Number(cur.amount || 0), 0);
-            const totalMemos = (memosJson.data as AmountStatItem[] || []).reduce((acc: number, cur: AmountStatItem) => acc + Number(cur.amount || 0), 0);
+            // Calculate total balance: Net Amount - Returns - Credits + Debits
+            // Wait, we need total Net Amount too.
+            const netQuery = new URLSearchParams({
+                filter: JSON.stringify(filters),
+                "aggregate[sum]": "net_amount"
+            });
+            const netRes = await fetch(`${DIRECTUS_URL}/items/sales_invoice?${netQuery.toString()}`, { headers: fetchHeaders });
+            const netData = await netRes.json();
+            const totalNet = Number(netData.data?.[0]?.sum?.net_amount || 0);
+
+            const totalBalance = totalNet - totalCredits - totalReturns + totalDebits;
+
+            console.log("[SummaryStats] Results:", { totalGross, totalReturns, totalCredits, totalDebits, totalBalance });
 
             return NextResponse.json({
                 totalGross,
                 totalReturns,
-                totalMemos
+                totalCredits,
+                totalDebits,
+                totalBalance
             });
         }
 
@@ -343,7 +443,7 @@ export async function GET(req: NextRequest) {
             if (!invoiceId) return NextResponse.json({ error: "invoiceId required" }, { status: 400 });
 
             // Fetch Header with expanded info
-            const headerRes = await fetch(`${DIRECTUS_URL}/items/sales_invoice/${invoiceId}?fields=*,salesman_id.salesman_name,salesman_id.salesman_code,salesman_id.price_type_id,branch_id.*,invoice_type.type`, { headers: fetchHeaders });
+            const headerRes = await fetch(`${DIRECTUS_URL}/items/sales_invoice/${invoiceId}?fields=*,salesman_id.salesman_name,salesman_id.salesman_code,salesman_id.price_type_id,branch_id.*,invoice_type.type,sales_type.operation_name,price_type.price_type_name`, { headers: fetchHeaders });
             const header = (await headerRes.json()).data || {};
 
             // Resolve Customer Name
@@ -362,6 +462,21 @@ export async function GET(req: NextRequest) {
                 ...acc,
                 [Number(u.unit_id)]: u.unit_name || "N/A"
             }), {});
+
+            // Fetch Price Types for mapping (in case it's not a direct relationship)
+            const ptRes = await fetch(`${DIRECTUS_URL}/items/price_types?limit=-1`, { headers: fetchHeaders });
+            const ptData = (await ptRes.json()).data || [];
+            const priceTypeMap: Record<number, string> = ptData.reduce((acc: Record<number, string>, p: { price_type_id: number; price_type_name: string }) => ({
+                ...acc,
+                [Number(p.price_type_id)]: p.price_type_name
+            }), {});
+
+            // If price_type is just an ID in the header, resolve it
+            if (header.price_type && !isNaN(Number(header.price_type))) {
+                header.price_type_name = priceTypeMap[Number(header.price_type)] || header.price_type;
+            } else if (header.price_type && typeof header.price_type === 'object') {
+                header.price_type_name = header.price_type.price_type_name;
+            }
 
             // Fetch Details (Items) with brand and category
             const detRes = await fetch(`${DIRECTUS_URL}/items/sales_invoice_details?filter[invoice_no][_eq]=${invoiceId}&fields=*,product_id.product_id,product_id.product_name,product_id.product_code,product_id.product_brand.brand_name,product_id.product_category.category_name,discount_type.discount_type&limit=-1`, { headers: fetchHeaders });
@@ -404,17 +519,6 @@ export async function GET(req: NextRequest) {
                 items: ReturnItem[];
             }
 
-            interface DirectusReturnItemDetail {
-                detail_id: number;
-                product_id: { product_name: string; product_id?: string | number };
-                quantity: number;
-                unit_price: number;
-                total_amount: number;
-                discount_amount: number;
-                discount_type?: { discount_type: string };
-                reason?: string;
-                return_no: string | number | { return_number: string };
-            }
 
             let linkedDocs: ReturnDoc[] = [];
             try {
@@ -431,30 +535,58 @@ export async function GET(req: NextRequest) {
                         }
                         processedReturns.push({ ...r, headerInfo });
                     }
+                    // Fetch units first to map them
+                    const unitsRes = await fetch(`${DIRECTUS_URL}/items/unit?limit=-1`, { headers: fetchHeaders });
+                    const unitsData = unitsRes.ok ? (await unitsRes.json()).data : [];
+                    const unitMap: Record<number, string> = unitsData.reduce((acc: Record<number, string>, u: { unit_id: number; unit_name?: string }) => ({
+                        ...acc,
+                        [Number(u.unit_id)]: u.unit_name || "PCS"
+                    }), {});
+
                     const returnNumbers = processedReturns.map(p => p.headerInfo?.return_number).filter(Boolean);
                     let allReturnItems = [];
                     if (returnNumbers.length > 0) {
-                        const itemsRes = await fetch(`${DIRECTUS_URL}/items/sales_return_details?filter[return_no][_in]=${returnNumbers.join(",")}&fields=*,product_id.product_name,product_id.product_id,discount_type.discount_type&limit=-1`, { headers: fetchHeaders });
+                        // Added unit.* to fields to get the related unit information
+                        const itemsRes = await fetch(`${DIRECTUS_URL}/items/sales_return_details?filter[return_no][_in]=${returnNumbers.join(",")}&fields=*,product_id.product_name,product_id.product_id,product_id.product_brand.brand_name,product_id.product_category.category_name,discount_type.discount_type,unit.*&limit=-1`, { headers: fetchHeaders });
                         if (itemsRes.ok) allReturnItems = (await itemsRes.json()).data || [];
                     }
                     linkedDocs = processedReturns.map(p => {
                         const returnNumberStr = p.headerInfo?.return_number || null;
                         const displayRef = returnNumberStr || (p.headerInfo ? p.headerInfo.return_id : p.return_no);
-                        const items = allReturnItems.filter((item: DirectusReturnItemDetail) => {
+                        const items = allReturnItems.filter((item: Record<string, unknown>) => {
                             const itemReturnNo = (item.return_no && typeof item.return_no === 'object') ? (item.return_no as { return_number: string }).return_number : item.return_no;
                             return itemReturnNo === returnNumberStr;
-                        }).map((item: DirectusReturnItemDetail) => ({
-                            id: item.detail_id,
-                            product_name: item.product_id?.product_name || `Product ${item.product_id}`,
-                            quantity: item.quantity,
-                            unit_price: item.unit_price,
-                            total_amount: item.total_amount,
-                            discount_amount: item.discount_amount,
-                            discount_type_name: item.discount_type?.discount_type || (Number(item.discount_amount) > 0 ? "Discount" : null),
-                            reason: item.reason
-                        }));
+                        }).map((item: Record<string, unknown>) => {
+                            const discType = item.discount_type as Record<string, unknown> | null;
+                            const discTypeName = (discType && typeof discType === 'object') ? (discType.discount_type as string) : null;
+                            const prod = (item.product_id as Record<string, unknown>) || {};
+                            const brand = (prod.product_brand as Record<string, unknown>) || {};
+                            const cat = (prod.product_category as Record<string, unknown>) || {};
+
+                            // Resolve unit name from either the joined object or the unitMap
+                            const unitObj = item.unit as Record<string, unknown> | null;
+                            const resolvedUnitName = (unitObj && typeof unitObj === 'object' ? (unitObj.unit_name as string) : null) ||
+                                unitMap[Number(item.unit)] ||
+                                (item.unit_name as string) ||
+                                'PCS';
+
+                            return {
+                                id: item.detail_id,
+                                product_name: (prod.product_name as string) || `Product ${prod.product_id || 'N/A'}`,
+                                brand_name: (brand.brand_name as string) || 'N/A',
+                                category_name: (cat.category_name as string) || 'N/A',
+                                quantity: Number(item.quantity) || 0,
+                                unit_price: Number(item.unit_price) || 0,
+                                total_amount: Number(item.total_amount) || 0,
+                                discount_amount: Number(item.discount_amount) || 0,
+                                discount_type_name: discTypeName,
+                                unit_name: resolvedUnitName,
+                                reason: item.reason
+                            };
+                        });
                         return {
-                            id: p.id, type: "RETURN", reference_no: displayRef ? `${displayRef}` : `RET-${p.id}`,
+                            id: p.id, type: "RETURN",
+                            reference_no: displayRef ? `${displayRef}` : `${p.id}`,
                             date: p.headerInfo?.return_date || p.created_at,
                             amount: Number(p.amount) || Number(p.headerInfo?.total_amount) || 0,
                             status: "LINKED", items
@@ -466,55 +598,84 @@ export async function GET(req: NextRequest) {
                 const memosRes = await fetch(`${DIRECTUS_URL}/items/customer_memo_invoices?filter[invoice_id][_eq]=${invoiceId}&fields=*,memo_id.*,memo_id.type.balance_name,memo_id.chart_of_account.account_title,memo_id.chart_of_account.gl_code,memo_id.chart_of_account.account_type&limit=-1`, { headers: fetchHeaders });
                 if (memosRes.ok) {
                     const memosData = (await memosRes.json()).data || [];
-                    const mappedMemos = memosData.map((m: {
+                    interface MemoData {
                         id: number;
                         memo_id: {
                             id: number;
-                            memo_number?: string;
-                            status?: string;
-                            type?: { id: number; balance_name?: string };
-                            chart_of_account?: { account_title?: string; gl_code?: string; account_type?: number };
+                            memo_number: string;
+                            status: string;
+                            type: {
+                                id: number;
+                                balance_name: string;
+                            };
+                            chart_of_account: {
+                                account_title: string;
+                                gl_code: string;
+                            };
                         };
-                        amount: number;
                         date_applied: string;
                         created_at: string;
-                    }) => ({
-                        id: m.id,
-                        type: "MEMO",
-                        reference_no: m.memo_id?.memo_number || `MEMO-${m.memo_id?.id || m.memo_id}`,
-                        date: m.date_applied || m.created_at,
-                        amount: Number(m.amount) || 0,
-                        status: m.memo_id?.status || "LINKED",
-                        balance_name: m.memo_id?.type?.balance_name || "N/A",
-                        account_title: m.memo_id?.chart_of_account?.account_title || "N/A",
-                        gl_code: m.memo_id?.chart_of_account?.gl_code || "N/A",
-                        memo_type_id: m.memo_id?.type?.id || m.memo_id?.type,
-                        memo_id: m.memo_id?.id || m.memo_id
+                        amount: number | string;
+                    }
+                    const mappedMemos = memosData.map((m: MemoData) => {
+                        const isDebit = m.memo_id?.type?.balance_name === "DEBIT" || m.memo_id?.type?.id === 2;
+                        const prefix = isDebit ? "DM" : "CM";
+                        const refNo = m.memo_id?.memo_number || `${prefix}-${m.memo_id?.id || m.memo_id}`;
 
-                    }));
+                        return {
+                            id: m.id,
+                            type: "MEMO",
+                            reference_no: refNo.startsWith(prefix) ? refNo : `${prefix}-${refNo}`,
+                            date: m.date_applied || m.created_at,
+                            amount: Number(m.amount) || 0,
+                            status: m.memo_id?.status || "LINKED",
+                            balance_name: m.memo_id?.type?.balance_name || "N/A",
+                            account_title: m.memo_id?.chart_of_account?.account_title || "N/A",
+                            gl_code: m.memo_id?.chart_of_account?.gl_code || "N/A",
+                            memo_type_id: m.memo_id?.type?.id || m.memo_id?.type,
+                            memo_id: m.memo_id?.id || m.memo_id
+                        };
+                    });
                     linkedDocs = [...linkedDocs, ...mappedMemos];
                 }
 
             } catch (e) { console.error("Linked documents fetch exception:", e); }
 
+            // 5. Discount Types Resolution for details
+            const detailTypeIds = new Set(details.map((d: InvoiceDetailItem) => d.discount_type).filter(Boolean));
+            const detailDiscountMap: Record<number, number[]> = {};
+            if (detailTypeIds.size > 0) {
+                const lpdtItems = await fetchInChunks<{ type_id: number; line_id: { percentage: number } }>(`${DIRECTUS_URL}/items/line_per_discount_type?fields=type_id,line_id.percentage&sort=id`, Array.from(detailTypeIds) as (string | number)[], "type_id");
+                lpdtItems.forEach(item => {
+                    const tid = Number(item.type_id);
+                    if (!detailDiscountMap[tid]) detailDiscountMap[tid] = [];
+                    detailDiscountMap[tid].push(Number(item.line_id?.percentage) || 0);
+                });
+            }
+
             const mappedDetails = [];
-            for (const d of details) {
+            for (const d of details as InvoiceDetailItem[]) {
                 let discTypeName = (d.discount_type && typeof d.discount_type === 'object') ? (d.discount_type as { discount_type?: string }).discount_type : null;
+                const dtId = (d.discount_type && typeof d.discount_type === 'object') ? (d.discount_type as { id?: number }).id : d.discount_type;
+
                 if (!discTypeName && d.discount_type && (typeof d.discount_type === 'number' || typeof d.discount_type === 'string')) {
                     const dtRes = await fetch(`${DIRECTUS_URL}/items/discount_type/${d.discount_type}?fields=discount_type`, { headers: fetchHeaders });
                     if (dtRes.ok) discTypeName = (await dtRes.json()).data?.discount_type;
                 }
-                if (!discTypeName && Number(d.discount_amount) > 0) discTypeName = "Discount";
+                if (!discTypeName && Number(d.discount_amount) > 0) discTypeName = null;
 
                 const prod = d.product_id && typeof d.product_id === 'object' ? d.product_id : null;
+                const brand = prod?.product_brand && typeof prod.product_brand === 'object' ? prod.product_brand as CategoryBrand : null;
+                const category = prod?.product_category && typeof prod.product_category === 'object' ? prod.product_category as CategoryBrand : null;
 
                 mappedDetails.push({
                     ...d,
                     product_name: prod?.product_name || `Product ${prod?.product_id || 'N/A'}`,
-                    brand_name: prod?.product_brand?.brand_name || 'N/A',
-                    category_name: prod?.product_category?.category_name || 'N/A',
+                    brand_name: brand?.brand_name || 'N/A',
+                    category_name: category?.category_name || 'N/A',
                     unit_name: (d.unit && unitMap[Number(d.unit)]) ? unitMap[Number(d.unit)] : 'PCS',
-                    discount_type_name: discTypeName
+                    discount_type_name: discTypeName,
+                    discounts: dtId ? (detailDiscountMap[Number(dtId)] || []) : []
                 });
             }
 
@@ -1197,7 +1358,7 @@ export async function POST(req: NextRequest) {
             // 2. Fetch remaining links for this memo to recalculate applied_amount
             // We sum ALL remaining links across ALL invoices to ensure integrity
             const remainingRes = await fetch(`${DIRECTUS_URL}/items/customer_memo_invoices?filter[memo_id][id][_eq]=${memoId}&fields=amount&limit=-1`, { headers: fetchHeaders });
-            
+
             if (remainingRes.ok) {
                 const remainingData = (await remainingRes.json()).data || [];
                 const newAppliedAmount = remainingData.reduce((acc: number, cur: { amount: number }) => acc + Number(cur.amount || 0), 0);
@@ -1209,12 +1370,12 @@ export async function POST(req: NextRequest) {
                 if (memoRes.ok) {
                     const memo = (await memoRes.json()).data;
                     const totalAmount = Number(memo.amount) || 0;
-                    
+
                     // Revert logic:
                     // 0 applied -> APPROVED
                     // > 0 but < total -> PARTIALLY APPLIED
                     // >= total -> APPLIED
-                    let newStatus = "APPROVED"; 
+                    let newStatus = "APPROVED";
                     if (newAppliedAmount > 0) {
                         const isFullyApplied = Math.round(newAppliedAmount * 100) / 100 >= Math.round(totalAmount * 100) / 100;
                         newStatus = isFullyApplied ? "APPLIED" : "PARTIALLY APPLIED";
@@ -1284,13 +1445,13 @@ export async function POST(req: NextRequest) {
                 const existing = existingLinks[0];
                 const consolidatedAmount = Number(existing.amount || 0) + Number(amount);
                 console.log(`[LinkMemo] Consolidating Memo ${memoId} to Invoice ${invoiceId}. New Total: ${consolidatedAmount}`);
-                
+
                 const patchRes = await fetch(`${DIRECTUS_URL}/items/customer_memo_invoices/${existing.id}`, {
                     method: "PATCH",
                     headers: fetchHeaders,
-                    body: JSON.stringify({ 
+                    body: JSON.stringify({
                         amount: consolidatedAmount,
-                        date_applied: now 
+                        date_applied: now
                     })
                 });
 

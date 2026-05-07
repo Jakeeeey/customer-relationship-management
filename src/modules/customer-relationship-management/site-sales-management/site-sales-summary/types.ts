@@ -26,6 +26,12 @@ export const SalesInvoiceHeaderSchema = z.object({
     isDispatched: z.boolean().or(z.number().transform(n => n === 1)).nullable().optional(),
     isPaid: z.boolean().or(z.number().transform(n => n === 1)).nullable().optional(), // Mapped from UI toggles if needed
 
+    // Financial Breakdown
+    credits: z.number().optional().default(0),
+    debits: z.number().optional().default(0),
+    returns: z.number().optional().default(0),
+    balance: z.number().optional().default(0),
+
     // Virtual fields from Joins/UI
     customer_name: z.string().optional(),
     salesman_name: z.string().optional(),
@@ -60,10 +66,12 @@ export interface Product {
     description?: string;
 }
 
-export type SalesInvoiceHeader = z.infer<typeof SalesInvoiceHeaderSchema> & {
+export type SalesInvoiceHeader = Omit<z.infer<typeof SalesInvoiceHeaderSchema>, 'salesman_id' | 'branch_id' | 'sales_type' | 'invoice_type'> & {
     // Allow expanded objects from Directus
     branch_id?: Branch | null;
     salesman_id?: Salesman | null;
+    sales_type?: SalesType | number | null;
+    invoice_type?: InvoiceType | number | null;
 };
 
 // --- Detail Schema ---
@@ -90,6 +98,7 @@ export const SalesInvoiceDetailSchema = z.object({
 
 export type SalesInvoiceDetail = Omit<z.infer<typeof SalesInvoiceDetailSchema>, 'product_id'> & {
     product_id?: Product | number | null;
+    discounts?: number[]; // Added for recalculation logic
 };
 
 export interface Customer {
@@ -147,11 +156,14 @@ export interface LinkedDocument {
     items?: {
         id: number;
         product_name: string;
+        brand_name?: string | null;
+        category_name?: string | null;
         quantity: number;
         unit_price: number;
         total_amount: number;
         discount_amount: number;
         discount_type_name?: string | null;
+        unit_name?: string;
         reason?: string;
     }[];
 }
@@ -209,6 +221,7 @@ export interface CartItem extends SearchProduct {
     parent_id?: number | null;
     quantity: number;
     discount_amount: number;
+    unit_discount?: number; // Memoized unit discount to prevent loss when qty hits 0
     total_amount: number;
 }
 
@@ -239,5 +252,7 @@ export interface CustomerSalesmanLink {
 export interface SiteSalesSummaryStats {
     totalGross: number;
     totalReturns: number;
-    totalMemos: number;
+    totalCredits: number;
+    totalDebits: number;
+    totalBalance: number;
 }

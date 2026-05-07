@@ -38,9 +38,9 @@ export const SiteSalesSummaryDetails: React.FC<SiteSalesSummaryDetailsProps> = (
         const net = Number(header?.net_amount || header?.total_amount || 0);
         const invoiceTypeId = (header?.invoice_type as { id?: number })?.id || header?.invoice_type;
         const invoiceTypeName = (header?.invoice_type as { type?: string })?.type || "";
-        
+
         const isVatApplicable = Number(invoiceTypeId) !== 3 && invoiceTypeName !== "Delivery Receipt";
-        
+
         const r = linkedDocs
             .filter(doc => doc.type === "RETURN")
             .reduce((acc, doc) => acc + Number(doc.amount), 0);
@@ -54,7 +54,7 @@ export const SiteSalesSummaryDetails: React.FC<SiteSalesSummaryDetailsProps> = (
             .reduce((acc, doc) => acc + Number(doc.amount), 0);
 
         const b = net - r - cm + dm;
-        
+
         return {
             returnAmount: r,
             creditMemoAmount: cm,
@@ -145,6 +145,7 @@ export const SiteSalesSummaryDetails: React.FC<SiteSalesSummaryDetailsProps> = (
 
                 <Card className="border-none shadow-sm dark:bg-slate-900">
                     <CardContent className="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-x-12 gap-y-6">
+                        {/* Row 1 */}
                         <div className="space-y-1.5">
                             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Customer Store</label>
                             <p className="font-bold text-slate-700 dark:text-slate-200">{header.customer_name || header.customer_code || ''}</p>
@@ -157,11 +158,33 @@ export const SiteSalesSummaryDetails: React.FC<SiteSalesSummaryDetailsProps> = (
                             </div>
                         </div>
                         <div className="space-y-1.5">
+                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Sales Type</label>
+                            <p className="font-bold text-slate-700 dark:text-slate-200">
+                                {typeof header.sales_type === 'object' ? header.sales_type?.operation_name : 'SITE SALES'}
+                            </p>
+                        </div>
+                        <div className="space-y-1.5">
+                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Receipt Type</label>
+                            <p className="font-bold text-slate-700 dark:text-slate-200">
+                                {typeof header.invoice_type === 'object' ? header.invoice_type?.type : ''}
+                            </p>
+                        </div>
+
+                        {/* Row 2 */}
+                        <div className="space-y-1.5">
+                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Customer Code</label>
+                            <p className="font-bold text-slate-700 dark:text-slate-200">{header.customer_code || ''}</p>
+                        </div>
+                        <div className="space-y-1.5">
                             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Branch</label>
                             <div className="flex items-center gap-2">
                                 <MapPin className="h-3 w-3 text-slate-400" />
                                 <p className="font-bold text-slate-700 dark:text-slate-200">{header.branch_id?.branch_name || ''}</p>
                             </div>
+                        </div>
+                        <div className="space-y-1.5">
+                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Price Type</label>
+                            <p className="font-bold text-slate-700 dark:text-slate-200">{header.price_type || ''}</p>
                         </div>
                         <div className="space-y-1.5">
                             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Dispatch Date</label>
@@ -317,7 +340,7 @@ export const SiteSalesSummaryDetails: React.FC<SiteSalesSummaryDetailsProps> = (
                                         <span className="text-slate-400 uppercase">Debit Memos</span>
                                         <span className="text-blue-500">₱{debitMemoAmount.toLocaleString()}</span>
                                     </div>
-                                    
+
                                     {header.payment_status?.toLowerCase() !== 'paid' && (
                                         <div className="p-4 bg-primary rounded-2xl mt-4 shadow-lg shadow-primary/20 transition-all duration-300 hover:scale-[1.02]">
                                             <p className="text-[10px] font-black text-white/60 uppercase tracking-widest mb-1 text-center">Remaining Balance</p>

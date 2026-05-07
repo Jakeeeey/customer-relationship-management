@@ -15,8 +15,8 @@ export const SalesInvoiceHeaderSchema = z.object({
     transaction_status: z.string().nullable().optional(),
     payment_status: z.string().nullable().optional(),
     total_amount: z.number().nullable().optional(),
-    sales_type: z.number().nullable().optional(),
-    invoice_type: z.number().nullable().optional(),
+    sales_type: z.number().or(z.object({ operation_name: z.string() })).nullable().optional(),
+    invoice_type: z.number().or(z.object({ type: z.string() })).nullable().optional(),
     price_type: z.string().nullable().optional(),
     vat_amount: z.number().nullable().optional(),
     gross_amount: z.number().nullable().optional(),
@@ -30,6 +30,7 @@ export const SalesInvoiceHeaderSchema = z.object({
     // Virtual fields from Joins/UI
     customer_name: z.string().optional(),
     salesman_name: z.string().optional(),
+    price_type_name: z.string().optional(),
 });
 
 export interface Branch {
@@ -91,6 +92,7 @@ export const SalesInvoiceDetailSchema = z.object({
 
 export type SalesInvoiceDetail = Omit<z.infer<typeof SalesInvoiceDetailSchema>, 'product_id'> & {
     product_id?: Product | number | null;
+    discounts?: number[]; // Added for recalculation logic
 };
 
 export interface Customer {
@@ -212,6 +214,7 @@ export interface CartItem extends SearchProduct {
     parent_id?: number | null;
     quantity: number;
     discount_amount: number;
+    unit_discount?: number; // Memoized unit discount to prevent loss when qty hits 0
     total_amount: number;
 }
 

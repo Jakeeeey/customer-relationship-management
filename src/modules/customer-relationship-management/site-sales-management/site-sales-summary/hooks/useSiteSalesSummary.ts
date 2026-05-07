@@ -1,12 +1,12 @@
 import { useState, useCallback } from "react";
 import { siteSalesSummaryProvider } from "../providers/fetchProvider";
-import { 
-    SalesInvoiceHeader, 
-    SalesInvoiceDetail, 
-    LinkedDocument, 
-    Salesman, 
-    Customer, 
-    SalesType, 
+import {
+    SalesInvoiceHeader,
+    SalesInvoiceDetail,
+    LinkedDocument,
+    Salesman,
+    Customer,
+    SalesType,
     WorklistFilters,
     SiteSalesSummaryStats
 } from "../types";
@@ -36,7 +36,7 @@ export const useSiteSalesSummary = (): UseSiteSalesSummaryReturn => {
     const [customers, setCustomers] = useState<Customer[]>([]);
     const [salesTypes, setSalesTypes] = useState<SalesType[]>([]);
     const [totalCount, setTotalCount] = useState<number>(0);
-    const [stats, setStats] = useState<SiteSalesSummaryStats>({ totalGross: 0, totalReturns: 0, totalMemos: 0 });
+    const [stats, setStats] = useState<SiteSalesSummaryStats>({ totalGross: 0, totalReturns: 0, totalCredits: 0, totalDebits: 0, totalBalance: 0 });
     const [isLoading, setIsLoading] = useState<boolean>(false);
     const [isStatsLoading, setIsStatsLoading] = useState<boolean>(false);
     const [error, setError] = useState<string | null>(null);

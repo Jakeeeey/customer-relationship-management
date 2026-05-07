@@ -58,6 +58,16 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
     const [availableReturns, setAvailableReturns] = useState<SalesReturn[]>([]);
     const [isFetchingReturns, setIsFetchingReturns] = useState(false);
     const [isLinking, setIsLinking] = useState(false);
+
+    // Helper to handle BIT(1) from DB (can be boolean, number, or Buffer)
+    const checkBit = useCallback((val: unknown) => {
+        if (typeof val === 'boolean') return val;
+        if (typeof val === 'number') return val === 1;
+        if (val && typeof val === 'object' && val !== null && 'data' in val && Array.isArray((val as { data: unknown }).data)) return (val as { data: number[] }).data[0] === 1;
+        return false;
+    }, []);
+
+    const isReadOnly = header ? (checkBit(header.isDispatched) || checkBit(header.isPosted) || header.transaction_status === 'Dispatched' || header.transaction_status === 'Posted' || header.transaction_status === 'Completed') : false;
     const [isItemsModified, setIsItemsModified] = useState(false);
     const isFirstLoad = React.useRef(true);
 
@@ -653,11 +663,11 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
                         <div className="space-y-4">
                             <div className="space-y-1.5">
                                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Sales Type</label>
-                                <Input readOnly value={header.sales_type === 3 ? 'SITE SALES' : 'OTHERS'} className="h-10 bg-slate-50 dark:bg-slate-800 border-none font-bold text-slate-700 dark:text-slate-200" />
+                                <Input readOnly value={(typeof header.sales_type === 'object' ? header.sales_type?.operation_name : (header.sales_type === 3 ? 'SITE SALES' : 'OTHERS')) || 'OTHERS'} className="h-10 bg-slate-50 dark:bg-slate-800 border-none font-bold text-slate-700 dark:text-slate-200" />
                             </div>
                             <div className="space-y-1.5">
                                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Price Type</label>
-                                <Input readOnly value={header.price_type || 'B'} className="h-10 bg-slate-50 dark:bg-slate-800 border-none font-bold text-slate-700 dark:text-slate-200" />
+                                <Input readOnly value={header.price_type_name || header.price_type || 'B'} className="h-10 bg-slate-50 dark:bg-slate-800 border-none font-bold text-slate-700 dark:text-slate-200" />
                             </div>
                         </div>
 
@@ -691,7 +701,7 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
                                     <TabsTrigger value="memo" className="bg-transparent border-b-2 border-transparent data-[state=active]:border-primary rounded-none h-full px-1 font-black text-xs uppercase tracking-widest text-slate-400 data-[state=active]:text-primary transition-all">Memo</TabsTrigger>
                                 </TabsList>
 
-                                {activeTab === 'items' && (
+                                {activeTab === 'items' && !isReadOnly && (
                                     <Button
                                         onClick={handleOpenAddProductModal}
                                         variant="ghost"
@@ -703,7 +713,7 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
                                     </Button>
                                 )}
 
-                                {activeTab === 'returns' && (
+                                {activeTab === 'returns' && !isReadOnly && (
                                     <Button
                                         onClick={handleOpenLinkModal}
                                         variant="ghost"
@@ -715,7 +725,7 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
                                     </Button>
                                 )}
 
-                                {activeTab === 'memo' && (
+                                {activeTab === 'memo' && !isReadOnly && (
                                     <Button
                                         onClick={handleOpenMemoLinkModal}
                                         variant="ghost"
@@ -743,7 +753,7 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
                                                 <TableHead className="text-[10px] font-black uppercase tracking-widest text-slate-400 h-10">Disc Type</TableHead>
                                                 <TableHead className="text-[10px] font-black uppercase tracking-widest text-slate-400 h-10 text-right">Disc Amt</TableHead>
                                                 <TableHead className="text-[10px] font-black uppercase tracking-widest text-slate-400 h-10 text-right">Net Total</TableHead>
-                                                <TableHead className="text-[10px] font-black uppercase tracking-widest text-slate-400 h-10 text-center">Delete</TableHead>
+                                                {!isReadOnly && <TableHead className="text-[10px] font-black uppercase tracking-widest text-slate-400 h-10 text-center">Delete</TableHead>}
                                             </TableRow>
                                         </TableHeader>
                                         <TableBody>
@@ -778,11 +788,13 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
                                                         <TableCell className="text-[10px] font-bold text-slate-400 uppercase">{item.discount_type_name || item.discount_type || 'No Discount'}</TableCell>
                                                         <TableCell className="text-right font-bold text-slate-600">₱{Number(item.discount_amount || 0).toLocaleString()}</TableCell>
                                                         <TableCell className="text-right font-black text-slate-900 dark:text-white">₱{Number(item.total_amount).toLocaleString()}</TableCell>
-                                                        <TableCell className="text-center">
-                                                            <Button variant="ghost" size="sm" onClick={() => handleDeleteItem(item.detail_id)}>
-                                                                <Trash className="h-4 w-4 text-rose-500" />
-                                                            </Button>
-                                                        </TableCell>
+                                                        {!isReadOnly && (
+                                                            <TableCell className="text-center">
+                                                                <Button variant="ghost" size="sm" onClick={() => handleDeleteItem(item.detail_id)}>
+                                                                    <Trash className="h-4 w-4 text-rose-500" />
+                                                                </Button>
+                                                            </TableCell>
+                                                        )}
                                                     </TableRow>
                                                 );
                                             })}
@@ -816,14 +828,16 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
                                                                 <p className="text-lg font-black text-slate-900 dark:text-white">₱{doc.amount.toLocaleString()}</p>
                                                                 <Badge variant="outline" className="text-[9px] font-black bg-white dark:bg-slate-900">{doc.status || 'LINKED'}</Badge>
                                                             </div>
-                                                            <Button
-                                                                variant="ghost"
-                                                                size="icon"
-                                                                className="h-8 w-8 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-full transition-colors"
-                                                                onClick={() => handleUnlinkReturn(doc.id)}
-                                                            >
-                                                                <Trash className="h-4 w-4" />
-                                                            </Button>
+                                                            {!isReadOnly && (
+                                                                <Button
+                                                                    variant="ghost"
+                                                                    size="icon"
+                                                                    className="h-8 w-8 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-full transition-colors"
+                                                                    onClick={() => handleUnlinkReturn(doc.id)}
+                                                                >
+                                                                    <Trash className="h-4 w-4" />
+                                                                </Button>
+                                                            )}
                                                         </div>
                                                     </div>
 
@@ -918,14 +932,16 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
                                                                     ₱{doc.amount.toLocaleString()}
                                                                 </p>
                                                             </div>
-                                                            <Button
-                                                                variant="ghost"
-                                                                size="icon"
-                                                                className="h-8 w-8 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-full transition-colors"
-                                                                onClick={() => doc.memo_id && handleUnlinkMemo(doc.id, doc.memo_id)}
-                                                            >
-                                                                    <Trash className="h-4 w-4" />
-                                                            </Button>
+                                                            {!isReadOnly && (
+                                                                <Button
+                                                                    variant="ghost"
+                                                                    size="icon"
+                                                                    className="h-8 w-8 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-full transition-colors"
+                                                                    onClick={() => doc.memo_id && handleUnlinkMemo(doc.id, doc.memo_id)}
+                                                                >
+                                                                        <Trash className="h-4 w-4" />
+                                                                </Button>
+                                                            )}
                                                         </div>
 
                                                     </div>
@@ -1039,7 +1055,11 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
                                         <textarea
                                             value={header.remarks || ''}
                                             onChange={(e) => header && setHeader({ ...header, remarks: e.target.value })}
-                                            className="w-full min-h-[80px] p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border border-dashed border-slate-200 dark:border-slate-700 text-[11px] text-slate-600 dark:text-slate-300 font-medium focus:ring-1 focus:ring-primary focus:outline-none transition-all resize-none"
+                                            disabled={isReadOnly}
+                                            className={cn(
+                                                "w-full min-h-[80px] p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border border-dashed border-slate-200 dark:border-slate-700 text-[11px] text-slate-600 dark:text-slate-300 font-medium focus:ring-1 focus:ring-primary focus:outline-none transition-all resize-none",
+                                                isReadOnly && "opacity-70 cursor-not-allowed bg-slate-100 dark:bg-slate-900"
+                                            )}
                                             placeholder="Add notes or remarks for this invoice..."
                                         />
                                     </div>
@@ -1083,7 +1103,7 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
                                         {isSaving && (
                                             <div className="h-4 w-4 animate-spin rounded-full border-2 border-rose-500 border-t-transparent" />
                                         )}
-                                        Un Dispatch
+                                        Undispatch
                                     </Button>
                                 );
                             }

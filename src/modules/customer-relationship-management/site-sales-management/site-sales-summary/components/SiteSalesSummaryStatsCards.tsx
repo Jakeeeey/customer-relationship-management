@@ -37,21 +37,39 @@ const SiteSalesSummaryStatsCards: React.FC<SiteSalesSummaryStatsCardsProps> = ({
             description: "Sum of linked sales returns",
         },
         {
-            title: "Total Memos",
-            value: stats.totalMemos,
+            title: "Total Credits",
+            value: stats.totalCredits,
             icon: FileText,
             color: "text-amber-500",
             bg: "bg-amber-50",
             darkBg: "dark:bg-amber-500/10",
-            description: "Sum of applied customer memos",
+            description: "Sum of linked credit memos",
+        },
+        {
+            title: "Total Debits",
+            value: stats.totalDebits,
+            icon: FileText,
+            color: "text-indigo-500",
+            bg: "bg-indigo-50",
+            darkBg: "dark:bg-indigo-500/10",
+            description: "Sum of linked debit memos",
+        },
+        {
+            title: "Total Balance",
+            value: stats.totalBalance,
+            icon: Receipt,
+            color: "text-emerald-500",
+            bg: "bg-emerald-50",
+            darkBg: "dark:bg-emerald-500/10",
+            description: "Net - Credits - Returns + Debits",
         }
     ];
 
     return (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-6 mb-8">
             {cards.map((card, index) => (
-                <Card 
-                    key={index} 
+                <Card
+                    key={index}
                     className="overflow-hidden border-none shadow-sm hover:shadow-md transition-all duration-300 group"
                 >
                     <CardContent className="p-0">
