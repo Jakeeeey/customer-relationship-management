@@ -19,7 +19,8 @@ export const SiteSalesSummaryPage = () => {
         fetchUtilityData,
         salesmen,
         customers,
-        salesTypes
+        salesTypes,
+        totalCount
     } = useSiteSalesSummary();
 
     useEffect(() => {
@@ -50,6 +51,7 @@ export const SiteSalesSummaryPage = () => {
                 salesmen={salesmen}
                 customers={customers}
                 salesTypes={salesTypes}
+                totalCount={totalCount}
                 onFilterChange={handleFilterChange}
             />
         </div>

@@ -209,7 +209,7 @@ export async function GET(req: NextRequest) {
                 page: page.toString(),
                 limit: limit.toString(),
                 fields: "*,salesman_id.salesman_name", // Removed customer_code expansion for now
-                meta: "total_count"
+                meta: "filter_count"
             });
 
             console.log("Fetching worklist with query:", query.toString());
@@ -306,7 +306,7 @@ export async function GET(req: NextRequest) {
             return NextResponse.json({
                 data,
                 metadata: {
-                    totalCount: json.meta?.total_count || 0,
+                    totalCount: json.meta?.filter_count || 0,
                     page,
                     limit
                 }
@@ -365,21 +365,22 @@ export async function GET(req: NextRequest) {
 
             console.log("[SummaryStats] Filters:", JSON.stringify(filters));
 
-            // 1. Fetch Total Gross
-            const grossQuery = new URLSearchParams({
+            // 1. Fetch Totals
+            const totalsQuery = new URLSearchParams({
                 filter: JSON.stringify(filters),
-                "aggregate[sum]": "gross_amount"
+                "aggregate[sum]": "gross_amount,net_amount"
             });
-            console.log("[SummaryStats] Fetching Gross...");
-            const grossRes = await fetch(`${DIRECTUS_URL}/items/sales_invoice?${grossQuery.toString()}`, { headers: fetchHeaders });
-            if (!grossRes.ok) {
-                const err = await grossRes.json();
-                console.error("[SummaryStats] Gross Fetch Failed:", err);
-                throw new Error("Failed to fetch aggregate gross");
+            console.log("[SummaryStats] Fetching Totals...");
+            const totalsRes = await fetch(`${DIRECTUS_URL}/items/sales_invoice?${totalsQuery.toString()}`, { headers: fetchHeaders });
+            if (!totalsRes.ok) {
+                const err = await totalsRes.json();
+                console.error("[SummaryStats] Totals Fetch Failed:", err);
+                throw new Error("Failed to fetch aggregates");
             }
-            const grossData = await grossRes.json();
-            const totalGross = Number(grossData.data?.[0]?.sum?.gross_amount || 0);
-            console.log("[SummaryStats] Total Gross:", totalGross);
+            const totalsData = await totalsRes.json();
+            const totalGross = Number(totalsData.data?.[0]?.sum?.gross_amount || 0);
+            const totalNet = Number(totalsData.data?.[0]?.sum?.net_amount || 0);
+            console.log("[SummaryStats] Results:", { totalGross, totalNet });
 
             // 2. Fetch linked returns and memos using NESTED FILTERS
             console.log("[SummaryStats] Fetching Returns & Memos using nested filters...");
@@ -414,25 +415,23 @@ export async function GET(req: NextRequest) {
             const totalCredits = Number(creditsJson.data?.[0]?.sum?.amount || 0);
             const totalDebits = Number(debitsJson.data?.[0]?.sum?.amount || 0);
 
-            // Calculate total balance: Net Amount - Returns - Credits + Debits
-            // Wait, we need total Net Amount too.
-            const netQuery = new URLSearchParams({
-                filter: JSON.stringify(filters),
-                "aggregate[sum]": "net_amount"
+            // Calculate total balance: (Gross - Discount) - Returns - Credits + Debits
+            const totalBalance = Math.round((totalNet - totalCredits - totalReturns + totalDebits) * 100) / 100;
+
+            console.log("[SummaryStats] Final Results:", { 
+                totalGross: Math.round(totalGross * 100) / 100, 
+                totalNet: Math.round(totalNet * 100) / 100,
+                totalReturns: Math.round(totalReturns * 100) / 100, 
+                totalCredits: Math.round(totalCredits * 100) / 100, 
+                totalDebits: Math.round(totalDebits * 100) / 100, 
+                totalBalance 
             });
-            const netRes = await fetch(`${DIRECTUS_URL}/items/sales_invoice?${netQuery.toString()}`, { headers: fetchHeaders });
-            const netData = await netRes.json();
-            const totalNet = Number(netData.data?.[0]?.sum?.net_amount || 0);
-
-            const totalBalance = totalNet - totalCredits - totalReturns + totalDebits;
-
-            console.log("[SummaryStats] Results:", { totalGross, totalReturns, totalCredits, totalDebits, totalBalance });
 
             return NextResponse.json({
-                totalGross,
-                totalReturns,
-                totalCredits,
-                totalDebits,
+                totalGross: Math.round(totalNet * 100) / 100, // Using net_amount as requested
+                totalReturns: Math.round(totalReturns * 100) / 100,
+                totalCredits: Math.round(totalCredits * 100) / 100,
+                totalDebits: Math.round(totalDebits * 100) / 100,
                 totalBalance
             });
         }

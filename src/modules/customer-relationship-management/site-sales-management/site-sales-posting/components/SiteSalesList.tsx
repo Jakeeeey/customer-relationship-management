@@ -2,18 +2,51 @@
 import { cn } from "@/lib/utils";
 
 import React, { useState, useEffect, useCallback } from "react";
-import { ColumnDef, SortingState } from "@tanstack/react-table";
-import { DataTable } from "@/components/ui/new-data-table";
+import { 
+    ColumnDef, 
+    SortingState,
+    useReactTable,
+    getCoreRowModel,
+    getPaginationRowModel,
+    getSortedRowModel,
+    flexRender,
+} from "@tanstack/react-table";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Check, ChevronsUpDown, Plus, Loader2, ArrowUpDown } from "lucide-react";
+import { 
+    Check, 
+    ChevronsUpDown, 
+    Plus, 
+    Loader2, 
+    ArrowUpDown,
+    ChevronLeft,
+    ChevronRight,
+    ChevronsLeft,
+    ChevronsRight,
+} from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from "@/components/ui/table";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
 import { format, isValid, parseISO } from "date-fns";
 import { SalesInvoiceHeader, Salesman, Customer, SalesType, WorklistFilters } from "../types";
 import Link from "next/link";
+import { EmptyPlaceholder } from "@/components/shared/EmptyPlaceholder";
 
 interface SiteSalesListProps {
     data: SalesInvoiceHeader[];
@@ -21,6 +54,7 @@ interface SiteSalesListProps {
     salesmen: Salesman[];
     customers: Customer[];
     salesTypes: SalesType[];
+    totalCount: number;
     onFilterChange: (filters: WorklistFilters) => void;
 }
 
@@ -30,6 +64,7 @@ export const SiteSalesList: React.FC<SiteSalesListProps> = ({
     salesmen,
     customers,
     salesTypes,
+    totalCount,
     onFilterChange 
 }) => {
     const formatDate = (dateString?: string | null) => {
@@ -47,6 +82,7 @@ export const SiteSalesList: React.FC<SiteSalesListProps> = ({
     const [dateFrom, setDateFrom] = useState("");
     const [dateTo, setDateTo] = useState("");
     const [sorting, setSorting] = useState<SortingState>([{ id: "invoice_date", desc: true }]);
+    const [rowSelection, setRowSelection] = useState({});
     const [openCustomer, setOpenCustomer] = useState(false);
     const [openSalesman, setOpenSalesman] = useState(false);
 
@@ -228,6 +264,22 @@ export const SiteSalesList: React.FC<SiteSalesListProps> = ({
             </Button>
         </div>
     );
+
+    // eslint-disable-next-line react-hooks/incompatible-library
+    const table = useReactTable({
+        data,
+        columns,
+        state: {
+            sorting,
+            rowSelection,
+        },
+        enableRowSelection: true,
+        onRowSelectionChange: setRowSelection,
+        onSortingChange: setSorting,
+        getCoreRowModel: getCoreRowModel(),
+        getSortedRowModel: getSortedRowModel(),
+        getPaginationRowModel: getPaginationRowModel(),
+    });
 
     return (
         <div className="space-y-6">
@@ -419,7 +471,7 @@ export const SiteSalesList: React.FC<SiteSalesListProps> = ({
                         />
                     </div>
 
-                    <div className="flex items-center gap-4 h-9 px-2 col-span-1 md:col-span-2">
+                    <div className="flex items-center gap-4 h-9 px-2 col-span-1 md:col-span-2 text-right justify-end ml-auto">
                         <div className="flex items-center space-x-2">
                             <Checkbox 
                                 id="isDispatched" 
@@ -440,29 +492,153 @@ export const SiteSalesList: React.FC<SiteSalesListProps> = ({
                 </div>
             </div>
 
-            {/* DataTable Component with Loading Overlay */}
+            <div className="flex items-center justify-between px-2">
+                <div className="flex-1" />
+                <div className="flex items-center gap-2">
+                    {ActionComponent}
+                </div>
+            </div>
+
             <div className="relative">
-                {isLoading && data.length > 0 && (
+                {isLoading && (
                     <div className="absolute inset-0 z-20 flex items-center justify-center bg-white/40 dark:bg-slate-950/40 backdrop-blur-[2px] rounded-xl transition-all duration-300">
                         <div className="flex flex-col items-center gap-3 bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 scale-110">
                             <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 animate-pulse">Updating Data...</span>
+                            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 animate-pulse">
+                                {data.length > 0 ? "Updating Data..." : "Loading Transactions..."}
+                            </span>
                         </div>
                     </div>
                 )}
                 
-                <DataTable 
-                    columns={columns} 
-                    data={data} 
-                    isLoading={isLoading}
-                    sorting={sorting}
-                    onSortingChange={setSorting}
-                    actionComponent={ActionComponent}
-                    emptyTitle="No Site Sales Found"
-                    emptyDescription="Try adjusting your filters or wait for new transactions to be uploaded."
-                />
-            </div>
+                <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-card shadow-sm overflow-hidden">
+                    <Table>
+                        <TableHeader>
+                            {table.getHeaderGroups().map((headerGroup) => (
+                                <TableRow key={headerGroup.id} className="bg-slate-50/50 dark:bg-slate-900/50 border-b dark:border-slate-800">
+                                    {headerGroup.headers.map((header) => (
+                                        <TableHead key={header.id} className="font-bold py-4 px-6 text-[10px] uppercase tracking-widest text-slate-500">
+                                            {header.isPlaceholder
+                                                ? null
+                                                : flexRender(
+                                                    header.column.columnDef.header,
+                                                    header.getContext()
+                                                )}
+                                        </TableHead>
+                                    ))}
+                                </TableRow>
+                            ))}
+                        </TableHeader>
+                        <TableBody>
+                            {isLoading && !data?.length ? (
+                                Array.from({ length: 10 }).map((_, rowIndex) => (
+                                    <TableRow key={rowIndex} className="hover:bg-transparent border-b dark:border-slate-800 last:border-0">
+                                        {columns.map((_, colIndex) => (
+                                            <TableCell key={colIndex} className="py-4 px-6">
+                                                <div className="h-4 bg-slate-100 dark:bg-slate-800 animate-pulse rounded w-full" />
+                                            </TableCell>
+                                        ))}
+                                    </TableRow>
+                                ))
+                            ) : table.getRowModel().rows?.length ? (
+                                table.getRowModel().rows.map((row) => (
+                                    <TableRow
+                                        key={row.id}
+                                        className="group hover:bg-slate-50 dark:hover:bg-slate-900/50 transition-colors border-b dark:border-slate-800 last:border-0"
+                                    >
+                                        {row.getVisibleCells().map((cell) => (
+                                            <TableCell key={cell.id} className="py-4 px-6">
+                                                {flexRender(
+                                                    cell.column.columnDef.cell,
+                                                    cell.getContext()
+                                                )}
+                                            </TableCell>
+                                        ))}
+                                    </TableRow>
+                                ))
+                            ) : (
+                                <TableRow>
+                                    <TableCell
+                                        colSpan={columns.length}
+                                        className="h-32 text-center border-none hover:bg-transparent"
+                                    >
+                                        <EmptyPlaceholder
+                                            title="No Site Sales Found"
+                                            description="Try adjusting your filters or wait for new transactions to be uploaded."
+                                        />
+                                    </TableCell>
+                                </TableRow>
+                            )}
+                        </TableBody>
+                    </Table>
+                </div>
 
+                <div className="flex items-center justify-between px-2 mt-4">
+                    <div className="flex-1 text-sm text-slate-500 font-medium italic">
+                        Total of <span className="font-black text-primary">{totalCount.toLocaleString()}</span> row(s) found.
+                    </div>
+                    <div className="flex items-center space-x-6 lg:space-x-8">
+                        <div className="flex items-center space-x-2">
+                            <p className="text-sm font-bold text-slate-600 dark:text-slate-400">Rows per page</p>
+                            <Select
+                                value={`${table.getState().pagination.pageSize}`}
+                                onValueChange={(value) => {
+                                    table.setPageSize(Number(value));
+                                }}
+                            >
+                                <SelectTrigger className="h-8 w-[70px] rounded-lg border-slate-200">
+                                    <SelectValue placeholder={table.getState().pagination.pageSize} />
+                                </SelectTrigger>
+                                <SelectContent side="top">
+                                    {[10, 20, 30, 40, 50].map((pageSize) => (
+                                        <SelectItem key={pageSize} value={`${pageSize}`}>
+                                            {pageSize}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <div className="flex w-[100px] items-center justify-center text-sm font-bold text-slate-600 dark:text-slate-400">
+                            Page {table.getState().pagination.pageIndex + 1} of{" "}
+                            {table.getPageCount()}
+                        </div>
+                        <div className="flex items-center space-x-2">
+                            <Button
+                                variant="outline"
+                                className="hidden h-8 w-8 p-0 lg:flex rounded-lg border-slate-200"
+                                onClick={() => table.setPageIndex(0)}
+                                disabled={!table.getCanPreviousPage()}
+                            >
+                                <ChevronsLeft className="h-4 w-4" />
+                            </Button>
+                            <Button
+                                variant="outline"
+                                className="h-8 w-8 p-0 rounded-lg border-slate-200"
+                                onClick={() => table.previousPage()}
+                                disabled={!table.getCanPreviousPage()}
+                            >
+                                <ChevronLeft className="h-4 w-4" />
+                            </Button>
+                            <Button
+                                variant="outline"
+                                className="h-8 w-8 p-0 rounded-lg border-slate-200"
+                                onClick={() => table.nextPage()}
+                                disabled={!table.getCanNextPage()}
+                            >
+                                <ChevronRight className="h-4 w-4" />
+                            </Button>
+                            <Button
+                                variant="outline"
+                                className="hidden h-8 w-8 p-0 lg:flex rounded-lg border-slate-200"
+                                onClick={() => table.setPageIndex(table.getPageCount() - 1)}
+                                disabled={!table.getCanNextPage()}
+                            >
+                                <ChevronsRight className="h-4 w-4" />
+                            </Button>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     );
 };

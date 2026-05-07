@@ -54,6 +54,7 @@ interface SiteSalesSummaryListProps {
     salesmen: Salesman[];
     customers: Customer[];
     salesTypes: SalesType[];
+    totalCount: number;
     onFilterChange: (filters: WorklistFilters) => void;
 }
 
@@ -63,6 +64,7 @@ export const SiteSalesSummaryList: React.FC<SiteSalesSummaryListProps> = ({
     salesmen,
     customers,
     salesTypes,
+    totalCount,
     onFilterChange
 }) => {
     const formatDate = (dateString?: string | null) => {
@@ -598,7 +600,7 @@ export const SiteSalesSummaryList: React.FC<SiteSalesSummaryListProps> = ({
                 {/* Pagination Controls */}
                 <div className="flex items-center justify-between px-2 mt-4">
                     <div className="flex-1 text-sm text-slate-500 font-medium italic">
-                        Total of {table.getFilteredRowModel().rows.length} row(s) found.
+                        Total of {totalCount.toLocaleString()} row(s) found.
                     </div>
                     <div className="flex items-center space-x-6 lg:space-x-8">
                         <div className="flex items-center space-x-2">
