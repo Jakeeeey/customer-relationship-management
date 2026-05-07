@@ -47,6 +47,29 @@ interface DiscountItem {
     unit_price?: number | string;
 }
 
+interface InvoiceDetailItem {
+    detail_id?: number;
+    product_id?: {
+        product_id: number;
+        product_name?: string;
+        product_code?: string;
+        product_brand?: CategoryBrand | number | null;
+        product_category?: CategoryBrand | number | null;
+    } | number | null;
+    quantity: number;
+    unit_price: number;
+    discount_amount: number;
+    discount_type?: {
+        id?: number | string;
+        discount_type?: string;
+    } | number | string | null;
+    total_amount: number;
+    unit?: {
+        unit_id: number;
+        unit_name?: string;
+    } | number | string | null;
+}
+
 function decodeJwtPayload(token: string): JwtPayload | null {
     try {
         const parts = token.split(".");
@@ -249,7 +272,7 @@ export async function GET(req: NextRequest) {
 
             // Filter building (Matches worklist logic)
             const filters: { _and: Record<string, unknown>[] } = { _and: [] };
-            
+
             if (salesTypeId && salesTypeId !== "all") {
                 filters._and.push({ sales_type: { _eq: salesTypeId } });
             } else if (!salesTypeId) {
@@ -309,7 +332,7 @@ export async function GET(req: NextRequest) {
             // Instead of fetching 5k IDs, we tell Directus to filter the returns/memos 
             // by the same invoice criteria in a single query.
             console.log("[SummaryStats] Fetching Returns & Memos using nested filters...");
-            
+
             const returnsNestedFilter = { invoice_no: filters };
             const memosNestedFilter = { invoice_id: filters };
 
@@ -451,7 +474,7 @@ export async function GET(req: NextRequest) {
                             unit_price: item.unit_price,
                             total_amount: item.total_amount,
                             discount_amount: item.discount_amount,
-                            discount_type_name: item.discount_type?.discount_type || (Number(item.discount_amount) > 0 ? "Discount" : null),
+                            discount_type_name: item.discount_type?.discount_type || null,
                             reason: item.reason
                         }));
                         return {
@@ -498,24 +521,41 @@ export async function GET(req: NextRequest) {
 
             } catch (e) { console.error("Linked documents fetch exception:", e); }
 
+            // 5. Discount Types Resolution for details
+            const detailTypeIds = new Set(details.map((d: InvoiceDetailItem) => d.discount_type).filter(Boolean));
+            const detailDiscountMap: Record<number, number[]> = {};
+            if (detailTypeIds.size > 0) {
+                const lpdtItems = await fetchInChunks<{ type_id: number; line_id: { percentage: number } }>(`${DIRECTUS_URL}/items/line_per_discount_type?fields=type_id,line_id.percentage&sort=id`, Array.from(detailTypeIds) as (string | number)[], "type_id");
+                lpdtItems.forEach(item => {
+                    const tid = Number(item.type_id);
+                    if (!detailDiscountMap[tid]) detailDiscountMap[tid] = [];
+                    detailDiscountMap[tid].push(Number(item.line_id?.percentage) || 0);
+                });
+            }
+
             const mappedDetails = [];
-            for (const d of details) {
+            for (const d of details as InvoiceDetailItem[]) {
                 let discTypeName = (d.discount_type && typeof d.discount_type === 'object') ? (d.discount_type as { discount_type?: string }).discount_type : null;
+                const dtId = (d.discount_type && typeof d.discount_type === 'object') ? (d.discount_type as { id?: number }).id : d.discount_type;
+
                 if (!discTypeName && d.discount_type && (typeof d.discount_type === 'number' || typeof d.discount_type === 'string')) {
                     const dtRes = await fetch(`${DIRECTUS_URL}/items/discount_type/${d.discount_type}?fields=discount_type`, { headers: fetchHeaders });
                     if (dtRes.ok) discTypeName = (await dtRes.json()).data?.discount_type;
                 }
-                if (!discTypeName && Number(d.discount_amount) > 0) discTypeName = "Discount";
+                if (!discTypeName && Number(d.discount_amount) > 0) discTypeName = null;
 
                 const prod = d.product_id && typeof d.product_id === 'object' ? d.product_id : null;
+                const brand = prod?.product_brand && typeof prod.product_brand === 'object' ? prod.product_brand as CategoryBrand : null;
+                const category = prod?.product_category && typeof prod.product_category === 'object' ? prod.product_category as CategoryBrand : null;
 
                 mappedDetails.push({
                     ...d,
                     product_name: prod?.product_name || `Product ${prod?.product_id || 'N/A'}`,
-                    brand_name: prod?.product_brand?.brand_name || 'N/A',
-                    category_name: prod?.product_category?.category_name || 'N/A',
+                    brand_name: brand?.brand_name || 'N/A',
+                    category_name: category?.category_name || 'N/A',
                     unit_name: (d.unit && unitMap[Number(d.unit)]) ? unitMap[Number(d.unit)] : 'PCS',
-                    discount_type_name: discTypeName
+                    discount_type_name: discTypeName,
+                    discounts: dtId ? (detailDiscountMap[Number(dtId)] || []) : []
                 });
             }
 

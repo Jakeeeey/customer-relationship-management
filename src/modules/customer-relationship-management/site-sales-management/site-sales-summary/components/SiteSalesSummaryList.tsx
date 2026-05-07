@@ -1,19 +1,52 @@
 "use client";
-import { cn } from "@/lib/utils";
 
 import React, { useState, useEffect, useCallback } from "react";
-import { ColumnDef, SortingState } from "@tanstack/react-table";
-import { DataTable } from "@/components/ui/new-data-table";
+import { cn } from "@/lib/utils";
+
+import {
+    useReactTable,
+    getCoreRowModel,
+    getPaginationRowModel,
+    getSortedRowModel,
+    flexRender,
+    ColumnDef,
+    SortingState,
+} from "@tanstack/react-table";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Check, ChevronsUpDown, Loader2, ArrowUpDown } from "lucide-react";
+import {
+    Check,
+    ChevronsUpDown,
+    Loader2,
+    ArrowUpDown,
+    ChevronLeft,
+    ChevronRight,
+    ChevronsLeft,
+    ChevronsRight,
+} from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from "@/components/ui/table";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
 import { format, isValid, parseISO } from "date-fns";
 import { SalesInvoiceHeader, Salesman, Customer, SalesType, WorklistFilters } from "../types";
-import Link from "next/link";
+import { SiteSalesSummaryDetailsModal } from "./SiteSalesSummaryDetailsModal";
+import { EmptyPlaceholder } from "@/components/shared/EmptyPlaceholder";
 
 interface SiteSalesSummaryListProps {
     data: SalesInvoiceHeader[];
@@ -24,13 +57,13 @@ interface SiteSalesSummaryListProps {
     onFilterChange: (filters: WorklistFilters) => void;
 }
 
-export const SiteSalesSummaryList: React.FC<SiteSalesSummaryListProps> = ({ 
-    data, 
+export const SiteSalesSummaryList: React.FC<SiteSalesSummaryListProps> = ({
+    data,
     isLoading,
     salesmen,
     customers,
     salesTypes,
-    onFilterChange 
+    onFilterChange
 }) => {
     const formatDate = (dateString?: string | null) => {
         if (!dateString) return "--";
@@ -49,6 +82,15 @@ export const SiteSalesSummaryList: React.FC<SiteSalesSummaryListProps> = ({
     const [sorting, setSorting] = useState<SortingState>([{ id: "invoice_date", desc: true }]);
     const [openCustomer, setOpenCustomer] = useState(false);
     const [openSalesman, setOpenSalesman] = useState(false);
+
+    // Modal state
+    const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(null);
+    const [isModalOpen, setIsModalOpen] = useState(false);
+
+    const handleOpenDetails = (id: string) => {
+        setSelectedInvoiceId(id);
+        setIsModalOpen(true);
+    };
 
     const applyFilters = useCallback(() => {
         onFilterChange({
@@ -73,36 +115,36 @@ export const SiteSalesSummaryList: React.FC<SiteSalesSummaryListProps> = ({
             accessorKey: "invoice_no",
             header: "Receipt No.",
             cell: ({ row }) => (
-                <Link 
-                    href={`/crm/site-sales-management/site-sales-summary/${row.original.invoice_id}`}
-                    className="block -m-3 p-3 font-black text-primary hover:bg-primary/5 transition-all"
+                <button
+                    onClick={() => handleOpenDetails(row.original.invoice_id.toString())}
+                    className="block -m-3 p-3 font-black text-primary hover:bg-primary/5 transition-all w-full text-left bg-transparent border-none"
                 >
                     {row.original.invoice_no}
-                </Link>
+                </button>
             )
         },
         {
             accessorKey: "salesman_name",
             header: "Salesman",
             cell: ({ row }) => (
-                <Link 
-                    href={`/crm/site-sales-management/site-sales-summary/${row.original.invoice_id}`}
-                    className="block -m-3 p-3 hover:bg-primary/5 transition-colors font-medium text-slate-700 dark:text-slate-300"
+                <button
+                    onClick={() => handleOpenDetails(row.original.invoice_id.toString())}
+                    className="block -m-3 p-3 hover:bg-primary/5 transition-colors font-medium text-slate-700 dark:text-slate-300 w-full text-left bg-transparent border-none"
                 >
                     {row.original.salesman_name || "--"}
-                </Link>
+                </button>
             )
         },
         {
             accessorKey: "customer_name",
             header: "Customer",
             cell: ({ row }) => (
-                <Link 
-                    href={`/crm/site-sales-management/site-sales-summary/${row.original.invoice_id}`}
-                    className="block -m-3 p-3 hover:bg-primary/5 transition-colors"
+                <button
+                    onClick={() => handleOpenDetails(row.original.invoice_id.toString())}
+                    className="block -m-3 p-3 hover:bg-primary/5 transition-colors w-full text-left bg-transparent border-none"
                 >
                     <span className="font-bold text-slate-900 dark:text-slate-100">{row.original.customer_name || "N/A"}</span>
-                </Link>
+                </button>
             )
         },
         {
@@ -125,12 +167,12 @@ export const SiteSalesSummaryList: React.FC<SiteSalesSummaryListProps> = ({
                 );
             },
             cell: ({ row }) => (
-                <Link 
-                    href={`/crm/site-sales-management/site-sales-summary/${row.original.invoice_id}`}
-                    className="block -m-3 p-3 hover:bg-primary/5 transition-colors"
+                <button
+                    onClick={() => handleOpenDetails(row.original.invoice_id.toString())}
+                    className="block -m-3 p-3 hover:bg-primary/5 transition-colors w-full text-left bg-transparent border-none"
                 >
                     <span className="text-slate-500 dark:text-slate-400">{formatDate(row.original.invoice_date)}</span>
-                </Link>
+                </button>
             )
         },
         {
@@ -148,26 +190,26 @@ export const SiteSalesSummaryList: React.FC<SiteSalesSummaryListProps> = ({
                 );
             },
             cell: ({ row }) => (
-                <Link 
-                    href={`/crm/site-sales-management/site-sales-summary/${row.original.invoice_id}`}
-                    className="block -m-3 p-3 hover:bg-primary/5 transition-colors"
+                <button
+                    onClick={() => handleOpenDetails(row.original.invoice_id.toString())}
+                    className="block -m-3 p-3 hover:bg-primary/5 transition-colors w-full text-left bg-transparent border-none"
                 >
                     <span className="text-slate-500 dark:text-slate-400 font-medium italic">{formatDate(row.original.dispatch_date)}</span>
-                </Link>
+                </button>
             )
         },
         {
             accessorKey: "total_amount",
             header: () => <div className="text-right">Total Amount</div>,
             cell: ({ row }) => (
-                <Link 
-                    href={`/crm/site-sales-management/site-sales-summary/${row.original.invoice_id}`}
-                    className="block -m-3 p-3 hover:bg-primary/5 transition-colors"
+                <button
+                    onClick={() => handleOpenDetails(row.original.invoice_id.toString())}
+                    className="block -m-3 p-3 hover:bg-primary/5 transition-colors w-full bg-transparent border-none"
                 >
                     <div className="text-right font-bold text-slate-900 dark:text-slate-100">
                         ₱{Number(row.original.total_amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
                     </div>
-                </Link>
+                </button>
             )
         },
         {
@@ -175,11 +217,11 @@ export const SiteSalesSummaryList: React.FC<SiteSalesSummaryListProps> = ({
             header: "Trans. Status",
             cell: ({ row }) => {
                 const status = row.original.transaction_status?.toUpperCase() || 'PREPARED';
-                const colors = 
+                const colors =
                     status === 'VOID' ? 'bg-red-50 text-red-700 border-red-200' :
-                    status === 'COMPLETED' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
-                    'bg-sky-50 text-sky-700 border-sky-200';
-                
+                        status === 'COMPLETED' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                            'bg-sky-50 text-sky-700 border-sky-200';
+
                 return (
                     <Badge variant="outline" className={cn("uppercase text-[9px] font-black px-2 py-0.5 rounded-md tracking-tighter", colors)}>
                         {status}
@@ -193,7 +235,7 @@ export const SiteSalesSummaryList: React.FC<SiteSalesSummaryListProps> = ({
             cell: ({ row }) => {
                 const status = row.original.payment_status?.toUpperCase() || 'UNPAID';
                 const isPaid = status === 'PAID';
-                
+
                 return (
                     <div className="flex items-center gap-2">
                         <div className={cn("h-2 w-2 rounded-full", isPaid ? "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]" : "bg-amber-500 animate-pulse")} />
@@ -215,16 +257,29 @@ export const SiteSalesSummaryList: React.FC<SiteSalesSummaryListProps> = ({
         },
     ];
 
+    // eslint-disable-next-line react-hooks/incompatible-library
+    const table = useReactTable({
+        data,
+        columns,
+        state: {
+            sorting,
+        },
+        onSortingChange: setSorting,
+        getCoreRowModel: getCoreRowModel(),
+        getSortedRowModel: getSortedRowModel(),
+        getPaginationRowModel: getPaginationRowModel(),
+    });
+
     return (
         <div className="space-y-6">
             <div className="bg-card p-6 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4 hover:shadow-md transition-shadow duration-300">
                 <div className="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-7 gap-4 items-end">
                     <div className="space-y-1.5">
                         <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Receipt No</label>
-                        <Input 
-                            placeholder="Search invoice..." 
-                            value={search} 
-                            onChange={(e) => setSearch(e.target.value)} 
+                        <Input
+                            placeholder="Search invoice..."
+                            value={search}
+                            onChange={(e) => setSearch(e.target.value)}
                             className="h-9 rounded-lg border-slate-200 focus:border-primary"
                         />
                     </div>
@@ -241,11 +296,11 @@ export const SiteSalesSummaryList: React.FC<SiteSalesSummaryListProps> = ({
                                 >
                                     <div className="flex flex-col items-start truncate text-left">
                                         <span className="font-medium text-slate-900 dark:text-slate-100 truncate w-full">
-                                            {customer === "all" 
-                                                ? "Select Customer" 
-                                                : (customers.find(c => c.customer_code === customer)?.customer_name || 
-                                                   customers.find(c => c.customer_code === customer)?.store_name || 
-                                                   customer)}
+                                            {customer === "all"
+                                                ? "Select Customer"
+                                                : (customers.find(c => c.customer_code === customer)?.customer_name ||
+                                                    customers.find(c => c.customer_code === customer)?.store_name ||
+                                                    customer)}
                                         </span>
                                         {customer !== "all" && (
                                             <span className="text-[10px] text-muted-foreground truncate w-full">
@@ -305,11 +360,11 @@ export const SiteSalesSummaryList: React.FC<SiteSalesSummaryListProps> = ({
 
                     <div className="space-y-1.5">
                         <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Sales Type</label>
-                        <Input 
-                            value={salesTypes.find(st => st.id.toString() === salesType)?.operation_name || "SITE SALES"} 
-                            readOnly 
+                        <Input
+                            value={salesTypes.find(st => st.id.toString() === salesType)?.operation_name || "SITE SALES"}
+                            readOnly
                             disabled
-                            className="h-9 rounded-lg border-slate-200 bg-slate-50/50 text-[10px] font-black uppercase tracking-tight cursor-not-allowed italic text-slate-400 shadow-none" 
+                            className="h-9 rounded-lg border-slate-200 bg-slate-50/50 text-[10px] font-black uppercase tracking-tight cursor-not-allowed italic text-slate-400 shadow-none"
                         />
                     </div>
 
@@ -325,8 +380,8 @@ export const SiteSalesSummaryList: React.FC<SiteSalesSummaryListProps> = ({
                                 >
                                     <div className="flex flex-col items-start truncate text-left">
                                         <span className="font-medium text-slate-900 dark:text-slate-100 truncate w-full">
-                                            {salesman === "all" 
-                                                ? "Select Salesman" 
+                                            {salesman === "all"
+                                                ? "Select Salesman"
                                                 : (salesmen.find(s => s.id.toString() === salesman)?.salesman_name || salesman)}
                                         </span>
                                         {salesman !== "all" && (
@@ -387,38 +442,38 @@ export const SiteSalesSummaryList: React.FC<SiteSalesSummaryListProps> = ({
 
                     <div className="space-y-1.5">
                         <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Date From</label>
-                        <Input 
-                            type="date" 
-                            className="h-9 rounded-lg border-slate-200" 
-                            value={dateFrom} 
-                            onChange={(e) => setDateFrom(e.target.value)} 
+                        <Input
+                            type="date"
+                            className="h-9 rounded-lg border-slate-200"
+                            value={dateFrom}
+                            onChange={(e) => setDateFrom(e.target.value)}
                         />
                     </div>
 
                     <div className="space-y-1.5">
                         <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Date To</label>
-                        <Input 
-                            type="date" 
-                            className="h-9 rounded-lg border-slate-200" 
-                            value={dateTo} 
-                            onChange={(e) => setDateTo(e.target.value)} 
+                        <Input
+                            type="date"
+                            className="h-9 rounded-lg border-slate-200"
+                            value={dateTo}
+                            onChange={(e) => setDateTo(e.target.value)}
                         />
                     </div>
 
                     <div className="flex items-center gap-4 h-9 px-2 col-span-1 md:col-span-2">
                         <div className="flex items-center space-x-2">
-                            <Checkbox 
-                                id="isDispatched" 
-                                checked={isDispatched} 
-                                onCheckedChange={(c) => setIsDispatched(c === true)} 
+                            <Checkbox
+                                id="isDispatched"
+                                checked={isDispatched}
+                                onCheckedChange={(c) => setIsDispatched(c === true)}
                             />
                             <label htmlFor="isDispatched" className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider cursor-pointer">isDispatched</label>
                         </div>
                         <div className="flex items-center space-x-2">
-                            <Checkbox 
-                                id="isPaid" 
-                                checked={isPaid} 
-                                onCheckedChange={(c) => setIsPaid(c === true)} 
+                            <Checkbox
+                                id="isPaid"
+                                checked={isPaid}
+                                onCheckedChange={(c) => setIsPaid(c === true)}
                             />
                             <label htmlFor="isPaid" className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider cursor-pointer">isPaid</label>
                         </div>
@@ -438,17 +493,143 @@ export const SiteSalesSummaryList: React.FC<SiteSalesSummaryListProps> = ({
                         </div>
                     </div>
                 )}
-                
-                <DataTable 
-                    columns={columns} 
-                    data={data} 
-                    isLoading={isLoading}
-                    sorting={sorting}
-                    onSortingChange={setSorting}
-                    emptyTitle="No Site Sales Found"
-                    emptyDescription="Try adjusting your filters or wait for new transactions to be uploaded."
-                />
+
+                <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-card shadow-sm overflow-hidden">
+                    <Table>
+                        <TableHeader>
+                            {table.getHeaderGroups().map((headerGroup) => (
+                                <TableRow key={headerGroup.id} className="bg-slate-50/50 dark:bg-slate-900/50 border-b dark:border-slate-800">
+                                    {headerGroup.headers.map((header) => (
+                                        <TableHead key={header.id} className="font-bold py-4 px-6 text-[10px] uppercase tracking-widest text-slate-500">
+                                            {header.isPlaceholder
+                                                ? null
+                                                : flexRender(
+                                                    header.column.columnDef.header,
+                                                    header.getContext()
+                                                )}
+                                        </TableHead>
+                                    ))}
+                                </TableRow>
+                            ))}
+                        </TableHeader>
+                        <TableBody>
+                            {isLoading && !data?.length ? (
+                                Array.from({ length: 10 }).map((_, rowIndex) => (
+                                    <TableRow key={rowIndex} className="hover:bg-transparent border-b dark:border-slate-800 last:border-0">
+                                        {columns.map((_, colIndex) => (
+                                            <TableCell key={colIndex} className="py-4 px-6">
+                                                <div className="h-4 bg-slate-100 dark:bg-slate-800 animate-pulse rounded w-full" />
+                                            </TableCell>
+                                        ))}
+                                    </TableRow>
+                                ))
+                            ) : table.getRowModel().rows?.length ? (
+                                table.getRowModel().rows.map((row) => (
+                                    <TableRow
+                                        key={row.id}
+                                        className="group hover:bg-slate-50 dark:hover:bg-slate-900/50 transition-colors border-b dark:border-slate-800 last:border-0"
+                                    >
+                                        {row.getVisibleCells().map((cell) => (
+                                            <TableCell key={cell.id} className="py-4 px-6">
+                                                {flexRender(
+                                                    cell.column.columnDef.cell,
+                                                    cell.getContext()
+                                                )}
+                                            </TableCell>
+                                        ))}
+                                    </TableRow>
+                                ))
+                            ) : (
+                                <TableRow>
+                                    <TableCell
+                                        colSpan={columns.length}
+                                        className="h-32 text-center border-none hover:bg-transparent"
+                                    >
+                                        <EmptyPlaceholder
+                                            title="No Site Sales Found"
+                                            description="Try adjusting your filters or wait for new transactions to be uploaded."
+                                        />
+                                    </TableCell>
+                                </TableRow>
+                            )}
+                        </TableBody>
+                    </Table>
+                </div>
+
+                {/* Pagination Controls */}
+                <div className="flex items-center justify-between px-2 mt-4">
+                    <div className="flex-1 text-sm text-slate-500 font-medium italic">
+                        Total of {table.getFilteredRowModel().rows.length} row(s) found.
+                    </div>
+                    <div className="flex items-center space-x-6 lg:space-x-8">
+                        <div className="flex items-center space-x-2">
+                            <p className="text-sm font-bold text-slate-600 dark:text-slate-400">Rows per page</p>
+                            <Select
+                                value={`${table.getState().pagination.pageSize}`}
+                                onValueChange={(value) => {
+                                    table.setPageSize(Number(value));
+                                }}
+                            >
+                                <SelectTrigger className="h-8 w-[70px] rounded-lg border-slate-200">
+                                    <SelectValue placeholder={table.getState().pagination.pageSize} />
+                                </SelectTrigger>
+                                <SelectContent side="top">
+                                    {[10, 20, 30, 40, 50].map((pageSize) => (
+                                        <SelectItem key={pageSize} value={`${pageSize}`}>
+                                            {pageSize}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <div className="flex w-[100px] items-center justify-center text-sm font-bold text-slate-600 dark:text-slate-400">
+                            Page {table.getState().pagination.pageIndex + 1} of{" "}
+                            {table.getPageCount()}
+                        </div>
+                        <div className="flex items-center space-x-2">
+                            <Button
+                                variant="outline"
+                                className="hidden h-8 w-8 p-0 lg:flex rounded-lg border-slate-200"
+                                onClick={() => table.setPageIndex(0)}
+                                disabled={!table.getCanPreviousPage()}
+                            >
+                                <ChevronsLeft className="h-4 w-4" />
+                            </Button>
+                            <Button
+                                variant="outline"
+                                className="h-8 w-8 p-0 rounded-lg border-slate-200"
+                                onClick={() => table.previousPage()}
+                                disabled={!table.getCanPreviousPage()}
+                            >
+                                <ChevronLeft className="h-4 w-4" />
+                            </Button>
+                            <Button
+                                variant="outline"
+                                className="h-8 w-8 p-0 rounded-lg border-slate-200"
+                                onClick={() => table.nextPage()}
+                                disabled={!table.getCanNextPage()}
+                            >
+                                <ChevronRight className="h-4 w-4" />
+                            </Button>
+                            <Button
+                                variant="outline"
+                                className="hidden h-8 w-8 p-0 lg:flex rounded-lg border-slate-200"
+                                onClick={() => table.setPageIndex(table.getPageCount() - 1)}
+                                disabled={!table.getCanNextPage()}
+                            >
+                                <ChevronsRight className="h-4 w-4" />
+                            </Button>
+                        </div>
+                    </div>
+                </div>
             </div>
+
+            {/* Site Sales Summary Details Modal */}
+            <SiteSalesSummaryDetailsModal
+                isOpen={isModalOpen}
+                onClose={() => setIsModalOpen(false)}
+                invoiceId={selectedInvoiceId}
+            />
 
         </div>
     );

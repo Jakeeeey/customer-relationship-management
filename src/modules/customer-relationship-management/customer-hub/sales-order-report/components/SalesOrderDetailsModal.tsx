@@ -587,15 +587,7 @@ export function SalesOrderDetailsModal({
                                                     </div>
                                                 </div>
 
-                                                {/* New: Allocated Total */}
-                                                <div className="flex flex-col gap-0.5 min-w-0 bg-emerald-50 px-3 py-1 rounded-lg border border-emerald-100">
-                                                    <p className="text-[8px] sm:text-[9px] text-emerald-500 uppercase font-black tracking-widest leading-none">Allocated Total</p>
-                                                    <div className="flex items-baseline gap-1 leading-none">
-                                                        <span className="text-[10px] sm:text-[14px] font-black text-emerald-600 tabular-nums tracking-tighter">
-                                                            {formatCurrency(details.reduce((sum, li) => sum + (Number(li.allocated_amount) || 0), 0))}
-                                                        </span>
-                                                    </div>
-                                                </div>
+
                                             </>
                                         );
                                     })()}

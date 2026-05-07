@@ -92,6 +92,7 @@ export const SalesInvoiceDetailSchema = z.object({
 
 export type SalesInvoiceDetail = Omit<z.infer<typeof SalesInvoiceDetailSchema>, 'product_id'> & {
     product_id?: Product | number | null;
+    discounts?: number[]; // Added for recalculation logic
 };
 
 export interface Customer {
@@ -211,6 +212,7 @@ export interface CartItem extends SearchProduct {
     parent_id?: number | null;
     quantity: number;
     discount_amount: number;
+    unit_discount?: number; // Memoized unit discount to prevent loss when qty hits 0
     total_amount: number;
 }
 

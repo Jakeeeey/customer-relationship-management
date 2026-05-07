@@ -1,12 +1,12 @@
 "use client";
 
-import { 
-    SalesInvoiceHeader, 
-    Salesman, 
-    Customer, 
-    SalesType, 
-    WorklistFilters, 
-    InvoiceDetailsResponse, 
+import {
+    SalesInvoiceHeader,
+    Salesman,
+    Customer,
+    SalesType,
+    WorklistFilters,
+    InvoiceDetailsResponse,
     SiteSalesSummaryStats
 } from "../types";
 
@@ -34,7 +34,7 @@ export const siteSalesSummaryProvider = {
     },
 
     // 2. Fetch Header & Details
-    getInvoiceDetails: async (invoiceId: string): Promise<InvoiceDetailsResponse> => {
+    getInvoiceDetails: async (invoiceId: string | number): Promise<InvoiceDetailsResponse> => {
         const res = await fetch(`${API_BASE}?type=details&invoiceId=${invoiceId}`);
         if (!res.ok) throw new Error("Failed to fetch invoice details");
         return res.json();

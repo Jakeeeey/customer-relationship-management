@@ -1083,7 +1083,7 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
                                         {isSaving && (
                                             <div className="h-4 w-4 animate-spin rounded-full border-2 border-rose-500 border-t-transparent" />
                                         )}
-                                        Un Dispatch
+                                        Undispatch
                                     </Button>
                                 );
                             }
