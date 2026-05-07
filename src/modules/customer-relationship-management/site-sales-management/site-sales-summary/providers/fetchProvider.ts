@@ -7,7 +7,9 @@ import {
     SalesType, 
     WorklistFilters, 
     InvoiceDetailsResponse, 
+    SiteSalesSummaryStats
 } from "../types";
+
 
 const API_BASE = "/api/crm/site-sales-management/site-sales-posting";
 
