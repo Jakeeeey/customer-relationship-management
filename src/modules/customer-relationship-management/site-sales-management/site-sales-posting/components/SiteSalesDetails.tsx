@@ -110,7 +110,6 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
             .reduce((acc, doc) => acc + Number(doc.amount), 0);
 
         const b = (isItemsModified ? net : initialNet) - r - cm + dm;
-
         return {
             computedGross: g,
             computedDiscount: d,
@@ -380,7 +379,6 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
             setIsLinking(false);
         }
     };
-
 
 
     const handleOpenAddProductModal = async () => {
@@ -1327,7 +1325,6 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
                                             </div>
 
                                             <Separator className="my-2 bg-slate-50 dark:bg-slate-800" />
-
                                             <div className="grid grid-cols-2 gap-x-8 gap-y-2 mt-1">
                                                 <div className="flex justify-between items-center">
                                                     <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Total Amount</span>

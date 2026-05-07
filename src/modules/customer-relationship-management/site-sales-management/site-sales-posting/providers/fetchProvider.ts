@@ -130,7 +130,6 @@ export const siteSalesPostingProvider = {
         if (!res.ok) throw new Error("Failed to fetch customers");
         return res.json();
     },
-
     // 6. Return Linking
     getAvailableReturns: async (customerCode: string): Promise<SalesReturn[]> => {
         const res = await fetch(`${API_BASE}?type=available_returns&customerCode=${customerCode}`);

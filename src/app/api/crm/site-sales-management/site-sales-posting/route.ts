@@ -893,7 +893,6 @@ export async function GET(req: NextRequest) {
             if (!res.ok) throw new Error("Failed to fetch available memos");
 
             const memos = (await res.json()).data || [];
-
             // Map the data to include flattened names for the frontend
             const results = memos.map((m: {
                 type?: { balance_name?: string };
@@ -950,7 +949,6 @@ export async function GET(req: NextRequest) {
 
             const res = await fetch(`${DIRECTUS_URL}/items/customer_salesmen?filter[customer_id][_eq]=${customerId}&fields=*,salesman_id.*,salesman_id.branch_code.*&limit=1`, { headers: fetchHeaders });
             if (!res.ok) throw new Error("Failed to fetch customer salesman");
-
             const data = (await res.json()).data?.[0];
             return NextResponse.json(data || null);
         }
@@ -1040,7 +1038,6 @@ export async function PATCH(req: NextRequest) {
                 fetch(`${DIRECTUS_URL}/items/sales_invoice_details?filter[invoice_no][_eq]=${invoiceId}&fields=*&limit=-1`, { headers: fetchHeaders }),
                 fetch(`${DIRECTUS_URL}/items/sales_invoice/${invoiceId}?fields=invoice_type`, { headers: fetchHeaders })
             ]);
-
             const currentDetails = ((await detRes.json()).data || []) as { quantity: number | string; unit_price: number | string; discount_amount: number | string }[];
             const headerInfo = (await hInfoRes.json()).data || {};
             const isVatApplicable = Number(headerInfo.invoice_type) !== 3;
@@ -1116,7 +1113,6 @@ export async function POST(req: NextRequest) {
                 // Fetch current invoice to check type for VAT safety
                 const invRes = await fetch(`${DIRECTUS_URL}/items/sales_invoice/${id}?fields=invoice_type`, { headers: fetchHeaders });
                 const invData = (await invRes.json()).data || {};
-
                 const updatePayload: Record<string, unknown> = {
                     transaction_status: "Dispatched",
                     isDispatched: 1,
@@ -1363,7 +1359,6 @@ export async function POST(req: NextRequest) {
         if (action === "create_invoice") {
             const userId = await resolveUserId();
             const now = new Date().toISOString();
-
             // 1. Create Header (sales_invoice)
             const headerPayload = {
                 order_id: body.order_id,
