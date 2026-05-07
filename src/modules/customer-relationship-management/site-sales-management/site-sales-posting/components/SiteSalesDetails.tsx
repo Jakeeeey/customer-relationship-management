@@ -69,6 +69,7 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
 
     const isReadOnly = header ? (checkBit(header.isDispatched) || checkBit(header.isPosted) || header.transaction_status === 'Dispatched' || header.transaction_status === 'Posted' || header.transaction_status === 'Completed') : false;
     const [isItemsModified, setIsItemsModified] = useState(false);
+    const [isHeaderModified, setIsHeaderModified] = useState(false);
     const isFirstLoad = React.useRef(true);
 
 
@@ -154,29 +155,24 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
 
         try {
             const data = await siteSalesPostingProvider.getInvoiceDetails(id);
+            
             setHeader(data.header);
+            setDetails(data.details);
+            setMainSupplierId(data.main_supplier_id || null);
 
-            // Initial load only or when not modified
-            if (!isItemsModified) {
-                setDetails(data.details);
-                setMainSupplierId(data.main_supplier_id || null);
-
-                setInitialVat(Number(data.header.vat_amount || 0));
-                setInitialGross(Number(data.header.gross_amount || 0));
-                setInitialDiscount(Number(data.header.discount_amount || 0));
-                setInitialNet(Number(data.header.net_amount || data.header.total_amount || 0));
-                setIsItemsModified(false);
-            }
-
+            setInitialVat(Number(data.header.vat_amount || 0));
+            setInitialGross(Number(data.header.gross_amount || 0));
+            setInitialDiscount(Number(data.header.discount_amount || 0));
+            setInitialNet(Number(data.header.net_amount || data.header.total_amount || 0));
+            
             setLinkedDocs(data.linkedDocs || []);
         } catch (error) {
             console.error("Failed to fetch invoice details:", error);
-
         } finally {
             setIsLoading(false);
             isFirstLoad.current = false;
         }
-    }, [id, isItemsModified]); // Added isItemsModified to deps to avoid stale closure
+    }, [id]); // No modification flags in deps = no automatic re-fetch while editing
 
     const refreshLinkedDocs = async () => {
         try {
@@ -212,6 +208,7 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
             toast.success("Order updated successfully!");
             setDeletedDetailIds([]);
             setIsItemsModified(false);
+            setIsHeaderModified(false);
             fetchData(); // Refresh data from DB
         } catch (error: unknown) {
             const message = error instanceof Error ? error.message : "Failed to update order";
@@ -261,8 +258,10 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
             await siteSalesPostingProvider.finalizeSettlement([id]);
 
             toast.success("Invoice finalized successfully!");
-            // Reset deleted IDs after success
+            // Reset deleted IDs and modification flags after success
             setDeletedDetailIds([]);
+            setIsItemsModified(false);
+            setIsHeaderModified(false);
             router.push('/crm/site-sales-management/site-sales-posting');
         } catch (error: unknown) {
             const message = error instanceof Error ? error.message : "Failed to finalize invoice";
@@ -607,7 +606,12 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
                                     type="date"
                                     className="h-6 w-28 p-0 border-none bg-transparent font-bold text-slate-700 dark:text-slate-300 text-[11px] focus-visible:ring-0"
                                     value={header.invoice_date ? format(parseISO(header.invoice_date), 'yyyy-MM-dd') : ''}
-                                    onChange={(e) => header && setHeader({ ...header, invoice_date: e.target.value })}
+                                    onChange={(e) => {
+                                        if (header) {
+                                            setHeader({ ...header, invoice_date: e.target.value });
+                                            setIsHeaderModified(true);
+                                        }
+                                    }}
                                 />
                             </div>
                         </div>
@@ -618,7 +622,12 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
                                     type="date"
                                     className="h-6 w-28 p-0 border-none bg-transparent font-bold text-slate-700 dark:text-slate-300 text-[11px] focus-visible:ring-0"
                                     value={header.due_date ? format(parseISO(header.due_date), 'yyyy-MM-dd') : ''}
-                                    onChange={(e) => header && setHeader({ ...header, due_date: e.target.value })}
+                                    onChange={(e) => {
+                                        if (header) {
+                                            setHeader({ ...header, due_date: e.target.value });
+                                            setIsHeaderModified(true);
+                                        }
+                                    }}
                                 />
                             </div>
                         </div>
@@ -1054,7 +1063,12 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
                                         <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Remarks</label>
                                         <textarea
                                             value={header.remarks || ''}
-                                            onChange={(e) => header && setHeader({ ...header, remarks: e.target.value })}
+                                            onChange={(e) => {
+                                                if (header) {
+                                                    setHeader({ ...header, remarks: e.target.value });
+                                                    setIsHeaderModified(true);
+                                                }
+                                            }}
                                             disabled={isReadOnly}
                                             className={cn(
                                                 "w-full min-h-[80px] p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border border-dashed border-slate-200 dark:border-slate-700 text-[11px] text-slate-600 dark:text-slate-300 font-medium focus:ring-1 focus:ring-primary focus:outline-none transition-all resize-none",
@@ -1110,7 +1124,7 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
 
                             return (
                                 <div className="flex items-center gap-3">
-                                    {isItemsModified && (
+                                    {(isItemsModified || isHeaderModified) && (
                                         <Button
                                             disabled={isSaving}
                                             onClick={handleUpdateOrder}

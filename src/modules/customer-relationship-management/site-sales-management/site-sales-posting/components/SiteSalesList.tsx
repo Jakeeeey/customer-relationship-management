@@ -277,7 +277,10 @@ export const SiteSalesList: React.FC<SiteSalesListProps> = ({
             accessorKey: "isPosted",
             header: "Posted",
             cell: ({ row }) => {
-                const isPosted = !!row.original.isPosted;
+                const val = row.original.isPosted as boolean | number | string | null | undefined | { data: number[] };
+                // Handle BIT(1) which might come as boolean, number, or Buffer object
+                const isPosted = val === true || val === 1 || val === "1" || 
+                                (val && typeof val === 'object' && 'data' in val && Array.isArray(val.data) && val.data[0] === 1);
                 return (
                     <div className="flex justify-center">
                         <div 
