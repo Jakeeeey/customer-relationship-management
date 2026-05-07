@@ -26,6 +26,12 @@ export const SalesInvoiceHeaderSchema = z.object({
     isDispatched: z.boolean().or(z.number().transform(n => n === 1)).nullable().optional(),
     isPaid: z.boolean().or(z.number().transform(n => n === 1)).nullable().optional(), // Mapped from UI toggles if needed
 
+    // Financial Breakdown
+    credits: z.number().optional().default(0),
+    debits: z.number().optional().default(0),
+    returns: z.number().optional().default(0),
+    balance: z.number().optional().default(0),
+
     // Virtual fields from Joins/UI
     customer_name: z.string().optional(),
     salesman_name: z.string().optional(),
@@ -246,5 +252,7 @@ export interface CustomerSalesmanLink {
 export interface SiteSalesSummaryStats {
     totalGross: number;
     totalReturns: number;
-    totalMemos: number;
+    totalCredits: number;
+    totalDebits: number;
+    totalBalance: number;
 }

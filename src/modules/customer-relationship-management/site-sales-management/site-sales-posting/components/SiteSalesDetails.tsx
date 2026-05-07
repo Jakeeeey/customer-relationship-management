@@ -663,11 +663,11 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
                         <div className="space-y-4">
                             <div className="space-y-1.5">
                                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Sales Type</label>
-                                <Input readOnly value={header.sales_type === 3 ? 'SITE SALES' : 'OTHERS'} className="h-10 bg-slate-50 dark:bg-slate-800 border-none font-bold text-slate-700 dark:text-slate-200" />
+                                <Input readOnly value={(typeof header.sales_type === 'object' ? header.sales_type?.operation_name : (header.sales_type === 3 ? 'SITE SALES' : 'OTHERS')) || 'OTHERS'} className="h-10 bg-slate-50 dark:bg-slate-800 border-none font-bold text-slate-700 dark:text-slate-200" />
                             </div>
                             <div className="space-y-1.5">
                                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Price Type</label>
-                                <Input readOnly value={header.price_type || 'B'} className="h-10 bg-slate-50 dark:bg-slate-800 border-none font-bold text-slate-700 dark:text-slate-200" />
+                                <Input readOnly value={header.price_type_name || header.price_type || 'B'} className="h-10 bg-slate-50 dark:bg-slate-800 border-none font-bold text-slate-700 dark:text-slate-200" />
                             </div>
                         </div>
 

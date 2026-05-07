@@ -153,10 +153,10 @@ export const SiteSalesSummaryList: React.FC<SiteSalesSummaryListProps> = ({
             cell: ({ row }) => {
                 const typeName = (row.original.invoice_type as { type?: string })?.type || "";
                 const typeId = (row.original.invoice_type as { id?: number })?.id || row.original.invoice_type;
-                
+
                 const acronym = (Number(typeId) === 3 || typeName === "Delivery Receipt") ? "DR" : "SI";
                 const badgeColor = acronym === "SI" ? "bg-blue-50 text-blue-600 border-blue-100" : "bg-slate-50 text-slate-600 border-slate-100";
-                
+
                 return (
                     <Badge variant="outline" className={cn("font-black text-[10px] px-2 py-0", badgeColor)}>
                         {acronym}
@@ -259,11 +259,38 @@ export const SiteSalesSummaryList: React.FC<SiteSalesSummaryListProps> = ({
             }
         },
         {
-            accessorKey: "remarks",
-            header: "Remarks",
+            accessorKey: "credits",
+            header: () => <div className="text-right">Credits</div>,
             cell: ({ row }) => (
-                <div className="max-w-[150px] truncate text-[11px] text-slate-500 italic" title={row.original.remarks || ""}>
-                    {row.original.remarks || "--"}
+                <div className="text-right font-medium text-amber-600">
+                    ₱{Number(row.original.credits || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                </div>
+            )
+        },
+        {
+            accessorKey: "debits",
+            header: () => <div className="text-right">Debits</div>,
+            cell: ({ row }) => (
+                <div className="text-right font-medium text-blue-600">
+                    ₱{Number(row.original.debits || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                </div>
+            )
+        },
+        {
+            accessorKey: "returns",
+            header: () => <div className="text-right">Returns</div>,
+            cell: ({ row }) => (
+                <div className="text-right font-medium text-rose-600">
+                    ₱{Number(row.original.returns || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                </div>
+            )
+        },
+        {
+            accessorKey: "balance",
+            header: () => <div className="text-right">Balance</div>,
+            cell: ({ row }) => (
+                <div className="text-right font-black text-slate-900 dark:text-slate-100">
+                    ₱{Number(row.original.balance || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
                 </div>
             )
         },

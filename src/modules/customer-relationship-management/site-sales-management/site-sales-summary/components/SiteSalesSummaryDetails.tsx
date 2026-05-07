@@ -38,9 +38,9 @@ export const SiteSalesSummaryDetails: React.FC<SiteSalesSummaryDetailsProps> = (
         const net = Number(header?.net_amount || header?.total_amount || 0);
         const invoiceTypeId = (header?.invoice_type as { id?: number })?.id || header?.invoice_type;
         const invoiceTypeName = (header?.invoice_type as { type?: string })?.type || "";
-        
+
         const isVatApplicable = Number(invoiceTypeId) !== 3 && invoiceTypeName !== "Delivery Receipt";
-        
+
         const r = linkedDocs
             .filter(doc => doc.type === "RETURN")
             .reduce((acc, doc) => acc + Number(doc.amount), 0);
@@ -54,7 +54,7 @@ export const SiteSalesSummaryDetails: React.FC<SiteSalesSummaryDetailsProps> = (
             .reduce((acc, doc) => acc + Number(doc.amount), 0);
 
         const b = net - r - cm + dm;
-        
+
         return {
             returnAmount: r,
             creditMemoAmount: cm,
@@ -340,7 +340,7 @@ export const SiteSalesSummaryDetails: React.FC<SiteSalesSummaryDetailsProps> = (
                                         <span className="text-slate-400 uppercase">Debit Memos</span>
                                         <span className="text-blue-500">₱{debitMemoAmount.toLocaleString()}</span>
                                     </div>
-                                    
+
                                     {header.payment_status?.toLowerCase() !== 'paid' && (
                                         <div className="p-4 bg-primary rounded-2xl mt-4 shadow-lg shadow-primary/20 transition-all duration-300 hover:scale-[1.02]">
                                             <p className="text-[10px] font-black text-white/60 uppercase tracking-widest mb-1 text-center">Remaining Balance</p>

@@ -15,8 +15,8 @@ export const SalesInvoiceHeaderSchema = z.object({
     transaction_status: z.string().nullable().optional(),
     payment_status: z.string().nullable().optional(),
     total_amount: z.number().nullable().optional(),
-    sales_type: z.number().nullable().optional(),
-    invoice_type: z.number().nullable().optional(),
+    sales_type: z.number().or(z.object({ operation_name: z.string() })).nullable().optional(),
+    invoice_type: z.number().or(z.object({ type: z.string() })).nullable().optional(),
     price_type: z.string().nullable().optional(),
     vat_amount: z.number().nullable().optional(),
     gross_amount: z.number().nullable().optional(),
@@ -30,6 +30,7 @@ export const SalesInvoiceHeaderSchema = z.object({
     // Virtual fields from Joins/UI
     customer_name: z.string().optional(),
     salesman_name: z.string().optional(),
+    price_type_name: z.string().optional(),
 });
 
 export interface Branch {

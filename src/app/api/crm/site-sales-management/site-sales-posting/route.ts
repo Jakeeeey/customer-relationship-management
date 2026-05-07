@@ -239,15 +239,68 @@ export async function GET(req: NextRequest) {
                 });
             }
 
+            // 3. Batch Fetch Returns and Memos for the current page
+            const invoiceIds = rawData.map((item: { invoice_id: number | string }) => item.invoice_id);
+            const returnsMap: Record<string, number> = {};
+            const creditsMap: Record<string, number> = {};
+            const debitsMap: Record<string, number> = {};
+
+            if (invoiceIds.length > 0) {
+                const [returnsBatch, memosBatch] = await Promise.all([
+                    fetchInChunks<{ invoice_no: number | string; amount: number }>(
+                        `${DIRECTUS_URL}/items/sales_invoice_sales_return?fields=invoice_no,amount`,
+                        invoiceIds,
+                        "invoice_no"
+                    ),
+                    fetchInChunks<{ invoice_id: number | string; amount: number; memo_id: { type: { id: number; balance_name: string } } | number }>(
+                        `${DIRECTUS_URL}/items/customer_memo_invoices?fields=invoice_id,amount,memo_id.type.id,memo_id.type.balance_name`,
+                        invoiceIds,
+                        "invoice_id"
+                    )
+                ]);
+
+                returnsBatch.forEach(r => {
+                    const id = String(r.invoice_no);
+                    returnsMap[id] = (returnsMap[id] || 0) + Number(r.amount || 0);
+                });
+
+                memosBatch.forEach(m => {
+                    const id = String(m.invoice_id);
+                    const memoType = typeof m.memo_id === 'object' ? m.memo_id?.type : null;
+                    const isDebit = (memoType && (memoType.balance_name === "DEBIT" || memoType.id === 2));
+
+                    if (isDebit) {
+                        debitsMap[id] = (debitsMap[id] || 0) + Number(m.amount || 0);
+                    } else {
+                        creditsMap[id] = (creditsMap[id] || 0) + Number(m.amount || 0);
+                    }
+                });
+            }
+
             const data = rawData.map((item: {
+                invoice_id: number | string;
                 customer_code: string;
                 salesman_id: { id: string | number; salesman_name: string } | string | number;
-            }) => ({
-                ...item,
-                salesman_name: typeof item.salesman_id === 'object' ? item.salesman_id?.salesman_name : "N/A",
-                customer_name: customerMap[item.customer_code?.trim()] || item.customer_code || "N/A",
-                salesman_id: typeof item.salesman_id === 'object' ? item.salesman_id?.id : item.salesman_id
-            }));
+                net_amount: number;
+            }) => {
+                const id = String(item.invoice_id);
+                const ret = returnsMap[id] || 0;
+                const cre = creditsMap[id] || 0;
+                const deb = debitsMap[id] || 0;
+                const net = Number(item.net_amount || 0);
+                const bal = net - cre - ret + deb;
+
+                return {
+                    ...item,
+                    salesman_name: typeof item.salesman_id === 'object' ? item.salesman_id?.salesman_name : "N/A",
+                    customer_name: customerMap[item.customer_code?.trim()] || item.customer_code || "N/A",
+                    salesman_id: typeof item.salesman_id === 'object' ? item.salesman_id?.id : item.salesman_id,
+                    credits: cre,
+                    debits: deb,
+                    returns: ret,
+                    balance: bal
+                };
+            });
 
 
             return NextResponse.json({
@@ -328,36 +381,59 @@ export async function GET(req: NextRequest) {
             const totalGross = Number(grossData.data?.[0]?.sum?.gross_amount || 0);
             console.log("[SummaryStats] Total Gross:", totalGross);
 
-            // 2. Fetch linked returns and memos using NESTED FILTERS (The High-Performance Way)
-            // Instead of fetching 5k IDs, we tell Directus to filter the returns/memos 
-            // by the same invoice criteria in a single query.
+            // 2. Fetch linked returns and memos using NESTED FILTERS
             console.log("[SummaryStats] Fetching Returns & Memos using nested filters...");
 
             const returnsNestedFilter = { invoice_no: filters };
             const memosNestedFilter = { invoice_id: filters };
 
-            const [returnsRes, memosRes] = await Promise.all([
+            // For memos, we need to separate Credits and Debits
+            const [returnsRes, creditsRes, debitsRes] = await Promise.all([
                 fetch(`${DIRECTUS_URL}/items/sales_invoice_sales_return?filter=${JSON.stringify(returnsNestedFilter)}&aggregate[sum]=amount`, { headers: fetchHeaders }),
-                fetch(`${DIRECTUS_URL}/items/customer_memo_invoices?filter=${JSON.stringify(memosNestedFilter)}&aggregate[sum]=amount`, { headers: fetchHeaders })
+                fetch(`${DIRECTUS_URL}/items/customer_memo_invoices?filter=${JSON.stringify({
+                    ...memosNestedFilter,
+                    memo_id: { type: { balance_name: { _eq: "CREDIT" } } }
+                })}&aggregate[sum]=amount`, { headers: fetchHeaders }),
+                fetch(`${DIRECTUS_URL}/items/customer_memo_invoices?filter=${JSON.stringify({
+                    ...memosNestedFilter,
+                    memo_id: { type: { balance_name: { _eq: "DEBIT" } } }
+                })}&aggregate[sum]=amount`, { headers: fetchHeaders })
             ]);
 
             if (!returnsRes.ok) console.error("[SummaryStats] Returns Fetch Failed:", await returnsRes.text());
-            if (!memosRes.ok) console.error("[SummaryStats] Memos Fetch Failed:", await memosRes.text());
+            if (!creditsRes.ok) console.error("[SummaryStats] Credits Fetch Failed:", await creditsRes.text());
+            if (!debitsRes.ok) console.error("[SummaryStats] Debits Fetch Failed:", await debitsRes.text());
 
-            const [returnsJson, memosJson] = await Promise.all([
+            const [returnsJson, creditsJson, debitsJson] = await Promise.all([
                 returnsRes.ok ? returnsRes.json() : Promise.resolve({ data: [] }),
-                memosRes.ok ? memosRes.json() : Promise.resolve({ data: [] })
+                creditsRes.ok ? creditsRes.json() : Promise.resolve({ data: [] }),
+                debitsRes.ok ? debitsRes.json() : Promise.resolve({ data: [] })
             ]);
 
             const totalReturns = Number(returnsJson.data?.[0]?.sum?.amount || 0);
-            const totalMemos = Number(memosJson.data?.[0]?.sum?.amount || 0);
+            const totalCredits = Number(creditsJson.data?.[0]?.sum?.amount || 0);
+            const totalDebits = Number(debitsJson.data?.[0]?.sum?.amount || 0);
 
-            console.log("[SummaryStats] Results:", { totalGross, totalReturns, totalMemos });
+            // Calculate total balance: Net Amount - Returns - Credits + Debits
+            // Wait, we need total Net Amount too.
+            const netQuery = new URLSearchParams({
+                filter: JSON.stringify(filters),
+                "aggregate[sum]": "net_amount"
+            });
+            const netRes = await fetch(`${DIRECTUS_URL}/items/sales_invoice?${netQuery.toString()}`, { headers: fetchHeaders });
+            const netData = await netRes.json();
+            const totalNet = Number(netData.data?.[0]?.sum?.net_amount || 0);
+
+            const totalBalance = totalNet - totalCredits - totalReturns + totalDebits;
+
+            console.log("[SummaryStats] Results:", { totalGross, totalReturns, totalCredits, totalDebits, totalBalance });
 
             return NextResponse.json({
                 totalGross,
                 totalReturns,
-                totalMemos
+                totalCredits,
+                totalDebits,
+                totalBalance
             });
         }
 
@@ -367,7 +443,7 @@ export async function GET(req: NextRequest) {
             if (!invoiceId) return NextResponse.json({ error: "invoiceId required" }, { status: 400 });
 
             // Fetch Header with expanded info
-            const headerRes = await fetch(`${DIRECTUS_URL}/items/sales_invoice/${invoiceId}?fields=*,salesman_id.salesman_name,salesman_id.salesman_code,salesman_id.price_type_id,branch_id.*,invoice_type.type,sales_type.operation_name`, { headers: fetchHeaders });
+            const headerRes = await fetch(`${DIRECTUS_URL}/items/sales_invoice/${invoiceId}?fields=*,salesman_id.salesman_name,salesman_id.salesman_code,salesman_id.price_type_id,branch_id.*,invoice_type.type,sales_type.operation_name,price_type.price_type_name`, { headers: fetchHeaders });
             const header = (await headerRes.json()).data || {};
 
             // Resolve Customer Name
@@ -386,6 +462,21 @@ export async function GET(req: NextRequest) {
                 ...acc,
                 [Number(u.unit_id)]: u.unit_name || "N/A"
             }), {});
+
+            // Fetch Price Types for mapping (in case it's not a direct relationship)
+            const ptRes = await fetch(`${DIRECTUS_URL}/items/price_types?limit=-1`, { headers: fetchHeaders });
+            const ptData = (await ptRes.json()).data || [];
+            const priceTypeMap: Record<number, string> = ptData.reduce((acc: Record<number, string>, p: { price_type_id: number; price_type_name: string }) => ({
+                ...acc,
+                [Number(p.price_type_id)]: p.price_type_name
+            }), {});
+
+            // If price_type is just an ID in the header, resolve it
+            if (header.price_type && !isNaN(Number(header.price_type))) {
+                header.price_type_name = priceTypeMap[Number(header.price_type)] || header.price_type;
+            } else if (header.price_type && typeof header.price_type === 'object') {
+                header.price_type_name = header.price_type.price_type_name;
+            }
 
             // Fetch Details (Items) with brand and category
             const detRes = await fetch(`${DIRECTUS_URL}/items/sales_invoice_details?filter[invoice_no][_eq]=${invoiceId}&fields=*,product_id.product_id,product_id.product_name,product_id.product_code,product_id.product_brand.brand_name,product_id.product_category.category_name,discount_type.discount_type&limit=-1`, { headers: fetchHeaders });
@@ -471,13 +562,13 @@ export async function GET(req: NextRequest) {
                             const prod = (item.product_id as Record<string, unknown>) || {};
                             const brand = (prod.product_brand as Record<string, unknown>) || {};
                             const cat = (prod.product_category as Record<string, unknown>) || {};
-                            
+
                             // Resolve unit name from either the joined object or the unitMap
                             const unitObj = item.unit as Record<string, unknown> | null;
-                            const resolvedUnitName = (unitObj && typeof unitObj === 'object' ? (unitObj.unit_name as string) : null) || 
-                                                     unitMap[Number(item.unit)] || 
-                                                     (item.unit_name as string) || 
-                                                     'PCS';
+                            const resolvedUnitName = (unitObj && typeof unitObj === 'object' ? (unitObj.unit_name as string) : null) ||
+                                unitMap[Number(item.unit)] ||
+                                (item.unit_name as string) ||
+                                'PCS';
 
                             return {
                                 id: item.detail_id,
@@ -494,7 +585,7 @@ export async function GET(req: NextRequest) {
                             };
                         });
                         return {
-                            id: p.id, type: "RETURN", 
+                            id: p.id, type: "RETURN",
                             reference_no: displayRef ? `SR-${displayRef}` : `SR-${p.id}`,
                             date: p.headerInfo?.return_date || p.created_at,
                             amount: Number(p.amount) || Number(p.headerInfo?.total_amount) || 0,
@@ -530,7 +621,7 @@ export async function GET(req: NextRequest) {
                         const isDebit = m.memo_id?.type?.balance_name === "DEBIT" || m.memo_id?.type?.id === 2;
                         const prefix = isDebit ? "DM" : "CM";
                         const refNo = m.memo_id?.memo_number || `${prefix}-${m.memo_id?.id || m.memo_id}`;
-                        
+
                         return {
                             id: m.id,
                             type: "MEMO",

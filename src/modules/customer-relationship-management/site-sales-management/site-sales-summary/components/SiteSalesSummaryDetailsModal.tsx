@@ -55,9 +55,9 @@ export const SiteSalesSummaryDetailsModal: React.FC<SiteSalesSummaryDetailsModal
         const net = Number(header?.net_amount || header?.total_amount || 0);
         const invoiceTypeId = (header?.invoice_type as { id?: number })?.id || header?.invoice_type;
         const invoiceTypeName = (header?.invoice_type as { type?: string })?.type || "";
-        
+
         const isVatApplicable = Number(invoiceTypeId) !== 3 && invoiceTypeName !== "Delivery Receipt";
-        
+
         const r = linkedDocs
             .filter(doc => doc.type === "RETURN")
             .reduce((acc, doc) => acc + Number(doc.amount), 0);
@@ -71,7 +71,7 @@ export const SiteSalesSummaryDetailsModal: React.FC<SiteSalesSummaryDetailsModal
             .reduce((acc, doc) => acc + Number(doc.amount), 0);
 
         const b = net - r - cm + dm;
-        
+
         return {
             returnAmount: r,
             creditMemoAmount: cm,
@@ -109,7 +109,7 @@ export const SiteSalesSummaryDetailsModal: React.FC<SiteSalesSummaryDetailsModal
 
     return (
         <Dialog open={isOpen} onOpenChange={(val) => !val && onClose()}>
-            <DialogContent 
+            <DialogContent
                 showCloseButton={false}
                 className="
                 flex flex-col p-0 gap-0 overflow-hidden
@@ -162,8 +162,8 @@ export const SiteSalesSummaryDetailsModal: React.FC<SiteSalesSummaryDetailsModal
                                             <div className="flex items-center gap-3">
                                                 <Badge variant="outline" className={cn(
                                                     "text-[10px] font-black px-3 py-0.5 rounded-full uppercase tracking-widest",
-                                                    (Number((header.invoice_type as { id?: number })?.id || header.invoice_type) === 3) 
-                                                        ? "bg-slate-100 text-slate-600 border-slate-200" 
+                                                    (Number((header.invoice_type as { id?: number })?.id || header.invoice_type) === 3)
+                                                        ? "bg-slate-100 text-slate-600 border-slate-200"
                                                         : "bg-blue-100 text-blue-600 border-blue-200"
                                                 )}>
                                                     {(Number((header.invoice_type as { id?: number })?.id || header.invoice_type) === 3) ? "Delivery Receipt" : "Sales Invoice"}
@@ -558,7 +558,7 @@ export const SiteSalesSummaryDetailsModal: React.FC<SiteSalesSummaryDetailsModal
                                                     <span className="text-slate-400 uppercase tracking-tight">Debit Memo Applied</span>
                                                     <span className="text-blue-500 tabular-nums">+₱{debitMemoAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                                                 </div>
-                                                
+
                                                 {header.payment_status?.toLowerCase() !== 'paid' && (
                                                     <div className="pt-6 mt-6 border-t border-dashed dark:border-slate-800 flex justify-between items-center">
                                                         <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Remaining Balance</p>
