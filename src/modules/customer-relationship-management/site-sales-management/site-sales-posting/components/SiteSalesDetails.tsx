@@ -172,7 +172,40 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
 
 
 
+    const handleUpdateOrder = async () => {
+        if (!header) return;
+        setIsSaving(true);
+        try {
+            console.log("[SiteSalesDetails] Manual update of order items");
+            await siteSalesPostingProvider.saveAdjustments(id, {
+                customer_code: header.customer_code,
+                order_id: header.invoice_no,
+                invoice_date: header.invoice_date,
+                due_date: header.due_date,
+                remarks: header.remarks,
+                gross_amount: displayGross,
+                discount_amount: displayDiscount,
+                vat_amount: displayVat,
+                total_amount: displayTotal,
+                net_amount: displayTotal,
+                details: details,
+                deletedDetailIds: deletedDetailIds
+            });
+
+            toast.success("Order updated successfully!");
+            setDeletedDetailIds([]);
+            setIsItemsModified(false);
+            fetchData(); // Refresh data from DB
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : "Failed to update order";
+            toast.error(message);
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
     const handleFinalize = async () => {
+
         if (!header) return;
 
         // Final Safety Check: Prevent dispatching if balance is negative
@@ -993,19 +1026,37 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
                             }
 
                             return (
-                                <Button
-                                    disabled={isSaving}
-                                    onClick={handleFinalize}
-                                    className="bg-primary hover:bg-primary/90 rounded-xl px-8 font-black text-xs uppercase tracking-widest shadow-lg shadow-primary/20 gap-2"
-                                >
-                                    {isSaving ? (
-                                        <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                                    ) : (
-                                        <CheckCircle2 className="h-4 w-4" />
+                                <div className="flex items-center gap-3">
+                                    {isItemsModified && (
+                                        <Button
+                                            disabled={isSaving}
+                                            onClick={handleUpdateOrder}
+                                            variant="outline"
+                                            className="border-primary text-primary hover:bg-primary/5 rounded-xl px-6 font-black text-xs uppercase tracking-widest gap-2 shadow-sm transition-all hover:scale-105 active:scale-95"
+                                        >
+                                            {isSaving ? (
+                                                <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                                            ) : (
+                                                <RotateCw className="h-4 w-4" />
+                                            )}
+                                            Update Order
+                                        </Button>
                                     )}
-                                    Dispatch
-                                </Button>
+                                    <Button
+                                        disabled={isSaving}
+                                        onClick={handleFinalize}
+                                        className="bg-primary hover:bg-primary/90 rounded-xl px-8 font-black text-xs uppercase tracking-widest shadow-lg shadow-primary/20 gap-2 transition-all hover:scale-105 active:scale-95"
+                                    >
+                                        {isSaving ? (
+                                            <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                                        ) : (
+                                            <CheckCircle2 className="h-4 w-4" />
+                                        )}
+                                        Dispatch
+                                    </Button>
+                                </div>
                             );
+
                         })()}
                     </div>
                 </div>
