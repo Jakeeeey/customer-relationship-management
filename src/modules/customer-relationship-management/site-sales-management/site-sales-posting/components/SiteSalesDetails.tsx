@@ -59,6 +59,8 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
     const [isFetchingReturns, setIsFetchingReturns] = useState(false);
     const [isLinking, setIsLinking] = useState(false);
     const [isItemsModified, setIsItemsModified] = useState(false);
+    const isFirstLoad = React.useRef(true);
+
 
     // Initial Financials (from DB)
     const [initialVat, setInitialVat] = useState(0);
@@ -130,34 +132,57 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
     const [deletedDetailIds, setDeletedDetailIds] = useState<number[]>([]);
 
     const fetchData = useCallback(async () => {
-        setIsLoading(true);
+        // Only show skeleton on initial load. Subsequent refreshes will be silent.
+        if (isFirstLoad.current) setIsLoading(true);
+
         try {
             const data = await siteSalesPostingProvider.getInvoiceDetails(id);
             setHeader(data.header);
-            setDetails(data.details);
+            
+            // Initial load only or when not modified
+            if (!isItemsModified) {
+                setDetails(data.details);
+                setMainSupplierId(data.main_supplier_id || null);
+                
+                setInitialVat(Number(data.header.vat_amount || 0));
+                setInitialGross(Number(data.header.gross_amount || 0));
+                setInitialDiscount(Number(data.header.discount_amount || 0));
+                setInitialNet(Number(data.header.net_amount || data.header.total_amount || 0));
+                setIsItemsModified(false);
+            }
+
             setLinkedDocs(data.linkedDocs || []);
-            setMainSupplierId(data.main_supplier_id || null);
-
-            // Set Initial Financials for Read-only/No-change scenarios
-            setInitialVat(Number(data.header.vat_amount || 0));
-            setInitialGross(Number(data.header.gross_amount || 0));
-            setInitialDiscount(Number(data.header.discount_amount || 0));
-            setInitialNet(Number(data.header.net_amount || data.header.total_amount || 0));
-            setIsItemsModified(false);
-
-            // Fetch Suppliers for modal
-            const sData = await siteSalesPostingProvider.getSuppliers();
-            setSuppliers(sData);
         } catch (error) {
             console.error("Failed to fetch invoice details:", error);
+
         } finally {
             setIsLoading(false);
+            isFirstLoad.current = false;
         }
-    }, [id]);
+    }, [id, isItemsModified]); // Added isItemsModified to deps to avoid stale closure
+
+    const refreshLinkedDocs = async () => {
+        try {
+            const data = await siteSalesPostingProvider.getInvoiceDetails(id);
+            setLinkedDocs(data.linkedDocs || []);
+        } catch {
+            toast.error("Failed to refresh linked documents list");
+        }
+    };
+
+
 
     const handleFinalize = async () => {
         if (!header) return;
+
+        // Final Safety Check: Prevent dispatching if balance is negative
+        if (balance < 0) {
+            toast.error("Cannot dispatch invoice with a negative balance. Please check your items, returns, and memos.");
+            return;
+        }
+
         setIsSaving(true);
+
         try {
             // 1. Save Header & Details adjustments ONLY if modified
             if (isItemsModified) {
@@ -215,6 +240,20 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
         fetchData();
     }, [fetchData]);
 
+    // Separate effect for master data (suppliers)
+    useEffect(() => {
+        const fetchSuppliers = async () => {
+            try {
+                const sData = await siteSalesPostingProvider.getSuppliers();
+                setSuppliers(sData);
+            } catch (error) {
+                console.error("Failed to fetch suppliers:", error);
+            }
+        };
+        fetchSuppliers();
+    }, []);
+
+
     const handleOpenLinkModal = async () => {
         if (!header?.customer_code) return;
         setIsLinkModalOpen(true);
@@ -261,8 +300,9 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
             await siteSalesPostingProvider.linkMemo(id, memo.id, availableAmount, balance);
             toast.success(`${isDebit ? 'Debit' : 'Credit'} Memo ${memo.memo_number} linked successfully!`);
             setIsMemoLinkModalOpen(false);
-            fetchData(); // Refresh list
+            refreshLinkedDocs(); // Refresh ONLY linked docs list
         } catch (error: unknown) {
+
             const message = error instanceof Error ? error.message : "Failed to link memo";
             toast.error(message);
         } finally {
@@ -372,13 +412,22 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
     };
 
     const handleLinkReturn = async (ret: SalesReturn) => {
+        const returnAmount = Number(ret.total_amount);
+
+        // Validation: Return amount cannot exceed current summary balance
+        if (returnAmount > balance) {
+            toast.error("Linking failed: This return exceeds the remaining invoice balance.");
+            return;
+        }
+
         setIsLinking(true);
         try {
-            await siteSalesPostingProvider.linkReturn(id, ret.return_id, ret.total_amount);
+            await siteSalesPostingProvider.linkReturn(id, ret.return_id, returnAmount);
             toast.success(`Return ${ret.return_number} linked successfully!`);
             setIsLinkModalOpen(false);
-            fetchData(); // Refresh list
+            refreshLinkedDocs(); // Refresh ONLY linked docs list
         } catch (error: unknown) {
+
             const message = error instanceof Error ? error.message : "Failed to link return";
             toast.error(message);
         } finally {
@@ -386,13 +435,15 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
         }
     };
 
+
     const handleUnlinkReturn = async (junctionId: number) => {
         setIsLinking(true);
         try {
             await siteSalesPostingProvider.unlinkReturn(junctionId);
             toast.success(`Return unlinked successfully!`);
-            fetchData(); // Refresh list
+            refreshLinkedDocs(); // Refresh ONLY linked docs list
         } catch (error: unknown) {
+
             const message = error instanceof Error ? error.message : "Failed to unlink return";
             toast.error(message);
         } finally {
