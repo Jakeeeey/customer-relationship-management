@@ -70,6 +70,7 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
     const [isMemoLinkModalOpen, setIsMemoLinkModalOpen] = useState(false);
     const [availableMemos, setAvailableMemos] = useState<CustomerMemo[]>([]);
     const [isFetchingMemos, setIsFetchingMemos] = useState(false);
+    const [returnSearch, setReturnSearch] = useState('');
 
 
 
@@ -79,11 +80,11 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
         const net = g - d;
         const invoiceTypeId = (header?.invoice_type as { id?: number })?.id || header?.invoice_type;
         const invoiceTypeName = (header?.invoice_type as { type?: string })?.type || "";
-        
+
         // Hide VAT if ID is 3 OR the type name is "Delivery Receipt"
         const isVatApplicable = Number(invoiceTypeId) !== 3 && invoiceTypeName !== "Delivery Receipt";
         const v = isVatApplicable ? (net / 1.12) * 0.12 : 0; // VAT-Inclusive calculation (12%)
-        
+
         // Sum of all linked returns
         const r = linkedDocs
             .filter(doc => doc.type === "RETURN")
@@ -99,7 +100,7 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
             .reduce((acc, doc) => acc + Number(doc.amount), 0);
 
         const b = (isItemsModified ? net : initialNet) - r - cm + dm;
-        
+
         return {
             computedGross: g,
             computedDiscount: d,
@@ -136,14 +137,14 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
             setDetails(data.details);
             setLinkedDocs(data.linkedDocs || []);
             setMainSupplierId(data.main_supplier_id || null);
-            
+
             // Set Initial Financials for Read-only/No-change scenarios
             setInitialVat(Number(data.header.vat_amount || 0));
             setInitialGross(Number(data.header.gross_amount || 0));
             setInitialDiscount(Number(data.header.discount_amount || 0));
             setInitialNet(Number(data.header.net_amount || data.header.total_amount || 0));
             setIsItemsModified(false);
-            
+
             // Fetch Suppliers for modal
             const sData = await siteSalesPostingProvider.getSuppliers();
             setSuppliers(sData);
@@ -163,7 +164,7 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
                 console.log("[SiteSalesDetails] Saving items modification before finalize");
                 await siteSalesPostingProvider.saveAdjustments(id, {
                     customer_code: header.customer_code,
-                    order_id: header.invoice_no, 
+                    order_id: header.invoice_no,
                     invoice_date: header.invoice_date,
                     due_date: header.due_date,
                     remarks: header.remarks,
@@ -233,7 +234,7 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
         const memoType = (memo.type && typeof memo.type === 'object') ? (memo.type as { id: number }).id : memo.type;
         const isCredit = memoType === 1 || memo.balance_name === "CREDIT";
         const isDebit = memoType === 2 || memo.balance_name === "DEBIT";
-        
+
         // USER RULE: CREDIT memo cannot exceed current summary balance
         // DEBIT memos (Type 2) are exempt since they add to the balance
         if (isCredit && availableAmount > balance) {
@@ -330,10 +331,10 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
 
     const handleAddProducts = (newItems: SalesInvoiceDetail[]) => {
         // Track items removed via the modal
-        const removed = details.filter(old => 
+        const removed = details.filter(old =>
             old.detail_id && !newItems.find(n => n.detail_id === old.detail_id)
         );
-        
+
         if (removed.length > 0) {
             const removedIds = removed.map(r => Number(r.detail_id)).filter(id => !isNaN(id));
             setDeletedDetailIds(prev => [...prev, ...removedIds]);
@@ -365,6 +366,20 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
             fetchData(); // Refresh list
         } catch (error: unknown) {
             const message = error instanceof Error ? error.message : "Failed to link return";
+            toast.error(message);
+        } finally {
+            setIsLinking(false);
+        }
+    };
+
+    const handleUnlinkReturn = async (junctionId: number) => {
+        setIsLinking(true);
+        try {
+            await siteSalesPostingProvider.unlinkReturn(junctionId);
+            toast.success(`Return unlinked successfully!`);
+            fetchData(); // Refresh list
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : "Failed to unlink return";
             toast.error(message);
         } finally {
             setIsLinking(false);
@@ -499,10 +514,10 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
                         <div className="space-y-4">
                             <div className="space-y-1.5">
                                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Receipt Type</label>
-                                <Input 
-                                    readOnly 
-                                    value={(header.invoice_type && typeof header.invoice_type === 'object') ? (header.invoice_type as unknown as { type?: string }).type : 'DIRECT SALES'} 
-                                    className="h-10 bg-slate-50 dark:bg-slate-800 border-none font-bold text-slate-700 dark:text-slate-200" 
+                                <Input
+                                    readOnly
+                                    value={(header.invoice_type && typeof header.invoice_type === 'object') ? (header.invoice_type as unknown as { type?: string }).type : 'DIRECT SALES'}
+                                    className="h-10 bg-slate-50 dark:bg-slate-800 border-none font-bold text-slate-700 dark:text-slate-200"
                                 />
                             </div>
                             <div className="space-y-1.5">
@@ -646,9 +661,19 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
                                                                 <p className="text-[10px] text-slate-400 font-bold uppercase">{doc.date ? format(parseISO(doc.date), 'MMM dd, yyyy') : '--'}</p>
                                                             </div>
                                                         </div>
-                                                        <div className="text-right">
-                                                            <p className="text-lg font-black text-slate-900 dark:text-white">₱{doc.amount.toLocaleString()}</p>
-                                                            <Badge variant="outline" className="text-[9px] font-black bg-white dark:bg-slate-900">{doc.status || 'LINKED'}</Badge>
+                                                        <div className="flex items-center gap-4">
+                                                            <div className="text-right">
+                                                                <p className="text-lg font-black text-slate-900 dark:text-white">₱{doc.amount.toLocaleString()}</p>
+                                                                <Badge variant="outline" className="text-[9px] font-black bg-white dark:bg-slate-900">{doc.status || 'LINKED'}</Badge>
+                                                            </div>
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="icon"
+                                                                className="h-8 w-8 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-full transition-colors"
+                                                                onClick={() => handleUnlinkReturn(doc.id)}
+                                                            >
+                                                                <Trash className="h-4 w-4" />
+                                                            </Button>
                                                         </div>
                                                     </div>
 
@@ -661,10 +686,10 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
                                                                     <TableHeader className="bg-slate-50/50 dark:bg-slate-800/50">
                                                                         <TableRow className="border-none hover:bg-transparent">
                                                                             <TableHead className="text-[9px] font-black uppercase tracking-widest text-slate-400 h-9">Product Name</TableHead>
-                                                                            <TableHead className="text-[9px] font-black uppercase tracking-widest text-slate-400 h-9 text-right">Price</TableHead>
-                                                                            <TableHead className="text-[9px] font-black uppercase tracking-widest text-slate-400 h-9 text-right">Discount</TableHead>
-                                                                            <TableHead className="text-[9px] font-black uppercase tracking-widest text-slate-400 h-9 text-center">Dis Type</TableHead>
                                                                             <TableHead className="text-[9px] font-black uppercase tracking-widest text-slate-400 h-9 text-center">Qty</TableHead>
+                                                                            <TableHead className="text-[9px] font-black uppercase tracking-widest text-slate-400 h-9 text-right">Unit Price</TableHead>
+                                                                            <TableHead className="text-[9px] font-black uppercase tracking-widest text-slate-400 h-9 text-center">Discount Type</TableHead>
+                                                                            <TableHead className="text-[9px] font-black uppercase tracking-widest text-slate-400 h-9 text-right">Discount</TableHead>
                                                                             <TableHead className="text-[9px] font-black uppercase tracking-widest text-slate-400 h-9 text-right">Total Amount</TableHead>
                                                                         </TableRow>
                                                                     </TableHeader>
@@ -677,11 +702,11 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
                                                                                         {item.reason && <p className="text-[9px] text-slate-400 italic mt-1 font-medium truncate">Reason: {item.reason}</p>}
                                                                                     </div>
                                                                                 </TableCell>
+                                                                                <TableCell className="text-center font-black text-rose-500 text-[12px]">
+                                                                                    {item.quantity}
+                                                                                </TableCell>
                                                                                 <TableCell className="text-right font-bold text-slate-500 dark:text-slate-400 text-[10px]">
                                                                                     ₱{Number(item.unit_price).toLocaleString()}
-                                                                                </TableCell>
-                                                                                <TableCell className="text-right font-black text-rose-500 text-[11px]">
-                                                                                    ₱{Number(item.discount_amount || 0).toLocaleString()}
                                                                                 </TableCell>
                                                                                 <TableCell className="text-center">
                                                                                     {item.discount_type_name ? (
@@ -689,11 +714,11 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
                                                                                             {item.discount_type_name}
                                                                                         </span>
                                                                                     ) : (
-                                                                                        <span className="text-[9px] font-bold text-slate-300 uppercase tracking-tighter">--</span>
+                                                                                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">NONE</span>
                                                                                     )}
                                                                                 </TableCell>
-                                                                                <TableCell className="text-center font-black text-rose-500 text-[12px]">
-                                                                                    x{item.quantity}
+                                                                                <TableCell className="text-right font-black text-rose-500 text-[11px]">
+                                                                                    ₱{Number(item.discount_amount || 0).toLocaleString()}
                                                                                 </TableCell>
                                                                                 <TableCell className="text-right font-black text-slate-900 dark:text-white text-[13px] tracking-tighter">
                                                                                     ₱{Number(item.total_amount).toLocaleString()}
@@ -739,8 +764,7 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
                                                                 "text-lg font-black",
                                                                 doc.balance_name === "DEBIT" ? "text-blue-600" : "text-amber-600"
                                                             )}>
-                                                                {doc.balance_name === "DEBIT" ? "+" : "-"}₱{doc.amount.toLocaleString()}
-                                            
+                                                                ₱{doc.amount.toLocaleString()}
                                                             </p>
                                                         </div>
                                                     </div>
@@ -757,8 +781,8 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
                                                             <span className={cn(
                                                                 "text-[10px] font-bold",
                                                                 doc.status === "APPROVED" ? "text-emerald-500" :
-                                                                doc.status === "FOR APPROVAL" ? "text-amber-500" :
-                                                                "text-indigo-500"
+                                                                    doc.status === "FOR APPROVAL" ? "text-amber-500" :
+                                                                        "text-indigo-500"
                                                             )}>
                                                                 {doc.status || 'LINKED'}
                                                             </span>
@@ -811,15 +835,15 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
                                 <div className="space-y-2.5">
                                     <div className="flex justify-between text-xs font-bold">
                                         <span className="text-rose-500 uppercase tracking-wider">Returns</span>
-                                        <span className="text-rose-600 font-black">-₱{returnAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                                        <span className="text-rose-600 font-black">₱{returnAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                                     </div>
                                     <div className="flex justify-between text-xs font-bold">
                                         <span className="text-amber-500 uppercase tracking-wider">Credit Memo</span>
-                                        <span className="text-amber-600 font-black">-₱{creditMemoAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                                        <span className="text-amber-600 font-black">₱{creditMemoAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                                     </div>
                                     <div className="flex justify-between text-xs font-bold">
                                         <span className="text-blue-500 uppercase tracking-wider">Debit Memo</span>
-                                        <span className="text-blue-600 font-black">+₱{debitMemoAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                                        <span className="text-blue-600 font-black">₱{debitMemoAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                                     </div>
                                 </div>
 
@@ -878,7 +902,7 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
                             ) : (
                                 <CheckCircle2 className="h-4 w-4" />
                             )}
-                            Finalize Posting
+Dispatch
                         </Button>
                     </div>
                 </div>
@@ -901,6 +925,18 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
                         </div>
                     </DialogHeader>
 
+                    <div className="px-6 py-4 bg-white dark:bg-slate-950 border-b border-slate-100 dark:border-slate-800">
+                        <div className="relative">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                            <Input 
+                                placeholder="Search return number or salesman..." 
+                                className="pl-10 h-10 bg-slate-50 dark:bg-slate-900 border-none font-bold text-xs uppercase tracking-widest"
+                                value={returnSearch}
+                                onChange={(e) => setReturnSearch(e.target.value)}
+                            />
+                        </div>
+                    </div>
+
                     <div className="p-6 max-h-[60vh] overflow-y-auto">
                         {isFetchingReturns ? (
                             <div className="flex flex-col items-center justify-center py-12 gap-4">
@@ -917,37 +953,42 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
                             </div>
                         ) : (
                             <div className="space-y-3">
-                                {availableReturns.map((ret) => (
-                                    <div key={ret.return_id} className="group flex items-center justify-between p-4 bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 hover:border-rose-500/30 transition-all shadow-sm">
-                                        <div className="flex items-center gap-4">
-                                            <div className="h-10 w-10 rounded-lg bg-rose-50 dark:bg-rose-950/30 flex items-center justify-center group-hover:scale-110 transition-transform">
-                                                <FileText className="h-5 w-5 text-rose-500" />
-                                            </div>
-                                            <div>
-                                                <p className="text-sm font-black text-slate-800 dark:text-slate-200">#{ret.return_number}</p>
-                                                <div className="flex items-center gap-2 mt-0.5">
-                                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">{ret.return_date ? format(parseISO(ret.return_date), 'MMM dd, yyyy') : '--'}</p>
-                                                    <span className="text-[8px] text-slate-300">•</span>
-                                                    <p className="text-[10px] font-black text-primary uppercase tracking-tighter">{ret.salesman_id?.salesman_name || 'N/A'}</p>
+                                {availableReturns
+                                    .filter(ret =>
+                                        ret.return_number.toLowerCase().includes(returnSearch.toLowerCase()) ||
+                                        (ret.salesman_id?.salesman_name || '').toLowerCase().includes(returnSearch.toLowerCase())
+                                    )
+                                    .map((ret) => (
+                                        <div key={ret.return_id} className="group flex items-center justify-between p-4 bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 hover:border-rose-500/30 transition-all shadow-sm">
+                                            <div className="flex items-center gap-4">
+                                                <div className="h-10 w-10 rounded-lg bg-rose-50 dark:bg-rose-950/30 flex items-center justify-center group-hover:scale-110 transition-transform">
+                                                    <FileText className="h-5 w-5 text-rose-500" />
+                                                </div>
+                                                <div>
+                                                    <p className="text-sm font-black text-slate-800 dark:text-slate-200">#{ret.return_number}</p>
+                                                    <div className="flex items-center gap-2 mt-0.5">
+                                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">{ret.return_date ? format(parseISO(ret.return_date), 'MMM dd, yyyy') : '--'}</p>
+                                                        <span className="text-[8px] text-slate-300">•</span>
+                                                        <p className="text-[10px] font-black text-primary uppercase tracking-tighter">{ret.salesman_id?.salesman_name || 'N/A'}</p>
+                                                    </div>
                                                 </div>
                                             </div>
-                                        </div>
-                                        <div className="flex items-center gap-6">
-                                            <div className="text-right">
-                                                <p className="text-base font-black text-slate-900 dark:text-white">₱{Number(ret.total_amount).toLocaleString()}</p>
-                                                <p className="text-[9px] font-black text-rose-500 uppercase tracking-widest opacity-70">Total Amount</p>
+                                            <div className="flex items-center gap-6">
+                                                <div className="text-right">
+                                                    <p className="text-base font-black text-slate-900 dark:text-white">₱{Number(ret.total_amount).toLocaleString()}</p>
+                                                    <p className="text-[9px] font-black text-rose-500 uppercase tracking-widest opacity-70">Total Amount</p>
+                                                </div>
+                                                <Button
+                                                    disabled={isLinking}
+                                                    onClick={() => handleLinkReturn(ret)}
+                                                    className="bg-rose-500 hover:bg-rose-600 text-white rounded-lg px-4 h-9 font-black text-[10px] uppercase tracking-widest shadow-lg shadow-rose-500/20 gap-2"
+                                                >
+                                                    {isLinking ? <RotateCw className="h-3 w-3 animate-spin" /> : <PlusCircle className="h-3.5 w-3.5" />}
+                                                    Add
+                                                </Button>
                                             </div>
-                                            <Button
-                                                disabled={isLinking}
-                                                onClick={() => handleLinkReturn(ret)}
-                                                className="bg-rose-500 hover:bg-rose-600 text-white rounded-lg px-4 h-9 font-black text-[10px] uppercase tracking-widest shadow-lg shadow-rose-500/20 gap-2"
-                                            >
-                                                {isLinking ? <RotateCw className="h-3 w-3 animate-spin" /> : <PlusCircle className="h-3.5 w-3.5" />}
-                                                Add
-                                            </Button>
                                         </div>
-                                    </div>
-                                ))}
+                                    ))}
                             </div>
                         )}
                     </div>
@@ -1003,7 +1044,7 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
                                 {availableMemos.map((memo) => {
                                     const isDebit = memo.balance_name === "DEBIT";
                                     const remaining = Number(memo.amount) - Number(memo.applied_amount);
-                                    
+
                                     return (
                                         <div key={memo.id} className="group flex flex-col p-4 bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 hover:border-primary/30 transition-all shadow-sm">
                                             <div className="flex items-center justify-between mb-3">
@@ -1046,7 +1087,7 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
                                             </div>
 
                                             <Separator className="my-2 bg-slate-50 dark:bg-slate-800" />
-                                            
+
                                             <div className="grid grid-cols-2 gap-x-8 gap-y-2 mt-1">
                                                 <div className="flex justify-between items-center">
                                                     <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Total Amount</span>
@@ -1067,8 +1108,8 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
                                                     <span className={cn(
                                                         "text-[10px] font-black",
                                                         memo.status === "APPROVED" ? "text-emerald-500" :
-                                                        memo.status === "FOR APPROVAL" ? "text-amber-500" :
-                                                        "text-slate-700 dark:text-slate-200"
+                                                            memo.status === "FOR APPROVAL" ? "text-amber-500" :
+                                                                "text-slate-700 dark:text-slate-200"
                                                     )}>
                                                         {memo.status}
                                                     </span>

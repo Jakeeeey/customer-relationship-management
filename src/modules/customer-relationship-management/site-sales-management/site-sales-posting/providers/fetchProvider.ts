@@ -153,6 +153,19 @@ export const siteSalesPostingProvider = {
         return res.json();
     },
 
+    unlinkReturn: async (junctionId: number | string): Promise<{ success: boolean }> => {
+        const res = await fetch(API_BASE, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                action: "unlink_return",
+                junctionId
+            })
+        });
+        if (!res.ok) throw new Error("Failed to unlink return");
+        return res.json();
+    },
+
     // 7. Product Search for Adding Items
     searchProducts: async (params: { search: string, priceTypeId: number, priceType?: string | null, supplierId?: number | null, branchId?: number | string | null, customerCode?: string | null }): Promise<SearchProduct[]> => {
         const query = new URLSearchParams({

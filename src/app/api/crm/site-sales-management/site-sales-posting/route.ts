@@ -1167,6 +1167,21 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ success: true });
         }
 
+        if (action === "unlink_return") {
+            const { junctionId } = body;
+            const res = await fetch(`${DIRECTUS_URL}/items/sales_invoice_sales_return/${junctionId}`, {
+                method: "DELETE",
+                headers: fetchHeaders
+            });
+
+            if (!res.ok) {
+                const errorData = await res.json();
+                throw new Error(errorData?.errors?.[0]?.message || "Failed to unlink return");
+            }
+
+            return NextResponse.json({ success: true });
+        }
+
         if (action === "link_memo") {
             const { invoiceId, memoId, amount, balance } = body;
             const now = new Date().toISOString();

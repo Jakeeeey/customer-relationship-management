@@ -260,7 +260,7 @@ export const SiteSalesSummaryDetails: React.FC<SiteSalesSummaryDetailsProps> = (
                                                     <div className="flex justify-between items-center mb-2">
                                                         <p className="text-sm font-black text-slate-800 dark:text-slate-200">{doc.reference_no}</p>
                                                         <p className={cn("text-lg font-black", doc.balance_name === "DEBIT" ? "text-blue-600" : "text-amber-600")}>
-                                                            {doc.balance_name === "DEBIT" ? "+" : "-"}₱{doc.amount.toLocaleString()}
+                                                            ₱{doc.amount.toLocaleString()}
                                                         </p>
                                                     </div>
                                                     <div className="flex justify-between text-[10px]">
@@ -307,15 +307,15 @@ export const SiteSalesSummaryDetails: React.FC<SiteSalesSummaryDetailsProps> = (
                                 <div className="space-y-2.5 pt-4 border-t border-dashed border-slate-200 dark:border-slate-800">
                                     <div className="flex justify-between text-[10px] font-bold">
                                         <span className="text-slate-400 uppercase">Returns</span>
-                                        <span className="text-rose-500">-₱{returnAmount.toLocaleString()}</span>
+                                        <span className="text-rose-500">₱{returnAmount.toLocaleString()}</span>
                                     </div>
                                     <div className="flex justify-between text-[10px] font-bold">
                                         <span className="text-slate-400 uppercase">Credit Memos</span>
-                                        <span className="text-amber-500">-₱{creditMemoAmount.toLocaleString()}</span>
+                                        <span className="text-amber-500">₱{creditMemoAmount.toLocaleString()}</span>
                                     </div>
                                     <div className="flex justify-between text-[10px] font-bold">
                                         <span className="text-slate-400 uppercase">Debit Memos</span>
-                                        <span className="text-blue-500">+₱{debitMemoAmount.toLocaleString()}</span>
+                                        <span className="text-blue-500">₱{debitMemoAmount.toLocaleString()}</span>
                                     </div>
                                     
                                     {header.payment_status?.toLowerCase() !== 'paid' && (
