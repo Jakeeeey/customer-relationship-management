@@ -197,6 +197,20 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
         }
     };
 
+    const handleUnDispatch = async () => {
+        setIsSaving(true);
+        try {
+            await siteSalesPostingProvider.unDispatch(id);
+            toast.success("Invoice un-dispatched successfully!");
+            fetchData(); // Refresh data
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : "Failed to un-dispatch";
+            toast.error(message);
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
     useEffect(() => {
         fetchData();
     }, [fetchData]);
@@ -891,19 +905,57 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
                 {/* Bottom Actions */}
                 <div className="mt-auto pt-6 flex justify-end items-center">
                     <div className="flex gap-3">
-                        <Button variant="outline" className="rounded-xl font-black text-xs uppercase tracking-widest">Print Invoice</Button>
-                        <Button
-                            disabled={isSaving}
-                            onClick={handleFinalize}
-                            className="bg-primary hover:bg-primary/90 rounded-xl px-8 font-black text-xs uppercase tracking-widest shadow-lg shadow-primary/20 gap-2"
-                        >
-                            {isSaving ? (
-                                <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                            ) : (
-                                <CheckCircle2 className="h-4 w-4" />
-                            )}
-Dispatch
-                        </Button>
+                        {(() => {
+                            // Helper to handle BIT(1) from DB (can be boolean, number, or Buffer)
+                            const checkBit = (val: unknown) => {
+                                if (typeof val === 'boolean') return val;
+                                if (typeof val === 'number') return val === 1;
+                                if (val && typeof val === 'object' && val !== null && 'data' in val && Array.isArray((val as { data: unknown }).data)) return (val as { data: number[] }).data[0] === 1;
+                                return false;
+                            };
+
+                            const isPosted = checkBit(header.isPosted) || header.transaction_status === 'Completed' || header.transaction_status === 'Posted';
+                            const isDispatched = checkBit(header.isDispatched) || header.transaction_status === 'Dispatched';
+
+                            if (isPosted) {
+                                return (
+                                    <div className="px-6 py-2 bg-slate-100 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
+                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">View Only (Posted)</p>
+                                    </div>
+                                );
+                            }
+
+                            if (isDispatched) {
+                                return (
+                                    <Button
+                                        disabled={isSaving}
+                                        onClick={handleUnDispatch}
+                                        variant="outline"
+                                        className="border-rose-500 text-rose-500 hover:bg-rose-50 rounded-xl px-8 font-black text-xs uppercase tracking-widest gap-2 shadow-lg shadow-rose-500/5"
+                                    >
+                                        {isSaving && (
+                                            <div className="h-4 w-4 animate-spin rounded-full border-2 border-rose-500 border-t-transparent" />
+                                        )}
+                                        Un Dispatch
+                                    </Button>
+                                );
+                            }
+
+                            return (
+                                <Button
+                                    disabled={isSaving}
+                                    onClick={handleFinalize}
+                                    className="bg-primary hover:bg-primary/90 rounded-xl px-8 font-black text-xs uppercase tracking-widest shadow-lg shadow-primary/20 gap-2"
+                                >
+                                    {isSaving ? (
+                                        <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                                    ) : (
+                                        <CheckCircle2 className="h-4 w-4" />
+                                    )}
+                                    Dispatch
+                                </Button>
+                            );
+                        })()}
                     </div>
                 </div>
             </div>

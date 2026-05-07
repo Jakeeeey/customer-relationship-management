@@ -166,6 +166,19 @@ export const siteSalesPostingProvider = {
         return res.json();
     },
 
+    unDispatch: async (id: string | number): Promise<{ success: boolean }> => {
+        const res = await fetch(API_BASE, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                action: "un_dispatch",
+                id
+            })
+        });
+        if (!res.ok) throw new Error("Failed to un-dispatch invoice");
+        return res.json();
+    },
+
     // 7. Product Search for Adding Items
     searchProducts: async (params: { search: string, priceTypeId: number, priceType?: string | null, supplierId?: number | null, branchId?: number | string | null, customerCode?: string | null }): Promise<SearchProduct[]> => {
         const query = new URLSearchParams({

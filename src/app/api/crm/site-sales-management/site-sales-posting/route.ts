@@ -1182,6 +1182,31 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ success: true });
         }
 
+        if (action === "un_dispatch") {
+            const { id } = body;
+            const userId = await resolveUserId();
+            const now = new Date().toISOString();
+
+            const res = await fetch(`${DIRECTUS_URL}/items/sales_invoice/${id}`, {
+                method: "PATCH",
+                headers: fetchHeaders,
+                body: JSON.stringify({
+                    transaction_status: "New Invoice",
+                    isDispatched: 0,
+                    dispatch_date: null,
+                    modified_by: userId,
+                    modified_date: now
+                })
+            });
+
+            if (!res.ok) {
+                const errorData = await res.json();
+                throw new Error(errorData?.errors?.[0]?.message || "Failed to un-dispatch invoice");
+            }
+
+            return NextResponse.json({ success: true });
+        }
+
         if (action === "link_memo") {
             const { invoiceId, memoId, amount, balance } = body;
             const now = new Date().toISOString();
