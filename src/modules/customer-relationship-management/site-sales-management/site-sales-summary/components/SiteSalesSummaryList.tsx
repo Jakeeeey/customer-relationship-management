@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { cn } from "@/lib/utils";
 
 import {
@@ -95,11 +95,11 @@ export const SiteSalesSummaryList: React.FC<SiteSalesSummaryListProps> = ({
     onFilterChange,
     fetchAllForExport
 }) => {
-    const formatDate = (dateString?: string | null) => {
+    const formatDate = useCallback((dateString?: string | null) => {
         if (!dateString) return "--";
         const date = parseISO(dateString);
         return isValid(date) ? format(date, "MMM dd, yyyy hh:mm a") : dateString;
-    };
+    }, []);
 
     const [search, setSearch] = useState("");
     const [customer, setCustomer] = useState("all");
@@ -134,10 +134,10 @@ export const SiteSalesSummaryList: React.FC<SiteSalesSummaryListProps> = ({
         }
     }, [templates, selectedTemplateName]);
 
-    const handleOpenDetails = (id: string) => {
+    const handleOpenDetails = useCallback((id: string) => {
         setSelectedInvoiceId(id);
         setIsModalOpen(true);
-    };
+    }, []);
 
     const getCurrentFilters = useCallback((): WorklistFilters => ({
         search,
@@ -150,7 +150,7 @@ export const SiteSalesSummaryList: React.FC<SiteSalesSummaryListProps> = ({
         isPaid
     }), [search, salesman, customer, salesType, dateFrom, dateTo, isDispatched, isPaid]);
 
-    const columns: ColumnDef<SalesInvoiceHeader>[] = [
+    const columns = useMemo<ColumnDef<SalesInvoiceHeader>[]>(() => [
         {
             id: "select",
             header: ({ table }) => (
@@ -178,7 +178,16 @@ export const SiteSalesSummaryList: React.FC<SiteSalesSummaryListProps> = ({
         },
         {
             accessorKey: "invoice_no",
-            header: "Receipt No.",
+            header: ({ column }) => (
+                <Button
+                    variant="ghost"
+                    onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+                    className="p-0 hover:bg-transparent font-black uppercase tracking-widest text-[10px]"
+                >
+                    Receipt No.
+                    <ArrowUpDown className="ml-2 h-3 w-3 shrink-0 opacity-50" />
+                </Button>
+            ),
             cell: ({ row }) => (
                 <button
                     onClick={() => handleOpenDetails(row.original.invoice_id.toString())}
@@ -190,7 +199,16 @@ export const SiteSalesSummaryList: React.FC<SiteSalesSummaryListProps> = ({
         },
         {
             accessorKey: "salesman_name",
-            header: "Salesman",
+            header: ({ column }) => (
+                <Button
+                    variant="ghost"
+                    onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+                    className="p-0 hover:bg-transparent font-black uppercase tracking-widest text-[10px]"
+                >
+                    Salesman
+                    <ArrowUpDown className="ml-2 h-3 w-3 shrink-0 opacity-50" />
+                </Button>
+            ),
             cell: ({ row }) => (
                 <button
                     onClick={() => handleOpenDetails(row.original.invoice_id.toString())}
@@ -202,7 +220,16 @@ export const SiteSalesSummaryList: React.FC<SiteSalesSummaryListProps> = ({
         },
         {
             accessorKey: "customer_name",
-            header: "Customer",
+            header: ({ column }) => (
+                <Button
+                    variant="ghost"
+                    onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+                    className="p-0 hover:bg-transparent font-black uppercase tracking-widest text-[10px]"
+                >
+                    Customer
+                    <ArrowUpDown className="ml-2 h-3 w-3 shrink-0 opacity-50" />
+                </Button>
+            ),
             cell: ({ row }) => (
                 <button
                     onClick={() => handleOpenDetails(row.original.invoice_id.toString())}
@@ -231,18 +258,16 @@ export const SiteSalesSummaryList: React.FC<SiteSalesSummaryListProps> = ({
         },
         {
             accessorKey: "invoice_date",
-            header: ({ column }) => {
-                return (
-                    <Button
-                        variant="ghost"
-                        onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-                        className="p-0 hover:bg-transparent font-black uppercase tracking-widest text-[10px]"
-                    >
-                        Receipt Date
-                        <ArrowUpDown className="ml-2 h-3 w-3" />
-                    </Button>
-                );
-            },
+            header: ({ column }) => (
+                <Button
+                    variant="ghost"
+                    onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+                    className="p-0 hover:bg-transparent font-black uppercase tracking-widest text-[10px]"
+                >
+                    Receipt Date
+                    <ArrowUpDown className="ml-2 h-3 w-3 shrink-0 opacity-50" />
+                </Button>
+            ),
             cell: ({ row }) => (
                 <button
                     onClick={() => handleOpenDetails(row.original.invoice_id.toString())}
@@ -254,18 +279,16 @@ export const SiteSalesSummaryList: React.FC<SiteSalesSummaryListProps> = ({
         },
         {
             accessorKey: "dispatch_date",
-            header: ({ column }) => {
-                return (
-                    <Button
-                        variant="ghost"
-                        onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-                        className="p-0 hover:bg-transparent font-black uppercase tracking-widest text-[10px]"
-                    >
-                        Dispatch Date
-                        <ArrowUpDown className="ml-2 h-3 w-3" />
-                    </Button>
-                );
-            },
+            header: ({ column }) => (
+                <Button
+                    variant="ghost"
+                    onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+                    className="p-0 hover:bg-transparent font-black uppercase tracking-widest text-[10px]"
+                >
+                    Dispatch Date
+                    <ArrowUpDown className="ml-2 h-3 w-3 shrink-0 opacity-50" />
+                </Button>
+            ),
             cell: ({ row }) => (
                 <button
                     onClick={() => handleOpenDetails(row.original.invoice_id.toString())}
@@ -277,13 +300,24 @@ export const SiteSalesSummaryList: React.FC<SiteSalesSummaryListProps> = ({
         },
         {
             accessorKey: "total_amount",
-            header: () => <div className="text-right">Total Amount</div>,
+            header: ({ column }) => (
+                <div className="flex justify-end w-full">
+                    <Button
+                        variant="ghost"
+                        onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+                        className="p-0 hover:bg-transparent font-black uppercase tracking-widest text-[10px]"
+                    >
+                        Total Amount
+                        <ArrowUpDown className="ml-2 h-3 w-3 shrink-0 opacity-50" />
+                    </Button>
+                </div>
+            ),
             cell: ({ row }) => (
                 <button
                     onClick={() => handleOpenDetails(row.original.invoice_id.toString())}
-                    className="block -m-3 p-3 hover:bg-primary/5 transition-colors w-full bg-transparent border-none"
+                    className="block -m-3 p-3 hover:bg-primary/5 transition-colors w-full bg-transparent border-none text-right"
                 >
-                    <div className="text-right font-bold text-slate-900 dark:text-slate-100">
+                    <div className="font-bold text-slate-900 dark:text-slate-100">
                         P{Number(row.original.total_amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
                     </div>
                 </button>
@@ -315,7 +349,7 @@ export const SiteSalesSummaryList: React.FC<SiteSalesSummaryListProps> = ({
 
                 return (
                     <div className="flex items-center gap-2">
-                        <div className={cn("h-2 w-2 rounded-full", isPaid ? "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]" : "bg-amber-500 animate-pulse")} />
+                        <div className={cn("h-2 w-2 rounded-full", isPaid ? "bg-emerald-500 shadow-[0_0_8_rgba(16,185,129,0.5)]" : "bg-amber-500 animate-pulse")} />
                         <span className={cn("text-[10px] font-black uppercase tracking-tight", isPaid ? "text-emerald-700" : "text-amber-700")}>
                             {status}
                         </span>
@@ -352,14 +386,59 @@ export const SiteSalesSummaryList: React.FC<SiteSalesSummaryListProps> = ({
         },
         {
             accessorKey: "balance",
-            header: () => <div className="text-right">Balance</div>,
+            header: ({ column }) => (
+                <div className="flex justify-end w-full">
+                    <Button
+                        variant="ghost"
+                        onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+                        className="p-0 hover:bg-transparent font-black uppercase tracking-widest text-[10px]"
+                    >
+                        Balance
+                        <ArrowUpDown className="ml-2 h-3 w-3 shrink-0 opacity-50" />
+                    </Button>
+                </div>
+            ),
             cell: ({ row }) => (
                 <div className="text-right font-black text-slate-900 dark:text-slate-100">
                     P{Number(row.original.balance || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
                 </div>
             )
         },
-    ];
+        {
+            accessorKey: "isPosted",
+            header: ({ column }) => (
+                <div className="flex justify-center w-full">
+                    <Button
+                        variant="ghost"
+                        onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+                        className="p-0 hover:bg-transparent font-black uppercase tracking-widest text-[10px]"
+                    >
+                        Posted
+                        <ArrowUpDown className="ml-2 h-3 w-3 shrink-0 opacity-50" />
+                    </Button>
+                </div>
+            ),
+            cell: ({ row }) => {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const val = (row.original.isPosted ?? (row.original as any).is_posted) as any;
+                // Robust check for BIT(1) / Boolean / Number / String
+                const isPosted = val === true || val === 1 || val === "1" || 
+                                (val && typeof val === 'object' && 'data' in val && Array.isArray(val.data) && val.data[0] === 1);
+                
+                return (
+                    <div className="flex justify-center">
+                        {isPosted ? (
+                            <div className="h-5 w-5 rounded-full bg-slate-900 dark:bg-white flex items-center justify-center text-white dark:text-slate-900 shadow-md border-none transition-all duration-300">
+                                <Check className="h-3 w-3 stroke-[3px]" />
+                            </div>
+                        ) : (
+                            <div className="h-5 w-5 rounded-full border-2 border-slate-200 dark:border-slate-700 bg-transparent transition-all duration-300" />
+                        )}
+                    </div>
+                );
+            }
+        },
+    ], [formatDate, handleOpenDetails]);
 
     const table = useReactTable({
         data,
@@ -433,7 +512,8 @@ export const SiteSalesSummaryList: React.FC<SiteSalesSummaryListProps> = ({
             setIsExporting(null);
             setIsGeneratingPdf(false);
         }
-    }, [fetchAllForExport, getCurrentFilters, pdfOrientation, selectedTemplateName, stats, companyData, pdfUrl, table]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [fetchAllForExport, getCurrentFilters, pdfOrientation, selectedTemplateName, stats, companyData, table]);
 
     // Handle orientation/template changes in preview
     useEffect(() => {

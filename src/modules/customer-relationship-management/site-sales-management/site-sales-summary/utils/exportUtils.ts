@@ -21,6 +21,11 @@ const formatCurrency = (amount: number) => {
 export const exportToExcel = (data: SalesInvoiceHeader[], fileName: string, _filters: WorklistFilters) => {
     const worksheetData = data.map(item => ({
         'Receipt No.': item.invoice_no,
+        /* eslint-disable @typescript-eslint/no-explicit-any */
+        'Posted': ((item.isPosted as any) === true || (item.isPosted as any) === 1 || (item.isPosted as any) === "1" || 
+                  ((item as any).is_posted === true || (item as any).is_posted === 1 || (item as any).is_posted === "1") ||
+                  (item.isPosted && typeof item.isPosted === 'object' && 'data' in (item.isPosted as any) && (item.isPosted as any).data[0] === 1)) ? 'YES' : 'NO',
+        /* eslint-enable @typescript-eslint/no-explicit-any */
         'Salesman': item.salesman_name || 'N/A',
         'Customer': item.customer_name || 'N/A',
         'Receipt Date': formatDate(item.invoice_date),
