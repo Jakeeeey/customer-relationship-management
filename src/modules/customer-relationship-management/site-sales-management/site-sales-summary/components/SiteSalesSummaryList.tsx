@@ -114,6 +114,12 @@ export const SiteSalesSummaryList: React.FC<SiteSalesSummaryListProps> = ({
     const [openSalesman, setOpenSalesman] = useState(false);
     const [isExporting, setIsExporting] = useState<"excel" | "pdf" | null>(null);
 
+    // Pagination state
+    const [pagination, setPagination] = useState({
+        pageIndex: 0,
+        pageSize: 10,
+    });
+
     // Selection state
     const [rowSelection, setRowSelection] = useState({});
 
@@ -147,8 +153,10 @@ export const SiteSalesSummaryList: React.FC<SiteSalesSummaryListProps> = ({
         startDate: dateFrom,
         endDate: dateTo,
         isDispatched,
-        isPaid
-    }), [search, salesman, customer, salesType, dateFrom, dateTo, isDispatched, isPaid]);
+        isPaid,
+        page: pagination.pageIndex + 1,
+        limit: pagination.pageSize
+    }), [search, salesman, customer, salesType, dateFrom, dateTo, isDispatched, isPaid, pagination]);
 
     const columns = useMemo<ColumnDef<SalesInvoiceHeader>[]>(() => [
         {
@@ -446,9 +454,13 @@ export const SiteSalesSummaryList: React.FC<SiteSalesSummaryListProps> = ({
         state: {
             sorting,
             rowSelection,
+            pagination,
         },
         onSortingChange: setSorting,
         onRowSelectionChange: setRowSelection,
+        onPaginationChange: setPagination,
+        manualPagination: true,
+        pageCount: Math.ceil(totalCount / pagination.pageSize),
         getCoreRowModel: getCoreRowModel(),
         getSortedRowModel: getSortedRowModel(),
         getPaginationRowModel: getPaginationRowModel(),
@@ -479,7 +491,15 @@ export const SiteSalesSummaryList: React.FC<SiteSalesSummaryListProps> = ({
             const filters = getCurrentFilters();
 
             if (targetType === "excel") {
-                exportToExcel(exportData, fileName, filters);
+                const exportStats = selectedRows.length > 0 ? {
+                    totalGross: exportData.reduce((sum, item) => sum + Number(item.net_amount || 0), 0),
+                    totalCredits: exportData.reduce((sum, item) => sum + Number(item.credits || 0), 0),
+                    totalReturns: exportData.reduce((sum, item) => sum + Number(item.returns || 0), 0),
+                    totalDebits: exportData.reduce((sum, item) => sum + Number(item.debits || 0), 0),
+                    totalBalance: exportData.reduce((sum, item) => sum + Number(item.balance || 0), 0),
+                    invoiceCount: exportData.length
+                } : stats;
+                await exportToExcel(exportData, fileName, filters, exportStats);
             } else {
                 // Recalculate stats for the selected data if needed
                 const exportStats = selectedRows.length > 0 ? {
@@ -532,6 +552,11 @@ export const SiteSalesSummaryList: React.FC<SiteSalesSummaryListProps> = ({
     const applyFilters = useCallback(() => {
         onFilterChange(getCurrentFilters());
     }, [onFilterChange, getCurrentFilters]);
+
+    // Reset pagination when search or filters change
+    useEffect(() => {
+        setPagination(prev => ({ ...prev, pageIndex: 0 }));
+    }, [search, customer, salesman, salesType, dateFrom, dateTo, isDispatched, isPaid]);
 
     useEffect(() => {
         const timer = setTimeout(applyFilters, 500);
@@ -1005,10 +1030,7 @@ export const SiteSalesSummaryList: React.FC<SiteSalesSummaryListProps> = ({
                 </div>
 
                 {/* Pagination Controls */}
-                <div className="flex items-center justify-between px-2 mt-4">
-                    <div className="flex-1 text-sm text-slate-500 font-medium italic">
-                        Total of {totalCount.toLocaleString()} row(s) found.
-                    </div>
+                <div className="flex items-center justify-end px-2 mt-4">
                     <div className="flex items-center space-x-6 lg:space-x-8">
                         <div className="flex items-center space-x-2">
                             <p className="text-sm font-bold text-slate-600 dark:text-slate-400">Rows per page</p>

@@ -175,7 +175,7 @@ export interface LinkedCollection {
     collection_date: string;
     amount: number;
     type: string;
-    remarks?: string;
+    source_temp_id?: string;
     isPosted: boolean;
 }
 
