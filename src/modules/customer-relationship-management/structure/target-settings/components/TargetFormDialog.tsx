@@ -122,12 +122,7 @@ export function TargetFormDialog({
     });
 
     // --- New Allocation State ---
-    const [customerTargets, setCustomerTargets] = useState<Partial<CustomerTarget>[]>(
-        salesman.current_target?.customer_targets?.map(ct => ({
-            customer_id: ct.customer_id,
-            target_amount: ct.target_amount
-        })) || []
-    );
+    const [customerTargets, setCustomerTargets] = useState<Partial<CustomerTarget>[]>([]);
 
     const [areaTargets, setAreaTargets] = useState<Partial<AreaTarget>[]>(
         salesman.current_target?.area_targets?.map(at => ({
@@ -159,8 +154,11 @@ export function TargetFormDialog({
     // --- Reset State when Salesman or Modal changes ---
     useEffect(() => {
         if (isOpen) {
+            const currentSupplierTargets = salesman.current_target?.supplier_targets || [];
+            const totalSupplierVolume = currentSupplierTargets.reduce((sum, st) => sum + (Number(st.target_amount) || 0), 0);
+
             setTargetData({
-                volume: salesman.current_target?.volume || 0,
+                volume: totalSupplierVolume,
                 new_accounts: salesman.current_target?.new_accounts || 0,
                 productive_outlets: salesman.current_target?.productive_outlets || 0,
                 line_sales: salesman.current_target?.line_sales || 0,
@@ -187,6 +185,13 @@ export function TargetFormDialog({
                 }) || []
             );
 
+            setCustomerTargets(
+                salesman.current_target?.customer_targets?.map(ct => ({
+                    customer_id: ct.customer_id,
+                    target_amount: ct.target_amount
+                })) || []
+            );
+
             setAreaTargets(
                 salesman.current_target?.area_targets?.map(at => ({
                     province: at.province,
@@ -207,6 +212,23 @@ export function TargetFormDialog({
             setSelectedProvinceCode("");
             setSelectedCityName("");
             setLoading(false);
+        } else {
+            // Cleanup state when dialog is closed or salesman changes
+            setCustomerTargets([]);
+            setAreaTargets([]);
+            setSupplierTargets([]);
+            setTacticalSkus([]);
+            setTargetData({
+                volume: 0,
+                new_accounts: 0,
+                productive_outlets: 0,
+                line_sales: 0,
+                line_sales_target: 0,
+                frequency: 0,
+                basket_count: 0,
+                basket_count_target: 0,
+                reach: 0,
+            });
         }
     }, [isOpen, salesman, month, year, allProducts]);
 
@@ -510,28 +532,33 @@ export function TargetFormDialog({
             return;
         }
 
-        if (isBooking && totalAllocatedCustomer > targetData.volume) {
-            toast.error(`Total customer allocation (₱${(totalAllocatedCustomer || 0).toLocaleString()}) exceeds total volume (₱${(targetData.volume || 0).toLocaleString()})`);
+        // Validation: Customers must not exceed Volume (Supplier Total)
+        if (isBooking && totalAllocatedCustomer > totalAllocatedSupplier) {
+            toast.error(`Total customer allocation (₱${(totalAllocatedCustomer || 0).toLocaleString()}) exceeds total volume (₱${(totalAllocatedSupplier || 0).toLocaleString()})`);
             setLoading(false);
             return;
         }
 
-        if ((isSiteSales || isBooking) && totalAllocatedArea > targetData.volume) {
-            toast.error(`Total area allocation (₱${(totalAllocatedArea || 0).toLocaleString()}) exceeds total volume (₱${(targetData.volume || 0).toLocaleString()})`);
+        // Validation: Areas must not exceed Volume (Supplier Total)
+        if ((isSiteSales || isBooking) && totalAllocatedArea > totalAllocatedSupplier) {
+            toast.error(`Total area allocation (₱${(totalAllocatedArea || 0).toLocaleString()}) exceeds total volume (₱${(totalAllocatedSupplier || 0).toLocaleString()})`);
             setLoading(false);
             return;
         }
 
+        /* --- Supplier allocation validation disabled as it is now fetched from BIA ---
         if (totalAllocatedSupplier > targetData.volume) {
             toast.error(`Total supplier allocation (₱${(totalAllocatedSupplier || 0).toLocaleString()}) exceeds total volume (₱${(targetData.volume || 0).toLocaleString()})`);
             setLoading(false);
             return;
         }
+        */
 
         try {
             await targetSettingsProvider.saveTarget({
                 target: {
                     ...targetData,
+                    volume: totalAllocatedSupplier, // Ensure we save the calculated volume
                     salesman_id: salesman.id,
                     date_range_from: dateFrom,
                     date_range_to: dateTo,
@@ -589,10 +616,10 @@ export function TargetFormDialog({
                                         <div className="relative group">
                                             <Input
                                                 type="number"
-                                                value={targetData.volume || ""}
-                                                onChange={(e) => handleInputChange('volume', e.target.value)}
-                                                className="bg-white border-slate-200 h-14 pl-12 font-bold text-2xl rounded-2xl focus:ring-slate-900 shadow-sm transition-all group-hover:border-slate-300"
-                                                placeholder="Enter volume target"
+                                                value={totalAllocatedSupplier || ""}
+                                                readOnly
+                                                className="bg-slate-100 border-none h-14 pl-12 font-black text-2xl rounded-2xl focus:ring-0 shadow-inner text-primary cursor-not-allowed"
+                                                placeholder="0"
                                             />
                                             <span className="absolute left-5 top-1/2 -translate-y-1/2 font-bold text-slate-400 text-lg">₱</span>
                                         </div>
@@ -624,10 +651,10 @@ export function TargetFormDialog({
                                         <div className="relative group">
                                             <Input
                                                 type="number"
-                                                value={targetData.volume || ""}
-                                                onChange={(e) => handleInputChange('volume', e.target.value)}
-                                                className="bg-white border-slate-200 h-11 pl-10 font-bold text-lg rounded-xl focus:ring-slate-900 shadow-sm transition-all group-hover:border-slate-300"
-                                                placeholder="Enter volume target"
+                                                value={totalAllocatedSupplier || ""}
+                                                readOnly
+                                                className="bg-slate-100 border-none h-11 pl-10 font-black text-lg rounded-xl focus:ring-0 shadow-inner text-primary cursor-not-allowed"
+                                                placeholder="0"
                                             />
                                             <span className="absolute left-4 top-1/2 -translate-y-1/2 font-bold text-slate-400">₱</span>
                                         </div>
@@ -763,23 +790,23 @@ export function TargetFormDialog({
                                         {isBooking && (
                                             <div className="text-right">
                                                 <p className="text-[10px] font-black text-slate-400 uppercase">Allocated (Customers)</p>
-                                                <p className={`text-sm font-bold ${totalAllocatedCustomer > targetData.volume ? 'text-destructive' : 'text-slate-900'}`}>
-                                                    ₱{(totalAllocatedCustomer || 0).toLocaleString()} / ₱{(targetData.volume || 0).toLocaleString()}
+                                                <p className={`text-sm font-bold ${totalAllocatedCustomer > totalAllocatedSupplier ? 'text-destructive' : 'text-slate-900'}`}>
+                                                    ₱{(totalAllocatedCustomer || 0).toLocaleString()} / ₱{(totalAllocatedSupplier || 0).toLocaleString()}
                                                 </p>
                                             </div>
                                         )}
                                         {(isSiteSales || isBooking) && (
                                             <div className="text-right">
                                                 <p className="text-[10px] font-black text-slate-400 uppercase">Allocated (Areas)</p>
-                                                <p className={`text-sm font-bold ${totalAllocatedArea > targetData.volume ? 'text-destructive' : 'text-slate-900'}`}>
-                                                    ₱{(totalAllocatedArea || 0).toLocaleString()} / ₱{(targetData.volume || 0).toLocaleString()}
+                                                <p className={`text-sm font-bold ${totalAllocatedArea > totalAllocatedSupplier ? 'text-destructive' : 'text-slate-900'}`}>
+                                                    ₱{(totalAllocatedArea || 0).toLocaleString()} / ₱{(totalAllocatedSupplier || 0).toLocaleString()}
                                                 </p>
                                             </div>
                                         )}
                                         <div className="text-right">
                                             <p className="text-[10px] font-black text-slate-400 uppercase">Allocated (Suppliers)</p>
-                                            <p className={`text-sm font-bold ${totalAllocatedSupplier > targetData.volume ? 'text-destructive' : 'text-slate-900'}`}>
-                                                ₱{(totalAllocatedSupplier || 0).toLocaleString()} / ₱{(targetData.volume || 0).toLocaleString()}
+                                            <p className={`text-sm font-bold ${totalAllocatedSupplier > totalAllocatedSupplier ? 'text-destructive' : 'text-slate-900'}`}>
+                                                ₱{(totalAllocatedSupplier || 0).toLocaleString()} / ₱{(totalAllocatedSupplier || 0).toLocaleString()}
                                             </p>
                                         </div>
                                     </div>
@@ -997,9 +1024,12 @@ export function TargetFormDialog({
                                         <div className="p-4 bg-white border-b border-slate-100 space-y-4">
                                             <div className="flex items-center gap-2 text-emerald-700 font-black text-xs uppercase tracking-widest">
                                                 <Truck className="w-4 h-4" /> Trade Supplier Allocation
+                                                <Badge variant="outline" className="ml-auto bg-blue-50 border-blue-100 text-blue-700 font-bold text-[9px] uppercase tracking-tighter">
+                                                    Fetched from BIA
+                                                </Badge>
                                                 {totalAllocatedSupplier > 0 && (
-                                                    <Badge variant="outline" className="ml-auto bg-emerald-50 border-emerald-100 text-emerald-700 font-bold">
-                                                        {Math.round((totalAllocatedSupplier / (targetData.volume || 1)) * 100)}% of limit
+                                                    <Badge variant="outline" className="bg-emerald-50 border-emerald-100 text-emerald-700 font-bold">
+                                                        {Math.round((totalAllocatedSupplier / (totalAllocatedSupplier || 1)) * 100)}% of limit
                                                     </Badge>
                                                 )}
                                             </div>
@@ -1029,11 +1059,11 @@ export function TargetFormDialog({
                                                                     <Input
                                                                         type="number"
                                                                         value={targetValue || ""}
-                                                                        onChange={(e) => handleSupplierTargetChange(supplier.id, Number(e.target.value))}
-                                                                        className="h-8 pl-6 text-xs font-bold bg-slate-50 border-none rounded-lg focus:ring-emerald-500"
+                                                                        readOnly
+                                                                        className="h-8 pl-6 text-xs font-black bg-slate-100/50 border-none rounded-lg text-emerald-700 cursor-not-allowed shadow-inner"
                                                                         placeholder="0"
                                                                     />
-                                                                    <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-400">₱</span>
+                                                                    <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] font-bold text-emerald-600/50">₱</span>
                                                                 </div>
                                                             </div>
                                                         );
@@ -1061,7 +1091,7 @@ export function TargetFormDialog({
                                     </div>
                                     <div className="text-right">
                                         <p className="text-[10px] font-black text-primary-foreground/60 uppercase">Available Budget</p>
-                                        <p className="text-xl font-black text-white">₱{(targetData.volume || 0).toLocaleString()}</p>
+                                        <p className="text-xl font-black text-white">₱{(totalAllocatedSupplier || 0).toLocaleString()}</p>
                                     </div>
                                 </div>
                             </div>
