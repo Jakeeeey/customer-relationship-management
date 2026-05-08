@@ -425,17 +425,7 @@ export function TargetFormDialog({
         ));
     };
 
-    const handleSupplierTargetChange = (supplierId: number, amount: number) => {
-        setSupplierTargets(prev => {
-            const existing = prev.find(st => st.supplier_id === supplierId);
-            if (existing) {
-                if (amount <= 0) return prev.filter(st => st.supplier_id !== supplierId);
-                return prev.map(st => st.supplier_id === supplierId ? { ...st, target_amount: amount } : st);
-            }
-            if (amount <= 0) return prev;
-            return [...prev, { supplier_id: supplierId, target_amount: amount }];
-        });
-    };
+    /* --- handleSupplierTargetChange removed as supplier targets are now read-only --- */
 
     const handleInputChange = (field: string, value: string) => {
         setTargetData(prev => ({ ...prev, [field]: Number(value) }));

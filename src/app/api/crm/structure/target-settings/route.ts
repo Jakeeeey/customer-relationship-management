@@ -219,10 +219,25 @@ export async function GET(req: NextRequest) {
         const suppData = await suppliersRes.json() as DirectusResponse<object[]>;
         const allSuppliers = suppData.data || [];
 
-        // 10. Fetch existing Customer and Supplier allocations for these targets
-        // 10. Fetch existing Customer and Supplier allocations for these targets
+        interface BIASupplierTarget {
+            id: number;
+            salesman_id: number;
+            supplier_id: number;
+            target_amount: number;
+            fiscal_period: string;
+            created_at: string;
+        }
+
+        interface SupplierTarget {
+            id?: number;
+            target_setting_id: number;
+            supplier_id: number;
+            target_amount: number;
+            created_at?: string;
+        }
+
         let customerTargets: object[] = [];
-        let supplierTargets: any[] = [];
+        let supplierTargets: SupplierTarget[] = [];
         let areaTargets: object[] = [];
         if (targetIds.length > 0) {
             const ctRes = await fetch(`${DIRECTUS_URL}/items/salesman_target_customer_sales?filter[target_setting_id][_in]=${targetIds.join(',')}&limit=-1`, { headers: fetchHeaders });
@@ -232,19 +247,19 @@ export async function GET(req: NextRequest) {
             // FETCH FROM BIA: target_setting_salesman
             const fiscalPeriod = dateFrom.split(' ')[0];
             const stRes = await fetch(`${DIRECTUS_URL}/items/target_setting_salesman?filter[salesman_id][_in]=${smIds.join(',')}&filter[fiscal_period][_eq]=${fiscalPeriod}&limit=-1`, { headers: fetchHeaders });
-            const stData = await stRes.json() as DirectusResponse<any[]>;
+            const stData = await stRes.json() as DirectusResponse<BIASupplierTarget[]>;
             const rawSupplierTargets = stData.data || [];
             
             // Map BIA records to CRM format to ensure frontend join works
             supplierTargets = rawSupplierTargets.map(rst => {
-                const matchingTarget = targets.find((t: any) => t.salesman_id === rst.salesman_id);
+                const matchingTarget = targets.find((t: { salesman_id: number; id: number }) => t.salesman_id === rst.salesman_id);
                 return {
                     id: rst.id,
-                    target_setting_id: matchingTarget ? matchingTarget.id : null,
+                    target_setting_id: matchingTarget ? matchingTarget.id : 0,
                     supplier_id: rst.supplier_id,
                     target_amount: rst.target_amount,
                     created_at: rst.created_at
-                };
+                } as SupplierTarget;
             });
 
             const areaRes = await fetch(`${DIRECTUS_URL}/items/salesman_target_area_sales?filter[target_setting_id][_in]=${targetIds.join(',')}&limit=-1`, { headers: fetchHeaders });
@@ -291,7 +306,7 @@ export async function POST(req: NextRequest) {
             supplierTargets: { supplier_id: number; target_amount: number }[];
             areaTargets: { province: string; city: string; target_amount: number }[];
         } = await req.json();
-        const { target, tacticalSkus, customerTargets, supplierTargets, areaTargets } = body;
+        const { target, tacticalSkus, customerTargets, areaTargets } = body;
 
         // Restore field mapping for salesman_target_setting
         const directusTarget = { 
