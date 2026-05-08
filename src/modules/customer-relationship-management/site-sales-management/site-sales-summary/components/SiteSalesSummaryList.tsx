@@ -17,6 +17,9 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
+    Download,
+    FileSpreadsheet,
+    FileText,
     Check,
     ChevronsUpDown,
     Loader2,
@@ -25,9 +28,19 @@ import {
     ChevronRight,
     ChevronsLeft,
     ChevronsRight,
+    X,
+    Printer,
+    Layout,
+    Eye,
 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
     Table,
     TableBody,
@@ -43,10 +56,17 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
+import {
+    Dialog,
+    DialogContent,
+    DialogTitle,
+} from "@/components/ui/dialog";
 import { format, isValid, parseISO } from "date-fns";
-import { SalesInvoiceHeader, Salesman, Customer, SalesType, WorklistFilters } from "../types";
+import { SalesInvoiceHeader, Salesman, Customer, SalesType, WorklistFilters, SiteSalesSummaryStats } from "../types";
 import { SiteSalesSummaryDetailsModal } from "./SiteSalesSummaryDetailsModal";
 import { EmptyPlaceholder } from "@/components/shared/EmptyPlaceholder";
+import { exportToExcel, exportToPDF } from "../utils/exportUtils";
+import { PdfTemplate } from "@/components/pdf-layout-design/services/pdf-template";
 
 interface SiteSalesSummaryListProps {
     data: SalesInvoiceHeader[];
@@ -55,7 +75,11 @@ interface SiteSalesSummaryListProps {
     customers: Customer[];
     salesTypes: SalesType[];
     totalCount: number;
+    stats: SiteSalesSummaryStats;
+    companyData: Record<string, unknown> | null;
+    templates: PdfTemplate[];
     onFilterChange: (filters: WorklistFilters) => void;
+    fetchAllForExport: (params: WorklistFilters) => Promise<SalesInvoiceHeader[]>;
 }
 
 export const SiteSalesSummaryList: React.FC<SiteSalesSummaryListProps> = ({
@@ -65,7 +89,11 @@ export const SiteSalesSummaryList: React.FC<SiteSalesSummaryListProps> = ({
     customers,
     salesTypes,
     totalCount,
-    onFilterChange
+    stats,
+    companyData,
+    templates,
+    onFilterChange,
+    fetchAllForExport
 }) => {
     const formatDate = (dateString?: string | null) => {
         if (!dateString) return "--";
@@ -84,35 +112,70 @@ export const SiteSalesSummaryList: React.FC<SiteSalesSummaryListProps> = ({
     const [sorting, setSorting] = useState<SortingState>([{ id: "invoice_date", desc: true }]);
     const [openCustomer, setOpenCustomer] = useState(false);
     const [openSalesman, setOpenSalesman] = useState(false);
+    const [isExporting, setIsExporting] = useState<"excel" | "pdf" | null>(null);
+
+    // Selection state
+    const [rowSelection, setRowSelection] = useState({});
+
+    // PDF Preview state
+    const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+    const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+    const [selectedTemplateName, setSelectedTemplateName] = useState<string>("");
+    const [pdfOrientation, setPdfOrientation] = useState<"landscape" | "portrait">("landscape");
+    const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
 
     // Modal state
     const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
+
+    useEffect(() => {
+        if (templates.length > 0 && !selectedTemplateName) {
+            setSelectedTemplateName(templates[0].name);
+        }
+    }, [templates, selectedTemplateName]);
 
     const handleOpenDetails = (id: string) => {
         setSelectedInvoiceId(id);
         setIsModalOpen(true);
     };
 
-    const applyFilters = useCallback(() => {
-        onFilterChange({
-            search,
-            salesmanId: salesman === "all" ? undefined : salesman,
-            customerId: customer === "all" ? undefined : customer,
-            salesTypeId: salesType === "all" ? undefined : salesType,
-            startDate: dateFrom,
-            endDate: dateTo,
-            isDispatched,
-            isPaid
-        });
-    }, [onFilterChange, search, salesman, customer, salesType, dateFrom, dateTo, isDispatched, isPaid]);
-
-    useEffect(() => {
-        const timer = setTimeout(applyFilters, 500);
-        return () => clearTimeout(timer);
-    }, [applyFilters]);
+    const getCurrentFilters = useCallback((): WorklistFilters => ({
+        search,
+        salesmanId: salesman === "all" ? undefined : salesman,
+        customerId: customer === "all" ? undefined : customer,
+        salesTypeId: salesType === "all" ? undefined : salesType,
+        startDate: dateFrom,
+        endDate: dateTo,
+        isDispatched,
+        isPaid
+    }), [search, salesman, customer, salesType, dateFrom, dateTo, isDispatched, isPaid]);
 
     const columns: ColumnDef<SalesInvoiceHeader>[] = [
+        {
+            id: "select",
+            header: ({ table }) => (
+                <div className="flex items-center justify-center">
+                    <Checkbox
+                        checked={table.getIsAllPageRowsSelected() || (table.getIsSomePageRowsSelected() && "indeterminate")}
+                        onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
+                        aria-label="Select all"
+                        className="h-4 w-4 rounded-md border-slate-300 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
+                    />
+                </div>
+            ),
+            cell: ({ row }) => (
+                <div className="flex items-center justify-center">
+                    <Checkbox
+                        checked={row.getIsSelected()}
+                        onCheckedChange={(value) => row.toggleSelected(!!value)}
+                        aria-label="Select row"
+                        className="h-4 w-4 rounded-md border-slate-300 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
+                    />
+                </div>
+            ),
+            enableSorting: false,
+            enableHiding: false,
+        },
         {
             accessorKey: "invoice_no",
             header: "Receipt No.",
@@ -221,7 +284,7 @@ export const SiteSalesSummaryList: React.FC<SiteSalesSummaryListProps> = ({
                     className="block -m-3 p-3 hover:bg-primary/5 transition-colors w-full bg-transparent border-none"
                 >
                     <div className="text-right font-bold text-slate-900 dark:text-slate-100">
-                        ₱{Number(row.original.total_amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                        P{Number(row.original.total_amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
                     </div>
                 </button>
             )
@@ -265,7 +328,7 @@ export const SiteSalesSummaryList: React.FC<SiteSalesSummaryListProps> = ({
             header: () => <div className="text-right">Credits</div>,
             cell: ({ row }) => (
                 <div className="text-right font-medium text-amber-600">
-                    ₱{Number(row.original.credits || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                    P{Number(row.original.credits || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
                 </div>
             )
         },
@@ -274,7 +337,7 @@ export const SiteSalesSummaryList: React.FC<SiteSalesSummaryListProps> = ({
             header: () => <div className="text-right">Debits</div>,
             cell: ({ row }) => (
                 <div className="text-right font-medium text-blue-600">
-                    ₱{Number(row.original.debits || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                    P{Number(row.original.debits || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
                 </div>
             )
         },
@@ -283,7 +346,7 @@ export const SiteSalesSummaryList: React.FC<SiteSalesSummaryListProps> = ({
             header: () => <div className="text-right">Returns</div>,
             cell: ({ row }) => (
                 <div className="text-right font-medium text-rose-600">
-                    ₱{Number(row.original.returns || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                    P{Number(row.original.returns || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
                 </div>
             )
         },
@@ -292,24 +355,110 @@ export const SiteSalesSummaryList: React.FC<SiteSalesSummaryListProps> = ({
             header: () => <div className="text-right">Balance</div>,
             cell: ({ row }) => (
                 <div className="text-right font-black text-slate-900 dark:text-slate-100">
-                    ₱{Number(row.original.balance || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                    P{Number(row.original.balance || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
                 </div>
             )
         },
     ];
 
-    // eslint-disable-next-line react-hooks/incompatible-library
     const table = useReactTable({
         data,
         columns,
         state: {
             sorting,
+            rowSelection,
         },
         onSortingChange: setSorting,
+        onRowSelectionChange: setRowSelection,
         getCoreRowModel: getCoreRowModel(),
         getSortedRowModel: getSortedRowModel(),
         getPaginationRowModel: getPaginationRowModel(),
+        getRowId: (row) => row.invoice_id.toString(),
     });
+
+    const handleExport = useCallback(async (type: "excel" | "pdf", overrideOrientation?: "landscape" | "portrait", overrideTemplate?: string) => {
+        const targetType = type;
+        const targetOrientation = overrideOrientation || pdfOrientation;
+        const targetTemplate = overrideTemplate || selectedTemplateName || "Standard Layout";
+
+        if (targetType === "pdf") setIsGeneratingPdf(true);
+        setIsExporting(targetType);
+        
+        try {
+            let exportData: SalesInvoiceHeader[] = [];
+            const selectedRows = table.getFilteredSelectedRowModel().rows;
+            
+            if (selectedRows.length > 0) {
+                // Use only selected rows
+                exportData = selectedRows.map(row => row.original);
+            } else {
+                // Use all filtered data (fetch from API to be sure we have all pages)
+                exportData = await fetchAllForExport(getCurrentFilters());
+            }
+
+            const fileName = `Site_Sales_Summary_${format(new Date(), "yyyyMMdd_HHmm")}`;
+            const filters = getCurrentFilters();
+
+            if (targetType === "excel") {
+                exportToExcel(exportData, fileName, filters);
+            } else {
+                // Recalculate stats for the selected data if needed
+                const exportStats = selectedRows.length > 0 ? {
+                    totalGross: exportData.reduce((sum, item) => sum + Number(item.net_amount || 0), 0),
+                    totalCredits: exportData.reduce((sum, item) => sum + Number(item.credits || 0), 0),
+                    totalReturns: exportData.reduce((sum, item) => sum + Number(item.returns || 0), 0),
+                    totalDebits: exportData.reduce((sum, item) => sum + Number(item.debits || 0), 0),
+                    totalBalance: exportData.reduce((sum, item) => sum + Number(item.balance || 0), 0),
+                    invoiceCount: exportData.length
+                } : stats;
+
+                const doc = await exportToPDF(
+                    exportData, 
+                    fileName, 
+                    filters, 
+                    exportStats, 
+                    companyData, 
+                    targetTemplate,
+                    targetOrientation
+                );
+                const blob = doc.output('blob');
+                if (pdfUrl) URL.revokeObjectURL(pdfUrl); // Clean up old URL
+                const url = URL.createObjectURL(blob);
+                setPdfUrl(url);
+                setIsPreviewOpen(true);
+            }
+        } catch (error) {
+            console.error("Export failed:", error);
+        } finally {
+            setIsExporting(null);
+            setIsGeneratingPdf(false);
+        }
+    }, [fetchAllForExport, getCurrentFilters, pdfOrientation, selectedTemplateName, stats, companyData, pdfUrl, table]);
+
+    // Handle orientation/template changes in preview
+    useEffect(() => {
+        if (isPreviewOpen) {
+            handleExport("pdf", pdfOrientation, selectedTemplateName);
+        }
+    }, [pdfOrientation, selectedTemplateName, isPreviewOpen, handleExport]); // Re-generate when these change
+
+    const handlePrintFromPreview = () => {
+        if (pdfUrl) {
+            const printWindow = window.open(pdfUrl);
+            printWindow?.print();
+        }
+    };
+
+    const applyFilters = useCallback(() => {
+        onFilterChange(getCurrentFilters());
+    }, [onFilterChange, getCurrentFilters]);
+
+    useEffect(() => {
+        const timer = setTimeout(applyFilters, 500);
+        return () => clearTimeout(timer);
+    }, [applyFilters]);
+
+
 
     return (
         <div className="space-y-6">
@@ -521,6 +670,184 @@ export const SiteSalesSummaryList: React.FC<SiteSalesSummaryListProps> = ({
                     </div>
                 </div>
             </div>
+
+            <div className="flex items-center justify-end py-2">
+                <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                        <Button 
+                            variant="outline" 
+                            className="h-10 px-6 bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground border-none shadow-lg shadow-primary/20 transition-all duration-300 font-black text-[10px] uppercase tracking-[0.2em] gap-3 rounded-xl group"
+                            disabled={!!isExporting || isLoading}
+                        >
+                            {isExporting ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                                <Download className="h-4 w-4 group-hover:scale-110 transition-transform" />
+                            )}
+                            {isExporting ? "Exporting..." : "Export Report"}
+                        </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-[200px] p-2 rounded-2xl border-slate-200/60 dark:border-slate-800/60 shadow-2xl backdrop-blur-xl bg-white/90 dark:bg-slate-950/90">
+                        <DropdownMenuItem 
+                            onClick={() => handleExport("excel")}
+                            className="flex items-center gap-3 py-3 px-3 cursor-pointer rounded-xl focus:bg-emerald-50 dark:focus:bg-emerald-500/10 focus:text-emerald-700 dark:focus:text-emerald-400 transition-all duration-200 group"
+                        >
+                            <div className="h-9 w-9 rounded-xl bg-emerald-100 dark:bg-emerald-500/20 flex items-center justify-center text-emerald-600 dark:text-emerald-400 group-hover:rotate-12 transition-transform">
+                                <FileSpreadsheet className="h-5 w-5" />
+                            </div>
+                            <div className="flex flex-col">
+                                <span className="font-bold text-[11px] tracking-tight">Excel Spreadsheet</span>
+                                <span className="text-[9px] text-slate-500 dark:text-slate-400 font-medium">Download .xlsx format</span>
+                            </div>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem 
+                            onClick={() => handleExport("pdf")}
+                            className="flex items-center gap-3 py-3 px-3 cursor-pointer rounded-xl focus:bg-rose-50 dark:focus:bg-rose-500/10 focus:text-rose-700 dark:focus:text-rose-400 transition-all duration-200 group"
+                        >
+                            <div className="h-9 w-9 rounded-xl bg-rose-100 dark:bg-rose-500/20 flex items-center justify-center text-rose-600 dark:text-rose-400 group-hover:-rotate-12 transition-transform">
+                                <Eye className="h-5 w-5" />
+                            </div>
+                            <div className="flex flex-col">
+                                <span className="font-bold text-[11px] tracking-tight">PDF Preview</span>
+                                <span className="text-[9px] text-slate-500 dark:text-slate-400 font-medium">Choose Template & Preview</span>
+                            </div>
+                        </DropdownMenuItem>
+                    </DropdownMenuContent>
+                </DropdownMenu>
+            </div>
+
+            {/* Preview Modal */}
+            <Dialog open={isPreviewOpen} onOpenChange={setIsPreviewOpen}>
+                <DialogContent className="max-w-none sm:max-w-none w-[98vw] h-[96vh] p-0 gap-0 overflow-hidden rounded-[1.5rem] border-none shadow-2xl bg-white dark:bg-slate-950 flex flex-col">
+                    {/* Compact Professional Header */}
+                    <div className="px-8 py-5 border-b border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 flex items-center justify-between shrink-0 z-50">
+                        <div className="flex items-center gap-4">
+                            <div className="h-12 w-12 rounded-2xl bg-primary/10 flex items-center justify-center text-primary">
+                                <Layout className="h-6 w-6" />
+                            </div>
+                            <div className="flex flex-col">
+                                <DialogTitle className="text-xl font-black tracking-tight text-slate-900 dark:text-white leading-tight">
+                                    Print Preview
+                                </DialogTitle>
+                                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em]">Site Sales Summary Report</span>
+                            </div>
+                        </div>
+                        
+                        <div className="flex items-center gap-4">
+                            <div className="flex items-center gap-3 px-4 py-1.5 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-800">
+                                <div className="flex flex-col gap-0.5">
+                                    <label className="text-[8px] uppercase font-black text-slate-400 tracking-widest ml-1">Template</label>
+                                    <Select 
+                                        value={selectedTemplateName} 
+                                        onValueChange={setSelectedTemplateName}
+                                    >
+                                        <SelectTrigger className="h-7 w-[150px] bg-transparent border-none p-0 text-[11px] font-bold focus:ring-0 shadow-none">
+                                            <SelectValue placeholder="Select Template" />
+                                        </SelectTrigger>
+                                        <SelectContent className="rounded-xl border-slate-200 dark:border-slate-700 shadow-xl p-1">
+                                            {templates.map((t) => (
+                                                <SelectItem key={t.id} value={t.name} className="rounded-lg text-xs font-medium py-1.5 cursor-pointer">
+                                                    {t.name}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+
+                                <div className="h-6 w-px bg-slate-200 dark:bg-slate-700" />
+
+                                <div className="flex flex-col gap-0.5">
+                                    <label className="text-[8px] uppercase font-black text-slate-400 tracking-widest ml-1">Orientation</label>
+                                    <Select 
+                                        value={pdfOrientation} 
+                                        onValueChange={(val: "landscape" | "portrait") => setPdfOrientation(val)}
+                                    >
+                                        <SelectTrigger className="h-7 w-[100px] bg-transparent border-none p-0 text-[11px] font-bold focus:ring-0 shadow-none">
+                                            <SelectValue placeholder="Orientation" />
+                                        </SelectTrigger>
+                                        <SelectContent className="rounded-xl border-slate-200 dark:border-slate-700 shadow-xl p-1">
+                                            <SelectItem value="landscape" className="rounded-lg text-xs font-medium py-1.5 cursor-pointer">Landscape</SelectItem>
+                                            <SelectItem value="portrait" className="rounded-lg text-xs font-medium py-1.5 cursor-pointer">Portrait</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                                <Button 
+                                    onClick={handlePrintFromPreview}
+                                    variant="outline"
+                                    className="h-11 px-6 rounded-2xl border-slate-200 dark:border-slate-700 font-black text-[11px] uppercase tracking-wider gap-2 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all shadow-sm"
+                                >
+                                    <Printer className="h-4 w-4" />
+                                    Print
+                                </Button>
+                                <Button 
+                                    onClick={() => {
+                                        if (pdfUrl) {
+                                            const link = document.createElement('a');
+                                            link.href = pdfUrl;
+                                            link.download = `Site_Sales_Summary_${format(new Date(), "yyyyMMdd")}.pdf`;
+                                            link.click();
+                                        }
+                                    }}
+                                    className="h-11 px-6 rounded-2xl bg-primary text-white font-black text-[11px] uppercase tracking-wider gap-2 shadow-xl shadow-primary/20 hover:translate-y-[-2px] transition-all"
+                                >
+                                    <Download className="h-4 w-4" />
+                                    Export
+                                </Button>
+                                <Button 
+                                    onClick={() => setIsPreviewOpen(false)}
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-11 w-11 rounded-2xl hover:bg-rose-50 dark:hover:bg-rose-500/10 hover:text-rose-500 transition-all ml-2"
+                                >
+                                    <X className="h-5 w-5" />
+                                </Button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    {/* Preview Area */}
+                    <div className="flex-1 bg-slate-100 dark:bg-slate-900/50 p-6 flex items-center justify-center relative overflow-hidden">
+                        <div className="absolute inset-0 bg-[radial-gradient(#e2e8f0_1px,transparent_1px)] dark:bg-[radial-gradient(#1e293b_1px,transparent_1px)] [background-size:24px_24px] opacity-40" />
+                        
+                        <div className="w-full h-full relative z-10 animate-in fade-in zoom-in-95 duration-500">
+                            {pdfUrl ? (
+                                <>
+                                    <iframe 
+                                        src={`${pdfUrl}#toolbar=0&navpanes=0`}
+                                        className={cn(
+                                            "w-full h-full rounded-2xl border border-slate-200 dark:border-slate-800 shadow-[0_32px_64px_-12px_rgba(0,0,0,0.14)] bg-white relative overflow-hidden transition-opacity duration-300",
+                                            isGeneratingPdf ? "opacity-40" : "opacity-100"
+                                        )}
+                                        title="PDF Preview"
+                                    />
+                                    {isGeneratingPdf && (
+                                        <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-white/40 dark:bg-slate-900/40 backdrop-blur-[2px] rounded-2xl z-20">
+                                            <div className="relative">
+                                                <div className="h-16 w-16 rounded-full border-4 border-primary/20 border-t-primary animate-spin" />
+                                                <div className="absolute inset-0 flex items-center justify-center">
+                                                    <FileText className="h-6 w-6 text-primary animate-pulse" />
+                                                </div>
+                                            </div>
+                                            <div className="flex flex-col items-center">
+                                                <span className="text-[11px] font-black uppercase tracking-[0.3em] text-slate-600 dark:text-slate-300">Regenerating</span>
+                                                <span className="text-[9px] font-bold text-slate-400 mt-1 uppercase tracking-widest">Applying Layout Changes...</span>
+                                            </div>
+                                        </div>
+                                    )}
+                                </>
+                            ) : (
+                                <div className="w-full h-full flex flex-col items-center justify-center gap-4 bg-white/50 dark:bg-slate-900/50 backdrop-blur-sm rounded-2xl border border-dashed border-slate-300 dark:border-slate-700">
+                                    <div className="h-12 w-12 rounded-full border-4 border-primary/20 border-t-primary animate-spin" />
+                                    <span className="text-xs font-black uppercase tracking-[0.4em] text-slate-400 animate-pulse">Building Preview</span>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </DialogContent>
+            </Dialog>
 
             {/* DataTable Component with Loading Overlay */}
             <div className="relative">

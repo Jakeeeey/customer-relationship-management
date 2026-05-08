@@ -49,7 +49,8 @@ export const PdfEngine = {
     async generateWithFrame(
         templateName: string, 
         data: PdfData | null, 
-        renderBody: (doc: jsPDF, startY: number, config: PdfConfig) => void | Promise<void>
+        renderBody: (doc: jsPDF, startY: number, config: PdfConfig) => void | Promise<void>,
+        overrideOrientation?: 'portrait' | 'landscape'
     ): Promise<jsPDF> {
         // 1. Fetch template config to get paper size/orientation
         const templates = await pdfTemplateService.fetchTemplates();
@@ -57,7 +58,7 @@ export const PdfEngine = {
         const config = template?.config;
 
         // 2. Initialize jsPDF
-        const orientation = config?.orientation || 'portrait';
+        const orientation = overrideOrientation || config?.orientation || 'portrait';
         const unit = 'mm';
         let format: string | [number, number] = config?.paperSize?.toLowerCase() || 'a4';
         if (format === 'custom' && config?.customSize) {
