@@ -512,7 +512,7 @@ export const SiteSalesSummaryDetailsModal: React.FC<SiteSalesSummaryDetailsModal
                                                                 <TableHead className="text-[10px] font-black uppercase tracking-widest text-slate-500 h-12 px-6">Payment Type</TableHead>
                                                                 <TableHead className="text-[10px] font-black uppercase tracking-widest text-slate-500 h-12 px-6 text-right">Amount</TableHead>
                                                                 <TableHead className="text-[10px] font-black uppercase tracking-widest text-slate-500 h-12 px-6 text-center">Status</TableHead>
-                                                                <TableHead className="text-[10px] font-black uppercase tracking-widest text-slate-500 h-12 px-6">Remarks</TableHead>
+                                                                <TableHead className="text-[10px] font-black uppercase tracking-widest text-slate-500 h-12 px-6">Source Temp ID</TableHead>
                                                             </TableRow>
                                                         </TableHeader>
                                                         <TableBody>
@@ -539,8 +539,8 @@ export const SiteSalesSummaryDetailsModal: React.FC<SiteSalesSummaryDetailsModal
                                                                             <Badge variant="outline" className="text-slate-400 border-slate-200 text-[8px] font-black px-2 py-0.5 uppercase tracking-widest">PENDING</Badge>
                                                                         )}
                                                                     </TableCell>
-                                                                    <TableCell className="py-4 px-6 text-[11px] text-slate-500 italic max-w-[200px] truncate">
-                                                                        {item.remarks || '--'}
+                                                                    <TableCell className="py-4 px-6 text-[11px] text-slate-500 font-bold max-w-[200px] truncate">
+                                                                        {item.source_temp_id || 'N/A'}
                                                                     </TableCell>
                                                                 </TableRow>
                                                             ))}

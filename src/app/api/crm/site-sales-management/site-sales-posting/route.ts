@@ -217,12 +217,12 @@ export async function GET(req: NextRequest) {
             const res = await fetch(`${DIRECTUS_URL}/items/sales_invoice?${query.toString()}`, { headers: fetchHeaders });
             if (!res.ok) {
                 const errorData = await res.json();
-                console.error("Directus Error:", JSON.stringify(errorData, null, 2));
-                throw new Error(errorData?.errors?.[0]?.message || "Failed to fetch worklist");
+                return NextResponse.json({ error: errorData.errors?.[0]?.message || "Failed to fetch worklist" }, { status: res.status });
             }
 
             const json = await res.json();
             const rawData = json.data || [];
+            const totalCount = json.meta?.filter_count || 0;
 
             // Fetch customer names manually to avoid NaN join error
             const customerCodes = Array.from(new Set((rawData as { customer_code: string }[]).map((item) => item.customer_code).filter(Boolean))) as (string | number)[];
@@ -306,7 +306,7 @@ export async function GET(req: NextRequest) {
             return NextResponse.json({
                 data,
                 metadata: {
-                    totalCount: json.meta?.filter_count || 0,
+                    totalCount,
                     page,
                     limit
                 }
@@ -639,7 +639,7 @@ export async function GET(req: NextRequest) {
                             collection_date: item.collection_id?.collection_date || item.date_linked,
                             amount: Number(item.amount || 0),
                             type: item.type || "CASH",
-                            remarks: item.collection_id?.remarks || "",
+                            source_temp_id: item.source_temp_id || "N/A",
                             isPosted: item.collection_id?.isPosted === true || item.collection_id?.isPosted === 1 || 
                                       (item.collection_id?.isPosted && typeof item.collection_id.isPosted === 'object' && item.collection_id.isPosted.data?.[0] === 1)
                         }));
