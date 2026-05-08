@@ -1,25 +1,25 @@
 "use client";
-import { cn } from "@/lib/utils";
 
 import React, { useState, useEffect, useCallback } from "react";
-import { 
-    ColumnDef, 
-    SortingState,
+import { cn } from "@/lib/utils";
+
+import {
     useReactTable,
     getCoreRowModel,
     getPaginationRowModel,
     getSortedRowModel,
     flexRender,
+    ColumnDef,
+    SortingState,
 } from "@tanstack/react-table";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { 
-    Check, 
-    ChevronsUpDown, 
-    Plus, 
-    Loader2, 
+import {
+    Check,
+    ChevronsUpDown,
+    Loader2,
     ArrowUpDown,
     ChevronLeft,
     ChevronRight,
@@ -45,10 +45,10 @@ import {
 } from "@/components/ui/select";
 import { format, isValid, parseISO } from "date-fns";
 import { SalesInvoiceHeader, Salesman, Customer, SalesType, WorklistFilters } from "../types";
-import Link from "next/link";
+import { SiteSalesSummaryDetailsModal } from "./SiteSalesSummaryDetailsModal";
 import { EmptyPlaceholder } from "@/components/shared/EmptyPlaceholder";
 
-interface SiteSalesListProps {
+interface SiteSalesSummaryListProps {
     data: SalesInvoiceHeader[];
     isLoading: boolean;
     salesmen: Salesman[];
@@ -58,14 +58,14 @@ interface SiteSalesListProps {
     onFilterChange: (filters: WorklistFilters) => void;
 }
 
-export const SiteSalesList: React.FC<SiteSalesListProps> = ({ 
-    data, 
+export const SiteSalesSummaryList: React.FC<SiteSalesSummaryListProps> = ({
+    data,
     isLoading,
     salesmen,
     customers,
     salesTypes,
     totalCount,
-    onFilterChange 
+    onFilterChange
 }) => {
     const formatDate = (dateString?: string | null) => {
         if (!dateString) return "--";
@@ -77,14 +77,22 @@ export const SiteSalesList: React.FC<SiteSalesListProps> = ({
     const [customer, setCustomer] = useState("all");
     const [salesman, setSalesman] = useState("all");
     const [salesType] = useState("3");
-    const [isDispatched, setIsDispatched] = useState(false);
+    const [isDispatched, setIsDispatched] = useState(true); // Default to dispatched for summary
     const [isPaid, setIsPaid] = useState(false);
     const [dateFrom, setDateFrom] = useState("");
     const [dateTo, setDateTo] = useState("");
     const [sorting, setSorting] = useState<SortingState>([{ id: "invoice_date", desc: true }]);
-    const [rowSelection, setRowSelection] = useState({});
     const [openCustomer, setOpenCustomer] = useState(false);
     const [openSalesman, setOpenSalesman] = useState(false);
+
+    // Modal state
+    const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(null);
+    const [isModalOpen, setIsModalOpen] = useState(false);
+
+    const handleOpenDetails = (id: string) => {
+        setSelectedInvoiceId(id);
+        setIsModalOpen(true);
+    };
 
     const applyFilters = useCallback(() => {
         onFilterChange({
@@ -107,77 +115,56 @@ export const SiteSalesList: React.FC<SiteSalesListProps> = ({
     const columns: ColumnDef<SalesInvoiceHeader>[] = [
         {
             accessorKey: "invoice_no",
-            header: ({ column }) => {
-                return (
-                    <Button
-                        variant="ghost"
-                        onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-                        className="p-0 hover:bg-transparent font-black uppercase tracking-widest text-[10px]"
-                    >
-                        Receipt No.
-                        <ArrowUpDown className="ml-2 h-3 w-3" />
-                    </Button>
-                );
-            },
+            header: "Receipt No.",
             cell: ({ row }) => (
-                <Link 
-                    href={`/crm/site-sales-management/site-sales-posting/${row.original.invoice_id}`}
-                    className="block -m-3 p-3 font-black text-primary hover:bg-primary/5 transition-all"
+                <button
+                    onClick={() => handleOpenDetails(row.original.invoice_id.toString())}
+                    className="block -m-3 p-3 font-black text-primary hover:bg-primary/5 transition-all w-full text-left bg-transparent border-none"
                 >
                     {row.original.invoice_no}
-                </Link>
+                </button>
             )
         },
         {
             accessorKey: "salesman_name",
-            header: ({ column }) => {
-                return (
-                    <Button
-                        variant="ghost"
-                        onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-                        className="p-0 hover:bg-transparent font-black uppercase tracking-widest text-[10px]"
-                    >
-                        Salesman
-                        <ArrowUpDown className="ml-2 h-3 w-3" />
-                    </Button>
-                );
-            },
+            header: "Salesman",
             cell: ({ row }) => (
-                <Link 
-                    href={`/crm/site-sales-management/site-sales-posting/${row.original.invoice_id}`}
-                    className="block -m-3 p-3 hover:bg-primary/5 transition-colors font-medium text-slate-700 dark:text-slate-300"
+                <button
+                    onClick={() => handleOpenDetails(row.original.invoice_id.toString())}
+                    className="block -m-3 p-3 hover:bg-primary/5 transition-colors font-medium text-slate-700 dark:text-slate-300 w-full text-left bg-transparent border-none"
                 >
                     {row.original.salesman_name || "--"}
-                </Link>
+                </button>
             )
         },
         {
             accessorKey: "customer_name",
-            header: ({ column }) => {
-                return (
-                    <Button
-                        variant="ghost"
-                        onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-                        className="p-0 hover:bg-transparent font-black uppercase tracking-widest text-[10px]"
-                    >
-                        Customer
-                        <ArrowUpDown className="ml-2 h-3 w-3" />
-                    </Button>
-                );
-            },
+            header: "Customer",
             cell: ({ row }) => (
-                <Link 
-                    href={`/crm/site-sales-management/site-sales-posting/${row.original.invoice_id}`}
-                    className="block -m-3 p-3 hover:bg-primary/5 transition-colors"
+                <button
+                    onClick={() => handleOpenDetails(row.original.invoice_id.toString())}
+                    className="block -m-3 p-3 hover:bg-primary/5 transition-colors w-full text-left bg-transparent border-none"
                 >
                     <span className="font-bold text-slate-900 dark:text-slate-100">{row.original.customer_name || "N/A"}</span>
-                </Link>
+                </button>
             )
         },
         {
             accessorKey: "invoice_type",
             header: "Type",
-            cell: () => <Badge variant="outline">DR</Badge>
+            cell: ({ row }) => {
+                const typeName = (row.original.invoice_type as { type?: string })?.type || "";
+                const typeId = (row.original.invoice_type as { id?: number })?.id || row.original.invoice_type;
+
+                const acronym = (Number(typeId) === 3 || typeName === "Delivery Receipt") ? "DR" : "SI";
+                const badgeColor = acronym === "SI" ? "bg-blue-50 text-blue-600 border-blue-100" : "bg-slate-50 text-slate-600 border-slate-100";
+
+                return (
+                    <Badge variant="outline" className={cn("font-black text-[10px] px-2 py-0", badgeColor)}>
+                        {acronym}
+                    </Badge>
+                );
+            }
         },
         {
             accessorKey: "invoice_date",
@@ -194,12 +181,12 @@ export const SiteSalesList: React.FC<SiteSalesListProps> = ({
                 );
             },
             cell: ({ row }) => (
-                <Link 
-                    href={`/crm/site-sales-management/site-sales-posting/${row.original.invoice_id}`}
-                    className="block -m-3 p-3 hover:bg-primary/5 transition-colors"
+                <button
+                    onClick={() => handleOpenDetails(row.original.invoice_id.toString())}
+                    className="block -m-3 p-3 hover:bg-primary/5 transition-colors w-full text-left bg-transparent border-none"
                 >
                     <span className="text-slate-500 dark:text-slate-400">{formatDate(row.original.invoice_date)}</span>
-                </Link>
+                </button>
             )
         },
         {
@@ -217,26 +204,26 @@ export const SiteSalesList: React.FC<SiteSalesListProps> = ({
                 );
             },
             cell: ({ row }) => (
-                <Link 
-                    href={`/crm/site-sales-management/site-sales-posting/${row.original.invoice_id}`}
-                    className="block -m-3 p-3 hover:bg-primary/5 transition-colors"
+                <button
+                    onClick={() => handleOpenDetails(row.original.invoice_id.toString())}
+                    className="block -m-3 p-3 hover:bg-primary/5 transition-colors w-full text-left bg-transparent border-none"
                 >
                     <span className="text-slate-500 dark:text-slate-400 font-medium italic">{formatDate(row.original.dispatch_date)}</span>
-                </Link>
+                </button>
             )
         },
         {
             accessorKey: "total_amount",
             header: () => <div className="text-right">Total Amount</div>,
             cell: ({ row }) => (
-                <Link 
-                    href={`/crm/site-sales-management/site-sales-posting/${row.original.invoice_id}`}
-                    className="block -m-3 p-3 hover:bg-primary/5 transition-colors"
+                <button
+                    onClick={() => handleOpenDetails(row.original.invoice_id.toString())}
+                    className="block -m-3 p-3 hover:bg-primary/5 transition-colors w-full bg-transparent border-none"
                 >
                     <div className="text-right font-bold text-slate-900 dark:text-slate-100">
                         ₱{Number(row.original.total_amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
                     </div>
-                </Link>
+                </button>
             )
         },
         {
@@ -244,11 +231,11 @@ export const SiteSalesList: React.FC<SiteSalesListProps> = ({
             header: "Trans. Status",
             cell: ({ row }) => {
                 const status = row.original.transaction_status?.toUpperCase() || 'PREPARED';
-                const colors = 
+                const colors =
                     status === 'VOID' ? 'bg-red-50 text-red-700 border-red-200' :
-                    status === 'COMPLETED' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
-                    'bg-sky-50 text-sky-700 border-sky-200';
-                
+                        status === 'COMPLETED' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                            'bg-sky-50 text-sky-700 border-sky-200';
+
                 return (
                     <Badge variant="outline" className={cn("uppercase text-[9px] font-black px-2 py-0.5 rounded-md tracking-tighter", colors)}>
                         {status}
@@ -262,7 +249,7 @@ export const SiteSalesList: React.FC<SiteSalesListProps> = ({
             cell: ({ row }) => {
                 const status = row.original.payment_status?.toUpperCase() || 'UNPAID';
                 const isPaid = status === 'PAID';
-                
+
                 return (
                     <div className="flex items-center gap-2">
                         <div className={cn("h-2 w-2 rounded-full", isPaid ? "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]" : "bg-amber-500 animate-pulse")} />
@@ -274,54 +261,42 @@ export const SiteSalesList: React.FC<SiteSalesListProps> = ({
             }
         },
         {
-            accessorKey: "isPosted",
-            header: "Posted",
-            cell: ({ row }) => {
-                const val = row.original.isPosted as boolean | number | string | null | undefined | { data: number[] };
-                // Handle BIT(1) which might come as boolean, number, or Buffer object
-                const isPosted = val === true || val === 1 || val === "1" || 
-                                (val && typeof val === 'object' && 'data' in val && Array.isArray(val.data) && val.data[0] === 1);
-                return (
-                    <div className="flex justify-center">
-                        <div 
-                            className={cn(
-                                "h-4 w-4 rounded-full border-2 transition-all duration-500 ease-out flex items-center justify-center",
-                                isPosted 
-                                    ? "bg-slate-900 border-slate-900 shadow-[0_0_12px_rgba(15,23,42,0.3)] dark:bg-white dark:border-white dark:shadow-[0_0_12px_rgba(255,255,255,0.2)]" 
-                                    : "bg-transparent border-slate-200 dark:border-slate-800"
-                            )}
-                            title={isPosted ? "Posted to Ledger" : "Draft / Unposted"}
-                        >
-                            {isPosted && <Check className="h-2.5 w-2.5 text-white dark:text-slate-950 stroke-[4px]" />}
-                        </div>
-                    </div>
-                );
-            }
+            accessorKey: "credits",
+            header: () => <div className="text-right">Credits</div>,
+            cell: ({ row }) => (
+                <div className="text-right font-medium text-amber-600">
+                    ₱{Number(row.original.credits || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                </div>
+            )
         },
         {
-            accessorKey: "remarks",
-            header: "Remarks",
+            accessorKey: "debits",
+            header: () => <div className="text-right">Debits</div>,
             cell: ({ row }) => (
-                <div className="max-w-[150px] truncate text-[11px] text-slate-500 italic" title={row.original.remarks || ""}>
-                    {row.original.remarks || "--"}
+                <div className="text-right font-medium text-blue-600">
+                    ₱{Number(row.original.debits || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                </div>
+            )
+        },
+        {
+            accessorKey: "returns",
+            header: () => <div className="text-right">Returns</div>,
+            cell: ({ row }) => (
+                <div className="text-right font-medium text-rose-600">
+                    ₱{Number(row.original.returns || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                </div>
+            )
+        },
+        {
+            accessorKey: "balance",
+            header: () => <div className="text-right">Balance</div>,
+            cell: ({ row }) => (
+                <div className="text-right font-black text-slate-900 dark:text-slate-100">
+                    ₱{Number(row.original.balance || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
                 </div>
             )
         },
     ];
-
-    const ActionComponent = (
-        <div className="flex gap-2">
-            <Button 
-                size="sm" 
-                className="rounded-lg gap-2 bg-slate-900 hover:bg-slate-800"
-                asChild
-            >
-                <Link href="/crm/site-sales-management/site-sales-posting/create-sales-invoice">
-                    <Plus className="w-4 h-4" /> Add Record
-                </Link>
-            </Button>
-        </div>
-    );
 
     // eslint-disable-next-line react-hooks/incompatible-library
     const table = useReactTable({
@@ -329,10 +304,7 @@ export const SiteSalesList: React.FC<SiteSalesListProps> = ({
         columns,
         state: {
             sorting,
-            rowSelection,
         },
-        enableRowSelection: true,
-        onRowSelectionChange: setRowSelection,
         onSortingChange: setSorting,
         getCoreRowModel: getCoreRowModel(),
         getSortedRowModel: getSortedRowModel(),
@@ -345,10 +317,10 @@ export const SiteSalesList: React.FC<SiteSalesListProps> = ({
                 <div className="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-7 gap-4 items-end">
                     <div className="space-y-1.5">
                         <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Receipt No</label>
-                        <Input 
-                            placeholder="Search invoice..." 
-                            value={search} 
-                            onChange={(e) => setSearch(e.target.value)} 
+                        <Input
+                            placeholder="Search invoice..."
+                            value={search}
+                            onChange={(e) => setSearch(e.target.value)}
                             className="h-9 rounded-lg border-slate-200 focus:border-primary"
                         />
                     </div>
@@ -365,11 +337,11 @@ export const SiteSalesList: React.FC<SiteSalesListProps> = ({
                                 >
                                     <div className="flex flex-col items-start truncate text-left">
                                         <span className="font-medium text-slate-900 dark:text-slate-100 truncate w-full">
-                                            {customer === "all" 
-                                                ? "Select Customer" 
-                                                : (customers.find(c => c.customer_code === customer)?.customer_name || 
-                                                   customers.find(c => c.customer_code === customer)?.store_name || 
-                                                   customer)}
+                                            {customer === "all"
+                                                ? "Select Customer"
+                                                : (customers.find(c => c.customer_code === customer)?.customer_name ||
+                                                    customers.find(c => c.customer_code === customer)?.store_name ||
+                                                    customer)}
                                         </span>
                                         {customer !== "all" && (
                                             <span className="text-[10px] text-muted-foreground truncate w-full">
@@ -429,11 +401,11 @@ export const SiteSalesList: React.FC<SiteSalesListProps> = ({
 
                     <div className="space-y-1.5">
                         <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Sales Type</label>
-                        <Input 
-                            value={salesTypes.find(st => st.id.toString() === salesType)?.operation_name || "SITE SALES"} 
-                            readOnly 
+                        <Input
+                            value={salesTypes.find(st => st.id.toString() === salesType)?.operation_name || "SITE SALES"}
+                            readOnly
                             disabled
-                            className="h-9 rounded-lg border-slate-200 bg-slate-50/50 text-[10px] font-black uppercase tracking-tight cursor-not-allowed italic text-slate-400 shadow-none" 
+                            className="h-9 rounded-lg border-slate-200 bg-slate-50/50 text-[10px] font-black uppercase tracking-tight cursor-not-allowed italic text-slate-400 shadow-none"
                         />
                     </div>
 
@@ -449,8 +421,8 @@ export const SiteSalesList: React.FC<SiteSalesListProps> = ({
                                 >
                                     <div className="flex flex-col items-start truncate text-left">
                                         <span className="font-medium text-slate-900 dark:text-slate-100 truncate w-full">
-                                            {salesman === "all" 
-                                                ? "Select Salesman" 
+                                            {salesman === "all"
+                                                ? "Select Salesman"
                                                 : (salesmen.find(s => s.id.toString() === salesman)?.salesman_name || salesman)}
                                         </span>
                                         {salesman !== "all" && (
@@ -511,64 +483,58 @@ export const SiteSalesList: React.FC<SiteSalesListProps> = ({
 
                     <div className="space-y-1.5">
                         <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Date From</label>
-                        <Input 
-                            type="date" 
-                            className="h-9 rounded-lg border-slate-200" 
-                            value={dateFrom} 
-                            onChange={(e) => setDateFrom(e.target.value)} 
+                        <Input
+                            type="date"
+                            className="h-9 rounded-lg border-slate-200"
+                            value={dateFrom}
+                            onChange={(e) => setDateFrom(e.target.value)}
                         />
                     </div>
 
                     <div className="space-y-1.5">
                         <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Date To</label>
-                        <Input 
-                            type="date" 
-                            className="h-9 rounded-lg border-slate-200" 
-                            value={dateTo} 
-                            onChange={(e) => setDateTo(e.target.value)} 
+                        <Input
+                            type="date"
+                            className="h-9 rounded-lg border-slate-200"
+                            value={dateTo}
+                            onChange={(e) => setDateTo(e.target.value)}
                         />
                     </div>
 
-                    <div className="flex flex-col justify-end gap-2 pb-1.5 h-full">
+                    <div className="flex items-center gap-4 h-9 px-2 col-span-1 md:col-span-2">
                         <div className="flex items-center space-x-2">
-                            <Checkbox 
-                                id="isDispatched" 
-                                checked={isDispatched} 
-                                onCheckedChange={(c) => setIsDispatched(c === true)} 
+                            <Checkbox
+                                id="isDispatched"
+                                checked={isDispatched}
+                                onCheckedChange={(c) => setIsDispatched(c === true)}
                             />
-                            <label htmlFor="isDispatched" className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest cursor-pointer">isDispatched</label>
+                            <label htmlFor="isDispatched" className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider cursor-pointer">isDispatched</label>
                         </div>
                         <div className="flex items-center space-x-2">
-                            <Checkbox 
-                                id="isPaid" 
-                                checked={isPaid} 
-                                onCheckedChange={(c) => setIsPaid(c === true)} 
+                            <Checkbox
+                                id="isPaid"
+                                checked={isPaid}
+                                onCheckedChange={(c) => setIsPaid(c === true)}
                             />
-                            <label htmlFor="isPaid" className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest cursor-pointer">isPaid</label>
+                            <label htmlFor="isPaid" className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider cursor-pointer">isPaid</label>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <div className="flex items-center justify-between px-2">
-                <div className="flex-1" />
-                <div className="flex items-center gap-2">
-                    {ActionComponent}
-                </div>
-            </div>
-
+            {/* DataTable Component with Loading Overlay */}
             <div className="relative">
                 {isLoading && (
                     <div className="absolute inset-0 z-20 flex items-center justify-center bg-white/40 dark:bg-slate-950/40 backdrop-blur-[2px] rounded-xl transition-all duration-300">
                         <div className="flex flex-col items-center gap-3 bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 scale-110">
                             <Loader2 className="h-8 w-8 animate-spin text-primary" />
                             <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 animate-pulse">
-                                {data.length > 0 ? "Updating Data..." : "Loading Transactions..."}
+                                {data.length > 0 ? "Updating Data..." : "Loading Summary..."}
                             </span>
                         </div>
                     </div>
                 )}
-                
+
                 <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-card shadow-sm overflow-hidden">
                     <Table>
                         <TableHeader>
@@ -631,9 +597,10 @@ export const SiteSalesList: React.FC<SiteSalesListProps> = ({
                     </Table>
                 </div>
 
+                {/* Pagination Controls */}
                 <div className="flex items-center justify-between px-2 mt-4">
                     <div className="flex-1 text-sm text-slate-500 font-medium italic">
-                        Total of <span className="font-black text-primary">{totalCount.toLocaleString()}</span> row(s) found.
+                        Total of {totalCount.toLocaleString()} row(s) found.
                     </div>
                     <div className="flex items-center space-x-6 lg:space-x-8">
                         <div className="flex items-center space-x-2">
@@ -697,6 +664,14 @@ export const SiteSalesList: React.FC<SiteSalesListProps> = ({
                     </div>
                 </div>
             </div>
+
+            {/* Site Sales Summary Details Modal */}
+            <SiteSalesSummaryDetailsModal
+                isOpen={isModalOpen}
+                onClose={() => setIsModalOpen(false)}
+                invoiceId={selectedInvoiceId}
+            />
+
         </div>
     );
 };

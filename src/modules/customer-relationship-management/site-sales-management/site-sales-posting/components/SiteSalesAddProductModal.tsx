@@ -92,10 +92,12 @@ export const SiteSalesAddProductModal: React.FC<SiteSalesAddProductModalProps> =
                     total_amount: Number(item.total_amount),
                     discount_type: item.discount_type?.toString() || null,
                     discount_type_name: item.discount_type_name || null,
-                    unit_count: 1, // Default or fetch if needed
+                    unit_count: Number(item.unit_count) || 1, // Use actual unit count from API
                     available_qty: 0, // Not needed for existing items
                     brand_name: item.brand_name || null,
-                    category_name: item.category_name || null
+                    category_name: item.category_name || null,
+                    discounts: item.discounts || [],
+                    unit_discount: Number(item.quantity) > 0 ? Number(item.discount_amount) / Number(item.quantity) : 0
                 };
             });
             setCart(initialCart);
@@ -133,6 +135,7 @@ export const SiteSalesAddProductModal: React.FC<SiteSalesAddProductModalProps> =
             return [...prev, { 
                 ...product, 
                 quantity: 1, 
+                unit_discount: (product.unit_price - netUnitPrice),
                 discount_amount: (product.unit_price - netUnitPrice),
                 total_amount: totalAmount
             }];
@@ -147,12 +150,22 @@ export const SiteSalesAddProductModal: React.FC<SiteSalesAddProductModalProps> =
         setCart(prev => prev.map(item => {
             if (item.product_id === productId) {
                 const newQty = Math.max(0, qty);
-                const netUnitPrice = calculateChainNetPrice(item.unit_price, item.discounts || []);
-                return { 
-                    ...item, 
+                
+                // 1. Recalculate unit discount if we have chained discounts
+                let currentUnitDiscount = item.unit_discount || 0;
+                if (item.discounts && item.discounts.length > 0) {
+                    const netUnitPrice = calculateChainNetPrice(item.unit_price, item.discounts);
+                    currentUnitDiscount = item.unit_price - netUnitPrice;
+                }
+
+                const netUnitPrice = item.unit_price - currentUnitDiscount;
+                
+                return {
+                    ...item,
                     quantity: newQty,
-                    discount_amount: (item.unit_price - netUnitPrice) * newQty,
-                    total_amount: netUnitPrice * newQty 
+                    unit_discount: currentUnitDiscount, // Preserve the "memory"
+                    discount_amount: currentUnitDiscount * newQty,
+                    total_amount: netUnitPrice * newQty
                 };
             }
             return item;
@@ -187,7 +200,8 @@ export const SiteSalesAddProductModal: React.FC<SiteSalesAddProductModalProps> =
             unit: item.unit?.toString() || 'PCS',
             unit_name: item.unit?.toString() || 'PCS',
             brand_name: item.brand_name,
-            category_name: item.category_name
+            category_name: item.category_name,
+            unit_count: item.unit_count
         }));
         onConfirm(details);
         setCart([]); // Clear cart after submit

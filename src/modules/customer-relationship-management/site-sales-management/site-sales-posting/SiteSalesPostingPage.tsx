@@ -22,7 +22,8 @@ export const SiteSalesPostingPage = () => {
         fetchUtilityData, 
         salesmen, 
         customers,
-        salesTypes
+        salesTypes,
+        totalCount
     } = useSiteSalesPosting();
 
     useEffect(() => {
@@ -52,6 +53,7 @@ export const SiteSalesPostingPage = () => {
                     salesmen={salesmen}
                     customers={customers}
                     salesTypes={salesTypes}
+                    totalCount={totalCount}
                     onFilterChange={handleFilterChange}
                 />
             </React.Suspense>

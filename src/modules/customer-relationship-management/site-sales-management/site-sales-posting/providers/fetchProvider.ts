@@ -1,15 +1,15 @@
 "use client";
 
-import { 
-    SalesInvoiceHeader, 
-    SalesInvoiceDetail, 
-    Salesman, 
-    Customer, 
-    SalesType, 
-    WorklistFilters, 
-    SalesReturn, 
-    InvoiceDetailsResponse, 
-    SearchProduct, 
+import {
+    SalesInvoiceHeader,
+    SalesInvoiceDetail,
+    Salesman,
+    Customer,
+    SalesType,
+    WorklistFilters,
+    SalesReturn,
+    InvoiceDetailsResponse,
+    SearchProduct,
     CustomerMemo,
     Supplier,
     InvoiceType,
@@ -51,9 +51,9 @@ export const siteSalesPostingProvider = {
 
     // 3. Save Adjustments (Header + Detail CRUD)
     saveAdjustments: async (
-        invoiceId: number | string, 
-        payload: { 
-            customer_code?: string | null; 
+        invoiceId: number | string,
+        payload: {
+            customer_code?: string | null;
             order_id?: string | null;
             invoice_date?: string | null;
             due_date?: string | null;
@@ -64,7 +64,7 @@ export const siteSalesPostingProvider = {
             total_amount?: number;
             net_amount?: number;
             details: SalesInvoiceDetail[];
-            deletedDetailIds: number[]; 
+            deletedDetailIds: number[];
         }
     ): Promise<{ success: boolean }> => {
         const res = await fetch(API_BASE, {
@@ -130,7 +130,6 @@ export const siteSalesPostingProvider = {
         if (!res.ok) throw new Error("Failed to fetch customers");
         return res.json();
     },
-    
     // 6. Return Linking
     getAvailableReturns: async (customerCode: string): Promise<SalesReturn[]> => {
         const res = await fetch(`${API_BASE}?type=available_returns&customerCode=${customerCode}`);
@@ -150,6 +149,47 @@ export const siteSalesPostingProvider = {
             })
         });
         if (!res.ok) throw new Error("Failed to link return");
+        return res.json();
+    },
+
+    unlinkReturn: async (junctionId: number | string): Promise<{ success: boolean }> => {
+        const res = await fetch(API_BASE, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                action: "unlink_return",
+                junctionId
+            })
+        });
+        if (!res.ok) throw new Error("Failed to unlink return");
+        return res.json();
+    },
+
+    unlinkMemo: async (junctionId: number | string, memoId: number | string): Promise<{ success: boolean }> => {
+        const res = await fetch(API_BASE, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                action: "unlink_memo",
+                junctionId,
+                memoId
+            })
+        });
+        if (!res.ok) throw new Error("Failed to unlink memo");
+        return res.json();
+    },
+
+
+    unDispatch: async (id: string | number): Promise<{ success: boolean }> => {
+        const res = await fetch(API_BASE, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                action: "un_dispatch",
+                id
+            })
+        });
+        if (!res.ok) throw new Error("Failed to un-dispatch invoice");
         return res.json();
     },
 
@@ -176,11 +216,11 @@ export const siteSalesPostingProvider = {
         return res.json();
     },
 
-    getUtilityInfo: async (): Promise<{ 
-        invoice_types: InvoiceType[], 
-        price_types: PriceType[], 
-        branches: Branch[], 
-        payment_terms: PaymentTerm[] 
+    getUtilityInfo: async (): Promise<{
+        invoice_types: InvoiceType[],
+        price_types: PriceType[],
+        branches: Branch[],
+        payment_terms: PaymentTerm[]
     }> => {
         const res = await fetch(`${API_BASE}?type=utility_info`);
         if (!res.ok) throw new Error("Failed to fetch utility info");
