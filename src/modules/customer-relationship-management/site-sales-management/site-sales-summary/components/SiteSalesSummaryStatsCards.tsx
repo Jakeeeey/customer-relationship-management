@@ -11,9 +11,9 @@ interface SiteSalesSummaryStatsCardsProps {
 
 const SiteSalesSummaryStatsCards: React.FC<SiteSalesSummaryStatsCardsProps> = ({ stats, isLoading }) => {
     const formatCurrency = (value: number) => {
-        return new Intl.NumberFormat('en-PH', {
-            style: 'currency',
-            currency: 'PHP',
+        return 'P' + new Intl.NumberFormat('en-PH', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
         }).format(value);
     };
 

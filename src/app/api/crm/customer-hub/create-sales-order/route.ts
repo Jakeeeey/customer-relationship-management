@@ -506,7 +506,7 @@ export async function GET(req: NextRequest) {
 
                 const priceOverrides: Record<number, number> = {};
                 if (priceTypeId) {
-                    const poRes = await fetch(`${DIRECTUS_URL}/items/product_per_price_type?filter[price_type_id][_eq]=${priceTypeId}&filter[status][_eq]=published&limit=-1`, { headers: fetchHeaders });
+                    const poRes = await fetch(`${DIRECTUS_URL}/items/product_per_price_type?filter[price_type_id][_eq]=${priceTypeId}&filter[status][_eq]=published,approved&limit=-1`, { headers: fetchHeaders });
                     const poData: { product_id: number | string; price: number | string }[] = (await poRes.json()).data || [];
                     poData.forEach((po: { product_id: number | string; price: number | string }) => {
                         priceOverrides[Number(po.product_id)] = Number(po.price);

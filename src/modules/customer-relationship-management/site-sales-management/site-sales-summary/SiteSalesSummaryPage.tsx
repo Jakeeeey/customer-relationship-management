@@ -17,10 +17,13 @@ export const SiteSalesSummaryPage = () => {
         fetchWorklist,
         fetchStats,
         fetchUtilityData,
+        fetchAllForExport,
         salesmen,
         customers,
         salesTypes,
-        totalCount
+        totalCount,
+        companyData,
+        templates
     } = useSiteSalesSummary();
 
     useEffect(() => {
@@ -52,7 +55,11 @@ export const SiteSalesSummaryPage = () => {
                 customers={customers}
                 salesTypes={salesTypes}
                 totalCount={totalCount}
+                stats={stats}
+                companyData={companyData}
+                templates={templates}
                 onFilterChange={handleFilterChange}
+                fetchAllForExport={fetchAllForExport}
             />
         </div>
     );
