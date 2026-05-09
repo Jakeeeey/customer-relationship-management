@@ -73,14 +73,14 @@ export const SiteSalesList: React.FC<SiteSalesListProps> = ({
         return isValid(date) ? format(date, "MMM dd, yyyy hh:mm a") : dateString;
     };
 
-    const [search, setSearch] = useState("");
-    const [customer, setCustomer] = useState("all");
-    const [salesman, setSalesman] = useState("all");
+    const [search, setSearch] = useState(() => typeof window !== 'undefined' ? sessionStorage.getItem('site_sales_posting_filter_search') || "" : "");
+    const [customer, setCustomer] = useState(() => typeof window !== 'undefined' ? sessionStorage.getItem('site_sales_posting_filter_customer') || "all" : "all");
+    const [salesman, setSalesman] = useState(() => typeof window !== 'undefined' ? sessionStorage.getItem('site_sales_posting_filter_salesman') || "all" : "all");
     const [salesType] = useState("3");
-    const [isDispatched, setIsDispatched] = useState(false);
-    const [isPaid, setIsPaid] = useState(false);
-    const [dateFrom, setDateFrom] = useState("");
-    const [dateTo, setDateTo] = useState("");
+    const [isDispatched, setIsDispatched] = useState(() => typeof window !== 'undefined' ? sessionStorage.getItem('site_sales_posting_filter_isDispatched') === 'true' : false);
+    const [isPaid, setIsPaid] = useState(() => typeof window !== 'undefined' ? sessionStorage.getItem('site_sales_posting_filter_isPaid') === 'true' : false);
+    const [dateFrom, setDateFrom] = useState(() => typeof window !== 'undefined' ? sessionStorage.getItem('site_sales_posting_filter_dateFrom') || "" : "");
+    const [dateTo, setDateTo] = useState(() => typeof window !== 'undefined' ? sessionStorage.getItem('site_sales_posting_filter_dateTo') || "" : "");
     const [sorting, setSorting] = useState<SortingState>([{ id: "invoice_date", desc: true }]);
     const [rowSelection, setRowSelection] = useState({});
     const [openCustomer, setOpenCustomer] = useState(false);
@@ -103,6 +103,19 @@ export const SiteSalesList: React.FC<SiteSalesListProps> = ({
         const timer = setTimeout(applyFilters, 500);
         return () => clearTimeout(timer);
     }, [applyFilters]);
+
+    // Persist filters to sessionStorage
+    useEffect(() => {
+        if (typeof window !== 'undefined') {
+            sessionStorage.setItem('site_sales_posting_filter_search', search);
+            sessionStorage.setItem('site_sales_posting_filter_customer', customer);
+            sessionStorage.setItem('site_sales_posting_filter_salesman', salesman);
+            sessionStorage.setItem('site_sales_posting_filter_dateFrom', dateFrom);
+            sessionStorage.setItem('site_sales_posting_filter_dateTo', dateTo);
+            sessionStorage.setItem('site_sales_posting_filter_isDispatched', String(isDispatched));
+            sessionStorage.setItem('site_sales_posting_filter_isPaid', String(isPaid));
+        }
+    }, [search, customer, salesman, dateFrom, dateTo, isDispatched, isPaid]);
 
     const columns: ColumnDef<SalesInvoiceHeader>[] = [
         {
