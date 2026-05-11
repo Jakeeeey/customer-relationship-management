@@ -75,7 +75,7 @@ export function TargetSettingsModule() {
                     if (biaAllocations.length > 0) {
                         target = {
                             salesman_id: s.id,
-                            volume: biaAllocations.reduce((sum, st) => sum + (Number(st.target_amount) || 0), 0),
+                            volume: biaAllocations.reduce((sum: number, st: SupplierTarget) => sum + (Number(st.target_amount) || 0), 0),
                             new_accounts: 0,
                             productive_outlets: 0,
                             line_sales: 0,
