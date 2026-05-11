@@ -56,12 +56,37 @@ export function TargetSettingsModule() {
 
             // Map targets to salesmen
             const mappedSalesmen = data.salesmen.map((s: SalesmanWithTarget) => {
-                const target = data.targets.find((t: { salesman_id: number; id: number }) => t.salesman_id === s.id);
+                let target = data.targets.find((t: { salesman_id: number; id: number }) => t.salesman_id === s.id);
+                
                 if (target) {
                     target.tactical_skus = data.tacticalSkus.filter((ts: TacticalSKU) => ts.salesman_target_setting_id === target.id);
                     target.customer_targets = data.customerTargets.filter((ct: CustomerTarget) => ct.target_setting_id === target.id);
-                    target.supplier_targets = data.supplierTargets.filter((st: SupplierTarget) => st.target_setting_id === target.id);
+                    // Match by target_setting_id OR fallback to salesman_id for BIA allocations
+                    target.supplier_targets = data.supplierTargets.filter((st: SupplierTarget & { salesman_id?: number }) => 
+                        st.target_setting_id === target.id || (st.target_setting_id === 0 && st.salesman_id === s.id)
+                    );
                     target.area_targets = data.areaTargets.filter((at: { target_setting_id: number }) => at.target_setting_id === target.id);
+                } else {
+                    // Check if there are BIA supplier allocations for this salesman
+                    const biaAllocations = data.supplierTargets.filter((st: SupplierTarget & { salesman_id?: number }) => 
+                        st.salesman_id === s.id
+                    );
+
+                    if (biaAllocations.length > 0) {
+                        target = {
+                            salesman_id: s.id,
+                            volume: biaAllocations.reduce((sum, st) => sum + (Number(st.target_amount) || 0), 0),
+                            new_accounts: 0,
+                            productive_outlets: 0,
+                            line_sales: 0,
+                            frequency: 0,
+                            basket_count: 0,
+                            reach: 0,
+                            date_range_from: `${year}-${String(month).padStart(2, '0')}-01 00:00:00`,
+                            date_range_to: `${year}-${String(month).padStart(2, '0')}-01 00:00:00`,
+                            supplier_targets: biaAllocations
+                        };
+                    }
                 }
                 return { ...s, current_target: target };
             });
