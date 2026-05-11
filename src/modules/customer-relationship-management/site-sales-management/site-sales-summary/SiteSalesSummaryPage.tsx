@@ -17,19 +17,33 @@ export const SiteSalesSummaryPage = () => {
         fetchWorklist,
         fetchStats,
         fetchUtilityData,
+        fetchAllForExport,
         salesmen,
         customers,
         salesTypes,
-        totalCount
+        totalCount,
+        companyData,
+        templates
     } = useSiteSalesSummary();
 
     useEffect(() => {
         fetchUtilityData();
     }, [fetchUtilityData]);
 
+    const prevFiltersRef = React.useRef<string>("");
+
     const handleFilterChange = React.useCallback((filters: WorklistFilters) => {
         fetchWorklist(filters);
-        fetchStats(filters);
+        
+        // Only fetch stats if "significant" filters changed (excluding page/limit)
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { page, limit, ...significantFilters } = filters;
+        const filterHash = JSON.stringify(significantFilters);
+        
+        if (filterHash !== prevFiltersRef.current) {
+            fetchStats(filters);
+            prevFiltersRef.current = filterHash;
+        }
     }, [fetchWorklist, fetchStats]);
 
     return (
@@ -52,7 +66,11 @@ export const SiteSalesSummaryPage = () => {
                 customers={customers}
                 salesTypes={salesTypes}
                 totalCount={totalCount}
+                stats={stats}
+                companyData={companyData}
+                templates={templates}
                 onFilterChange={handleFilterChange}
+                fetchAllForExport={fetchAllForExport}
             />
         </div>
     );

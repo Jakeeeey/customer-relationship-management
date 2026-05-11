@@ -213,17 +213,16 @@ export async function GET(req: NextRequest) {
                 meta: "filter_count"
             });
 
-            console.log("Fetching worklist with query:", query.toString());
 
             const res = await fetch(`${DIRECTUS_URL}/items/sales_invoice?${query.toString()}`, { headers: fetchHeaders });
             if (!res.ok) {
                 const errorData = await res.json();
-                console.error("Directus Error:", JSON.stringify(errorData, null, 2));
-                throw new Error(errorData?.errors?.[0]?.message || "Failed to fetch worklist");
+                return NextResponse.json({ error: errorData.errors?.[0]?.message || "Failed to fetch worklist" }, { status: res.status });
             }
 
             const json = await res.json();
             const rawData = json.data || [];
+            const totalCount = json.meta?.filter_count || 0;
 
             // Fetch customer names manually to avoid NaN join error
             const customerCodes = Array.from(new Set((rawData as { customer_code: string }[]).map((item) => item.customer_code).filter(Boolean))) as (string | number)[];
@@ -307,7 +306,7 @@ export async function GET(req: NextRequest) {
             return NextResponse.json({
                 data,
                 metadata: {
-                    totalCount: json.meta?.filter_count || 0,
+                    totalCount,
                     page,
                     limit
                 }
@@ -315,7 +314,6 @@ export async function GET(req: NextRequest) {
         }
 
         if (type === "summary_stats") {
-            console.log("[SummaryStats] Starting stats calculation...");
             const search = searchParams.get("search") || "";
             const salesmanId = searchParams.get("salesmanId");
             const customerId = searchParams.get("customerId");
@@ -364,14 +362,12 @@ export async function GET(req: NextRequest) {
                 filters._and.push({ customer_code: { _eq: customerId } });
             }
 
-            console.log("[SummaryStats] Filters:", JSON.stringify(filters));
 
             // 1. Fetch Totals
             const totalsQuery = new URLSearchParams({
                 filter: JSON.stringify(filters),
                 "aggregate[sum]": "gross_amount,net_amount"
             });
-            console.log("[SummaryStats] Fetching Totals...");
             const totalsRes = await fetch(`${DIRECTUS_URL}/items/sales_invoice?${totalsQuery.toString()}`, { headers: fetchHeaders });
             if (!totalsRes.ok) {
                 const err = await totalsRes.json();
@@ -379,12 +375,9 @@ export async function GET(req: NextRequest) {
                 throw new Error("Failed to fetch aggregates");
             }
             const totalsData = await totalsRes.json();
-            const totalGross = Number(totalsData.data?.[0]?.sum?.gross_amount || 0);
             const totalNet = Number(totalsData.data?.[0]?.sum?.net_amount || 0);
-            console.log("[SummaryStats] Results:", { totalGross, totalNet });
 
             // 2. Fetch linked returns and memos using NESTED FILTERS
-            console.log("[SummaryStats] Fetching Returns & Memos using nested filters...");
 
             const returnsNestedFilter = { invoice_no: filters };
             const memosNestedFilter = { invoice_id: filters };
@@ -419,14 +412,6 @@ export async function GET(req: NextRequest) {
             // Calculate total balance: (Gross - Discount) - Returns - Credits + Debits
             const totalBalance = Math.round((totalNet - totalCredits - totalReturns + totalDebits) * 100) / 100;
 
-            console.log("[SummaryStats] Final Results:", { 
-                totalGross: Math.round(totalGross * 100) / 100, 
-                totalNet: Math.round(totalNet * 100) / 100,
-                totalReturns: Math.round(totalReturns * 100) / 100, 
-                totalCredits: Math.round(totalCredits * 100) / 100, 
-                totalDebits: Math.round(totalDebits * 100) / 100, 
-                totalBalance 
-            });
 
             return NextResponse.json({
                 totalGross: Math.round(totalNet * 100) / 100, // Using net_amount as requested
@@ -639,9 +624,29 @@ export async function GET(req: NextRequest) {
                     linkedDocs = [...linkedDocs, ...mappedMemos];
                 }
 
-            } catch (e) { console.error("Linked documents fetch exception:", e); }
-
-            // 5. Discount Types Resolution for details
+                } catch (e) { console.error("Linked documents fetch exception:", e); }
+    
+                // 5. Fetch Linked Collections
+                let collections: Record<string, unknown>[] = [];
+                try {
+                    const collRes = await fetch(`${DIRECTUS_URL}/items/collection_invoices?filter[invoice_id][_eq]=${invoiceId}&fields=*,collection_id.collection_receipt_no,collection_id.collection_date,collection_id.remarks,collection_id.isPosted&limit=-1`, { headers: fetchHeaders });
+                    if (collRes.ok) {
+                        const collData = (await collRes.json()).data || [];
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                        collections = collData.map((item: any) => ({
+                            id: item.id,
+                            collection_receipt_no: item.collection_id?.collection_receipt_no || "N/A",
+                            collection_date: item.collection_id?.collection_date || item.date_linked,
+                            amount: Number(item.amount || 0),
+                            type: item.type || "CASH",
+                            source_temp_id: item.source_temp_id || "N/A",
+                            isPosted: item.collection_id?.isPosted === true || item.collection_id?.isPosted === 1 || 
+                                      (item.collection_id?.isPosted && typeof item.collection_id.isPosted === 'object' && item.collection_id.isPosted.data?.[0] === 1)
+                        }));
+                    }
+                } catch (e) { console.error("Collections fetch exception:", e); }
+    
+                // 6. Discount Types Resolution for details
             const detailTypeIds = new Set(details.map((d: InvoiceDetailItem) => d.discount_type).filter(Boolean));
             const detailDiscountMap: Record<number, number[]> = {};
             if (detailTypeIds.size > 0) {
@@ -684,6 +689,7 @@ export async function GET(req: NextRequest) {
                 header,
                 details: mappedDetails,
                 linkedDocs,
+                collections,
                 main_supplier_id,
                 main_supplier_name
             });
@@ -706,7 +712,7 @@ export async function GET(req: NextRequest) {
                 let linkedProductIds: (string | number)[] = [];
                 if (supplierIdRaw === "all") {
                     // Fetch all products that have a price for this price type
-                    const poRes = await fetch(`${DIRECTUS_URL}/items/product_per_price_type?filter[price_type_id][_eq]=${priceTypeId}&filter[status][_eq]=published&fields=product_id&limit=-1`, { headers: fetchHeaders });
+                    const poRes = await fetch(`${DIRECTUS_URL}/items/product_per_price_type?filter[price_type_id][_eq]=${priceTypeId}&filter[status][_in]=published,approved&fields=product_id&limit=-1`, { headers: fetchHeaders });
                     const poData = (await poRes.json()).data || [];
                     linkedProductIds = poData.map((po: { product_id: number | { id?: number; product_id?: number } }) => {
                         if (po.product_id && typeof po.product_id === 'object') return po.product_id.id || po.product_id.product_id;
@@ -725,7 +731,7 @@ export async function GET(req: NextRequest) {
 
                 // 2. Fetch prices from product_per_price_type (Strict base)
                 const priceOverrides: Record<number, number> = {};
-                const poRes = await fetchInChunks<{ product_id: number | string; price: number | string }>(`${DIRECTUS_URL}/items/product_per_price_type?filter[price_type_id][_eq]=${priceTypeId}&filter[status][_eq]=published`, linkedProductIds, "product_id");
+                const poRes = await fetchInChunks<{ product_id: number | string; price: number | string }>(`${DIRECTUS_URL}/items/product_per_price_type?filter[price_type_id][_eq]=${priceTypeId}&filter[status][_in]=published,approved`, linkedProductIds, "product_id");
                 poRes.forEach(po => { priceOverrides[Number(po.product_id)] = Number(po.price); });
 
                 // 3. Fetch Full Product Details

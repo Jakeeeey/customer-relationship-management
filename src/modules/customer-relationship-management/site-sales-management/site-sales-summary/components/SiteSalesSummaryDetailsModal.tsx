@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState, useCallback } from 'react';
-import { SalesInvoiceHeader, SalesInvoiceDetail, LinkedDocument } from '../types';
+import { SalesInvoiceHeader, SalesInvoiceDetail, LinkedDocument, LinkedCollection } from '../types';
 import { siteSalesSummaryProvider } from '../providers/fetchProvider';
 import { cn } from '@/lib/utils';
 import { format, parseISO } from 'date-fns';
@@ -48,6 +48,7 @@ export const SiteSalesSummaryDetailsModal: React.FC<SiteSalesSummaryDetailsModal
     const [header, setHeader] = useState<SalesInvoiceHeader | null>(null);
     const [details, setDetails] = useState<SalesInvoiceDetail[]>([]);
     const [linkedDocs, setLinkedDocs] = useState<LinkedDocument[]>([]);
+    const [collections, setCollections] = useState<LinkedCollection[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [activeTab, setActiveTab] = useState('items');
 
@@ -89,6 +90,7 @@ export const SiteSalesSummaryDetailsModal: React.FC<SiteSalesSummaryDetailsModal
             setHeader(data.header);
             setDetails(data.details);
             setLinkedDocs(data.linkedDocs || []);
+            setCollections(data.collections || []);
         } catch (error) {
             console.error("Failed to fetch invoice details:", error);
         } finally {
@@ -103,6 +105,7 @@ export const SiteSalesSummaryDetailsModal: React.FC<SiteSalesSummaryDetailsModal
             setHeader(null);
             setDetails([]);
             setLinkedDocs([]);
+            setCollections([]);
             setActiveTab('items');
         }
     }, [isOpen, invoiceId, fetchData]);
@@ -271,6 +274,7 @@ export const SiteSalesSummaryDetailsModal: React.FC<SiteSalesSummaryDetailsModal
                                             <TabsTrigger value="items" className="bg-transparent border-b-2 border-transparent data-[state=active]:border-primary rounded-none h-full px-1 font-black text-xs uppercase tracking-[0.2em] text-slate-400 data-[state=active]:text-primary transition-all">Items</TabsTrigger>
                                             <TabsTrigger value="returns" className="bg-transparent border-b-2 border-transparent data-[state=active]:border-primary rounded-none h-full px-1 font-black text-xs uppercase tracking-[0.2em] text-slate-400 data-[state=active]:text-primary transition-all">Returns</TabsTrigger>
                                             <TabsTrigger value="memo" className="bg-transparent border-b-2 border-transparent data-[state=active]:border-primary rounded-none h-full px-1 font-black text-xs uppercase tracking-[0.2em] text-slate-400 data-[state=active]:text-primary transition-all">Memo</TabsTrigger>
+                                            <TabsTrigger value="collection" className="bg-transparent border-b-2 border-transparent data-[state=active]:border-primary rounded-none h-full px-1 font-black text-xs uppercase tracking-[0.2em] text-slate-400 data-[state=active]:text-primary transition-all">Collection</TabsTrigger>
                                         </TabsList>
 
                                         <Card className="border shadow-none overflow-hidden dark:bg-slate-900/30 dark:border-slate-800">
@@ -497,6 +501,57 @@ export const SiteSalesSummaryDetailsModal: React.FC<SiteSalesSummaryDetailsModal
                                                         ))}
                                                     </div>
                                                 )}
+                                            </TabsContent>
+                                            <TabsContent value="collection" className="m-0">
+                                                <div className="overflow-x-auto">
+                                                    <Table>
+                                                        <TableHeader className="bg-slate-100/80 dark:bg-slate-800/80 sticky top-0 z-10 backdrop-blur-sm">
+                                                            <TableRow className="border-b dark:border-slate-800 hover:bg-transparent">
+                                                                <TableHead className="text-[10px] font-black uppercase tracking-widest text-slate-500 h-12 px-6">Receipt No.</TableHead>
+                                                                <TableHead className="text-[10px] font-black uppercase tracking-widest text-slate-500 h-12 px-6">Collection Date</TableHead>
+                                                                <TableHead className="text-[10px] font-black uppercase tracking-widest text-slate-500 h-12 px-6">Payment Type</TableHead>
+                                                                <TableHead className="text-[10px] font-black uppercase tracking-widest text-slate-500 h-12 px-6 text-right">Amount</TableHead>
+                                                                <TableHead className="text-[10px] font-black uppercase tracking-widest text-slate-500 h-12 px-6 text-center">Status</TableHead>
+                                                                <TableHead className="text-[10px] font-black uppercase tracking-widest text-slate-500 h-12 px-6">Source Temp ID</TableHead>
+                                                            </TableRow>
+                                                        </TableHeader>
+                                                        <TableBody>
+                                                            {collections.map((item, idx) => (
+                                                                <TableRow key={item.id || idx} className="hover:bg-primary/5 dark:hover:bg-primary/10 border-b dark:border-slate-800 last:border-0 transition-colors">
+                                                                    <TableCell className="py-4 px-6 font-black text-[13px] text-slate-900 dark:text-slate-100 uppercase">
+                                                                        {item.collection_receipt_no}
+                                                                    </TableCell>
+                                                                    <TableCell className="py-4 px-6 text-[12px] font-medium text-slate-600 dark:text-slate-400">
+                                                                        {item.collection_date ? format(parseISO(item.collection_date), 'MMM dd, yyyy') : '--'}
+                                                                    </TableCell>
+                                                                    <TableCell className="py-4 px-6">
+                                                                        <Badge variant="outline" className="text-[9px] font-black uppercase px-2 py-0.5 border-blue-100 bg-blue-50 text-blue-600">
+                                                                            {item.type}
+                                                                        </Badge>
+                                                                    </TableCell>
+                                                                    <TableCell className="text-right font-black text-emerald-600 py-4 px-6 text-[14px] tabular-nums">
+                                                                        ₱{item.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                                                    </TableCell>
+                                                                    <TableCell className="text-center py-4 px-6">
+                                                                        {item.isPosted ? (
+                                                                            <Badge className="bg-slate-900 text-white border-none text-[8px] font-black px-2 py-0.5 uppercase tracking-widest">POSTED</Badge>
+                                                                        ) : (
+                                                                            <Badge variant="outline" className="text-slate-400 border-slate-200 text-[8px] font-black px-2 py-0.5 uppercase tracking-widest">PENDING</Badge>
+                                                                        )}
+                                                                    </TableCell>
+                                                                    <TableCell className="py-4 px-6 text-[11px] text-slate-500 font-bold max-w-[200px] truncate">
+                                                                        {item.source_temp_id || 'N/A'}
+                                                                    </TableCell>
+                                                                </TableRow>
+                                                            ))}
+                                                            {collections.length === 0 && (
+                                                                <TableRow>
+                                                                    <TableCell colSpan={6} className="h-40 text-center text-slate-400 font-bold uppercase text-xs tracking-widest bg-slate-50/20 italic">No collections found for this invoice.</TableCell>
+                                                                </TableRow>
+                                                            )}
+                                                        </TableBody>
+                                                    </Table>
+                                                </div>
                                             </TabsContent>
                                         </Card>
                                     </Tabs>

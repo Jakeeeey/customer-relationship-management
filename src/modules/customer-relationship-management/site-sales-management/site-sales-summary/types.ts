@@ -25,6 +25,7 @@ export const SalesInvoiceHeaderSchema = z.object({
     remarks: z.string().nullable().optional(),
     isDispatched: z.boolean().or(z.number().transform(n => n === 1)).nullable().optional(),
     isPaid: z.boolean().or(z.number().transform(n => n === 1)).nullable().optional(), // Mapped from UI toggles if needed
+    isPosted: z.boolean().or(z.number().transform(n => n === 1)).nullable().optional(),
 
     // Financial Breakdown
     credits: z.number().optional().default(0),
@@ -168,6 +169,16 @@ export interface LinkedDocument {
     }[];
 }
 
+export interface LinkedCollection {
+    id: number;
+    collection_receipt_no: string;
+    collection_date: string;
+    amount: number;
+    type: string;
+    source_temp_id?: string;
+    isPosted: boolean;
+}
+
 export interface WorklistFilters {
     page?: number;
     limit?: number;
@@ -194,6 +205,7 @@ export interface InvoiceDetailsResponse {
     header: SalesInvoiceHeader;
     details: SalesInvoiceDetail[];
     linkedDocs: LinkedDocument[];
+    collections?: LinkedCollection[];
     main_supplier_id?: number | null;
     main_supplier_name?: string | null;
 }

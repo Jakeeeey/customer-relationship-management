@@ -512,7 +512,8 @@ export async function GET(req: NextRequest) {
                         { "store_name": { "_icontains": search } }
                     ]
                 });
-                const customerSearchUrl = `${BASE_URL}/customer?filter=${encodeURIComponent(customerSearchFilter)}&fields=customer_code&limit=-1`;
+                // Limit to 50 matches to prevent 431 Request Header Fields Too Large (URL too long)
+                const customerSearchUrl = `${BASE_URL}/customer?filter=${encodeURIComponent(customerSearchFilter)}&fields=customer_code&limit=50`;
                 const custRes = await fetch(customerSearchUrl, { headers });
 
                 if (custRes.ok) {
