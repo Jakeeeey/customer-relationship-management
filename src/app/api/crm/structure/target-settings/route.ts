@@ -231,6 +231,7 @@ export async function GET(req: NextRequest) {
         interface SupplierTarget {
             id?: number;
             target_setting_id: number;
+            salesman_id: number;
             supplier_id: number;
             target_amount: number;
             created_at?: string;
@@ -256,10 +257,11 @@ export async function GET(req: NextRequest) {
                 return {
                     id: rst.id,
                     target_setting_id: matchingTarget ? matchingTarget.id : 0,
+                    salesman_id: rst.salesman_id, // Include salesman_id for fallback matching
                     supplier_id: rst.supplier_id,
                     target_amount: rst.target_amount,
                     created_at: rst.created_at
-                } as SupplierTarget;
+                } as SupplierTarget & { salesman_id: number };
             });
 
             const areaRes = await fetch(`${DIRECTUS_URL}/items/salesman_target_area_sales?filter[target_setting_id][_in]=${targetIds.join(',')}&limit=-1`, { headers: fetchHeaders });
