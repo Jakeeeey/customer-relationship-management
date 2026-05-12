@@ -378,7 +378,7 @@ export function useSalesOrder() {
                                     return {
                                         id: tempId,
                                         detail_id: originalPK, // Bida to! 🚀
-                                        uom: it.uom || "PCS",
+                                        uom: it.uom || enrichedP?.uom || enrichedP?.uom_shortcut || enrichedP?.uom_name || "PCS",
                                         unitPrice: uPrice,
                                         quantity: qty,
                                         discountType: p.discount_level || (typeof it.discount_type === 'number' && it.discount_type !== 0 ? String(it.discount_type) : (it.discount_type || "none")),
