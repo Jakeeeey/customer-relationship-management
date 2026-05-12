@@ -29,10 +29,13 @@ import {
     Store,
     Clock,
     X,
+    Paperclip,
+    FileText,
+    ExternalLink,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { salesOrderProvider } from "../providers/fetchProvider";
-import { SalesOrder, Customer, Salesman, Branch, Supplier, Invoice, SalesOrderDetail, InvoiceDetail, PdfData } from "../types";
+import { SalesOrder, Customer, Salesman, Branch, Supplier, Invoice, SalesOrderDetail, InvoiceDetail, PdfData, SalesOrderAttachment } from "../types";
 
 interface SalesOrderDetailsModalProps {
     isOpen: boolean;
@@ -62,6 +65,10 @@ export function SalesOrderDetailsModal({
     const [loadingInvoice, setLoadingInvoice] = useState(false);
     const [loadingPdf, setLoadingPdf] = useState(false);
 
+    // ── Callsheet Attachment State ──
+    const [callsheets, setCallsheets] = useState<SalesOrderAttachment[]>([]);
+    const [loadingCallsheets, setLoadingCallsheets] = useState(false);
+
     // Robust status check (ignores casing/spaces)
     const normalizedStatus = (order?.order_status || "").toLowerCase().trim();
     const isInvoiceStatus = ["for loading", "for shipping", "en route", "delivered"].includes(normalizedStatus);
@@ -73,6 +80,7 @@ export function SalesOrderDetailsModal({
             setInvoices([]);
             setOrderPdf(null);
             setActiveTab("");
+            setCallsheets([]);
             return;
         }
 
@@ -90,7 +98,20 @@ export function SalesOrderDetailsModal({
                 console.log("[PDF-DEBUG] PDF fetch result:", pdfData);
                 setOrderPdf(pdfData);
 
-                // 3. Invoices (Only if relevant status)
+                // 3. Callsheet Attachments (Always load)
+                setLoadingCallsheets(true);
+                try {
+                    const csData = await salesOrderProvider.getCallsheetAttachments(order.order_id, order.order_no);
+                    setCallsheets(csData || []);
+                    console.log(`[CALLSHEET] Loaded ${csData?.length || 0} callsheets`);
+                } catch (csErr) {
+                    console.error("[CALLSHEET] Load Error:", csErr);
+                    setCallsheets([]);
+                } finally {
+                    setLoadingCallsheets(false);
+                }
+
+                // 4. Invoices (Only if relevant status)
                 if (isInvoiceStatus) {
                     setLoadingInvoice(true);
                     const invData = await salesOrderProvider.getInvoiceDetails(order.order_id, order.order_no);
@@ -234,8 +255,37 @@ export function SalesOrderDetailsModal({
                             >
                                 {order.order_status?.toUpperCase()}
                             </Badge>
-
                         </div>
+
+                        {/* Callsheet Link — "View Document" button, opens file viewer popup */}
+                        {!loadingCallsheets && callsheets.length > 0 && (
+                            <div className="mt-2.5">
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-9 px-4 gap-2 shadow-sm font-bold border-primary/20 text-primary hover:bg-primary/5 transition-all active:scale-95"
+                                    onClick={() => {
+                                        const firstCs = callsheets[0];
+                                        const fileUrl = `/api/crm/customer-hub/callsheet/file?id=${firstCs.file_id}&filename=${encodeURIComponent(firstCs.attachment_name || 'Callsheet')}`;
+                                        window.open(
+                                            fileUrl,
+                                            "DocumentViewer",
+                                            "width=1200,height=900,menubar=no,toolbar=no,location=no,status=no,resizable=yes,scrollbars=yes"
+                                        );
+                                    }}
+                                >
+                                    <FileText className="h-4 w-4" />
+                                    <span>View Document</span>
+                                    <ExternalLink className="h-3.5 w-3.5 opacity-50" />
+                                </Button>
+                            </div>
+                        )}
+                        {loadingCallsheets && (
+                            <div className="flex items-center gap-2 mt-2.5">
+                                <Paperclip className="h-3.5 w-3.5 text-slate-300 animate-pulse shrink-0" />
+                                <span className="text-[10px] text-slate-400 animate-pulse">Loading callsheets...</span>
+                            </div>
+                        )}
 
                         {/* ── SUMMARY CARDS ─────────────────────────────────
                         mobile  → 2×2 grid
@@ -534,6 +584,7 @@ export function SalesOrderDetailsModal({
                         )}
                     </div>
 
+
                     {/* ── FOOTER ──────────────────────────────────────────── */}
                     <div className="px-4 sm:px-8 py-3 sm:py-5 border-t bg-white flex flex-row items-center justify-between gap-4 shrink-0">
 
@@ -747,6 +798,8 @@ export function SalesOrderDetailsModal({
                     </div>
                 </DialogContent>
             </Dialog>
+
+
         </>
     );
 }
