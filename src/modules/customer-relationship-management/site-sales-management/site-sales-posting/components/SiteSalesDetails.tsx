@@ -323,7 +323,11 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
         setIsFetchingMemos(true);
         try {
             const data = await siteSalesPostingProvider.getAvailableMemos(header.customer_code, id);
-            setAvailableMemos(data);
+            const filteredData = data.filter(memo => 
+                memo.status !== 'APPLIED' && 
+                Number(memo.applied_amount || 0) < Number(memo.amount || 0)
+            );
+            setAvailableMemos(filteredData);
         } catch {
             toast.error("Failed to fetch available memos");
         } finally {
