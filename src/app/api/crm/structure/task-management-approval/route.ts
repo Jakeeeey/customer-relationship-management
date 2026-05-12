@@ -108,7 +108,7 @@ export async function GET() {
             taskTypes,
             customers,
             tasks,
-            actionPlans,
+            actionPlans: actionPlans.filter((ap: any) => ap.is_deleted !== 1 && ap.is_deleted !== "1"),
             attachments,
             monthlyCoveragePlans,
             targetSettings,
