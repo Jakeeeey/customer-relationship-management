@@ -151,6 +151,10 @@ export function SalesOrderDetailsModal({
         }
     };
 
+    const getInvoiceStatusStyle = () => {
+        return "bg-slate-100 text-slate-800 border-slate-200";
+    };
+
     const isInvoiceMode = isInvoiceStatus && invoices.length > 0;
     const activeInvoiceData = isInvoiceMode ? invoices.find(inv => inv.invoice.invoice_no === activeTab) : null;
     const totalInvoicesAmount = isInvoiceMode ? invoices.reduce((sum, inv) => sum + ((Number(inv.invoice.gross_amount) || 0) - (Number(inv.invoice.discount_amount) || 0)), 0) : 0;
@@ -226,6 +230,19 @@ export function SalesOrderDetailsModal({
                             </div>
 
                             <div className="flex items-center gap-1.5 shrink-0 ml-1">
+                                {isInvoiceMode && activeInvoiceData?.invoice?.transaction_status && (
+                                    <Badge
+                                        variant="outline"
+                                        className={`
+                                            hidden sm:flex
+                                            px-2.5 py-0.5 text-[9px] sm:text-[10px]
+                                            font-black tracking-widest shadow-sm rounded-lg
+                                            ${getInvoiceStatusStyle()}
+                                        `}
+                                    >
+                                        INV: {activeInvoiceData.invoice.transaction_status}
+                                    </Badge>
+                                )}
                                 <Badge
                                     variant="outline"
                                     className={`
@@ -235,7 +252,7 @@ export function SalesOrderDetailsModal({
                                     ${getStatusStyle(order.order_status || "")}
                                 `}
                                 >
-                                    {order.order_status?.toUpperCase()}
+                                    SO: {order.order_status?.toUpperCase()}
                                 </Badge>
                                 <button
                                     onClick={onClose}
@@ -248,13 +265,21 @@ export function SalesOrderDetailsModal({
                         </div>
 
                         {/* Mobile-only badge row */}
-                        <div className="flex sm:hidden mt-2 items-center justify-between w-full">
+                        <div className="flex sm:hidden mt-2 items-center gap-1.5 w-full flex-wrap">
                             <Badge
                                 variant="outline"
                                 className={`px-2.5 py-0.5 text-[9px] font-black tracking-widest rounded-lg ${getStatusStyle(order.order_status || "")}`}
                             >
-                                {order.order_status?.toUpperCase()}
+                                SO: {order.order_status?.toUpperCase()}
                             </Badge>
+                            {isInvoiceMode && activeInvoiceData?.invoice?.transaction_status && (
+                                <Badge
+                                    variant="outline"
+                                    className={`px-2.5 py-0.5 text-[9px] font-black tracking-widest rounded-lg ${getInvoiceStatusStyle()}`}
+                                >
+                                    INV: {activeInvoiceData.invoice.transaction_status}
+                                </Badge>
+                            )}
                         </div>
 
                         {/* Callsheet Link — "View Document" button, opens file viewer popup */}
@@ -337,6 +362,16 @@ export function SalesOrderDetailsModal({
                                     {supplier ? `${supplier.supplier_name} (${supplier.supplier_shortcut})` : (order.supplier_id || "N/A")}
                                 </p>
                             </div>
+
+                            {/* Transaction Status (Only in Invoice Mode) */}
+                            {isInvoiceMode && (
+                                <div className="bg-white border border-slate-100 rounded-xl p-3 sm:p-4 flex flex-col gap-1 shadow-sm sm:col-span-1">
+                                    <p className="text-[8px] sm:text-[10px] text-muted-foreground uppercase font-black tracking-widest leading-none">Transaction Status</p>
+                                    <p className="font-bold text-[11px] sm:text-xs text-slate-900 truncate mt-0.5">
+                                        {activeInvoiceData?.invoice?.transaction_status || "N/A"}
+                                    </p>
+                                </div>
+                            )}
                         </div>
                     </div>
 

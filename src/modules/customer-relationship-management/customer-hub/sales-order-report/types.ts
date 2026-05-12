@@ -123,6 +123,7 @@ export interface InvoiceData {
     discount_amount: number;
     vat_amount?: number;
     net_amount: number;
+    transaction_status?: string | null;
 }
 
 export interface PdfData {
