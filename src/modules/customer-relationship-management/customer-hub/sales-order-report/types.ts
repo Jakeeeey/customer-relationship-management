@@ -55,6 +55,23 @@ export interface SalesOrderDetail {
     modified_date: string | null;
 }
 
+/**
+ * Callsheet attachment linked to a sales order.
+ * The `file_id` stores the Directus file UUID — server constructs the full asset URL.
+ */
+export interface SalesOrderAttachment {
+    id: number;
+    sales_order_id: number | null;
+    salesman_id: number;
+    customer_code: string;
+    file_id: string | null;
+    attachment_name: string | null;
+    sales_order_no: string;
+    status: "pending" | "approved" | "rejected";
+    created_date: string;
+    image_url: string | null;
+}
+
 export interface SalesOrderWithDetails extends SalesOrder {
     details: SalesOrderDetail[];
 }
