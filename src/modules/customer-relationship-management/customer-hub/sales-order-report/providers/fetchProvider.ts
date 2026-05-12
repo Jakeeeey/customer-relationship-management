@@ -1,4 +1,4 @@
-import { SalesOrderDataResponse } from "../types";
+import { SalesOrderDataResponse, SalesOrderAttachment } from "../types";
 
 export const fetchSalesOrderData = async (
     page: number = 1,
@@ -82,10 +82,32 @@ export const fetchOrderAttachments = async (orderNo: string) => {
     return json.data || [];
 };
 
+/**
+ * Fetches callsheet attachments for a specific sales order.
+ * Uses both orderId and orderNo for maximum matching coverage.
+ */
+export const fetchCallsheetAttachments = async (
+    orderId: number,
+    orderNo: string
+): Promise<SalesOrderAttachment[]> => {
+    const params = new URLSearchParams({
+        type: "callsheet-attachments",
+        orderId: orderId.toString(),
+        orderNo: orderNo,
+    });
+    const response = await fetch(`/api/crm/customer-hub/sales-order-report?${params.toString()}`);
+    if (!response.ok) {
+        throw new Error("Failed to fetch callsheet attachments");
+    }
+    const json = await response.json();
+    return json.data || [];
+};
+
 export const salesOrderProvider = {
     getSalesOrderDetails: fetchSalesOrderDetails,
     getInvoiceDetails: fetchInvoiceDetails,
     getMonthlyAverage: fetchMonthlyAverage,
     getOrderPdf: fetchOrderPdf,
     getOrderAttachments: fetchOrderAttachments,
+    getCallsheetAttachments: fetchCallsheetAttachments,
 };

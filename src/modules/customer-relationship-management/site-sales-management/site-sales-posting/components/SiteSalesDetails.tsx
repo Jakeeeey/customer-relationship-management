@@ -323,7 +323,11 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
         setIsFetchingMemos(true);
         try {
             const data = await siteSalesPostingProvider.getAvailableMemos(header.customer_code, id);
-            setAvailableMemos(data);
+            const filteredData = data.filter(memo => 
+                memo.status !== 'APPLIED' && 
+                Number(memo.applied_amount || 0) < Number(memo.amount || 0)
+            );
+            setAvailableMemos(filteredData);
         } catch {
             toast.error("Failed to fetch available memos");
         } finally {
@@ -567,7 +571,7 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
         return (
             <div className="p-8 text-center">
                 <h2 className="text-xl font-bold">Invoice Not Found</h2>
-                <Button variant="link" onClick={() => router.back()}>Go Back</Button>
+                <Button variant="link" onClick={() => router.push('/crm/site-sales-management/site-sales-posting')}>Go Back</Button>
             </div>
         );
     }
@@ -583,7 +587,7 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
                 {/* Header Section */}
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-4">
-                        <Button variant="ghost" size="icon" onClick={() => router.back()} className="rounded-full">
+                        <Button variant="ghost" size="icon" onClick={() => router.push('/crm/site-sales-management/site-sales-posting')} className="rounded-full">
                             <ChevronLeft className="h-5 w-5" />
                         </Button>
                         <div className="flex items-center gap-3">
