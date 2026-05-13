@@ -309,7 +309,7 @@ export default function SiteSalesNewRecordPage() {
     // 6. Calculations (Aligned with Sales Order logic for 100% Accuracy)
     const totalGross = useMemo(() => cart.reduce((sum, item) => sum + (item.unit_price * item.quantity), 0), [cart]);
     const totalNet = useMemo(() => cart.reduce((sum, item) => sum + item.total_amount, 0), [cart]);
-    
+
     // VAT-Inclusive Back-out Logic (Parity with Sales Order) - Skip for Delivery Receipt (3)
     const isVatApplicable = useMemo(() => {
         const typeObj = invoiceTypes.find(t => t.id.toString() === selectedInvoiceType);
@@ -318,7 +318,7 @@ export default function SiteSalesNewRecordPage() {
     }, [selectedInvoiceType, invoiceTypes]);
     const totalVattable = useMemo(() => isVatApplicable ? totalNet / 1.12 : totalNet, [totalNet, isVatApplicable]);
     const totalVat = useMemo(() => isVatApplicable ? totalNet - totalVattable : 0, [totalNet, totalVattable, isVatApplicable]);
-    
+
     const totalDiscount = totalGross - totalNet;
 
     const isHeaderComplete = !!(selectedCustomer && selectedAccount && selectedSupplier && selectedBranch);
@@ -421,7 +421,7 @@ export default function SiteSalesNewRecordPage() {
                 <div className="p-8 pb-32 max-w-[1800px] mx-auto w-full flex flex-col gap-8">
 
                     {/* Header Configuration - Refactored Component */}
-                    <SiteSalesHeader 
+                    <SiteSalesHeader
                         customers={allCustomers}
                         selectedCustomer={selectedCustomer}
                         onCustomerSelect={handleCustomerSelect}
@@ -470,12 +470,12 @@ export default function SiteSalesNewRecordPage() {
                     <SiteSalesEncoding
                         catalogProducts={catalogProducts}
                         isSearching={isSearching}
-                        
+
                         cart={cart}
                         addToCart={addToCart}
                         removeFromCart={removeFromCart}
                         updateCartQuantity={updateCartQuantity}
-                        
+
                         summary={{
                             totalGross,
                             totalDiscount,
@@ -484,7 +484,7 @@ export default function SiteSalesNewRecordPage() {
                             totalNet
                         }}
                         isVatApplicable={isVatApplicable}
-                        
+
                         isHeaderComplete={isHeaderComplete}
                         onSave={handleSave}
                         isSaving={isSaving}

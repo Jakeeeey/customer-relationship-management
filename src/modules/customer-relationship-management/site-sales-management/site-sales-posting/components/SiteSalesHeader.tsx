@@ -9,16 +9,16 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Check, ChevronsUpDown, Calendar as CalendarIcon, Hash, RotateCw } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { 
-    Customer, 
-    MasterUser, 
-    Salesman, 
-    Supplier, 
-    Branch, 
-    PriceType, 
-    PaymentTerm, 
-    InvoiceType, 
-    SalesType 
+import {
+    Customer,
+    MasterUser,
+    Salesman,
+    Supplier,
+    Branch,
+    PriceType,
+    PaymentTerm,
+    InvoiceType,
+    SalesType
 } from "../types";
 
 interface SiteSalesHeaderProps {
@@ -26,46 +26,46 @@ interface SiteSalesHeaderProps {
     customers: Customer[];
     selectedCustomer: Customer | null;
     onCustomerSelect: (customer: Customer) => void;
-    
+
     masterUsers: MasterUser[];
     selectedSalesman: MasterUser | null;
     onSalesmanSelect: (user: MasterUser) => void;
-    
+
     accounts: Salesman[];
     selectedAccount: Salesman | null;
     loadingAccounts: boolean;
     onAccountSelect: (account: Salesman) => void;
-    
+
     suppliers: Supplier[];
     selectedSupplier: Supplier | null;
     onSupplierSelect: (supplier: Supplier) => void;
-    
+
     // Meta Settings
     invoiceTypes: InvoiceType[];
     selectedInvoiceType: string;
     onInvoiceTypeChange: (val: string) => void;
-    
+
     salesTypes: SalesType[];
     selectedSalesType: string;
     onSalesTypeChange: (val: string) => void;
-    
+
     branches: Branch[];
     selectedBranch: string;
     onBranchChange: (val: string) => void;
-    
+
     priceTypes: PriceType[];
     selectedPriceType: string;
     onPriceTypeChange: (val: string) => void;
-    
+
     paymentTerms: PaymentTerm[];
-    
+
     // Dates & Others
     dueDate: string;
     onDueDateChange: (val: string) => void;
-    
+
     deliveryDate: string;
     onDeliveryDateChange: (val: string) => void;
-    
+
     previewInvoiceNo?: string;
     isLoading?: boolean;
 }
@@ -90,7 +90,7 @@ export function SiteSalesHeader({
     const [openSupplier, setOpenSupplier] = useState(false);
     const [openBranch, setOpenBranch] = useState(false);
 
-    const activeCustomerPaymentTerm = selectedCustomer?.payment_term 
+    const activeCustomerPaymentTerm = selectedCustomer?.payment_term
         ? paymentTerms.find(t => t.id.toString() === selectedCustomer.payment_term?.toString())
         : null;
 
@@ -114,7 +114,7 @@ export function SiteSalesHeader({
                         </Select>
                     </div>
                 )}
-                    {/* Removed Configuration Phase div */}
+                {/* Removed Configuration Phase div */}
             </CardHeader>
             <CardContent className="p-10 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-x-12 gap-y-10">
                 {/* 1. CUSTOMER */}
@@ -126,7 +126,7 @@ export function SiteSalesHeader({
                         <PopoverTrigger asChild>
                             <Button variant="outline" className="w-full justify-between h-12 rounded-xl bg-slate-50/30 border-slate-200 dark:border-slate-800 text-[11px] font-black uppercase tracking-tight shadow-sm hover:bg-white transition-all text-left">
                                 <span className="truncate">
-                                    {selectedCustomer 
+                                    {selectedCustomer
                                         ? `${selectedCustomer.customer_name}${selectedCustomer.city || selectedCustomer.province ? ` (${[selectedCustomer.city, selectedCustomer.province].filter(Boolean).join(", ")})` : ""}`
                                         : "Select Customer..."}
                                 </span>
@@ -140,10 +140,10 @@ export function SiteSalesHeader({
                                     <CommandEmpty>No customer found.</CommandEmpty>
                                     <CommandGroup>
                                         {customers.filter(c => c.isActive !== 0).map(c => (
-                                            <CommandItem 
-                                                key={c.id} 
+                                            <CommandItem
+                                                key={c.id}
                                                 value={`${c.customer_name} ${c.customer_code} ${c.city || ""} ${c.province || ""}`}
-                                                onSelect={() => { onCustomerSelect(c); setOpenCustomer(false); }} 
+                                                onSelect={() => { onCustomerSelect(c); setOpenCustomer(false); }}
                                                 className="py-3 cursor-pointer"
                                             >
                                                 <Check className={cn("mr-2 h-4 w-4", selectedCustomer?.id === c.id ? "opacity-100" : "opacity-0")} />
@@ -198,8 +198,8 @@ export function SiteSalesHeader({
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Account (Link) <span className="text-rose-500">*</span></label>
                     <Popover open={openAccount} onOpenChange={setOpenAccount}>
                         <PopoverTrigger asChild>
-                            <Button 
-                                variant="outline" 
+                            <Button
+                                variant="outline"
                                 className="w-full justify-between h-12 rounded-xl bg-slate-50/30 border-slate-200 dark:border-slate-800 text-[11px] font-black uppercase tracking-tight shadow-sm hover:bg-white transition-all text-left disabled:opacity-30"
                                 disabled={!selectedSalesman || loadingAccounts}
                             >
@@ -225,9 +225,9 @@ export function SiteSalesHeader({
                                     <CommandEmpty>No accounts found.</CommandEmpty>
                                     <CommandGroup>
                                         {accounts.map(a => (
-                                            <CommandItem 
-                                                key={a.id} 
-                                                onSelect={() => { onAccountSelect(a); setOpenAccount(false); }} 
+                                            <CommandItem
+                                                key={a.id}
+                                                onSelect={() => { onAccountSelect(a); setOpenAccount(false); }}
                                                 className="py-3 cursor-pointer"
                                             >
                                                 <Check className={cn("mr-2 h-4 w-4", selectedAccount?.id === a.id ? "opacity-100" : "opacity-0")} />
@@ -249,13 +249,13 @@ export function SiteSalesHeader({
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Supplier <span className="text-rose-500">*</span></label>
                     <Popover open={openSupplier} onOpenChange={setOpenSupplier}>
                         <PopoverTrigger asChild>
-                            <Button 
-                                variant="outline" 
+                            <Button
+                                variant="outline"
                                 className="w-full justify-between h-12 rounded-xl bg-slate-50/30 border-slate-200 dark:border-slate-800 text-[11px] font-black uppercase tracking-tight shadow-sm hover:bg-white transition-all text-left"
                                 disabled={!selectedCustomer}
                             >
                                 <span className="truncate">
-                                    {selectedSupplier 
+                                    {selectedSupplier
                                         ? `${selectedSupplier.supplier_name}${selectedSupplier.supplier_shortcut ? ` (${selectedSupplier.supplier_shortcut})` : ""}`
                                         : "Select Supplier..."}
                                 </span>
@@ -269,10 +269,10 @@ export function SiteSalesHeader({
                                     <CommandEmpty>No supplier found.</CommandEmpty>
                                     <CommandGroup>
                                         {suppliers.map(s => (
-                                            <CommandItem 
-                                                key={s.id} 
+                                            <CommandItem
+                                                key={s.id}
                                                 value={`${s.supplier_name} ${s.supplier_shortcut || ""}`}
-                                                onSelect={() => { onSupplierSelect(s); setOpenSupplier(false); }} 
+                                                onSelect={() => { onSupplierSelect(s); setOpenSupplier(false); }}
                                                 className="py-3 cursor-pointer"
                                             >
                                                 <Check className={cn("mr-2 h-4 w-4", selectedSupplier?.id === s.id ? "opacity-100" : "opacity-0")} />
@@ -310,11 +310,11 @@ export function SiteSalesHeader({
                 <div className="space-y-2">
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Sales Type</label>
                     <div className="relative group opacity-80">
-                        <Input 
-                            value={salesTypes.find(s => s.id.toString() === selectedSalesType)?.operation_name} 
-                            readOnly 
+                        <Input
+                            value={salesTypes.find(s => s.id.toString() === selectedSalesType)?.operation_name}
+                            readOnly
                             disabled
-                            className="h-12 rounded-xl bg-slate-50/50 border-slate-200 dark:border-slate-800 text-[11px] font-black uppercase tracking-tight shadow-sm cursor-not-allowed italic text-slate-400" 
+                            className="h-12 rounded-xl bg-slate-50/50 border-slate-200 dark:border-slate-800 text-[11px] font-black uppercase tracking-tight shadow-sm cursor-not-allowed italic text-slate-400"
                         />
                     </div>
                 </div>
@@ -341,8 +341,8 @@ export function SiteSalesHeader({
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Branch <span className="text-rose-500">*</span></label>
                     <Popover open={openBranch} onOpenChange={setOpenBranch}>
                         <PopoverTrigger asChild>
-                            <Button 
-                                variant="outline" 
+                            <Button
+                                variant="outline"
                                 className="w-full justify-between h-12 rounded-xl bg-slate-50/30 border-slate-200 dark:border-slate-800 text-[11px] font-black uppercase tracking-tight shadow-sm hover:bg-white transition-all text-left disabled:opacity-80 disabled:cursor-not-allowed"
                                 disabled={true}
                             >
@@ -361,9 +361,9 @@ export function SiteSalesHeader({
                                     <CommandEmpty>No branch found.</CommandEmpty>
                                     <CommandGroup>
                                         {branches.map(b => (
-                                            <CommandItem 
-                                                key={b.id} 
-                                                onSelect={() => { onBranchChange(b.id.toString()); setOpenBranch(false); }} 
+                                            <CommandItem
+                                                key={b.id}
+                                                onSelect={() => { onBranchChange(b.id.toString()); setOpenBranch(false); }}
                                                 className="py-3 cursor-pointer"
                                             >
                                                 <Check className={cn("mr-2 h-4 w-4", selectedBranch === b.id.toString() ? "opacity-100" : "opacity-0")} />
@@ -383,11 +383,11 @@ export function SiteSalesHeader({
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Order ID</label>
                     <div className="relative group opacity-80">
                         <Hash className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-300" />
-                        <Input 
-                            value={previewInvoiceNo || "Auto-generating..."} 
-                            readOnly 
+                        <Input
+                            value={previewInvoiceNo || "Auto-generating..."}
+                            readOnly
                             disabled
-                            className="h-12 pl-12 rounded-xl bg-slate-50/50 border-slate-200 dark:border-slate-800 text-[11px] font-black uppercase tracking-tight shadow-sm cursor-not-allowed italic text-slate-400" 
+                            className="h-12 pl-12 rounded-xl bg-slate-50/50 border-slate-200 dark:border-slate-800 text-[11px] font-black uppercase tracking-tight shadow-sm cursor-not-allowed italic text-slate-400"
                         />
                     </div>
                 </div>

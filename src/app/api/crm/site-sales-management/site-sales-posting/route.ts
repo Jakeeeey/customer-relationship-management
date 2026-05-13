@@ -624,29 +624,29 @@ export async function GET(req: NextRequest) {
                     linkedDocs = [...linkedDocs, ...mappedMemos];
                 }
 
-                } catch (e) { console.error("Linked documents fetch exception:", e); }
-    
-                // 5. Fetch Linked Collections
-                let collections: Record<string, unknown>[] = [];
-                try {
-                    const collRes = await fetch(`${DIRECTUS_URL}/items/collection_invoices?filter[invoice_id][_eq]=${invoiceId}&fields=*,collection_id.collection_receipt_no,collection_id.collection_date,collection_id.remarks,collection_id.isPosted&limit=-1`, { headers: fetchHeaders });
-                    if (collRes.ok) {
-                        const collData = (await collRes.json()).data || [];
-                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                        collections = collData.map((item: any) => ({
-                            id: item.id,
-                            collection_receipt_no: item.collection_id?.collection_receipt_no || "N/A",
-                            collection_date: item.collection_id?.collection_date || item.date_linked,
-                            amount: Number(item.amount || 0),
-                            type: item.type || "CASH",
-                            source_temp_id: item.source_temp_id || "N/A",
-                            isPosted: item.collection_id?.isPosted === true || item.collection_id?.isPosted === 1 || 
-                                      (item.collection_id?.isPosted && typeof item.collection_id.isPosted === 'object' && item.collection_id.isPosted.data?.[0] === 1)
-                        }));
-                    }
-                } catch (e) { console.error("Collections fetch exception:", e); }
-    
-                // 6. Discount Types Resolution for details
+            } catch (e) { console.error("Linked documents fetch exception:", e); }
+
+            // 5. Fetch Linked Collections
+            let collections: Record<string, unknown>[] = [];
+            try {
+                const collRes = await fetch(`${DIRECTUS_URL}/items/collection_invoices?filter[invoice_id][_eq]=${invoiceId}&fields=*,collection_id.collection_receipt_no,collection_id.collection_date,collection_id.remarks,collection_id.isPosted&limit=-1`, { headers: fetchHeaders });
+                if (collRes.ok) {
+                    const collData = (await collRes.json()).data || [];
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    collections = collData.map((item: any) => ({
+                        id: item.id,
+                        collection_receipt_no: item.collection_id?.collection_receipt_no || "N/A",
+                        collection_date: item.collection_id?.collection_date || item.date_linked,
+                        amount: Number(item.amount || 0),
+                        type: item.type || "CASH",
+                        source_temp_id: item.source_temp_id || "N/A",
+                        isPosted: item.collection_id?.isPosted === true || item.collection_id?.isPosted === 1 ||
+                            (item.collection_id?.isPosted && typeof item.collection_id.isPosted === 'object' && item.collection_id.isPosted.data?.[0] === 1)
+                    }));
+                }
+            } catch (e) { console.error("Collections fetch exception:", e); }
+
+            // 6. Discount Types Resolution for details
             const detailTypeIds = new Set(details.map((d: InvoiceDetailItem) => d.discount_type).filter(Boolean));
             const detailDiscountMap: Record<number, number[]> = {};
             if (detailTypeIds.size > 0) {
