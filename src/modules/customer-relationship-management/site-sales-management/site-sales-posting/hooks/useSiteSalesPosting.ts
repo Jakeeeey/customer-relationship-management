@@ -1,13 +1,13 @@
 import { useState, useCallback } from "react";
 import { siteSalesPostingProvider } from "../providers/fetchProvider";
-import { 
-    SalesInvoiceHeader, 
-    SalesInvoiceDetail, 
-    LinkedDocument, 
-    Salesman, 
+import {
+    SalesInvoiceHeader,
+    SalesInvoiceDetail,
+    LinkedDocument,
+    Salesman,
     MasterUser,
-    Customer, 
-    SalesType, 
+    Customer,
+    SalesType,
     WorklistFilters,
     Supplier,
     InvoiceType,
@@ -31,13 +31,13 @@ interface UseSiteSalesPostingReturn {
     // Actions
     fetchWorklist: (params: WorklistFilters) => Promise<void>;
     fetchDetails: (invoiceId: number | string) => Promise<{ details: SalesInvoiceDetail[], linkedDocs: LinkedDocument[] }>;
-    saveAdjustments: (invoiceId: number | string, payload: { 
-        customer_code?: string | null; 
+    saveAdjustments: (invoiceId: number | string, payload: {
+        customer_code?: string | null;
         invoice_date?: string | null;
         due_date?: string | null;
         remarks?: string | null;
         details: SalesInvoiceDetail[];
-        deletedDetailIds: number[]; 
+        deletedDetailIds: number[];
     }) => Promise<void>;
     finalizeSettlement: (invoiceIds: (number | string)[]) => Promise<void>;
     fetchUtilityData: () => Promise<void>;
@@ -52,13 +52,13 @@ interface UseSiteSalesPostingReturn {
     getCustomerSalesman: (customerId: number) => Promise<CustomerSalesmanLink | null>;
     getSalesmanByCustomer: (customerId: number) => Promise<MasterUser[]>;
     getAccounts: (userId: number | string) => Promise<Salesman[]>;
-    searchProducts: (params: { 
-        search: string, 
-        priceTypeId: number, 
-        priceType?: string | null, 
-        supplierId?: number | null, 
-        branchId?: number | string | null, 
-        customerCode?: string | null 
+    searchProducts: (params: {
+        search: string,
+        priceTypeId: number,
+        priceType?: string | null,
+        supplierId?: number | null,
+        branchId?: number | string | null,
+        customerCode?: string | null
     }) => Promise<SearchProduct[]>;
     createInvoice: (payload: Record<string, unknown>) => Promise<{ success: boolean; invoiceId: number }>;
 }
@@ -100,13 +100,13 @@ export const useSiteSalesPosting = (): UseSiteSalesPostingReturn => {
         }
     }, []);
 
-    const saveAdjustments = useCallback(async (invoiceId: number | string, payload: { 
-        customer_code?: string | null; 
+    const saveAdjustments = useCallback(async (invoiceId: number | string, payload: {
+        customer_code?: string | null;
         invoice_date?: string | null;
         due_date?: string | null;
         remarks?: string | null;
         details: SalesInvoiceDetail[];
-        deletedDetailIds: number[]; 
+        deletedDetailIds: number[];
     }) => {
         setIsLoading(true);
         try {
@@ -195,13 +195,13 @@ export const useSiteSalesPosting = (): UseSiteSalesPostingReturn => {
         }
     }, []);
 
-    const searchProducts = useCallback(async (params: { 
-        search: string, 
-        priceTypeId: number, 
-        priceType?: string | null, 
-        supplierId?: number | null, 
-        branchId?: number | string | null, 
-        customerCode?: string | null 
+    const searchProducts = useCallback(async (params: {
+        search: string,
+        priceTypeId: number,
+        priceType?: string | null,
+        supplierId?: number | null,
+        branchId?: number | string | null,
+        customerCode?: string | null
     }) => {
         try {
             return await siteSalesPostingProvider.searchProducts(params);

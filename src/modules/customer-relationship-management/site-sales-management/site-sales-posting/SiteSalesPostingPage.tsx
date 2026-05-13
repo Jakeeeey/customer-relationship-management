@@ -42,7 +42,7 @@ export const SiteSalesPostingPage = () => {
             
             <div className="relative z-10 flex flex-col gap-2">
                 <h1 className="text-3xl font-black tracking-tight text-slate-900 dark:text-white">Site Sales Posting</h1>
-                <p className="text-slate-500 dark:text-slate-400 font-medium">Audit and manage van sales transactions before final settlement.</p>
+                <p className="text-slate-500 dark:text-slate-400 font-medium">Audit and manage site sales transactions before final settlement.</p>
                 <Separator className="mt-2 bg-slate-200 dark:bg-slate-800" />
             </div>
             
