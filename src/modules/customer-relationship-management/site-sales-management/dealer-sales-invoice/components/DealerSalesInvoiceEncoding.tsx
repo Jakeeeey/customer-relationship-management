@@ -25,7 +25,7 @@ import { formatCurrency, calculateChainNetPrice } from "../utils";
 import { SearchProduct, CartItem } from "../types";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
-interface SiteSalesEncodingProps {
+interface DealerSalesInvoiceEncodingProps {
     catalogProducts: SearchProduct[];
     isSearching: boolean;
     
@@ -48,7 +48,7 @@ interface SiteSalesEncodingProps {
     isSaving?: boolean;
 }
 
-export function SiteSalesEncoding({
+export function DealerSalesInvoiceEncoding({
     catalogProducts,
     isSearching,
     cart,
@@ -60,7 +60,7 @@ export function SiteSalesEncoding({
     isHeaderComplete,
     onSave,
     isSaving = false
-}: SiteSalesEncodingProps) {
+}: DealerSalesInvoiceEncodingProps) {
     const [searchQuery, setSearchQuery] = React.useState("");
 
     // Client-side filtering (Sales Order Parity)
