@@ -195,7 +195,10 @@ export const dealerInvoiceProvider = {
                 ...payload
             })
         });
-        if (!res.ok) throw new Error("Failed to create invoice");
+        if (!res.ok) {
+            const errorData = await res.json().catch(() => ({}));
+            throw new Error(errorData.error || errorData.message || "Failed to create invoice");
+        }
         return res.json();
     }
 };

@@ -137,6 +137,20 @@ export interface SalesType {
     operation_name: string;
 }
 
+export interface LinkedDocument {
+    id: number;
+    type: "RETURN" | "MEMO";
+    reference_no: string;
+    date: string;
+    amount: number;
+    status: string;
+    balance_name?: string;
+    account_title?: string;
+    gl_code?: string;
+    memo_type_id?: number;
+    memo_id?: number;
+}
+
 
 
 
@@ -159,7 +173,7 @@ export interface WorklistFilters {
 export interface InvoiceDetailsResponse {
     header: DealerInvoiceHeader;
     details: DealerInvoiceDetail[];
-    linkedDocs: unknown[];
+    linkedDocs: LinkedDocument[];
     main_supplier_id?: number | null;
     main_supplier_name?: string | null;
 }

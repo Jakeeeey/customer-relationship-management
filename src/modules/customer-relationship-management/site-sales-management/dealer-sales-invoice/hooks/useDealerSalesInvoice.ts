@@ -35,9 +35,15 @@ interface UseDealerSalesInvoiceReturn {
     fetchDetails: (invoiceId: number | string) => Promise<{ details: DealerInvoiceDetail[], linkedDocs: LinkedDocument[] }>;
     saveAdjustments: (invoiceId: number | string, payload: {
         customer_code?: string | null;
+        order_id?: string | null;
         invoice_date?: string | null;
         due_date?: string | null;
         remarks?: string | null;
+        gross_amount?: number;
+        discount_amount?: number;
+        vat_amount?: number;
+        total_amount?: number;
+        net_amount?: number;
         details: DealerInvoiceDetail[];
         deletedDetailIds: number[];
     }) => Promise<void>;
@@ -104,9 +110,15 @@ export const useDealerSalesInvoice = (): UseDealerSalesInvoiceReturn => {
 
     const saveAdjustments = useCallback(async (invoiceId: number | string, payload: {
         customer_code?: string | null;
+        order_id?: string | null;
         invoice_date?: string | null;
         due_date?: string | null;
         remarks?: string | null;
+        gross_amount?: number;
+        discount_amount?: number;
+        vat_amount?: number;
+        total_amount?: number;
+        net_amount?: number;
         details: DealerInvoiceDetail[];
         deletedDetailIds: number[];
     }) => {

@@ -5,7 +5,7 @@ export { DealerSalesInvoiceDetails } from './components/DealerSalesInvoiceDetail
 export { DealerAddProductModal } from './components/DealerAddProductModal';
 export { DealerSalesInvoiceEditModal } from './components/DealerSalesInvoiceEditModal';
 export { DealerSalesInvoicePostingPage } from './DealerSalesInvoicePostingPage';
-export { DealerSalesInvoiceNewRecordPage } from './DealerSalesInvoiceNewRecordPage';
+export { default as DealerSalesInvoiceNewRecordPage } from './DealerSalesInvoiceNewRecordPage';
 export * from './types';
 export * from './store';
 export * from './utils';

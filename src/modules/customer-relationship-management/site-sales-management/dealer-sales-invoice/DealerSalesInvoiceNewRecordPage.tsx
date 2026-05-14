@@ -27,7 +27,7 @@ import { toast } from "sonner";
 import { DealerSalesInvoiceHeader } from "./components/DealerSalesInvoiceHeader";
 import { DealerSalesInvoiceEncoding } from "./components/DealerSalesInvoiceEncoding";
 
-export const DealerSalesInvoiceNewRecordPage = () => {
+export default function DealerSalesInvoiceNewRecordPage() {
     const router = useRouter();
     const {
         fetchModalData,
@@ -57,7 +57,7 @@ export const DealerSalesInvoiceNewRecordPage = () => {
     const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
     const [selectedPriceType, setSelectedPriceType] = useState<string>("");
     const [selectedInvoiceType, setSelectedInvoiceType] = useState<string>("");
-    const [selectedSalesType, setSelectedSalesType] = useState<string>("3"); // Default to Dealer Sale (match parity)
+    const [selectedSalesType, setSelectedSalesType] = useState<string>("3"); // Default to Site Sale (3)
     const [selectedBranch, setSelectedBranch] = useState<string>("");
     // Internal states for auto-calculated values
     const [dueDate, setDueDate] = useState<string>(format(new Date(), "yyyy-MM-dd"));
@@ -99,7 +99,7 @@ export const DealerSalesInvoiceNewRecordPage = () => {
                 _setMasterUsers(data.masterUsers);
                 setFilteredSalesmen(data.masterUsers);
 
-                // Fetch extra data like operation types
+                // Fetch extra data like operation types (if not in fetchUtilityData)
                 const res = await fetch(`${window.location.origin}/api/crm/site-sales-management/dealer-sales-invoice?type=sales_types`);
                 const st = await res.json();
                 setSalesTypes(st);
@@ -136,12 +136,14 @@ export const DealerSalesInvoiceNewRecordPage = () => {
                 setSelectedSalesman(user);
 
                 setLoadingAccounts(true);
+                // Robust ID resolution for fetching accounts
                 const userIdToFetch = user.user_id || (user as { id?: number | string }).id || "";
                 const userAccounts = await getAccounts(userIdToFetch);
                 setAccounts(userAccounts);
                 setLoadingAccounts(false);
 
                 // Smart Account Resolution: 
+                // If the salesman has exactly one linked account for this customer, select it.
                 if (user.linked_account_ids && user.linked_account_ids.length === 1) {
                     const linkedId = user.linked_account_ids[0];
                     const account = userAccounts.find(a => a.id.toString() === linkedId.toString());
@@ -149,6 +151,7 @@ export const DealerSalesInvoiceNewRecordPage = () => {
                         handleAccountSelect(account);
                     }
                 } else if (userAccounts.length === 1) {
+                    // Fallback to single account auto-select if no specific link but only one account
                     handleAccountSelect(userAccounts[0]);
                 }
             }
@@ -200,6 +203,7 @@ export const DealerSalesInvoiceNewRecordPage = () => {
     const handleAccountSelect = (account: Salesman) => {
         setSelectedAccount(account);
 
+        // Robust metadata resolution matching Sales Order patterns
         if (account.branch_code) {
             const bId = typeof account.branch_code === "object" && account.branch_code !== null
                 ? (account.branch_code as { id?: number; branch_id?: number }).id || (account.branch_code as { id?: number; branch_id?: number }).branch_id
@@ -212,14 +216,14 @@ export const DealerSalesInvoiceNewRecordPage = () => {
         }
     };
 
-    // 4. Product Catalog Fetching
+    // 4. Product Catalog Fetching (Client-side filtering for 100% Sales Order parity)
     const fetchCatalogProducts = useCallback(async () => {
         if (!selectedPriceType || !selectedSupplier) return;
 
         setIsSearching(true);
         try {
             const results = await searchProducts({
-                search: "", 
+                search: "", // Always fetch full list for instant client-side filtering
                 priceTypeId: parseInt(selectedPriceType),
                 supplierId: selectedSupplier.id,
                 branchId: selectedBranch,
@@ -233,6 +237,7 @@ export const DealerSalesInvoiceNewRecordPage = () => {
         }
     }, [selectedPriceType, selectedSupplier, selectedBranch, selectedCustomer, searchProducts]);
 
+    // Auto-fetch catalog when supplier/price-type/customer changes
     useEffect(() => {
         if (selectedSupplier && selectedCustomer && selectedPriceType) {
             fetchCatalogProducts();
@@ -241,15 +246,19 @@ export const DealerSalesInvoiceNewRecordPage = () => {
         }
     }, [selectedSupplier, selectedCustomer, selectedPriceType, fetchCatalogProducts]);
 
-    // 5. Cart Actions & Sorting Logic
+    // 5. Cart Actions & Sorting Logic (Century's Best Practice)
     const sortCartItems = (items: CartItem[]): CartItem[] => {
         return [...items].sort((a, b) => {
+            // Primary Sort: Group by Product "Family" (parent_id or the product itself)
             const familyA = a.parent_id || a.product_id;
             const familyB = b.parent_id || b.product_id;
 
             if (familyA !== familyB) {
+                // Keep families together and sort them alphabetically by name
                 return (a.product_name || "").localeCompare(b.product_name || "");
             }
+
+            // Secondary Sort: Highest UOM Count first (e.g., BOX (12) > PCS (1))
             return (b.unit_count || 0) - (a.unit_count || 0);
         });
     };
@@ -297,10 +306,11 @@ export const DealerSalesInvoiceNewRecordPage = () => {
         });
     };
 
-    // 6. Calculations
+    // 6. Calculations (Aligned with Sales Order logic for 100% Accuracy)
     const totalGross = useMemo(() => cart.reduce((sum, item) => sum + (item.unit_price * item.quantity), 0), [cart]);
     const totalNet = useMemo(() => cart.reduce((sum, item) => sum + item.total_amount, 0), [cart]);
 
+    // VAT-Inclusive Back-out Logic (Parity with Sales Order) - Skip for Delivery Receipt (3)
     const isVatApplicable = useMemo(() => {
         const typeObj = invoiceTypes.find(t => t.id.toString() === selectedInvoiceType);
         const isDR = selectedInvoiceType === "3" || typeObj?.type === "Delivery Receipt";
@@ -345,7 +355,7 @@ export const DealerSalesInvoiceNewRecordPage = () => {
                 vat_amount: isVatApplicable ? totalVat : 0,
                 net_amount: totalNet,
                 total_amount: totalNet,
-                remarks: "Auto-generated dealer invoice",
+                remarks: "Auto-generated invoice",
                 items: cart.map(item => ({
                     product_id: item.product_id,
                     quantity: item.quantity,
@@ -360,19 +370,21 @@ export const DealerSalesInvoiceNewRecordPage = () => {
             const result = await createInvoice(payload);
 
             if (result.success) {
-                toast.success(`Dealer Invoice ${generatedId} created successfully!`);
+                toast.success(`Invoice ${generatedId} created successfully!`);
                 router.push("/crm/site-sales-management/dealer-sales-invoice");
             } else {
                 throw new Error("API failure");
             }
-        } catch (e) {
+        } catch (e: unknown) {
             console.error(e);
-            toast.error("Failed to create dealer invoice");
+            const errorMessage = e instanceof Error ? e.message : "Failed to create invoice";
+            toast.error(errorMessage);
         } finally {
             setIsSaving(false);
         }
     };
 
+    // Effect to update filtered salesmen when initial load completes
     useEffect(() => {
         if (masterUsers.length > 0 && filteredSalesmen.length === 0) {
             setFilteredSalesmen(masterUsers);
@@ -398,14 +410,18 @@ export const DealerSalesInvoiceNewRecordPage = () => {
                     </Button>
                     <div className="h-10 w-[1px] bg-slate-200 dark:bg-slate-700 mx-2" />
                     <div>
-                        <h1 className="text-xl font-black tracking-tight text-slate-900 dark:text-white uppercase italic">Create Dealer Sales Invoice</h1>
-                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Dealer Transaction Entry Workspace</p>
+                        <h1 className="text-xl font-black tracking-tight text-slate-900 dark:text-white uppercase italic">Create Sales Invoice</h1>
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Transaction Entry Workspace</p>
                     </div>
+                </div>
+                <div className="flex items-center gap-3">
                 </div>
             </header>
 
             <div className="flex-1 overflow-y-auto custom-scrollbar">
                 <div className="p-8 pb-32 max-w-[1800px] mx-auto w-full flex flex-col gap-8">
+
+                    {/* Header Configuration - Refactored Component */}
                     <DealerSalesInvoiceHeader
                         customers={allCustomers}
                         selectedCustomer={selectedCustomer}
@@ -451,6 +467,7 @@ export const DealerSalesInvoiceNewRecordPage = () => {
                         previewInvoiceNo={previewInvoiceNo}
                     />
 
+                    {/* Content Area - Encoding Component (100% Sales Order Parity) */}
                     <DealerSalesInvoiceEncoding
                         catalogProducts={catalogProducts}
                         isSearching={isSearching}
@@ -478,3 +495,4 @@ export const DealerSalesInvoiceNewRecordPage = () => {
         </div>
     );
 }
+

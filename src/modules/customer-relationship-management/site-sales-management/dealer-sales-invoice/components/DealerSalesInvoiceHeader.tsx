@@ -114,6 +114,7 @@ export function DealerSalesInvoiceHeader({
                         </Select>
                     </div>
                 )}
+                {/* Removed Configuration Phase div */}
             </CardHeader>
             <CardContent className="p-10 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-x-12 gap-y-10">
                 {/* 1. CUSTOMER */}

@@ -539,8 +539,23 @@ export const DealerSalesInvoiceDetails: React.FC<DealerSalesInvoiceDetailsProps>
                                                         <TableCell className="text-center font-black text-primary">{item.quantity}</TableCell>
                                                         <TableCell className="text-right font-bold text-slate-600">₱{Number(item.unit_price).toLocaleString()}</TableCell>
                                                         <TableCell className="text-right font-bold text-slate-600">₱{Number(item.gross_amount || (item.quantity * item.unit_price)).toLocaleString()}</TableCell>
-                                                        <TableCell className="text-[10px] font-bold text-slate-400 uppercase">{item.discount_type_name || item.discount_type || 'No Discount'}</TableCell>
-                                                        <TableCell className="text-right font-bold text-slate-600">₱{Number(item.discount_amount || 0).toLocaleString()}</TableCell>
+                                                        <TableCell className="text-center">
+                                                            {item.discount_type_name ? (
+                                                                <Badge className="text-[8px] font-black bg-amber-50 text-amber-600 border-amber-100 px-1.5 py-0.5 uppercase">
+                                                                    {item.discount_type_name}
+                                                                </Badge>
+                                                            ) : (
+                                                                <span className="text-[9px] font-black text-slate-300 uppercase italic">NONE</span>
+                                                            )}
+                                                        </TableCell>
+                                                        <TableCell className="text-center">
+                                                            <Badge className={cn(
+                                                                "text-[9px] font-black h-5 uppercase px-2",
+                                                                Number(item.discount_amount) > 0 ? "bg-rose-500 hover:bg-rose-600" : "bg-emerald-500 hover:bg-emerald-600"
+                                                            )}>
+                                                                {Number(item.discount_amount) > 0 ? `₱${Number(item.discount_amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}` : '0.0'}
+                                                            </Badge>
+                                                        </TableCell>
                                                         <TableCell className="text-right font-black text-slate-900 dark:text-white">₱{Number(item.total_amount).toLocaleString()}</TableCell>
                                                         {!isReadOnly && (
                                                             <TableCell className="text-center">

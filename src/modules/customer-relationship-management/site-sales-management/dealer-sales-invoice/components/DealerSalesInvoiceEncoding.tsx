@@ -134,29 +134,29 @@ export function DealerSalesInvoiceEncoding({
                                                 className="p-4 hover:bg-slate-50 transition-all cursor-pointer group relative border border-slate-200 rounded-2xl shadow-sm"
                                                 onClick={() => addToCart(product)}
                                             >
-                                                <div className="flex flex-col pr-10">
-                                                    <span className="font-bold text-[12px] uppercase text-slate-900 leading-tight">
-                                                        {product.description || product.product_name}
-                                                    </span>
-                                                    
-                                                    <div className="flex flex-wrap gap-1 mt-1.5">
-                                                        <Badge variant="outline" className="text-[7px] font-black uppercase px-1 py-0 border-slate-200 text-slate-400">
-                                                            {product.product_code}
-                                                        </Badge>
-                                                        {product.brand_name && (
-                                                            <Badge variant="outline" className="text-[7px] font-black uppercase px-1 py-0 border-blue-100 bg-blue-50/50 text-blue-500 leading-none">
-                                                                {product.brand_name}
+                                                <div className="flex items-center justify-between gap-4">
+                                                    <div className="flex-1 flex flex-col min-w-0">
+                                                        <span className="font-bold text-[12px] uppercase text-slate-900 leading-tight">
+                                                            {product.description || product.product_name}
+                                                        </span>
+                                                        
+                                                        <div className="flex flex-wrap gap-1 mt-1.5">
+                                                            <Badge variant="outline" className="text-[7px] font-black uppercase px-1 py-0 border-slate-200 text-slate-400">
+                                                                {product.product_code}
                                                             </Badge>
-                                                        )}
-                                                        {product.category_name && (
-                                                            <Badge variant="outline" className="text-[7px] font-black uppercase px-1 py-0 border-slate-100 bg-slate-50/50 text-slate-400 leading-none">
-                                                                {product.category_name}
-                                                            </Badge>
-                                                        )}
-                                                    </div>
+                                                            {product.brand_name && (
+                                                                <Badge variant="outline" className="text-[7px] font-black uppercase px-1 py-0 border-blue-100 bg-blue-50/50 text-blue-500 leading-none">
+                                                                    {product.brand_name}
+                                                                </Badge>
+                                                            )}
+                                                            {product.category_name && (
+                                                                <Badge variant="outline" className="text-[7px] font-black uppercase px-1 py-0 border-slate-100 bg-slate-50/50 text-slate-400 leading-none">
+                                                                    {product.category_name}
+                                                                </Badge>
+                                                            )}
+                                                        </div>
 
-                                                    <div className="flex items-center justify-between mt-3">
-                                                        <div className="flex flex-col">
+                                                        <div className="flex flex-col mt-3">
                                                             {(() => {
                                                                 const netPrice = calculateChainNetPrice(product.unit_price, product.discounts || []);
                                                                 const hasDiscount = netPrice < product.unit_price;
@@ -174,17 +174,17 @@ export function DealerSalesInvoiceEncoding({
                                                                 );
                                                             })()}
                                                         </div>
-                                                        <Button
-                                                            size="icon"
-                                                            className="h-8 w-8 rounded-xl shadow-lg bg-rose-500 text-white hover:bg-rose-600 transition-all active:scale-95 shadow-rose-500/20"
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                addToCart(product);
-                                                            }}
-                                                        >
-                                                            <Plus className="h-4 w-4" />
-                                                        </Button>
                                                     </div>
+                                                    <Button
+                                                        size="icon"
+                                                        className="h-8 w-8 shrink-0 rounded-xl shadow-lg bg-rose-500 text-white hover:bg-rose-600 transition-all active:scale-95 shadow-rose-500/20"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            addToCart(product);
+                                                        }}
+                                                    >
+                                                        <Plus className="h-4 w-4" />
+                                                    </Button>
                                                 </div>
                                             </div>
                                         );
@@ -298,9 +298,9 @@ export function DealerSalesInvoiceEncoding({
                                                             </div>
                                                         </TableCell>
                                                         <TableCell className="text-center">
-                                                            {(item.discount_type_name || item.discount_type) ? (
+                                                            {item.discount_type_name ? (
                                                                 <Badge className="text-[8px] font-black bg-amber-50 text-amber-600 border-amber-100 px-1.5 py-0.5 uppercase">
-                                                                    {item.discount_type_name || item.discount_type}
+                                                                    {item.discount_type_name}
                                                                 </Badge>
                                                             ) : (
                                                                 <span className="text-[9px] font-black text-slate-300 uppercase italic">NONE</span>
@@ -327,32 +327,37 @@ export function DealerSalesInvoiceEncoding({
                         </div>
 
                         {/* Summary Footer (Sales Order Logic Parity) */}
-                        <div className="p-8 bg-slate-50/50 border-t grid grid-cols-1 md:grid-cols-5 gap-6 items-center">
-                            <div className="flex flex-col">
-                                <span className="text-[10px] font-black uppercase text-slate-400 tracking-[0.2em] mb-1">Gross Total</span>
-                                <span className="font-black text-lg text-slate-900 tabular-nums">{formatCurrency(summary.totalGross)}</span>
-                            </div>
-                            <div className="flex flex-col">
-                                <span className="text-[10px] font-black uppercase text-rose-500 tracking-[0.2em] mb-1">Discount</span>
-                                <span className="font-black text-lg text-rose-600 tabular-nums">-{formatCurrency(summary.totalDiscount)}</span>
-                            </div>
-                            {isVatApplicable && (
+                        <div className="p-8 bg-slate-50/50 border-t flex flex-col md:flex-row items-center justify-between gap-8">
+                            <div className="flex flex-wrap items-center justify-center md:justify-start gap-8 md:gap-16">
                                 <div className="flex flex-col">
-                                    <span className="text-[10px] font-black uppercase text-slate-400 tracking-[0.2em] mb-1">VAT (12%)</span>
-                                    <span className="font-black text-lg text-slate-600 tabular-nums">{formatCurrency(summary.totalVat || 0)}</span>
+                                    <span className="text-[10px] font-black uppercase text-slate-400 tracking-[0.2em] mb-1">Gross Total</span>
+                                    <span className="font-black text-lg text-slate-900 tabular-nums">{formatCurrency(summary.totalGross)}</span>
                                 </div>
-                            )}
-                            <div className="flex flex-col bg-slate-900 text-white p-4 rounded-2xl shadow-xl shadow-slate-900/10">
-                                <span className="text-[10px] font-black uppercase text-primary/80 tracking-[0.3em] mb-1">Net Amount</span>
-                                <span className="text-2xl font-black tabular-nums tracking-tighter">{formatCurrency(summary.totalNet)}</span>
+                                <div className="flex flex-col">
+                                    <span className="text-[10px] font-black uppercase text-rose-500 tracking-[0.2em] mb-1">Discount</span>
+                                    <span className="font-black text-lg text-rose-600 tabular-nums">-{formatCurrency(summary.totalDiscount)}</span>
+                                </div>
+                                {isVatApplicable && (
+                                    <div className="flex flex-col">
+                                        <span className="text-[10px] font-black uppercase text-slate-400 tracking-[0.2em] mb-1">VAT (12%)</span>
+                                        <span className="font-black text-lg text-slate-600 tabular-nums">{formatCurrency(summary.totalVat || 0)}</span>
+                                    </div>
+                                )}
                             </div>
-                            <Button
-                                disabled={cart.length === 0 || isSaving}
-                                className="h-14 rounded-2xl bg-rose-500 text-white font-black text-sm uppercase tracking-widest shadow-2xl shadow-rose-500/30 hover:bg-rose-600 transition-all active:scale-95 disabled:opacity-30"
-                                onClick={onSave}
-                            >
-                                {isSaving ? <Loader2 className="animate-spin h-5 w-5" /> : "Create Invoice"}
-                            </Button>
+
+                            <div className="flex flex-col md:flex-row items-center gap-6 w-full md:w-auto">
+                                <div className="flex flex-col bg-slate-900 text-white p-5 rounded-2xl shadow-xl shadow-slate-900/20 w-full md:w-64 text-center md:text-left">
+                                    <span className="text-[10px] font-black uppercase text-primary/80 tracking-[0.3em] mb-1">Net Amount</span>
+                                    <span className="text-2xl font-black tabular-nums tracking-tighter">{formatCurrency(summary.totalNet)}</span>
+                                </div>
+                                <Button
+                                    disabled={cart.length === 0 || isSaving}
+                                    className="h-16 px-10 rounded-2xl bg-rose-500 text-white font-black text-sm uppercase tracking-widest shadow-2xl shadow-rose-500/30 hover:bg-rose-600 transition-all active:scale-95 disabled:opacity-30 w-full md:w-auto"
+                                    onClick={onSave}
+                                >
+                                    {isSaving ? <Loader2 className="animate-spin h-5 w-5" /> : "Create Invoice"}
+                                </Button>
+                            </div>
                         </div>
                     </CardContent>
                 </Card>

@@ -332,7 +332,7 @@ export const DealerAddProductModal: React.FC<DealerAddProductModalProps> = ({
                                             key={p.product_id}
                                             className="group relative p-6 bg-white dark:bg-slate-900 border border-rose-500/80 dark:border-rose-500/50 rounded-[28px] shadow-sm hover:shadow-xl hover:shadow-rose-500/10 transition-all cursor-default"
                                         >
-                                            <div className="flex justify-between items-start gap-4">
+                                            <div className="flex justify-between items-center gap-4">
                                                 <div className="space-y-2 flex-1">
                                                     <h3 className="text-xs font-black text-slate-800 dark:text-slate-200 leading-relaxed uppercase tracking-tight line-clamp-2">
                                                         {p.description || p.product_name} <span className="text-primary/60 ml-1">({p.unit})</span>
@@ -358,7 +358,7 @@ export const DealerAddProductModal: React.FC<DealerAddProductModalProps> = ({
                                                 </div>
                                                 <Button
                                                     size="icon"
-                                                    className="h-11 w-11 rounded-[18px] bg-rose-500 text-white hover:bg-rose-600 shadow-lg shadow-rose-500/30 transition-all active:scale-90"
+                                                    className="h-11 w-11 shrink-0 rounded-[18px] bg-rose-500 text-white hover:bg-rose-600 shadow-lg shadow-rose-500/30 transition-all active:scale-90"
                                                     onClick={() => addToCart(p)}
                                                 >
                                                     <Plus className="h-5 w-5" />

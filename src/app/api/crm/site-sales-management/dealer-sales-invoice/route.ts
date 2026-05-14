@@ -509,11 +509,19 @@ export async function GET(req: NextRequest) {
 
             const initialProducts = await fetchInChunks<ProductItem>(`${DIRECTUS_URL}/items/products?filter[isActive][_eq]=1&fields=*,product_category.category_id,product_category.category_name,product_brand.brand_id,product_brand.brand_name`, linkedProductIds, "product_id");
 
+            // Filter by search and strict price requirement
             const sellableItems = initialProducts.filter((p) => {
                 const hasPrice = Object.prototype.hasOwnProperty.call(priceOverrides, Number(p.product_id));
                 const q = search.toLowerCase().trim();
                 if (!q) return hasPrice;
-                return hasPrice && (p.product_name.toLowerCase().includes(q) || p.product_code.toLowerCase().includes(q));
+
+                const terms = q.split(/\s+/).filter(Boolean);
+                const matchesSearch = terms.every(term =>
+                    (p.product_name || "").toLowerCase().includes(term) ||
+                    (p.product_code || "").toLowerCase().includes(term) ||
+                    (p.description || "").toLowerCase().includes(term)
+                );
+                return hasPrice && matchesSearch;
             });
 
             if (sellableItems.length === 0) return NextResponse.json([]);
@@ -569,23 +577,31 @@ export async function GET(req: NextRequest) {
             const unitsRes = await fetch(`${DIRECTUS_URL}/items/units?limit=-1`, { headers: fetchHeaders });
             const unitMap: Record<number, string> = (await unitsRes.json()).data?.reduce((acc: Record<number, string>, u: Record<string, unknown>) => ({ ...acc, [Number(u.unit_id)]: u.unit_name as string || u.unit_shortcut as string || "PCS" }), {}) || {};
 
+            const uomPriority: Record<string, number> = { 'BOX': 1, 'CASE': 1, 'CS': 1, 'TIE': 2, 'PACK': 3, 'PCK': 3, 'BNDL': 3, 'PCS': 4, 'PC': 4 };
+
             const results = sellableItems.map((p) => {
                 let winId = null;
                 let price = priceOverrides[Number(p.product_id)] || 0;
+
+                // L1 check
                 const l1 = l1Items.find(i => Number(i.product_id) === Number(p.product_id));
                 if (l1) { winId = l1.discount_type; price = Number(l1.unit_price) || price; }
+
+                // L2 check
                 if (!winId) {
-                    const pc = p.product_category;
-                    const catId = (pc && typeof pc === 'object') ? (pc.category_id || pc.id) : pc;
-                    const l2 = l2Items.find(i => (i.category_id && Number(i.category_id) === Number(catId)) || (!i.category_id && i.supplier_id && Number(i.supplier_id) === Number(supplierId)));
+                    const rawCatId = (p.product_category as CategoryBrand)?.category_id || (p.product_category as CategoryBrand)?.id || p.product_category;
+                    const l2 = l2Items.find((item) => Number(item.category_id) === Number(rawCatId) || !item.category_id || item.category_id === 0);
                     if (l2) winId = l2.discount_type;
                 }
+
+                // L4 check
                 if (!winId) {
-                    const pb = p.product_brand;
-                    const brandId = (pb && typeof pb === 'object') ? (pb.brand_id || pb.id) : pb;
-                    const l4 = l4Items.find(i => Number(i.brand_id) === Number(brandId));
+                    const rawBrandId = (p.product_brand as CategoryBrand)?.brand_id || (p.product_brand as CategoryBrand)?.id || p.product_brand;
+                    const l4 = l4Items.find((item) => Number(item.brand_id) === Number(rawBrandId));
                     if (l4) winId = l4.discount_type_id;
                 }
+
+                // L0 check
                 if (!winId && customerData?.discount_type) winId = customerData.discount_type;
 
                 const inv = inventoryMap[Number(p.product_id)] || { available: 0, unitCount: Number(p.unit_of_measurement_count) || 1 };
@@ -594,6 +610,7 @@ export async function GET(req: NextRequest) {
                 return {
                     product_id: p.product_id,
                     product_name: p.product_name,
+                    description: p.description || p.product_name,
                     product_code: p.product_code,
                     category_name: (p.product_category as CategoryBrand)?.category_name || null,
                     brand_name: (p.product_brand as CategoryBrand)?.brand_name || null,
@@ -603,12 +620,17 @@ export async function GET(req: NextRequest) {
                     unit_count: inv.unitCount,
                     discount_type: winId,
                     discount_type_name: winId ? discountTypeNameMap[Number(winId)] : null,
-                    discounts: winId ? (discountMap[winId] || []) : [],
-                    unit_id: p.unit_of_measurement
+                    discounts: winId ? (discountMap[Number(winId)] || []) : [],
+                    unit_id: p.unit_of_measurement,
+                    _uomRank: uomPriority[unitName.toUpperCase()] || 99
                 };
+            }).sort((a, b) => {
+                if (a._uomRank !== b._uomRank) return a._uomRank - b._uomRank;
+                return a.product_name.localeCompare(b.product_name);
             });
 
             return NextResponse.json(results);
+
         }
 
         if (type === "salesmen") {
@@ -797,25 +819,69 @@ export async function POST(req: NextRequest) {
         if (action === "create_invoice") {
             const userId = await resolveUserId();
             const now = new Date().toISOString();
-            const header = {
+            
+            const headerPayload = {
                 ...body,
-                transaction_status: "New Invoice", payment_status: "Awaiting Payment",
-                total_amount: body.net_amount, created_by: userId, created_date: now,
-                isDispatched: 0, isPosted: 0, isReceipt: 0, isRemitted: 0
+                transaction_status: "New Invoice",
+                payment_status: "Awaiting Payment",
+                total_amount: body.net_amount,
+                created_by: userId,
+                created_date: now,
+                isDispatched: 0,
+                isPosted: 0,
+                isReceipt: 0,
+                isRemitted: 0
             };
-            delete header.items; delete header.action;
-            const hRes = await fetch(`${DIRECTUS_URL}/items/sales_invoice`, { method: "POST", headers: fetchHeaders, body: JSON.stringify(header) });
-            const newId = (await hRes.json()).data.invoice_id;
-            if (body.items?.length > 0) {
-                const details = body.items.map((i: Record<string, unknown>) => ({
-                    order_id: body.order_id as string, invoice_no: newId as number | string, product_id: i.product_id,
-                    unit: i.unit_id, unit_price: i.unit_price, quantity: i.quantity,
-                    discount_amount: (i.discount_amount as number) || 0, discount_type: i.discount_type,
-                    gross_amount: (i.quantity as number) * (i.unit_price as number), total_amount: i.total_amount, created_date: now
-                }));
-                await fetch(`${DIRECTUS_URL}/items/sales_invoice_details`, { method: "POST", headers: fetchHeaders, body: JSON.stringify(details) });
+            
+            delete headerPayload.items;
+            delete headerPayload.action;
+
+            console.log("[CreateInvoice] Creating header...", headerPayload);
+            const hRes = await fetch(`${DIRECTUS_URL}/items/sales_invoice`, { 
+                method: "POST", 
+                headers: fetchHeaders, 
+                body: JSON.stringify(headerPayload) 
+            });
+
+            if (!hRes.ok) {
+                const errorData = await hRes.json();
+                console.error("[CreateInvoice] Header creation failed:", errorData);
+                throw new Error(errorData.errors?.[0]?.message || "Failed to create invoice header");
             }
-            return NextResponse.json({ success: true, invoiceId: newId });
+
+            const headerData = (await hRes.json()).data;
+            const newInvoiceId = headerData.invoice_id;
+
+            if (body.items?.length > 0) {
+                const detailsPayload = body.items.map((i: Record<string, unknown>) => ({
+                    order_id: body.order_id as string,
+                    invoice_no: newInvoiceId,
+                    product_id: i.product_id,
+                    unit: i.unit_id,
+                    unit_price: i.unit_price,
+                    quantity: i.quantity,
+                    discount_amount: (i.discount_amount as number) || 0,
+                    discount_type: i.discount_type,
+                    gross_amount: (i.quantity as number) * (i.unit_price as number),
+                    total_amount: i.total_amount,
+                    created_date: now
+                }));
+
+                console.log("[CreateInvoice] Creating details...", detailsPayload.length);
+                const dRes = await fetch(`${DIRECTUS_URL}/items/sales_invoice_details`, { 
+                    method: "POST", 
+                    headers: fetchHeaders, 
+                    body: JSON.stringify(detailsPayload) 
+                });
+
+                if (!dRes.ok) {
+                    const errorData = await dRes.json();
+                    console.error("[CreateInvoice] Details creation failed:", errorData);
+                    throw new Error(errorData.errors?.[0]?.message || "Failed to create invoice details");
+                }
+            }
+
+            return NextResponse.json({ success: true, invoiceId: newInvoiceId });
         }
 
         return NextResponse.json({ error: "Invalid action" }, { status: 400 });
