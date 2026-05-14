@@ -43,23 +43,23 @@ import {
     CommandItem,
     CommandList,
 } from "@/components/ui/command";
-import { SearchProduct, SalesInvoiceDetail, CartItem } from '../types';
+import { SearchProduct, DealerInvoiceDetail, CartItem } from '../types';
 import { calculateChainNetPrice } from '../utils';
 import { cn } from '@/lib/utils';
 
-interface SiteSalesAddProductModalProps {
+interface DealerAddProductModalProps {
     isOpen: boolean;
     onClose: () => void;
-    onConfirm: (items: SalesInvoiceDetail[]) => void;
+    onConfirm: (items: DealerInvoiceDetail[]) => void;
     products: SearchProduct[];
     isLoading: boolean;
-    initialDetails: SalesInvoiceDetail[];
+    initialDetails: DealerInvoiceDetail[];
     suppliers: { id: number; supplier_name: string; supplier_shortcut?: string }[];
     onSupplierChange: (supplierId: string | number) => void;
     currentSupplierId: string | number | null;
 }
 
-export const SiteSalesAddProductModal: React.FC<SiteSalesAddProductModalProps> = ({
+export const DealerAddProductModal: React.FC<DealerAddProductModalProps> = ({
     isOpen,
     onClose,
     onConfirm,
@@ -81,7 +81,7 @@ export const SiteSalesAddProductModal: React.FC<SiteSalesAddProductModalProps> =
                 const prod = item.product_id && typeof item.product_id === 'object' ? item.product_id : null;
                 return {
                     detail_id: item.detail_id, // PRESERVE THIS!
-                    product_id: prod?.product_id || 0,
+                    product_id: prod?.product_id || (typeof item.product_id === 'number' ? item.product_id : 0),
                     product_name: prod?.product_name || 'N/A',
                     description: prod?.description || '',
                     product_code: prod?.product_code || 'N/A',
@@ -183,7 +183,7 @@ export const SiteSalesAddProductModal: React.FC<SiteSalesAddProductModalProps> =
     }, [cart]);
 
     const handleSubmit = () => {
-        const details: SalesInvoiceDetail[] = cart.map(item => ({
+        const details: DealerInvoiceDetail[] = cart.map(item => ({
             detail_id: item.detail_id, // PASS THIS BACK!
             invoice_id: 0,
             product_id: {
@@ -244,9 +244,11 @@ export const SiteSalesAddProductModal: React.FC<SiteSalesAddProductModalProps> =
                                                 className="w-full justify-between h-11 bg-slate-50 dark:bg-slate-900 border-transparent rounded-xl text-xs font-black uppercase tracking-tight shadow-inner focus:ring-1 focus:ring-primary/20 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
                                             >
                                                 <span className="truncate">
-                                                    {currentSupplierId 
-                                                        ? suppliers.find((s) => s.id.toString() === currentSupplierId.toString())?.supplier_name 
-                                                        : "Select Supplier..."}
+                                                    {currentSupplierId === 'all' 
+                                                        ? "All Suppliers" 
+                                                        : currentSupplierId 
+                                                            ? suppliers.find((s) => s.id.toString() === currentSupplierId.toString())?.supplier_name 
+                                                            : "Select Supplier..."}
                                                 </span>
                                                 <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                                             </Button>
@@ -470,7 +472,6 @@ export const SiteSalesAddProductModal: React.FC<SiteSalesAddProductModalProps> =
                                                         <span className="text-[10px] text-slate-300 italic">NONE</span>
                                                     )}
                                                 </TableCell>
-                                                {/* Avail cell removed */}
                                                 <TableCell className="text-right font-black text-slate-900 dark:text-white pr-6">
                                                     ₱{item.total_amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                                                 </TableCell>
