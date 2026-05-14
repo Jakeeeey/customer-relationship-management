@@ -96,7 +96,7 @@ export function DealerSalesInvoiceEncoding({
         <div className="grid grid-cols-1 xl:grid-cols-4 lg:grid-cols-3 gap-8 items-start animate-in fade-in slide-in-from-bottom-4 duration-700">
             {/* Catalog Panel */}
             <div className="xl:col-span-1 lg:col-span-1 flex flex-col gap-4">
-                <Card className="flex flex-col min-h-[600px] shadow-sm border-slate-100 overflow-hidden rounded-[32px]">
+                <Card className="flex flex-col min-h-[750px] shadow-sm border-slate-100 overflow-hidden rounded-[32px]">
                     <CardHeader className="p-4 flex flex-row items-center justify-between border-b bg-slate-50/50">
                         <CardTitle className="text-[11px] font-black uppercase tracking-widest text-slate-500">
                             Product Catalog ({filteredProducts.length})
@@ -114,7 +114,7 @@ export function DealerSalesInvoiceEncoding({
                         </div>
                     </div>
                     <CardContent className="p-0 flex-1 overflow-hidden">
-                        <ScrollArea className="flex-1 h-[500px] px-3">
+                        <ScrollArea className="flex-1 h-[650px] px-3">
                             <div className="space-y-2 pb-4">
                                 {isSearching ? (
                                     <div className="flex flex-col items-center justify-center py-20 gap-3 opacity-40">
@@ -137,7 +137,7 @@ export function DealerSalesInvoiceEncoding({
                                                 <div className="flex items-center justify-between gap-4">
                                                     <div className="flex-1 flex flex-col min-w-0">
                                                         <span className="font-bold text-[12px] uppercase text-slate-900 leading-tight">
-                                                            {product.description || product.product_name}
+                                                            {product.description || product.product_name} <span className="text-primary/60 ml-1">({product.unit})</span>
                                                         </span>
                                                         
                                                         <div className="flex flex-wrap gap-1 mt-1.5">
@@ -248,7 +248,7 @@ export function DealerSalesInvoiceEncoding({
                                                         <TableCell className="py-5 pl-8">
                                                             <div className="flex flex-col">
                                                                 <span className="font-black text-[11px] uppercase text-slate-900 leading-tight">
-                                                                    {item.description || item.product_name}
+                                                                    {item.description || item.product_name} <span className="text-primary/60 ml-1">({item.unit})</span>
                                                                 </span>
                                                                 <div className="flex flex-wrap gap-1 mt-1">
                                                                     <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{item.product_code}</span>
