@@ -13,9 +13,9 @@ import {
     User,
     MapPin,
     Plus,
-    CheckCircle2,
     Trash,
-    RotateCw
+    RotateCw,
+    Printer
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -29,6 +29,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 
 import { DealerAddProductModal } from './DealerAddProductModal';
 import { DealerSalesInvoiceEditModal } from './DealerSalesInvoiceEditModal';
+import { DealerPrintPreviewModal } from './DealerPrintPreviewModal';
 
 interface DealerSalesInvoiceDetailsProps {
     id: string;
@@ -42,6 +43,7 @@ export const DealerSalesInvoiceDetails: React.FC<DealerSalesInvoiceDetailsProps>
     const [isSaving, setIsSaving] = useState(false);
 
     const [isAddProductModalOpen, setIsAddProductModalOpen] = useState(false);
+    const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
     const [searchProducts, setSearchProducts] = useState<SearchProduct[]>([]);
     const [isSearchingProducts, setIsSearchingProducts] = useState(false);
     const [suppliers, setSuppliers] = useState<Supplier[]>([]);
@@ -238,55 +240,6 @@ export const DealerSalesInvoiceDetails: React.FC<DealerSalesInvoiceDetailsProps>
         }
     };
 
-    const handleFinalize = async () => {
-
-        if (!header) return;
-
-        // Final Safety Check: Prevent dispatching if balance is negative
-        if (balance < 0) {
-            toast.error("Cannot dispatch invoice with a negative balance. Please check your items and adjustments.");
-            return;
-        }
-
-        setIsSaving(true);
-
-        try {
-            // 1. Save Header & Details adjustments ONLY if modified
-            if (isItemsModified) {
-                console.log("[DealerSalesInvoiceDetails] Saving items modification before finalize");
-                await dealerInvoiceProvider.saveAdjustments(id, {
-                    customer_code: header.customer_code,
-                    order_id: header.invoice_no,
-                    invoice_date: header.invoice_date,
-                    due_date: header.due_date,
-                    remarks: header.remarks,
-                    gross_amount: displayGross,
-                    discount_amount: displayDiscount,
-                    vat_amount: displayVat,
-                    total_amount: displayTotal,
-                    net_amount: displayTotal,
-                    details: details,
-                    deletedDetailIds: deletedDetailIds
-                });
-            } else {
-                console.log("[DealerSalesInvoiceDetails] No item changes, proceeding to metadata finalize only");
-            }
-
-            // 2. Finalize settlement (isDispatched = 1, dispatch_date = now)
-            await dealerInvoiceProvider.finalizeSettlement([id]);
-
-            toast.success("Invoice finalized successfully!");
-            // Reset modification flags after success
-            setIsItemsModified(false);
-            setIsHeaderModified(false);
-            router.push('/crm/site-sales-management/dealer-sales-invoice');
-        } catch (error: unknown) {
-            const message = error instanceof Error ? error.message : "Failed to finalize invoice";
-            toast.error(message);
-        } finally {
-            setIsSaving(false);
-        }
-    };
 
     const handleUnDispatch = async () => {
         setIsSaving(true);
@@ -655,86 +608,81 @@ export const DealerSalesInvoiceDetails: React.FC<DealerSalesInvoiceDetailsProps>
                                             placeholder="Add notes or remarks for this invoice..."
                                         />
                                     </div>
+
+                                    <div className="pt-2 space-y-3">
+                                        {(() => {
+                                            const checkBit = (val: unknown) => {
+                                                if (typeof val === 'boolean') return val;
+                                                if (typeof val === 'number') return val === 1;
+                                                if (val && typeof val === 'object' && val !== null && 'data' in val && Array.isArray((val as { data: unknown }).data)) return (val as { data: number[] }).data[0] === 1;
+                                                return false;
+                                            };
+
+                                            const isPosted = checkBit(header.isPosted) || header.transaction_status === 'Completed' || header.transaction_status === 'Posted';
+                                            const isDispatched = checkBit(header.isDispatched) || header.transaction_status === 'Dispatched';
+
+                                            if (isPosted) {
+                                                return (
+                                                    <div className="px-6 py-3 bg-slate-100 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 text-center">
+                                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">View Only (Posted)</p>
+                                                    </div>
+                                                );
+                                            }
+
+                                            if (isDispatched) {
+                                                return (
+                                                    <div className="space-y-3">
+                                                        <Button
+                                                            disabled={isSaving}
+                                                            onClick={handleUnDispatch}
+                                                            variant="outline"
+                                                            className="w-full border-rose-500 text-rose-500 hover:bg-rose-50 rounded-xl px-8 font-black text-xs uppercase tracking-widest gap-2 shadow-lg shadow-rose-500/5 transition-all hover:scale-[1.02] active:scale-95"
+                                                        >
+                                                            {isSaving && (
+                                                                <div className="h-4 w-4 animate-spin rounded-full border-2 border-rose-500 border-t-transparent" />
+                                                            )}
+                                                            Undispatch
+                                                        </Button>
+                                                    </div>
+                                                );
+                                            }
+
+                                            return (
+                                                <div className="space-y-3">
+                                                    {(isItemsModified || isHeaderModified) && (
+                                                        <Button
+                                                            disabled={isSaving}
+                                                            onClick={handleUpdateOrder}
+                                                            variant="outline"
+                                                            className="w-full border-primary text-primary hover:bg-primary/5 rounded-xl px-6 font-black text-xs uppercase tracking-widest gap-2 shadow-sm transition-all hover:scale-[1.02] active:scale-95"
+                                                        >
+                                                            {isSaving ? (
+                                                                <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                                                            ) : (
+                                                                <RotateCw className="h-4 w-4" />
+                                                            )}
+                                                            Update Order
+                                                        </Button>
+                                                    )}
+                                                        <Button
+                                                            onClick={() => setIsPreviewModalOpen(true)}
+                                                            variant="outline"
+                                                            className="w-full border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-xl px-4 h-12 font-black text-xs uppercase tracking-widest gap-2 shadow-sm transition-all hover:scale-[1.02] active:scale-95"
+                                                        >
+                                                            <Printer className="h-4 w-4" />
+                                                            Print Preview
+                                                        </Button>
+                                                </div>
+                                            );
+                                        })()}
+                                    </div>
                                 </div>
                             </CardContent>
                         </Card>
                     </div>
                 </div>
 
-                {/* Bottom Actions */}
-                <div className="mt-auto pt-6 flex justify-end items-center">
-                    <div className="flex gap-3">
-                        {(() => {
-                            // Helper to handle BIT(1) from DB (can be boolean, number, or Buffer)
-                            const checkBit = (val: unknown) => {
-                                if (typeof val === 'boolean') return val;
-                                if (typeof val === 'number') return val === 1;
-                                if (val && typeof val === 'object' && val !== null && 'data' in val && Array.isArray((val as { data: unknown }).data)) return (val as { data: number[] }).data[0] === 1;
-                                return false;
-                            };
-
-                            const isPosted = checkBit(header.isPosted) || header.transaction_status === 'Completed' || header.transaction_status === 'Posted';
-                            const isDispatched = checkBit(header.isDispatched) || header.transaction_status === 'Dispatched';
-
-                            if (isPosted) {
-                                return (
-                                    <div className="px-6 py-2 bg-slate-100 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
-                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">View Only (Posted)</p>
-                                    </div>
-                                );
-                            }
-
-                            if (isDispatched) {
-                                return (
-                                    <Button
-                                        disabled={isSaving}
-                                        onClick={handleUnDispatch}
-                                        variant="outline"
-                                        className="border-rose-500 text-rose-500 hover:bg-rose-50 rounded-xl px-8 font-black text-xs uppercase tracking-widest gap-2 shadow-lg shadow-rose-500/5"
-                                    >
-                                        {isSaving && (
-                                            <div className="h-4 w-4 animate-spin rounded-full border-2 border-rose-500 border-t-transparent" />
-                                        )}
-                                        Undispatch
-                                    </Button>
-                                );
-                            }
-
-                            return (
-                                <div className="flex items-center gap-3">
-                                    {(isItemsModified || isHeaderModified) && (
-                                        <Button
-                                            disabled={isSaving}
-                                            onClick={handleUpdateOrder}
-                                            variant="outline"
-                                            className="border-primary text-primary hover:bg-primary/5 rounded-xl px-6 font-black text-xs uppercase tracking-widest gap-2 shadow-sm transition-all hover:scale-105 active:scale-95"
-                                        >
-                                            {isSaving ? (
-                                                <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-                                            ) : (
-                                                <RotateCw className="h-4 w-4" />
-                                            )}
-                                            Update Order
-                                        </Button>
-                                    )}
-                                    <Button
-                                        disabled={isSaving}
-                                        onClick={handleFinalize}
-                                        className="bg-primary hover:bg-primary/90 rounded-xl px-8 font-black text-xs uppercase tracking-widest shadow-lg shadow-primary/20 gap-2 transition-all hover:scale-105 active:scale-95"
-                                    >
-                                        {isSaving ? (
-                                            <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                                        ) : (
-                                            <CheckCircle2 className="h-4 w-4" />
-                                        )}
-                                        Dispatch
-                                    </Button>
-                                </div>
-                            );
-
-                        })()}
-                    </div>
-                </div>
+                {/* End of content */}
             </div>
 
 
@@ -755,6 +703,15 @@ export const DealerSalesInvoiceDetails: React.FC<DealerSalesInvoiceDetailsProps>
                     isOpen={false} // This was handled by separate logic usually
                     onClose={() => {}}
                     invoice={header}
+                />
+            )}
+
+            {header && (
+                <DealerPrintPreviewModal
+                    isOpen={isPreviewModalOpen}
+                    onClose={() => setIsPreviewModalOpen(false)}
+                    header={header}
+                    details={details}
                 />
             )}
         </div>
