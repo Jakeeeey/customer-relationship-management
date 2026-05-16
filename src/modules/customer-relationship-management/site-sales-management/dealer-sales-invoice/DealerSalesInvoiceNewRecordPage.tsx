@@ -70,8 +70,18 @@ export default function DealerSalesInvoiceNewRecordPage() {
     const [isSearching, setIsSearching] = useState(false);
     const [cart, setCart] = useState<CartItem[]>([]);
     const [isSaving, setIsSaving] = useState(false);
-
     const [filteredSalesmen, setFilteredSalesmen] = useState<MasterUser[]>([]);
+
+    // 0. Business Rules: Max Length Enforcement (Century's Best Practice)
+    const currentMaxLength = useMemo(() => {
+        if (!selectedInvoiceType) return Infinity;
+        const type = invoiceTypes.find(t => t.id.toString() === selectedInvoiceType);
+        return type?.max_length || Infinity;
+    }, [selectedInvoiceType, invoiceTypes]);
+
+    const isLimitReached = useMemo(() => {
+        return cart.length >= currentMaxLength;
+    }, [cart.length, currentMaxLength]);
 
     // Auto-generate preview ID
     const previewInvoiceNo = useMemo(() => {
@@ -115,6 +125,22 @@ export default function DealerSalesInvoiceNewRecordPage() {
         };
         loadData();
     }, [fetchModalData, fetchUtilityData]);
+
+    // 1.1 Proactive Limit Notification (Century's Best Practice)
+    useEffect(() => {
+        if (selectedInvoiceType && invoiceTypes.length > 0) {
+            const typeObj = invoiceTypes.find(t => t.id.toString() === selectedInvoiceType);
+            if (typeObj) {
+                const limit = typeObj.max_length || "unlimited";
+                const label = typeObj.type || typeObj.shortcut || "Selected Type";
+                
+                // Only toast if it's a manual change (not initial load)
+                if (!isLoadingData) {
+                    toast.info(`${label} has a limit of ${limit} items.`);
+                }
+            }
+        }
+    }, [selectedInvoiceType, invoiceTypes, isLoadingData]);
 
     // 2. Auto-fill logic when customer is selected
     const handleCustomerSelect = async (customer: Customer) => {
@@ -277,15 +303,22 @@ export default function DealerSalesInvoiceNewRecordPage() {
                 );
                 return sortCartItems(updated);
             });
+            toast.success("Added to list");
         } else {
+            // Check limit only for NEW items (new rows)
+            if (isLimitReached) {
+                toast.error(`Maximum of ${currentMaxLength} items allowed for this receipt type.`);
+                return;
+            }
+
             setCart(prev => sortCartItems([...prev, {
                 ...product,
                 quantity: 1,
                 discount_amount: product.unit_price - netPrice,
                 total_amount: netPrice
             }]));
+            toast.success("Added to list");
         }
-        toast.success("Added to list");
     };
 
     const removeFromCart = (productId: number) => {
@@ -489,6 +522,9 @@ export default function DealerSalesInvoiceNewRecordPage() {
                         isHeaderComplete={isHeaderComplete}
                         onSave={handleSave}
                         isSaving={isSaving}
+
+                        maxLength={currentMaxLength}
+                        isLimitReached={isLimitReached}
                     />
                 </div>
             </div>

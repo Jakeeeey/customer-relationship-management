@@ -123,6 +123,7 @@ export interface InvoiceType {
     id: number;
     type: string;
     shortcut?: string;
+    max_length?: number;
     isOfficial?: number | boolean;
 }
 
