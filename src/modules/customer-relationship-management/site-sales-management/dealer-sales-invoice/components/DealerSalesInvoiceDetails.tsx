@@ -96,6 +96,14 @@ export const DealerSalesInvoiceDetails: React.FC<DealerSalesInvoiceDetailsProps>
         };
     }, [details, isItemsModified, initialNet, header?.invoice_type]);
 
+    const maxLength = React.useMemo(() => {
+        if (!header?.invoice_type) return Infinity;
+        if (typeof header.invoice_type === 'object') {
+            return (header.invoice_type as { max_length?: number }).max_length || Infinity;
+        }
+        return Infinity;
+    }, [header?.invoice_type]);
+
     // Display values (Use initial if not modified)
     const displayGross = isItemsModified ? computedGross : initialGross;
     const displayDiscount = isItemsModified ? computedDiscount : initialDiscount;
@@ -696,6 +704,7 @@ export const DealerSalesInvoiceDetails: React.FC<DealerSalesInvoiceDetailsProps>
                 suppliers={suppliers}
                 onSupplierChange={handleSupplierChange}
                 currentSupplierId={currentModalSupplierId}
+                maxLength={maxLength}
             />
 
             {header && (

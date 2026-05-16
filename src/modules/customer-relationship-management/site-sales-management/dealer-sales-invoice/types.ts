@@ -16,7 +16,7 @@ export const DealerInvoiceHeaderSchema = z.object({
     payment_status: z.string().nullable().optional(),
     total_amount: z.number().nullable().optional(),
     sales_type: z.number().or(z.object({ operation_name: z.string() })).nullable().optional(),
-    invoice_type: z.number().or(z.object({ type: z.string() })).nullable().optional(),
+    invoice_type: z.number().or(z.object({ type: z.string(), max_length: z.number().optional() })).nullable().optional(),
     price_type: z.string().nullable().optional(),
     vat_amount: z.number().nullable().optional(),
     gross_amount: z.number().nullable().optional(),
