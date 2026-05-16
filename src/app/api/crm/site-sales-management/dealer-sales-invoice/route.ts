@@ -431,7 +431,7 @@ export async function GET(req: NextRequest) {
             const invoiceId = searchParams.get("invoiceId");
             if (!invoiceId) return NextResponse.json({ error: "invoiceId required" }, { status: 400 });
 
-            const headerRes = await fetch(`${DIRECTUS_URL}/items/sales_invoice/${invoiceId}?fields=*,salesman_id.salesman_name,salesman_id.salesman_code,salesman_id.price_type_id,branch_id.*,invoice_type.type,invoice_type.isOfficial,sales_type.operation_name,price_type.price_type_name,payment_terms.payment_name`, { headers: fetchHeaders });
+            const headerRes = await fetch(`${DIRECTUS_URL}/items/sales_invoice/${invoiceId}?fields=*,salesman_id.salesman_name,salesman_id.salesman_code,salesman_id.price_type_id,branch_id.*,invoice_type.type,invoice_type.max_length,invoice_type.isOfficial,sales_type.operation_name,price_type.price_type_name,payment_terms.payment_name`, { headers: fetchHeaders });
             const header = (await headerRes.json()).data || {};
 
             if (header.customer_code) {
