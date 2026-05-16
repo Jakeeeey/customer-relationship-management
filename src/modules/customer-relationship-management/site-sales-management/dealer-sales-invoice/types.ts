@@ -29,8 +29,11 @@ export const DealerInvoiceHeaderSchema = z.object({
 
     // Virtual fields from Joins/UI
     customer_name: z.string().optional(),
+    store_name: z.string().optional(),
+    customer_address: z.string().optional(),
     salesman_name: z.string().optional(),
     price_type_name: z.string().optional(),
+    customer_tin: z.string().optional(),
 });
 
 export interface Branch {
@@ -66,6 +69,7 @@ export type DealerInvoiceHeader = z.infer<typeof DealerInvoiceHeaderSchema> & {
     // Allow expanded objects from Directus
     branch_id?: Branch | null;
     salesman_id?: Salesman | null;
+    payment_terms?: PaymentTerm | null;
 };
 
 // --- Detail Schema ---
@@ -119,6 +123,7 @@ export interface InvoiceType {
     id: number;
     type: string;
     shortcut?: string;
+    isOfficial?: number | boolean;
 }
 
 export interface PriceType {
