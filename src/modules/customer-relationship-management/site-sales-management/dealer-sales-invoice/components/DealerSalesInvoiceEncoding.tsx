@@ -46,6 +46,9 @@ interface DealerSalesInvoiceEncodingProps {
     isHeaderComplete: boolean;
     onSave: () => void;
     isSaving?: boolean;
+
+    maxLength?: number;
+    isLimitReached?: boolean;
 }
 
 export function DealerSalesInvoiceEncoding({
@@ -59,7 +62,9 @@ export function DealerSalesInvoiceEncoding({
     isVatApplicable = true,
     isHeaderComplete,
     onSave,
-    isSaving = false
+    isSaving = false,
+    maxLength = Infinity,
+    isLimitReached = false
 }: DealerSalesInvoiceEncodingProps) {
     const [searchQuery, setSearchQuery] = React.useState("");
 
@@ -98,8 +103,15 @@ export function DealerSalesInvoiceEncoding({
             <div className="xl:col-span-1 lg:col-span-1 flex flex-col gap-4">
                 <Card className="flex flex-col min-h-[750px] shadow-sm border-slate-100 overflow-hidden rounded-[32px]">
                     <CardHeader className="p-4 flex flex-row items-center justify-between border-b bg-slate-50/50">
-                        <CardTitle className="text-[11px] font-black uppercase tracking-widest text-slate-500">
-                            Product Catalog ({filteredProducts.length})
+                        <CardTitle className="flex items-center justify-between w-full">
+                            <span className="text-[11px] font-black uppercase tracking-widest text-slate-500">
+                                Product Catalog ({filteredProducts.length})
+                            </span>
+                            {isLimitReached && maxLength !== Infinity && (
+                                <Badge variant="secondary" className="bg-rose-50 text-rose-500 border-rose-100 text-[8px] font-black uppercase tracking-tighter">
+                                    Limit Reached
+                                </Badge>
+                            )}
                         </CardTitle>
                     </CardHeader>
                     <div className="p-3 space-y-4">
@@ -128,11 +140,18 @@ export function DealerSalesInvoiceEncoding({
                                     </div>
                                 ) : (
                                     filteredProducts.map(product => {
+                                        const isInCart = cart.some(item => item.product_id === product.product_id);
+                                        const isActionDisabled = isLimitReached && !isInCart;
+
                                         return (
                                             <div
                                                 key={product.product_id}
-                                                className="p-4 hover:bg-slate-50 transition-all cursor-pointer group relative border border-slate-200 rounded-2xl shadow-sm"
-                                                onClick={() => addToCart(product)}
+                                                className={`p-4 transition-all cursor-pointer group relative border rounded-2xl shadow-sm ${
+                                                    isActionDisabled 
+                                                        ? 'opacity-40 grayscale-[0.5] bg-slate-100/50 cursor-not-allowed border-slate-200' 
+                                                        : 'hover:bg-slate-50 border-slate-200 cursor-pointer'
+                                                }`}
+                                                onClick={() => !isActionDisabled && addToCart(product)}
                                             >
                                                 <div className="flex items-center justify-between gap-4">
                                                     <div className="flex-1 flex flex-col min-w-0">
@@ -177,10 +196,15 @@ export function DealerSalesInvoiceEncoding({
                                                     </div>
                                                     <Button
                                                         size="icon"
-                                                        className="h-8 w-8 shrink-0 rounded-xl shadow-lg bg-rose-500 text-white hover:bg-rose-600 transition-all active:scale-95 shadow-rose-500/20"
+                                                        disabled={isActionDisabled}
+                                                        className={`h-8 w-8 shrink-0 rounded-xl shadow-lg transition-all active:scale-95 ${
+                                                            isActionDisabled
+                                                                ? 'bg-slate-300 text-slate-500 shadow-none'
+                                                                : 'bg-rose-500 text-white hover:bg-rose-600 shadow-rose-500/20'
+                                                        }`}
                                                         onClick={(e) => {
                                                             e.stopPropagation();
-                                                            addToCart(product);
+                                                            if (!isActionDisabled) addToCart(product);
                                                         }}
                                                     >
                                                         <Plus className="h-4 w-4" />
@@ -209,8 +233,15 @@ export function DealerSalesInvoiceEncoding({
                                 <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-0.5">Summary of pending transaction</p>
                             </div>
                         </div>
-                        <Badge className="bg-primary/10 text-primary border-primary/20 text-[10px] font-black px-4 py-1.5 rounded-lg uppercase tracking-widest">
-                            {cart.length} ITEMS
+                        <Badge 
+                            variant="outline" 
+                            className={`px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest ${
+                                isLimitReached && maxLength !== Infinity
+                                    ? 'bg-rose-50 text-rose-500 border-rose-200 animate-pulse' 
+                                    : 'bg-primary/10 text-primary border-primary/20'
+                            }`}
+                        >
+                            {cart.length}{maxLength !== Infinity ? ` / ${maxLength}` : ""} ITEMS
                         </Badge>
                     </CardHeader>
 
