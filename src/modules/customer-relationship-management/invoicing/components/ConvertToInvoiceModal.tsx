@@ -153,6 +153,7 @@ export const ConvertToInvoiceModal: React.FC<ConvertToInvoiceModalProps> = ({
 
     useEffect(() => {
         if (isOpen && order) {
+            setConversionData(null);
             const typeId = order.receipt_type?.id;
             
             const basicPromises = [
@@ -1380,8 +1381,19 @@ export const ConvertToInvoiceModal: React.FC<ConvertToInvoiceModalProps> = ({
                     <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
                         <Button
                             variant="outline"
-                            className="flex-1 sm:flex-none h-11 rounded-xl font-bold uppercase text-[10px] tracking-widest bg-amber-500/5 border-amber-500/20 text-amber-600 hover:bg-amber-500 hover:text-white transition-all duration-300"
-                            onClick={() => setIsHoldConfirmOpen(true)}
+                            className={cn(
+                                "flex-1 sm:flex-none h-11 rounded-xl font-bold uppercase text-[10px] tracking-widest transition-all duration-300",
+                                (!conversionData || receipts.some(r => !r.is_void_reference && r.items.length > 0))
+                                    ? "opacity-40 cursor-not-allowed pointer-events-none bg-muted text-muted-foreground border-border/50"
+                                    : "bg-amber-500/5 border-amber-500/20 text-amber-600 hover:bg-amber-500 hover:text-white"
+                            )}
+                            onClick={() => {
+                                if (!conversionData) return;
+                                const hasStagedItems = receipts.some(r => !r.is_void_reference && r.items.length > 0);
+                                if (hasStagedItems) return;
+                                setIsHoldConfirmOpen(true);
+                            }}
+                            disabled={!conversionData || receipts.some(r => !r.is_void_reference && r.items.length > 0)}
                         >
                             <Lock className="h-3.5 w-3.5 mr-2" /> Hold Order
                         </Button>
