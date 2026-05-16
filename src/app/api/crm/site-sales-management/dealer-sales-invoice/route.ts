@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 
 const COOKIE_NAME = "vos_access_token";
+// Force re-scan to resolve duplicate handler issue
 const DIRECTUS_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
 const DIRECTUS_TOKEN = process.env.DIRECTUS_STATIC_TOKEN;
 const SPRING_API_BASE_URL = process.env.SPRING_API_BASE_URL;
@@ -117,6 +118,54 @@ export async function GET(req: NextRequest) {
     const searchParams = req.nextUrl.searchParams;
 
     try {
+        if (type === "template") {
+            const id = searchParams.get("id");
+            if (!id) return NextResponse.json({ error: "Template ID is required" }, { status: 400 });
+
+            // Filter by sales_invoice_type_id to be more robust
+            const query = new URLSearchParams({
+                "filter[sales_invoice_type_id][_eq]": id,
+                "fields": "id,sales_invoice_type_id,template_config",
+                "limit": "1"
+            });
+
+            const res = await fetch(`${DIRECTUS_URL}/items/sales_invoice_template?${query.toString()}`, { headers: fetchHeaders });
+            if (!res.ok) {
+                return NextResponse.json({ error: "Template not found" }, { status: 404 });
+            }
+
+            const json = await res.json();
+            const template = json.data?.[0];
+            
+            if (!template) {
+                return NextResponse.json({ error: "No template configuration found for this type" }, { status: 404 });
+            }
+
+            return NextResponse.json(template);
+        }
+
+        if (type === "asset") {
+            const id = searchParams.get("id");
+            if (!id) return NextResponse.json({ error: "Asset ID is required" }, { status: 400 });
+
+            const res = await fetch(`${DIRECTUS_URL}/assets/${id}`, { headers: fetchHeaders });
+            if (!res.ok) return NextResponse.json({ error: "Asset not found" }, { status: 404 });
+
+            const blob = await res.blob();
+            const contentType = res.headers.get("content-type") || "image/png";
+            
+            return new NextResponse(blob, {
+                headers: { "Content-Type": contentType }
+            });
+        }
+
+        if (type === "discount_types") {
+            const res = await fetch(`${DIRECTUS_URL}/items/discount_type?fields=id,discount_type,total_percent&limit=-1`, { headers: fetchHeaders });
+            if (!res.ok) return NextResponse.json({ error: "Failed to fetch discount types" }, { status: res.status });
+            const json = await res.json();
+            return NextResponse.json(json.data);
+        }
+
         if (type === "worklist") {
             const search = searchParams.get("search") || "";
             const salesmanId = searchParams.get("salesmanId");
@@ -378,19 +427,22 @@ export async function GET(req: NextRequest) {
                 totalBalance
             });
         }
-
         if (type === "details") {
             const invoiceId = searchParams.get("invoiceId");
             if (!invoiceId) return NextResponse.json({ error: "invoiceId required" }, { status: 400 });
 
-            const headerRes = await fetch(`${DIRECTUS_URL}/items/sales_invoice/${invoiceId}?fields=*,salesman_id.salesman_name,salesman_id.salesman_code,salesman_id.price_type_id,branch_id.*,invoice_type.type,sales_type.operation_name,price_type.price_type_name`, { headers: fetchHeaders });
+            const headerRes = await fetch(`${DIRECTUS_URL}/items/sales_invoice/${invoiceId}?fields=*,salesman_id.salesman_name,salesman_id.salesman_code,salesman_id.price_type_id,branch_id.*,invoice_type.type,invoice_type.isOfficial,sales_type.operation_name,price_type.price_type_name,payment_terms.payment_name`, { headers: fetchHeaders });
             const header = (await headerRes.json()).data || {};
 
             if (header.customer_code) {
-                const custRes = await fetch(`${DIRECTUS_URL}/items/customer?filter[customer_code][_eq]=${header.customer_code}&fields=customer_name`, { headers: fetchHeaders });
+                const custRes = await fetch(`${DIRECTUS_URL}/items/customer?filter[customer_code][_eq]=${header.customer_code}&fields=customer_name,store_name,brgy,city,province,customer_tin`, { headers: fetchHeaders });
                 const custData = (await custRes.json()).data;
                 if (custData && custData.length > 0) {
-                    header.customer_name = custData[0].customer_name;
+                    const c = custData[0];
+                    header.customer_name = c.customer_name;
+                    header.store_name = c.store_name;
+                    header.customer_tin = c.customer_tin;
+                    header.customer_address = [c.brgy, c.city, c.province].filter(Boolean).join(", ");
                 }
             }
 
@@ -710,8 +762,31 @@ export async function GET(req: NextRequest) {
 }
 
 export async function PATCH(req: NextRequest) {
+    const { searchParams } = new URL(req.url);
+    const type = searchParams.get("type");
+    const id = searchParams.get("id");
+
     try {
         const body = await req.json();
+
+        // Template Designer Save Logic
+        if (type === "template" && id) {
+            const res = await fetch(`${DIRECTUS_URL}/items/sales_invoice_template/${id}`, {
+                method: "PATCH",
+                headers: fetchHeaders,
+                body: JSON.stringify(body),
+            });
+
+            if (!res.ok) {
+                const error = await res.json();
+                return NextResponse.json(error, { status: res.status });
+            }
+
+            const data = await res.json();
+            return NextResponse.json({ success: true, data: data.data });
+        }
+
+        // Existing Adjustment Logic
         const { action, invoiceId, customer_code, order_id, invoice_date, due_date, remarks, details, deletedDetailIds } = body;
 
         if (action === "save_adjustments") {
@@ -779,7 +854,29 @@ export async function PATCH(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+    const { searchParams } = new URL(req.url);
+    const type = searchParams.get("type");
+
     try {
+        if (type === "upload") {
+            const formData = await req.formData();
+            const res = await fetch(`${DIRECTUS_URL}/files`, {
+                method: "POST",
+                headers: {
+                    Authorization: `Bearer ${DIRECTUS_TOKEN}`,
+                },
+                body: formData,
+            });
+
+            if (!res.ok) {
+                const error = await res.json();
+                return NextResponse.json(error, { status: res.status });
+            }
+
+            const data = await res.json();
+            return NextResponse.json({ id: data.data.id });
+        }
+
         const body = await req.json();
         const { action, invoiceIds } = body;
 
@@ -787,10 +884,22 @@ export async function POST(req: NextRequest) {
             const userId = await resolveUserId();
             const now = new Date().toISOString();
             for (const id of invoiceIds) {
-                const invRes = await fetch(`${DIRECTUS_URL}/items/sales_invoice/${id}?fields=invoice_type`, { headers: fetchHeaders });
-                const isDR = Number((await invRes.json()).data?.invoice_type) === 3;
-                const update: Record<string, unknown> = { transaction_status: "Dispatched", isDispatched: 1, dispatch_date: now, modified_by: userId, modified_date: now };
-                if (isDR) update.vat_amount = 0;
+                const invRes = await fetch(`${DIRECTUS_URL}/items/sales_invoice/${id}?fields=invoice_type.isOfficial`, { headers: fetchHeaders });
+                const invData = (await invRes.json()).data;
+                const isOfficial = invData?.invoice_type?.isOfficial;
+                
+                const update: Record<string, unknown> = { 
+                    transaction_status: "Dispatched", 
+                    isDispatched: 1, 
+                    dispatch_date: now, 
+                    modified_by: userId, 
+                    modified_date: now,
+                    isReceipt: isOfficial === 1 ? 1 : 0
+                };
+                
+                // If it's not official (e.g. Delivery Receipt), ensure vat_amount is 0 if it was ID 3 (existing logic)
+                if (Number(invData?.invoice_type?.id) === 3) update.vat_amount = 0;
+
                 await fetch(`${DIRECTUS_URL}/items/sales_invoice/${id}`, { method: "PATCH", headers: fetchHeaders, body: JSON.stringify(update) });
             }
             return NextResponse.json({ success: true });
@@ -807,14 +916,10 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ success: true });
         }
 
-
-
         if (action === "un_dispatch") {
             await fetch(`${DIRECTUS_URL}/items/sales_invoice/${body.id}`, { method: "PATCH", headers: fetchHeaders, body: JSON.stringify({ transaction_status: "New Invoice", isDispatched: 0, dispatch_date: null, modified_date: new Date().toISOString() }) });
             return NextResponse.json({ success: true });
         }
-
-
 
         if (action === "create_invoice") {
             const userId = await resolveUserId();
