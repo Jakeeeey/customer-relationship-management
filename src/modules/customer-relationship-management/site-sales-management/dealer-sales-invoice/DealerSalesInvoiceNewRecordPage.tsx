@@ -21,13 +21,13 @@ import {
     CartItem,
     SalesType
 } from "./types";
-import { useSiteSalesPosting } from "./hooks/useSiteSalesPosting";
+import { useDealerSalesInvoice } from "./hooks/useDealerSalesInvoice";
 import { calculateChainNetPrice } from "./utils";
 import { toast } from "sonner";
-import { SiteSalesHeader } from "./components/SiteSalesHeader";
-import { SiteSalesEncoding } from "./components/SiteSalesEncoding";
+import { DealerSalesInvoiceHeader } from "./components/DealerSalesInvoiceHeader";
+import { DealerSalesInvoiceEncoding } from "./components/DealerSalesInvoiceEncoding";
 
-export default function SiteSalesNewRecordPage() {
+export default function DealerSalesInvoiceNewRecordPage() {
     const router = useRouter();
     const {
         fetchModalData,
@@ -37,7 +37,7 @@ export default function SiteSalesNewRecordPage() {
         customers: allCustomers,
         fetchUtilityData,
         createInvoice
-    } = useSiteSalesPosting();
+    } = useDealerSalesInvoice();
 
     // Utility Data State
     const [suppliers, setSuppliers] = useState<Supplier[]>([]);
@@ -70,8 +70,18 @@ export default function SiteSalesNewRecordPage() {
     const [isSearching, setIsSearching] = useState(false);
     const [cart, setCart] = useState<CartItem[]>([]);
     const [isSaving, setIsSaving] = useState(false);
-
     const [filteredSalesmen, setFilteredSalesmen] = useState<MasterUser[]>([]);
+
+    // 0. Business Rules: Max Length Enforcement (Century's Best Practice)
+    const currentMaxLength = useMemo(() => {
+        if (!selectedInvoiceType) return Infinity;
+        const type = invoiceTypes.find(t => t.id.toString() === selectedInvoiceType);
+        return type?.max_length || Infinity;
+    }, [selectedInvoiceType, invoiceTypes]);
+
+    const isLimitReached = useMemo(() => {
+        return cart.length >= currentMaxLength;
+    }, [cart.length, currentMaxLength]);
 
     // Auto-generate preview ID
     const previewInvoiceNo = useMemo(() => {
@@ -100,7 +110,7 @@ export default function SiteSalesNewRecordPage() {
                 setFilteredSalesmen(data.masterUsers);
 
                 // Fetch extra data like operation types (if not in fetchUtilityData)
-                const res = await fetch(`${window.location.origin}/api/crm/site-sales-management/site-sales-posting?type=sales_types`);
+                const res = await fetch(`${window.location.origin}/api/crm/site-sales-management/dealer-sales-invoice?type=sales_types`);
                 const st = await res.json();
                 setSalesTypes(st);
 
@@ -115,6 +125,22 @@ export default function SiteSalesNewRecordPage() {
         };
         loadData();
     }, [fetchModalData, fetchUtilityData]);
+
+    // 1.1 Proactive Limit Notification (Century's Best Practice)
+    useEffect(() => {
+        if (selectedInvoiceType && invoiceTypes.length > 0) {
+            const typeObj = invoiceTypes.find(t => t.id.toString() === selectedInvoiceType);
+            if (typeObj) {
+                const limit = typeObj.max_length || "unlimited";
+                const label = typeObj.type || typeObj.shortcut || "Selected Type";
+                
+                // Only toast if it's a manual change (not initial load)
+                if (!isLoadingData) {
+                    toast.info(`${label} has a limit of ${limit} items.`);
+                }
+            }
+        }
+    }, [selectedInvoiceType, invoiceTypes, isLoadingData]);
 
     // 2. Auto-fill logic when customer is selected
     const handleCustomerSelect = async (customer: Customer) => {
@@ -277,15 +303,22 @@ export default function SiteSalesNewRecordPage() {
                 );
                 return sortCartItems(updated);
             });
+            toast.success("Added to list");
         } else {
+            // Check limit only for NEW items (new rows)
+            if (isLimitReached) {
+                toast.error(`Maximum of ${currentMaxLength} items allowed for this receipt type.`);
+                return;
+            }
+
             setCart(prev => sortCartItems([...prev, {
                 ...product,
                 quantity: 1,
                 discount_amount: product.unit_price - netPrice,
                 total_amount: netPrice
             }]));
+            toast.success("Added to list");
         }
-        toast.success("Added to list");
     };
 
     const removeFromCart = (productId: number) => {
@@ -371,13 +404,14 @@ export default function SiteSalesNewRecordPage() {
 
             if (result.success) {
                 toast.success(`Invoice ${generatedId} created successfully!`);
-                router.push("/crm/site-sales-management/site-sales-posting");
+                router.push("/crm/site-sales-management/dealer-sales-invoice");
             } else {
                 throw new Error("API failure");
             }
-        } catch (e) {
+        } catch (e: unknown) {
             console.error(e);
-            toast.error("Failed to create invoice");
+            const errorMessage = e instanceof Error ? e.message : "Failed to create invoice";
+            toast.error(errorMessage);
         } finally {
             setIsSaving(false);
         }
@@ -404,7 +438,7 @@ export default function SiteSalesNewRecordPage() {
             {/* Minimal Header */}
             <header className="shrink-0 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-b border-slate-100 dark:border-slate-800 px-8 py-4 flex items-center justify-between z-50">
                 <div className="flex items-center gap-6">
-                    <Button variant="ghost" size="icon" className="rounded-full hover:bg-slate-100" onClick={() => router.push('/crm/site-sales-management/site-sales-posting')}>
+                    <Button variant="ghost" size="icon" className="rounded-full hover:bg-slate-100" onClick={() => router.push('/crm/site-sales-management/dealer-sales-invoice')}>
                         <ArrowLeft className="h-5 w-5" />
                     </Button>
                     <div className="h-10 w-[1px] bg-slate-200 dark:bg-slate-700 mx-2" />
@@ -421,7 +455,7 @@ export default function SiteSalesNewRecordPage() {
                 <div className="p-8 pb-32 max-w-[1800px] mx-auto w-full flex flex-col gap-8">
 
                     {/* Header Configuration - Refactored Component */}
-                    <SiteSalesHeader
+                    <DealerSalesInvoiceHeader
                         customers={allCustomers}
                         selectedCustomer={selectedCustomer}
                         onCustomerSelect={handleCustomerSelect}
@@ -467,7 +501,7 @@ export default function SiteSalesNewRecordPage() {
                     />
 
                     {/* Content Area - Encoding Component (100% Sales Order Parity) */}
-                    <SiteSalesEncoding
+                    <DealerSalesInvoiceEncoding
                         catalogProducts={catalogProducts}
                         isSearching={isSearching}
 
@@ -488,9 +522,13 @@ export default function SiteSalesNewRecordPage() {
                         isHeaderComplete={isHeaderComplete}
                         onSave={handleSave}
                         isSaving={isSaving}
+
+                        maxLength={currentMaxLength}
+                        isLimitReached={isLimitReached}
                     />
                 </div>
             </div>
         </div>
     );
 }
+

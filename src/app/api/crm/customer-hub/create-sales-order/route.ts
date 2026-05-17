@@ -400,11 +400,8 @@ export async function GET(req: NextRequest) {
                             const token = cookieStore.get(COOKIE_NAME)?.value;
 
                             // 📅 Forever Dynamic Dates: Automatically updates every year!
-                            const today = new Date().toISOString().split('T')[0];
-                            const lastYearStart = `${new Date().getFullYear() - 1}-01-01`;
-
-                            const invStartDate = searchParams.get("startDate") || lastYearStart;
-                            const invEndDate = searchParams.get("endDate") || today;
+                            const invStartDate = searchParams.get("startDate") || "2020-01-01";
+                            const invEndDate = searchParams.get("endDate") || "2099-12-31";
 
                             const invUrl = `${SPRING_API_BASE_URL.replace(/\/$/, "")}/api/view-running-inventory-by-unit/all?startDate=${invStartDate}&endDate=${invEndDate}`;
                             console.log(`[InventoryDebug] Fetching: ${invUrl}`);
@@ -436,14 +433,14 @@ export async function GET(req: NextRequest) {
                                             const pid = item.productId ?? item.product_id ?? item.ProductId ?? item.Product_Id ?? item.id;
                                             if (pid) {
                                                 const available = Number(
-                                                    item.runningInventoryUnit ?? 
-                                                    item.running_inventory_unit ?? 
-                                                    item.runningInventory ?? 
-                                                    item.running_inventory ?? 
+                                                    item.runningInventoryUnit ??
+                                                    item.running_inventory_unit ??
+                                                    item.runningInventory ??
+                                                    item.running_inventory ??
                                                     0
                                                 );
                                                 const unitCount = Number(item.unitCount ?? item.unit_count ?? 1);
-                                                
+
                                                 // Map by both numeric ID and string for resilience 💎
                                                 if (!isNaN(Number(pid))) inventoryMap[Number(pid)] = { available, unitCount };
                                                 inventoryMap[String(pid)] = { available, unitCount };

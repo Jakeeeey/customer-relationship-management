@@ -21,7 +21,7 @@ import {
     SalesType
 } from "../types";
 
-interface SiteSalesHeaderProps {
+interface DealerSalesInvoiceHeaderProps {
     // Selection State
     customers: Customer[];
     selectedCustomer: Customer | null;
@@ -70,7 +70,7 @@ interface SiteSalesHeaderProps {
     isLoading?: boolean;
 }
 
-export function SiteSalesHeader({
+export function DealerSalesInvoiceHeader({
     customers, selectedCustomer, onCustomerSelect,
     masterUsers, selectedSalesman, onSalesmanSelect,
     accounts, selectedAccount, loadingAccounts, onAccountSelect,
@@ -83,7 +83,7 @@ export function SiteSalesHeader({
     dueDate, onDueDateChange,
     deliveryDate, onDeliveryDateChange,
     previewInvoiceNo
-}: SiteSalesHeaderProps) {
+}: DealerSalesInvoiceHeaderProps) {
     const [openCustomer, setOpenCustomer] = useState(false);
     const [openSalesman, setOpenSalesman] = useState(false);
     const [openAccount, setOpenAccount] = useState(false);

@@ -43,23 +43,25 @@ import {
     CommandItem,
     CommandList,
 } from "@/components/ui/command";
-import { SearchProduct, SalesInvoiceDetail, CartItem } from '../types';
+import { SearchProduct, DealerInvoiceDetail, CartItem } from '../types';
 import { calculateChainNetPrice } from '../utils';
 import { cn } from '@/lib/utils';
+import { toast } from 'sonner';
 
-interface SiteSalesAddProductModalProps {
+interface DealerAddProductModalProps {
     isOpen: boolean;
     onClose: () => void;
-    onConfirm: (items: SalesInvoiceDetail[]) => void;
+    onConfirm: (items: DealerInvoiceDetail[]) => void;
     products: SearchProduct[];
     isLoading: boolean;
-    initialDetails: SalesInvoiceDetail[];
+    initialDetails: DealerInvoiceDetail[];
     suppliers: { id: number; supplier_name: string; supplier_shortcut?: string }[];
     onSupplierChange: (supplierId: string | number) => void;
     currentSupplierId: string | number | null;
+    maxLength?: number;
 }
 
-export const SiteSalesAddProductModal: React.FC<SiteSalesAddProductModalProps> = ({
+export const DealerAddProductModal: React.FC<DealerAddProductModalProps> = ({
     isOpen,
     onClose,
     onConfirm,
@@ -68,11 +70,16 @@ export const SiteSalesAddProductModal: React.FC<SiteSalesAddProductModalProps> =
     initialDetails,
     suppliers,
     onSupplierChange,
-    currentSupplierId
+    currentSupplierId,
+    maxLength = Infinity
 }) => {
     const [searchQuery, setSearchQuery] = useState("");
     const [openSupplier, setOpenSupplier] = useState(false);
     const [cart, setCart] = useState<CartItem[]>([]);
+
+    const isLimitReached = useMemo(() => {
+        return cart.length >= maxLength;
+    }, [cart.length, maxLength]);
 
     // Initialize cart from initialDetails when modal opens
     React.useEffect(() => {
@@ -81,7 +88,7 @@ export const SiteSalesAddProductModal: React.FC<SiteSalesAddProductModalProps> =
                 const prod = item.product_id && typeof item.product_id === 'object' ? item.product_id : null;
                 return {
                     detail_id: item.detail_id, // PRESERVE THIS!
-                    product_id: prod?.product_id || 0,
+                    product_id: prod?.product_id || (typeof item.product_id === 'number' ? item.product_id : 0),
                     product_name: prod?.product_name || 'N/A',
                     description: prod?.description || '',
                     product_code: prod?.product_code || 'N/A',
@@ -122,24 +129,31 @@ export const SiteSalesAddProductModal: React.FC<SiteSalesAddProductModalProps> =
         const netUnitPrice = calculateChainNetPrice(product.unit_price, product.discounts || []);
         const totalAmount = netUnitPrice * 1;
 
-        setCart(prev => {
-            const existing = prev.find(item => item.product_id === product.product_id);
-            if (existing) {
-                const newQty = existing.quantity + 1;
-                return prev.map(item =>
-                    item.product_id === product.product_id
-                        ? { ...item, quantity: newQty, total_amount: netUnitPrice * newQty, discount_amount: (item.unit_price - netUnitPrice) * newQty }
-                        : item
-                );
+        const existing = cart.find(item => item.product_id === product.product_id);
+        if (existing) {
+            const newQty = existing.quantity + 1;
+            setCart(prev => prev.map(item =>
+                item.product_id === product.product_id
+                    ? { ...item, quantity: newQty, total_amount: netUnitPrice * newQty, discount_amount: (item.unit_price - netUnitPrice) * newQty }
+                    : item
+            ));
+            toast.success("Quantity updated");
+        } else {
+            // Check limit only for NEW items
+            if (isLimitReached) {
+                toast.error(`Maximum of ${maxLength} items allowed for this receipt type.`);
+                return;
             }
-            return [...prev, { 
+
+            setCart(prev => [...prev, { 
                 ...product, 
                 quantity: 1, 
                 unit_discount: (product.unit_price - netUnitPrice),
                 discount_amount: (product.unit_price - netUnitPrice),
                 total_amount: totalAmount
-            }];
-        });
+            }]);
+            toast.success("Added to cart");
+        }
     };
 
     const removeFromCart = (productId: number) => {
@@ -183,7 +197,7 @@ export const SiteSalesAddProductModal: React.FC<SiteSalesAddProductModalProps> =
     }, [cart]);
 
     const handleSubmit = () => {
-        const details: SalesInvoiceDetail[] = cart.map(item => ({
+        const details: DealerInvoiceDetail[] = cart.map(item => ({
             detail_id: item.detail_id, // PASS THIS BACK!
             invoice_id: 0,
             product_id: {
@@ -244,9 +258,11 @@ export const SiteSalesAddProductModal: React.FC<SiteSalesAddProductModalProps> =
                                                 className="w-full justify-between h-11 bg-slate-50 dark:bg-slate-900 border-transparent rounded-xl text-xs font-black uppercase tracking-tight shadow-inner focus:ring-1 focus:ring-primary/20 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
                                             >
                                                 <span className="truncate">
-                                                    {currentSupplierId 
-                                                        ? suppliers.find((s) => s.id.toString() === currentSupplierId.toString())?.supplier_name 
-                                                        : "Select Supplier..."}
+                                                    {currentSupplierId === 'all' 
+                                                        ? "All Suppliers" 
+                                                        : currentSupplierId 
+                                                            ? suppliers.find((s) => s.id.toString() === currentSupplierId.toString())?.supplier_name 
+                                                            : "Select Supplier..."}
                                                 </span>
                                                 <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                                             </Button>
@@ -325,45 +341,59 @@ export const SiteSalesAddProductModal: React.FC<SiteSalesAddProductModalProps> =
                                         <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">No products found</p>
                                     </div>
                                 ) : (
-                                    filteredProducts.map((p) => (
-                                        <div
-                                            key={p.product_id}
-                                            className="group relative p-6 bg-white dark:bg-slate-900 border border-rose-500/80 dark:border-rose-500/50 rounded-[28px] shadow-sm hover:shadow-xl hover:shadow-rose-500/10 transition-all cursor-default"
-                                        >
-                                            <div className="flex justify-between items-center gap-4">
-                                                <div className="space-y-2 flex-1">
-                                                    <h3 className="text-xs font-black text-slate-800 dark:text-slate-200 leading-relaxed uppercase tracking-tight line-clamp-2">
-                                                        {p.description || p.product_name} <span className="text-primary/60 ml-1">({p.unit})</span>
-                                                    </h3>
-                                                    <div className="flex flex-wrap gap-1">
-                                                        {p.brand_name && (
-                                                            <Badge variant="secondary" className="bg-blue-50 text-blue-600 border-blue-100 text-[8px] font-black h-4 px-1.5 uppercase">
-                                                                {p.brand_name}
-                                                            </Badge>
-                                                        )}
-                                                        {p.category_name && (
-                                                            <Badge variant="secondary" className="bg-slate-50 text-slate-500 border-slate-100 text-[8px] font-black h-4 px-1.5 uppercase">
-                                                                {p.category_name}
-                                                            </Badge>
-                                                        )}
+                                    filteredProducts.map((p) => {
+                                        const isInCart = cart.some(item => item.product_id === p.product_id);
+                                        const isActionDisabled = isLimitReached && !isInCart;
+
+                                        return (
+                                            <div
+                                                key={p.product_id}
+                                                className={`group relative p-6 border rounded-[28px] shadow-sm transition-all cursor-default ${
+                                                    isActionDisabled
+                                                        ? 'opacity-40 grayscale-[0.5] bg-slate-100/50 cursor-not-allowed border-slate-200'
+                                                        : 'bg-white dark:bg-slate-900 border-rose-500/80 dark:border-rose-500/50 hover:shadow-xl hover:shadow-rose-500/10'
+                                                }`}
+                                            >
+                                                <div className="flex justify-between items-center gap-4">
+                                                    <div className="space-y-2 flex-1">
+                                                        <h3 className="text-xs font-black text-slate-800 dark:text-slate-200 leading-relaxed uppercase tracking-tight line-clamp-2">
+                                                            {p.description || p.product_name} <span className="text-primary/60 ml-1">({p.unit})</span>
+                                                        </h3>
+                                                        <div className="flex flex-wrap gap-1">
+                                                            {p.brand_name && (
+                                                                <Badge variant="secondary" className="bg-blue-50 text-blue-600 border-blue-100 text-[8px] font-black h-4 px-1.5 uppercase">
+                                                                    {p.brand_name}
+                                                                </Badge>
+                                                            )}
+                                                            {p.category_name && (
+                                                                <Badge variant="secondary" className="bg-slate-50 text-slate-500 border-slate-100 text-[8px] font-black h-4 px-1.5 uppercase">
+                                                                    {p.category_name}
+                                                                </Badge>
+                                                            )}
+                                                        </div>
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="text-sm font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-lg border border-emerald-100">₱{calculateChainNetPrice(Number(p.unit_price), p.discounts || []).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                                                            {p.discounts && p.discounts.length > 0 && (
+                                                                <span className="text-[10px] font-bold text-slate-400 line-through">₱{Number(p.unit_price).toLocaleString()}</span>
+                                                            )}
+                                                        </div>
                                                     </div>
-                                                    <div className="flex items-center gap-2">
-                                                        <span className="text-sm font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-lg border border-emerald-100">₱{calculateChainNetPrice(Number(p.unit_price), p.discounts || []).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-                                                        {p.discounts && p.discounts.length > 0 && (
-                                                            <span className="text-[10px] font-bold text-slate-400 line-through">₱{Number(p.unit_price).toLocaleString()}</span>
-                                                        )}
-                                                    </div>
+                                                    <Button
+                                                        size="icon"
+                                                        disabled={isActionDisabled}
+                                                        className={`h-11 w-11 shrink-0 rounded-[18px] transition-all active:scale-90 ${
+                                                            isActionDisabled
+                                                                ? 'bg-slate-300 text-slate-500 shadow-none'
+                                                                : 'bg-rose-500 text-white hover:bg-rose-600 shadow-lg shadow-rose-500/30'
+                                                        }`}
+                                                        onClick={() => !isActionDisabled && addToCart(p)}
+                                                    >
+                                                        <Plus className="h-5 w-5" />
+                                                    </Button>
                                                 </div>
-                                                <Button
-                                                    size="icon"
-                                                    className="h-11 w-11 shrink-0 rounded-[18px] bg-rose-500 text-white hover:bg-rose-600 shadow-lg shadow-rose-500/30 transition-all active:scale-90"
-                                                    onClick={() => addToCart(p)}
-                                                >
-                                                    <Plus className="h-5 w-5" />
-                                                </Button>
                                             </div>
-                                        </div>
-                                    ))
+                                        );
+                                    })
                                 )}
                             </div>
                         </ScrollArea>
@@ -384,6 +414,16 @@ export const SiteSalesAddProductModal: React.FC<SiteSalesAddProductModalProps> =
                                         <Badge variant="outline" className="h-4 px-1.5 text-[9px] font-black border-pink-200 text-pink-600 bg-pink-50 uppercase tracking-tighter">
                                             {currentSupplierId === 'all' ? 'ALL SUPPLIERS' : (suppliers.find(s => s.id.toString() === currentSupplierId?.toString())?.supplier_name || 'CUSTOM SELECTION')}
                                         </Badge>
+                                        {maxLength !== Infinity && (
+                                            <Badge 
+                                                variant="outline" 
+                                                className={`h-4 px-1.5 text-[9px] font-black uppercase tracking-tighter ${
+                                                    isLimitReached ? 'bg-rose-50 text-rose-500 border-rose-200 animate-pulse' : 'bg-primary/5 text-primary border-primary/20'
+                                                }`}
+                                            >
+                                                {cart.length} / {maxLength} ITEMS
+                                            </Badge>
+                                        )}
                                     </div>
                                 </div>
                             </div>
@@ -470,7 +510,6 @@ export const SiteSalesAddProductModal: React.FC<SiteSalesAddProductModalProps> =
                                                         <span className="text-[10px] text-slate-300 italic">NONE</span>
                                                     )}
                                                 </TableCell>
-                                                {/* Avail cell removed */}
                                                 <TableCell className="text-right font-black text-slate-900 dark:text-white pr-6">
                                                     ₱{item.total_amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                                                 </TableCell>

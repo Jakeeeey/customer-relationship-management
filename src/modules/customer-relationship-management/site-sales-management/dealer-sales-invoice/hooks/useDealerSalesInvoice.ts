@@ -1,8 +1,10 @@
+"use client";
+
 import { useState, useCallback } from "react";
-import { siteSalesPostingProvider } from "../providers/fetchProvider";
+import { dealerInvoiceProvider } from "../providers/fetchProvider";
 import {
-    SalesInvoiceHeader,
-    SalesInvoiceDetail,
+    DealerInvoiceHeader,
+    DealerInvoiceDetail,
     LinkedDocument,
     Salesman,
     MasterUser,
@@ -18,9 +20,9 @@ import {
     CustomerSalesmanLink
 } from "../types";
 
-interface UseSiteSalesPostingReturn {
+interface UseDealerSalesInvoiceReturn {
     // State
-    worklist: SalesInvoiceHeader[];
+    worklist: DealerInvoiceHeader[];
     isLoading: boolean;
     error: string | null;
     totalCount: number;
@@ -30,13 +32,19 @@ interface UseSiteSalesPostingReturn {
 
     // Actions
     fetchWorklist: (params: WorklistFilters) => Promise<void>;
-    fetchDetails: (invoiceId: number | string) => Promise<{ details: SalesInvoiceDetail[], linkedDocs: LinkedDocument[] }>;
+    fetchDetails: (invoiceId: number | string) => Promise<{ details: DealerInvoiceDetail[], linkedDocs: LinkedDocument[] }>;
     saveAdjustments: (invoiceId: number | string, payload: {
         customer_code?: string | null;
+        order_id?: string | null;
         invoice_date?: string | null;
         due_date?: string | null;
         remarks?: string | null;
-        details: SalesInvoiceDetail[];
+        gross_amount?: number;
+        discount_amount?: number;
+        vat_amount?: number;
+        total_amount?: number;
+        net_amount?: number;
+        details: DealerInvoiceDetail[];
         deletedDetailIds: number[];
     }) => Promise<void>;
     finalizeSettlement: (invoiceIds: (number | string)[]) => Promise<void>;
@@ -63,8 +71,8 @@ interface UseSiteSalesPostingReturn {
     createInvoice: (payload: Record<string, unknown>) => Promise<{ success: boolean; invoiceId: number }>;
 }
 
-export const useSiteSalesPosting = (): UseSiteSalesPostingReturn => {
-    const [worklist, setWorklist] = useState<SalesInvoiceHeader[]>([]);
+export const useDealerSalesInvoice = (): UseDealerSalesInvoiceReturn => {
+    const [worklist, setWorklist] = useState<DealerInvoiceHeader[]>([]);
     const [salesmen, setSalesmen] = useState<Salesman[]>([]);
     const [customers, setCustomers] = useState<Customer[]>([]);
     const [salesTypes, setSalesTypes] = useState<SalesType[]>([]);
@@ -76,7 +84,7 @@ export const useSiteSalesPosting = (): UseSiteSalesPostingReturn => {
         setIsLoading(true);
         setError(null);
         try {
-            const data = await siteSalesPostingProvider.getWorklist(params);
+            const data = await dealerInvoiceProvider.getWorklist(params);
             setWorklist(data?.data || []);
             setTotalCount(data?.metadata?.totalCount || 0);
         } catch (err: unknown) {
@@ -89,7 +97,7 @@ export const useSiteSalesPosting = (): UseSiteSalesPostingReturn => {
 
     const fetchDetails = useCallback(async (invoiceId: number | string) => {
         try {
-            const data = await siteSalesPostingProvider.getInvoiceDetails(invoiceId.toString());
+            const data = await dealerInvoiceProvider.getInvoiceDetails(invoiceId.toString());
             return {
                 details: data?.details || [],
                 linkedDocs: data?.linkedDocs || []
@@ -102,15 +110,21 @@ export const useSiteSalesPosting = (): UseSiteSalesPostingReturn => {
 
     const saveAdjustments = useCallback(async (invoiceId: number | string, payload: {
         customer_code?: string | null;
+        order_id?: string | null;
         invoice_date?: string | null;
         due_date?: string | null;
         remarks?: string | null;
-        details: SalesInvoiceDetail[];
+        gross_amount?: number;
+        discount_amount?: number;
+        vat_amount?: number;
+        total_amount?: number;
+        net_amount?: number;
+        details: DealerInvoiceDetail[];
         deletedDetailIds: number[];
     }) => {
         setIsLoading(true);
         try {
-            await siteSalesPostingProvider.saveAdjustments(invoiceId, payload);
+            await dealerInvoiceProvider.saveAdjustments(invoiceId, payload);
         } catch (err: unknown) {
             console.error("Failed to save adjustments:", err);
             throw err;
@@ -122,7 +136,7 @@ export const useSiteSalesPosting = (): UseSiteSalesPostingReturn => {
     const finalizeSettlement = useCallback(async (invoiceIds: (number | string)[]) => {
         setIsLoading(true);
         try {
-            await siteSalesPostingProvider.finalizeSettlement(invoiceIds);
+            await dealerInvoiceProvider.finalizeSettlement(invoiceIds);
         } catch (err: unknown) {
             console.error("Failed to finalize settlement:", err);
             throw err;
@@ -133,14 +147,13 @@ export const useSiteSalesPosting = (): UseSiteSalesPostingReturn => {
 
     const fetchUtilityData = useCallback(async () => {
         try {
-            // Sequential fetches to reduce concurrent server pressure
-            const sm = await siteSalesPostingProvider.getSalesmen();
+            const sm = await dealerInvoiceProvider.getSalesmen();
             setSalesmen(sm);
 
-            const cs = await siteSalesPostingProvider.getCustomers();
+            const cs = await dealerInvoiceProvider.getCustomers();
             setCustomers(cs);
 
-            const st = await siteSalesPostingProvider.getSalesTypes();
+            const st = await dealerInvoiceProvider.getSalesTypes();
             setSalesTypes(st);
         } catch (err) {
             console.error("Utility fetch error:", err);
@@ -150,9 +163,9 @@ export const useSiteSalesPosting = (): UseSiteSalesPostingReturn => {
     const fetchModalData = useCallback(async () => {
         try {
             const [suppliers, utilities, mu] = await Promise.all([
-                siteSalesPostingProvider.getSuppliers(),
-                siteSalesPostingProvider.getUtilityInfo(),
-                siteSalesPostingProvider.getMasterUsers()
+                dealerInvoiceProvider.getSuppliers(),
+                dealerInvoiceProvider.getUtilityInfo(),
+                dealerInvoiceProvider.getMasterUsers()
             ]);
             return {
                 suppliers,
@@ -170,7 +183,7 @@ export const useSiteSalesPosting = (): UseSiteSalesPostingReturn => {
 
     const getCustomerSalesman = useCallback(async (customerId: number) => {
         try {
-            return await siteSalesPostingProvider.getCustomerSalesman(customerId);
+            return await dealerInvoiceProvider.getCustomerSalesman(customerId);
         } catch (err) {
             console.error("Customer salesman fetch error:", err);
             throw err;
@@ -179,7 +192,7 @@ export const useSiteSalesPosting = (): UseSiteSalesPostingReturn => {
 
     const getSalesmanByCustomer = useCallback(async (customerId: number) => {
         try {
-            return await siteSalesPostingProvider.getSalesmanByCustomer(customerId);
+            return await dealerInvoiceProvider.getSalesmanByCustomer(customerId);
         } catch (err) {
             console.error("Salesman by customer fetch error:", err);
             throw err;
@@ -188,7 +201,7 @@ export const useSiteSalesPosting = (): UseSiteSalesPostingReturn => {
 
     const getAccounts = useCallback(async (userId: number | string) => {
         try {
-            return await siteSalesPostingProvider.getAccounts(userId);
+            return await dealerInvoiceProvider.getAccounts(userId);
         } catch (err) {
             console.error("Accounts fetch error:", err);
             throw err;
@@ -204,7 +217,7 @@ export const useSiteSalesPosting = (): UseSiteSalesPostingReturn => {
         customerCode?: string | null
     }) => {
         try {
-            return await siteSalesPostingProvider.searchProducts(params);
+            return await dealerInvoiceProvider.searchProducts(params);
         } catch (err) {
             console.error("Product search error:", err);
             throw err;
@@ -213,7 +226,7 @@ export const useSiteSalesPosting = (): UseSiteSalesPostingReturn => {
 
     const createInvoice = useCallback(async (payload: Record<string, unknown>) => {
         try {
-            return await siteSalesPostingProvider.createInvoice(payload);
+            return await dealerInvoiceProvider.createInvoice(payload);
         } catch (err) {
             console.error("Create invoice error:", err);
             throw err;
