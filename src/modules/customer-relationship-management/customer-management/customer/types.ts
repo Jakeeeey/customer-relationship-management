@@ -27,6 +27,7 @@ export interface Customer {
     payment_term?: number | null;
     store_type: number | null;
     price_type?: string | null;
+    price_type_id?: number | null;
     encoder_id: number;
     credit_type?: number | null;
     company_code?: number | null;
