@@ -2,13 +2,17 @@
 "use client";
 
 import React from "react";
-import { Calendar, User, Briefcase } from "lucide-react";
+import { Calendar, User, Briefcase, CheckCheck, Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 interface CalendarHeaderProps {
     monthName: string;
     year: number;
     employeeName: string;
     salesmanAccount: string;
+    onApproveAllDaily?: () => void;
+    onApproveAllMonthly?: () => void;
+    isApproving?: boolean;
 }
 
 export const CalendarHeader: React.FC<CalendarHeaderProps> = ({
@@ -16,6 +20,9 @@ export const CalendarHeader: React.FC<CalendarHeaderProps> = ({
     year,
     employeeName,
     salesmanAccount,
+    onApproveAllDaily,
+    onApproveAllMonthly,
+    isApproving = false,
 }) => {
     return (
         <div className="p-8 rounded-[2rem] bg-gradient-to-br from-card/90 to-card/50 border border-primary/10 shadow-xl backdrop-blur-md relative overflow-hidden group w-full">
@@ -69,9 +76,31 @@ export const CalendarHeader: React.FC<CalendarHeaderProps> = ({
                         <p className="text-[10px] font-black uppercase tracking-[0.2em] text-primary/40">
                             Task Management Context
                         </p>
-                        <p className="text-[9px] text-muted-foreground/60 font-medium italic">
+                        <p className="text-[9px] text-muted-foreground/60 font-medium italic mb-3">
                             Currently viewing active assignments and schedules
                         </p>
+                        
+                        <div className="flex items-center gap-2 justify-end mt-2">
+                            <Button 
+                                onClick={onApproveAllDaily}
+                                disabled={isApproving || salesmanAccount.includes("All")}
+                                variant="outline"
+                                size="sm"
+                                className="h-8 text-[10px] font-bold uppercase tracking-wider"
+                            >
+                                {isApproving ? <Loader2 className="w-3 h-3 mr-1.5 animate-spin" /> : <CheckCheck className="w-3 h-3 mr-1.5" />}
+                                Approve All Daily
+                            </Button>
+                            <Button 
+                                onClick={onApproveAllMonthly}
+                                disabled={isApproving || salesmanAccount.includes("All")}
+                                size="sm"
+                                className="h-8 text-[10px] font-bold uppercase tracking-wider"
+                            >
+                                {isApproving ? <Loader2 className="w-3 h-3 mr-1.5 animate-spin" /> : <CheckCheck className="w-3 h-3 mr-1.5" />}
+                                Approve All Monthly
+                            </Button>
+                        </div>
                     </div>
                 </div>
             </div>

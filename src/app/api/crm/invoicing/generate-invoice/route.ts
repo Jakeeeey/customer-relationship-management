@@ -71,37 +71,63 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: "Failed to update sales order", details: results }, { status: 500 });
         }
 
-        // 1b. Resolve consolidator_id for this order
-        // Chain: order.order_id → dispatch_plan_details → dispatch_plan → consolidator_dispatches → consolidator
+        // 1b. Resolve consolidator_id for this order (Always get the NEWEST dispatch)
+        // Chain: order.order_id → dispatch_plan_details → dispatch_plan (sort by dispatch_date) → consolidator_dispatches → consolidator
         let consolidatorId: number | null = null;
         try {
-            // Step 1: Get dispatch_id from dispatch_plan_details
-            const dpdRes = await fetch(`${DIRECTUS_BASE}/items/dispatch_plan_details?filter[sales_order_id][_eq]=${order.order_id}&limit=1`, {
+            // Step 1: Get ALL dispatch_id from dispatch_plan_details
+            const dpdRes = await fetch(`${DIRECTUS_BASE}/items/dispatch_plan_details?filter[sales_order_id][_eq]=${order.order_id}&fields=dispatch_id`, {
                 headers: directusHeaders()
             });
+            
             if (dpdRes.ok) {
                 const dpdData = await dpdRes.json();
-                if (dpdData.data && dpdData.data.length > 0) {
-                    const dispatchId = dpdData.data[0].dispatch_id;
+                
+                // Robust ID normalization
+                const dispatchIds = Array.from(new Set(
+                    (dpdData.data || [])
+                        .map((d: { dispatch_id: number | string | { id?: number; dispatch_id?: number } | null }) => {
+                            const id = d.dispatch_id;
+                            if (typeof id === 'number') return id;
+                            if (typeof id === 'string') return parseInt(id);
+                            if (id && typeof id === 'object') return id.id || id.dispatch_id;
+                            return null;
+                        })
+                        .filter(Boolean)
+                )) as number[];
 
-                    // Step 2: Get dispatch_no from dispatch_plan
-                    const dpRes = await fetch(`${DIRECTUS_BASE}/items/dispatch_plan/${dispatchId}?fields=dispatch_no`, {
-                        headers: directusHeaders()
+                if (dispatchIds.length > 0) {
+                    // Step 2: Fetch dispatch details to find the NEWEST one based on dispatch_date
+                    const dispatches = await Promise.all(dispatchIds.map(async (dId) => {
+                        const dpRes = await fetch(`${DIRECTUS_BASE}/items/dispatch_plan/${dId}?fields=dispatch_no,dispatch_date`, {
+                            headers: directusHeaders()
+                        });
+                        if (dpRes.ok) {
+                            const dpData = await dpRes.json();
+                            return dpData.data;
+                        }
+                        return null;
+                    }));
+
+                    // Filter valid and sort by dispatch_date descending (newest first)
+                    const validDispatches = dispatches.filter(d => d && d.dispatch_no);
+                    validDispatches.sort((a, b) => {
+                        const dateA = a.dispatch_date ? new Date(a.dispatch_date).getTime() : 0;
+                        const dateB = b.dispatch_date ? new Date(b.dispatch_date).getTime() : 0;
+                        return dateB - dateA; // Descending (Newest first)
                     });
-                    if (dpRes.ok) {
-                        const dpData = await dpRes.json();
-                        const dispatchNo = dpData.data?.dispatch_no;
 
-                        if (dispatchNo) {
-                            // Step 3: Get consolidator_id from consolidator_dispatches
-                            const cdpRes = await fetch(`${DIRECTUS_BASE}/items/consolidator_dispatches?filter[dispatch_no][_eq]=${dispatchNo}&limit=1`, {
-                                headers: directusHeaders()
-                            });
-                            if (cdpRes.ok) {
-                                const cdpData = await cdpRes.json();
-                                if (cdpData.data && cdpData.data.length > 0) {
-                                    consolidatorId = cdpData.data[0].consolidator_id;
-                                }
+                    if (validDispatches.length > 0) {
+                        const newestDispatchNo = validDispatches[0].dispatch_no;
+
+                        // Step 3: Get consolidator_id from consolidator_dispatches using the newest dispatch
+                        const cdpRes = await fetch(`${DIRECTUS_BASE}/items/consolidator_dispatches?filter[dispatch_no][_eq]=${newestDispatchNo}&limit=1`, {
+                            headers: directusHeaders()
+                        });
+                        if (cdpRes.ok) {
+                            const cdpData = await cdpRes.json();
+                            if (cdpData.data && cdpData.data.length > 0) {
+                                consolidatorId = cdpData.data[0].consolidator_id;
                             }
                         }
                     }

@@ -25,6 +25,7 @@ const InvoicingModule: React.FC = () => {
         branch: "",
     });
 
+
     const groupOrdersByCustomer = (orders: SalesOrder[]): CustomerGroup[] => {
         const groups: Record<string, CustomerGroup> = {};
         

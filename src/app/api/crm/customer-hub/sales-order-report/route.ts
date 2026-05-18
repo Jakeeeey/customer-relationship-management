@@ -292,6 +292,62 @@ export async function GET(req: NextRequest) {
         }
     }
 
+    if (type === "callsheet-attachments") {
+        try {
+            const soId = searchParams.get("orderId");
+            const orderNo = searchParams.get("orderNo");
+
+            if (!soId && !orderNo) {
+                return NextResponse.json({ error: "orderId or orderNo required" }, { status: 400 });
+            }
+
+            // Build an _or filter to match by sales_order_id OR sales_order_no
+            const orConditions: Record<string, object>[] = [];
+            if (soId) orConditions.push({ sales_order_id: { _eq: soId } });
+            if (orderNo) orConditions.push({ sales_order_no: { _eq: orderNo } });
+
+            const filter = orConditions.length === 1
+                ? JSON.stringify(orConditions[0])
+                : JSON.stringify({ _or: orConditions });
+
+            const attUrl = `${BASE_URL}/sales_order_attachment?filter=${encodeURIComponent(filter)}&fields=id,sales_order_id,salesman_id,customer_code,file_id,attachment_name,sales_order_no,status,created_date&sort=-created_date&limit=-1`;
+            console.log(`[CALLSHEET] Fetching attachments: ${attUrl}`);
+
+            const attRes = await fetch(attUrl, { headers });
+            if (!attRes.ok) {
+                const errText = await attRes.text();
+                console.error(`[CALLSHEET] Fetch error: ${attRes.status}`, errText);
+                return NextResponse.json({ error: "Failed to fetch callsheet attachments" }, { status: 500 });
+            }
+
+            const attJson = await attRes.json();
+            const attachments = attJson.data || [];
+
+            // Enrich each attachment with the full Directus asset URL
+            const enriched = attachments.map((att: Record<string, unknown>) => ({
+                id: att.id,
+                sales_order_id: att.sales_order_id,
+                salesman_id: att.salesman_id,
+                customer_code: att.customer_code,
+                file_id: att.file_id,
+                attachment_name: att.attachment_name,
+                sales_order_no: att.sales_order_no,
+                status: att.status || "pending",
+                created_date: att.created_date,
+                image_url: att.file_id
+                    ? `${process.env.NEXT_PUBLIC_API_BASE_URL}/assets/${att.file_id}`
+                    : null
+            }));
+
+            console.log(`[CALLSHEET] Found ${enriched.length} attachments for SO ${soId || orderNo}`);
+            return NextResponse.json({ data: enriched });
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : String(error);
+            console.error("[CALLSHEET] Fatal error:", message);
+            return NextResponse.json({ error: message }, { status: 500 });
+        }
+    }
+
     if (type === "invoice-details") {
         try {
             const orderId = searchParams.get("orderId");
@@ -512,7 +568,8 @@ export async function GET(req: NextRequest) {
                         { "store_name": { "_icontains": search } }
                     ]
                 });
-                const customerSearchUrl = `${BASE_URL}/customer?filter=${encodeURIComponent(customerSearchFilter)}&fields=customer_code&limit=-1`;
+                // Limit to 50 matches to prevent 431 Request Header Fields Too Large (URL too long)
+                const customerSearchUrl = `${BASE_URL}/customer?filter=${encodeURIComponent(customerSearchFilter)}&fields=customer_code&limit=50`;
                 const custRes = await fetch(customerSearchUrl, { headers });
 
                 if (custRes.ok) {

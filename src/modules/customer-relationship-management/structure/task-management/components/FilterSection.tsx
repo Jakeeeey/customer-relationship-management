@@ -31,7 +31,7 @@ const months = [
     "July", "August", "September", "October", "November", "December"
 ];
 
-const years = Array.from({ length: 11 }, (_, i) => new Date().getFullYear() - 5 + i);
+const years = Array.from({ length: 21 }, (_, i) => new Date().getFullYear() - 10 + i);
 
 export const FilterSection: React.FC<FilterSectionProps> = ({
     users,

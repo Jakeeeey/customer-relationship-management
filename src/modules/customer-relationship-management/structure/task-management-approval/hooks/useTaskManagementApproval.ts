@@ -356,6 +356,67 @@ export const useTaskManagementApproval = () => {
         }
     };
 
+    const handleApproveAllDaily = async () => {
+        if (!data || selectedSalesmanId === "all") {
+            toast.error("Please select a specific Salesman and Account first.");
+            return;
+        }
+
+        const pendingTasks = data.actionPlans.filter(t => {
+            const taskDate = new Date(t.date);
+            return t.approval_status === "pending" &&
+                   String(t.salesman_id) === selectedSalesmanId &&
+                   taskDate.getMonth() === getMonth(currentDate) &&
+                   taskDate.getFullYear() === getYear(currentDate);
+        });
+
+        if (pendingTasks.length === 0) {
+            toast.info("No pending daily plans for this month.");
+            return;
+        }
+
+        try {
+            setIsRefreshing(true);
+            await Promise.all(pendingTasks.map(t => updateActionPlanStatus(t.id, "approved")));
+            toast.success(`${pendingTasks.length} daily plans approved successfully.`);
+            fetchTasks(true);
+        } catch {
+            toast.error("Failed to approve all daily plans.");
+        } finally {
+            setIsRefreshing(false);
+        }
+    };
+
+    const handleApproveAllMonthly = async () => {
+        if (!data || selectedSalesmanId === "all") {
+            toast.error("Please select a specific Salesman and Account first.");
+            return;
+        }
+
+        const pendingMCPs = data.monthlyCoveragePlans.filter(mp => 
+            mp.status === "pending" &&
+            String(mp.salesman_id) === selectedSalesmanId &&
+            mp.month === (getMonth(currentDate) + 1) &&
+            mp.year === getYear(currentDate)
+        );
+
+        if (pendingMCPs.length === 0) {
+            toast.info("No pending monthly plans for this month.");
+            return;
+        }
+
+        try {
+            setIsRefreshing(true);
+            await Promise.all(pendingMCPs.map(mp => updateMonthlyPlanStatus(mp.id, "approved")));
+            toast.success(`${pendingMCPs.length} monthly plans approved successfully.`);
+            fetchTasks(true);
+        } catch {
+            toast.error("Failed to approve all monthly plans.");
+        } finally {
+            setIsRefreshing(false);
+        }
+    };
+
     return {
         data,
         isLoading,
@@ -384,5 +445,7 @@ export const useTaskManagementApproval = () => {
         handleUpdateTask,
         handleDeleteTask,
         handleSetDailyTarget,
+        handleApproveAllDaily,
+        handleApproveAllMonthly,
     };
 };
