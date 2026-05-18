@@ -307,7 +307,6 @@ export async function GET(req: NextRequest) {
                 const customerId = customerIdRaw ? Number(customerIdRaw) : null;
                 const supplierIdRaw = req.nextUrl.searchParams.get("supplier_id") || req.nextUrl.searchParams.get("supplierId");
                 const supplierId = supplierIdRaw ? Number(supplierIdRaw) : null;
-                const priceType = req.nextUrl.searchParams.get("price_type") || req.nextUrl.searchParams.get("priceType") || "A";
                 const priceTypeId = req.nextUrl.searchParams.get("price_type_id") || req.nextUrl.searchParams.get("priceTypeId");
 
                 if (!customerCode || !supplierId) {
@@ -331,8 +330,6 @@ export async function GET(req: NextRequest) {
                     }
                     return results;
                 };
-
-                const priceField = `price${priceType.toUpperCase()}`;
 
                 // --- 1. Fetch Linkages (Product per Supplier) ---
                 const psRes = await fetch(`${DIRECTUS_URL}/items/product_per_supplier?filter[supplier_id][_eq]=${supplierId}&fields=product_id&limit=-1`, { headers: fetchHeaders });
@@ -503,10 +500,11 @@ export async function GET(req: NextRequest) {
 
                 const priceOverrides: Record<number, number> = {};
                 if (priceTypeId) {
-                    const poRes = await fetch(`${DIRECTUS_URL}/items/product_per_price_type?filter[price_type_id][_eq]=${priceTypeId}&filter[status][_eq]=published,approved&limit=-1`, { headers: fetchHeaders });
-                    const poData: { product_id: number | string; price: number | string }[] = (await poRes.json()).data || [];
-                    poData.forEach((po: { product_id: number | string; price: number | string }) => {
-                        priceOverrides[Number(po.product_id)] = Number(po.price);
+                    const poRes = await fetch(`${DIRECTUS_URL}/items/product_per_price_type?filter[price_type_id][_eq]=${priceTypeId}&filter[status][_in]=published,approved&fields=product_id,price&limit=-1`, { headers: fetchHeaders });
+                    const poData: { product_id: number | string | { id?: number; product_id?: number }; price: number | string }[] = (await poRes.json()).data || [];
+                    poData.forEach((po) => {
+                        const pid = po.product_id && typeof po.product_id === 'object' ? (po.product_id.id || po.product_id.product_id) : po.product_id;
+                        if (pid) priceOverrides[Number(pid)] = Number(po.price);
                     });
                 }
 
@@ -520,7 +518,7 @@ export async function GET(req: NextRequest) {
 
                 const lpdtItems = typeIds.size > 0 ? await fetchInChunks<{ type_id: number; line_id: { percentage: number } }>(`${DIRECTUS_URL}/items/line_per_discount_type?fields=type_id,line_id.percentage&sort=id`, Array.from(typeIds) as (string | number)[], "type_id") : [];
                 const discountMap: Record<number, number[]> = {};
-                lpdtItems.forEach((item: { type_id: number | string; line_id?: { percentage: number | string } }) => {
+                lpdtItems.forEach((item: { type_id: number; line_id?: { percentage: number } }) => {
                     const tid = Number(item.type_id);
                     if (!discountMap[tid]) discountMap[tid] = [];
                     discountMap[tid].push(Number(item.line_id?.percentage) || 0);
@@ -534,30 +532,15 @@ export async function GET(req: NextRequest) {
 
                 const sellableItems = Array.from(allProductsMap.values()).filter(p => {
                     const isActive = p.isActive === 1 || p.isActive === true;
-
-                    // Smart Price Check: 🚀
-                    // 1. Check if we have a specific override for this Price Type ID (e.g. Price Type ID 26)
                     const hasOverride = Object.prototype.hasOwnProperty.call(priceOverrides, Number(p.product_id));
-
-                    // 2. Check if we have a standard fallback price from the product record (e.g. priceA, priceB, etc.)
-                    const hasBasePrice = Number(p[priceField] as number || 0) > 0 || Number(p.price_per_unit || 0) > 0;
-
-                    // A product is sellable if it's active AND has at least ONE price source.
-                    // This makes our code resilient kahit missing yung records sa product_per_price_type! 💎
-                    const isSellable = isActive && (hasOverride || hasBasePrice);
-
-                    if (!isSellable && isActive) {
-                        console.log(`[InventoryDebug] Product ${p.product_id} (${p.product_name}) filtered out: No price found (Override: ${hasOverride}, Base: ${hasBasePrice})`);
-                    }
-
-                    return isSellable;
+                    return isActive && hasOverride;
                 });
 
                 const finalProducts = sellableItems.map((p) => {
                     let winId = null;
                     let level = "None";
 
-                    let price = priceOverrides[Number(p.product_id)] || Number(p[priceField] as number) || Number(p.price_per_unit) || 0;
+                    let price = priceOverrides[Number(p.product_id)] || 0;
 
                     const l1 = l1Items.find((item: DiscountItem) => item.product_id === p.product_id);
                     if (l1) { winId = l1.discount_type; price = Number(l1.unit_price) || price; level = "Customer-Specific Price Override"; }
@@ -585,7 +568,7 @@ export async function GET(req: NextRequest) {
                     const displayLevel = specificDiscountName || level;
 
                     const parent = p.parent_id ? allProductsMap.get(Number(p.parent_id)) : null;
-                    let displayName = p.description || "Unnamed Product";
+                    let displayName = p.description || p.product_name || "Unnamed Product";
 
                     const uomId = Number(p.unit_of_measurement);
                     const uomInfo = uomId && unitMap[uomId] ? unitMap[uomId] : { name: "", shortcut: "" };
@@ -606,7 +589,7 @@ export async function GET(req: NextRequest) {
                     return {
                         ...p,
                         display_name: displayName,
-                        parent_product_name: parent?.description || null,
+                        parent_product_name: parent?.description || parent?.product_name || null,
                         parent_id: p.parent_id || null,
                         unit_of_measurement_count: Number(p.unit_of_measurement_count) || 1,
                         uom: uomShortcut || uomName || "PCS",
