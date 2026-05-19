@@ -67,9 +67,9 @@ export default function KPICards({ loading = false, KPIs, formatNumber }: Props)
       <Popover>
         <PopoverTrigger asChild>
           <div
-            className={`p-3 rounded-md shadow-sm border cursor-pointer ${
-              !loading && KPIs.issues > 0 ? "border-rose-200 bg-rose-50 dark:border-rose-400/70 dark:bg-rose-600/20" : ""
-            }`}
+            className={`p-3 rounded-md shadow-sm border cursor-pointer 
+              
+              `}
           >
             <div className="text-xs text-muted-foreground">Total Current</div>
             <div className={`text-lg font-bold ${!loading && KPIs.issues > 0 ? "text-rose-600" : ""}`}>
