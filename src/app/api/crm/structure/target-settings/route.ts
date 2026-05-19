@@ -219,18 +219,54 @@ export async function GET(req: NextRequest) {
         const suppData = await suppliersRes.json() as DirectusResponse<object[]>;
         const allSuppliers = suppData.data || [];
 
-        // 10. Fetch existing Customer and Supplier allocations for these targets
-        // 10. Fetch existing Customer and Supplier allocations for these targets
+        interface BIASupplierTarget {
+            id: number;
+            salesman_id: number;
+            supplier_id: number;
+            target_amount: number;
+            fiscal_period: string;
+            created_at: string;
+        }
+
+        interface SupplierTarget {
+            id?: number;
+            target_setting_id: number;
+            salesman_id: number;
+            supplier_id: number;
+            target_amount: number;
+            created_at?: string;
+        }
+
         let customerTargets: object[] = [];
-        let supplierTargets: object[] = [];
+        let supplierTargets: SupplierTarget[] = [];
+        let areaTargets: object[] = [];
         if (targetIds.length > 0) {
             const ctRes = await fetch(`${DIRECTUS_URL}/items/salesman_target_customer_sales?filter[target_setting_id][_in]=${targetIds.join(',')}&limit=-1`, { headers: fetchHeaders });
             const ctData = await ctRes.json() as DirectusResponse<object[]>;
             customerTargets = ctData.data || [];
 
-            const stRes = await fetch(`${DIRECTUS_URL}/items/salesman_target_supplier_sales?filter[target_setting_id][_in]=${targetIds.join(',')}&limit=-1`, { headers: fetchHeaders });
-            const stData = await stRes.json() as DirectusResponse<object[]>;
-            supplierTargets = stData.data || [];
+            // FETCH FROM BIA: target_setting_salesman
+            const fiscalPeriod = dateFrom.split(' ')[0];
+            const stRes = await fetch(`${DIRECTUS_URL}/items/target_setting_salesman?filter[salesman_id][_in]=${smIds.join(',')}&filter[fiscal_period][_eq]=${fiscalPeriod}&limit=-1`, { headers: fetchHeaders });
+            const stData = await stRes.json() as DirectusResponse<BIASupplierTarget[]>;
+            const rawSupplierTargets = stData.data || [];
+            
+            // Map BIA records to CRM format to ensure frontend join works
+            supplierTargets = rawSupplierTargets.map(rst => {
+                const matchingTarget = targets.find((t: { salesman_id: number; id: number }) => t.salesman_id === rst.salesman_id);
+                return {
+                    id: rst.id,
+                    target_setting_id: matchingTarget ? matchingTarget.id : 0,
+                    salesman_id: rst.salesman_id, // Include salesman_id for fallback matching
+                    supplier_id: rst.supplier_id,
+                    target_amount: rst.target_amount,
+                    created_at: rst.created_at
+                } as SupplierTarget & { salesman_id: number };
+            });
+
+            const areaRes = await fetch(`${DIRECTUS_URL}/items/salesman_target_area_sales?filter[target_setting_id][_in]=${targetIds.join(',')}&limit=-1`, { headers: fetchHeaders });
+            const areaData = await areaRes.json() as DirectusResponse<object[]>;
+            areaTargets = areaData.data || [];
         }
 
         return NextResponse.json({
@@ -239,6 +275,7 @@ export async function GET(req: NextRequest) {
             tacticalSkus,
             customerTargets,
             supplierTargets,
+            areaTargets,
             allCustomers,
             customerMappings,
             allSuppliers,
@@ -269,8 +306,9 @@ export async function POST(req: NextRequest) {
             tacticalSkus: { product_id: number; target_quantity: number; target_value: number }[];
             customerTargets: { customer_id: number; target_amount: number }[];
             supplierTargets: { supplier_id: number; target_amount: number }[];
+            areaTargets: { province: string; city: string; target_amount: number }[];
         } = await req.json();
-        const { target, tacticalSkus, customerTargets, supplierTargets } = body;
+        const { target, tacticalSkus, customerTargets, areaTargets } = body;
 
         // Restore field mapping for salesman_target_setting
         const directusTarget = { 
@@ -375,7 +413,8 @@ export async function POST(req: NextRequest) {
             await fetch(`${DIRECTUS_URL}/items/salesman_target_customer_sales`, { method: "POST", headers: fetchHeaders, body: JSON.stringify(ctToCreate) });
         }
 
-        // Handle Supplier Targets
+        // Handle Supplier Targets - DISABLED (Managed in BIA)
+        /*
         if (existingTargets.length > 0) {
             const oldSuppRes = await fetch(`${DIRECTUS_URL}/items/salesman_target_supplier_sales?filter[target_setting_id][_in]=${targetId}&limit=-1`, { headers: fetchHeaders });
             const oldSuppData = await oldSuppRes.json() as DirectusResponse<{ id: number }[]>;
@@ -393,6 +432,28 @@ export async function POST(req: NextRequest) {
                 target_amount: st.target_amount
             }));
             await fetch(`${DIRECTUS_URL}/items/salesman_target_supplier_sales`, { method: "POST", headers: fetchHeaders, body: JSON.stringify(stToCreate) });
+        }
+        */
+
+        // Handle Area Targets
+        if (existingTargets.length > 0) {
+            const oldAreaRes = await fetch(`${DIRECTUS_URL}/items/salesman_target_area_sales?filter[target_setting_id][_eq]=${targetId}&limit=-1`, { headers: fetchHeaders });
+            const oldAreaData = await oldAreaRes.json() as DirectusResponse<{ id: number }[]>;
+            const oldArea = oldAreaData.data || [];
+            if (oldArea.length > 0) {
+                await Promise.all(oldArea.map((oa: { id: number }) => 
+                    fetch(`${DIRECTUS_URL}/items/salesman_target_area_sales/${oa.id}`, { method: "DELETE", headers: fetchHeaders })
+                ));
+            }
+        }
+        if (areaTargets && areaTargets.length > 0) {
+            const areaToCreate = areaTargets.map((at: { province: string, city: string, target_amount: number }) => ({
+                target_setting_id: targetId,
+                province: at.province,
+                city: at.city,
+                target_amount: at.target_amount
+            }));
+            await fetch(`${DIRECTUS_URL}/items/salesman_target_area_sales`, { method: "POST", headers: fetchHeaders, body: JSON.stringify(areaToCreate) });
         }
 
         return NextResponse.json({ success: true, targetId });

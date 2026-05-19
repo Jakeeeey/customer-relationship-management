@@ -1,6 +1,6 @@
 import jsPDF from 'jspdf';
 
-import { format } from 'date-fns';
+import { formatToPHT } from './dateUtils';
 import { ORTemplate, ORFieldConfig } from '../types';
 
 export interface ReceiptItem {
@@ -280,7 +280,7 @@ const generateOfficialReceipt = async (data: ReceiptData, existingDoc?: jsPDF): 
 
     const fieldValues: Record<string, string> = {
         customer_name: data.customer_name.toUpperCase(),
-        date: format(new Date(), "MMM dd, yyyy").toUpperCase(),
+        date: formatToPHT(new Date(), "MMM dd, yyyy").toUpperCase(),
         store_name: data.store_name.toUpperCase(),
         payment_name: data.payment_name.toUpperCase(),
         customer_tin: data.customer_tin || "N/A",
@@ -510,7 +510,7 @@ const generateThermalReceipt = async (data: ReceiptData, existingDoc?: jsPDF): P
     divider('=');
     y += 2;
     center("--- THANK YOU ---");
-    center(format(new Date(), "yyyy-MM-dd HH:mm:ss"));
+    center(formatToPHT(new Date(), "yyyy-MM-dd HH:mm:ss"));
 
     // Trim the page height if needed (complex in jsPDF, usually easier to just set a safe height or use a custom format)
     // For now, we've generated the content. In a real browser, the print dialog handles the cut.

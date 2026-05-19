@@ -12,6 +12,7 @@ export const targetSettingsProvider = {
         tacticalSkus: Partial<TacticalSKU>[];
         customerTargets: { customer_id: number; target_amount: number }[];
         supplierTargets: { supplier_id: number; target_amount: number }[];
+        areaTargets: { province: string; city: string; target_amount: number }[];
     }) {
         const res = await fetch(`/api/crm/structure/target-settings`, {
             method: "POST",

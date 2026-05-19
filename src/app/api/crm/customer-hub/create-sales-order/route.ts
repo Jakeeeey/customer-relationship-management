@@ -307,7 +307,6 @@ export async function GET(req: NextRequest) {
                 const customerId = customerIdRaw ? Number(customerIdRaw) : null;
                 const supplierIdRaw = req.nextUrl.searchParams.get("supplier_id") || req.nextUrl.searchParams.get("supplierId");
                 const supplierId = supplierIdRaw ? Number(supplierIdRaw) : null;
-                const priceType = req.nextUrl.searchParams.get("price_type") || req.nextUrl.searchParams.get("priceType") || "A";
                 const priceTypeId = req.nextUrl.searchParams.get("price_type_id") || req.nextUrl.searchParams.get("priceTypeId");
 
                 if (!customerCode || !supplierId) {
@@ -332,8 +331,6 @@ export async function GET(req: NextRequest) {
                     return results;
                 };
 
-                const priceField = `price${priceType.toUpperCase()}`;
-
                 // --- 1. Fetch Linkages (Product per Supplier) ---
                 const psRes = await fetch(`${DIRECTUS_URL}/items/product_per_supplier?filter[supplier_id][_eq]=${supplierId}&fields=product_id&limit=-1`, { headers: fetchHeaders });
                 const psJson = await psRes.json();
@@ -351,7 +348,7 @@ export async function GET(req: NextRequest) {
                 }
 
                 // --- Start Inventory Fetch from Spring Boot ---
-                const inventoryMap: Record<number, { available: number; unitCount: number }> = {};
+                const inventoryMap: Record<string | number, { available: number; unitCount: number }> = {};
                 const queryBranchId = req.nextUrl.searchParams.get("branch_id") || req.nextUrl.searchParams.get("branchId");
 
                 if (salesmanId || queryBranchId) {
@@ -399,8 +396,11 @@ export async function GET(req: NextRequest) {
                             const cookieStore = await cookies();
                             const token = cookieStore.get(COOKIE_NAME)?.value;
 
-                            // Added date filter as suggested
-                            const invUrl = `${SPRING_API_BASE_URL.replace(/\/$/, "")}/api/view-running-inventory-by-unit/all?startDate=2025-01-01&endDate=2026-12-30`;
+                            // 📅 Forever Dynamic Dates: Automatically updates every year!
+                            const invStartDate = searchParams.get("startDate") || "2020-01-01";
+                            const invEndDate = searchParams.get("endDate") || "2099-12-31";
+
+                            const invUrl = `${SPRING_API_BASE_URL.replace(/\/$/, "")}/api/view-running-inventory-by-unit/all?startDate=${invStartDate}&endDate=${invEndDate}`;
                             console.log(`[InventoryDebug] Fetching: ${invUrl}`);
 
                             const inventoryRes = await fetch(invUrl, {
@@ -418,19 +418,29 @@ export async function GET(req: NextRequest) {
 
                                 if (Array.isArray(invData)) {
                                     const branchesInStock = new Set<string>();
+                                    // 🎓 Smart Matching: Handles both numeric IDs and string Codes
                                     invData.forEach((item: Record<string, unknown>) => {
-                                        const itemBId = item.branchId ?? item.branch_id ?? item.BranchId;
+                                        const itemBId = item.branchId ?? item.branch_id ?? item.BranchId ?? item.Branch_Id;
                                         if (itemBId) branchesInStock.add(itemBId.toString());
 
-                                        const matchId = (itemBId && Number(itemBId) === Number(branchId));
+                                        const matchId = (itemBId && !isNaN(Number(itemBId)) && Number(itemBId) === Number(branchId));
                                         const matchCode = (branchCodeStr && itemBId && String(itemBId).toUpperCase() === String(branchCodeStr).toUpperCase());
 
                                         if (matchId || matchCode) {
-                                            const pid = item.productId ?? item.product_id ?? item.ProductId;
+                                            const pid = item.productId ?? item.product_id ?? item.ProductId ?? item.Product_Id ?? item.id;
                                             if (pid) {
-                                                const available = Number(item.runningInventoryUnit ?? item.running_inventory_unit ?? item.runningInventory ?? item.running_inventory ?? 0);
+                                                const available = Number(
+                                                    item.runningInventoryUnit ??
+                                                    item.running_inventory_unit ??
+                                                    item.runningInventory ??
+                                                    item.running_inventory ??
+                                                    0
+                                                );
                                                 const unitCount = Number(item.unitCount ?? item.unit_count ?? 1);
-                                                inventoryMap[Number(pid)] = { available, unitCount };
+
+                                                // Map by both numeric ID and string for resilience 💎
+                                                if (!isNaN(Number(pid))) inventoryMap[Number(pid)] = { available, unitCount };
+                                                inventoryMap[String(pid)] = { available, unitCount };
                                             }
                                         }
                                     });
@@ -490,10 +500,11 @@ export async function GET(req: NextRequest) {
 
                 const priceOverrides: Record<number, number> = {};
                 if (priceTypeId) {
-                    const poRes = await fetch(`${DIRECTUS_URL}/items/product_per_price_type?filter[price_type_id][_eq]=${priceTypeId}&filter[status][_eq]=published&limit=-1`, { headers: fetchHeaders });
-                    const poData: { product_id: number | string; price: number | string }[] = (await poRes.json()).data || [];
-                    poData.forEach((po: { product_id: number | string; price: number | string }) => {
-                        priceOverrides[Number(po.product_id)] = Number(po.price);
+                    const poRes = await fetch(`${DIRECTUS_URL}/items/product_per_price_type?filter[price_type_id][_eq]=${priceTypeId}&filter[status][_in]=published,approved&fields=product_id,price&limit=-1`, { headers: fetchHeaders });
+                    const poData: { product_id: number | string | { id?: number; product_id?: number }; price: number | string }[] = (await poRes.json()).data || [];
+                    poData.forEach((po) => {
+                        const pid = po.product_id && typeof po.product_id === 'object' ? (po.product_id.id || po.product_id.product_id) : po.product_id;
+                        if (pid) priceOverrides[Number(pid)] = Number(po.price);
                     });
                 }
 
@@ -507,7 +518,7 @@ export async function GET(req: NextRequest) {
 
                 const lpdtItems = typeIds.size > 0 ? await fetchInChunks<{ type_id: number; line_id: { percentage: number } }>(`${DIRECTUS_URL}/items/line_per_discount_type?fields=type_id,line_id.percentage&sort=id`, Array.from(typeIds) as (string | number)[], "type_id") : [];
                 const discountMap: Record<number, number[]> = {};
-                lpdtItems.forEach((item: { type_id: number | string; line_id?: { percentage: number | string } }) => {
+                lpdtItems.forEach((item: { type_id: number; line_id?: { percentage: number } }) => {
                     const tid = Number(item.type_id);
                     if (!discountMap[tid]) discountMap[tid] = [];
                     discountMap[tid].push(Number(item.line_id?.percentage) || 0);
@@ -519,13 +530,17 @@ export async function GET(req: NextRequest) {
                     discountTypeNameMap[Number(dt.id)] = dt.discount_type || "";
                 });
 
-                const sellableItems = Array.from(allProductsMap.values()).filter(p => p.isActive === 1 || p.isActive === true);
+                const sellableItems = Array.from(allProductsMap.values()).filter(p => {
+                    const isActive = p.isActive === 1 || p.isActive === true;
+                    const hasOverride = Object.prototype.hasOwnProperty.call(priceOverrides, Number(p.product_id));
+                    return isActive && hasOverride;
+                });
 
                 const finalProducts = sellableItems.map((p) => {
                     let winId = null;
                     let level = "None";
 
-                    let price = priceOverrides[Number(p.product_id)] || Number(p[priceField] as number) || Number(p.price_per_unit) || 0;
+                    let price = priceOverrides[Number(p.product_id)] || 0;
 
                     const l1 = l1Items.find((item: DiscountItem) => item.product_id === p.product_id);
                     if (l1) { winId = l1.discount_type; price = Number(l1.unit_price) || price; level = "Customer-Specific Price Override"; }
@@ -553,7 +568,7 @@ export async function GET(req: NextRequest) {
                     const displayLevel = specificDiscountName || level;
 
                     const parent = p.parent_id ? allProductsMap.get(Number(p.parent_id)) : null;
-                    let displayName = p.description || "Unnamed Product";
+                    let displayName = p.description || p.product_name || "Unnamed Product";
 
                     const uomId = Number(p.unit_of_measurement);
                     const uomInfo = uomId && unitMap[uomId] ? unitMap[uomId] : { name: "", shortcut: "" };
@@ -574,7 +589,7 @@ export async function GET(req: NextRequest) {
                     return {
                         ...p,
                         display_name: displayName,
-                        parent_product_name: parent?.description || null,
+                        parent_product_name: parent?.description || parent?.product_name || null,
                         parent_id: p.parent_id || null,
                         unit_of_measurement_count: Number(p.unit_of_measurement_count) || 1,
                         uom: uomShortcut || uomName || "PCS",
@@ -591,13 +606,22 @@ export async function GET(req: NextRequest) {
                     };
                 });
 
-                const itemsWithStock = finalProducts.filter(p => (Number(p.available_qty) || 0) > 0);
-                console.log(`[InventoryDebug] Total Products: ${finalProducts.length}, with Stock: ${itemsWithStock.length}`);
+                // Sort by UOM Priority (Box > Tie > Pack > Pcs)
+                const uomPriority: Record<string, number> = {
+                    'BOX': 1, 'CASE': 1, 'CS': 1,
+                    'TIE': 2,
+                    'PACK': 3, 'PCK': 3, 'BNDL': 3,
+                    'PCS': 4, 'PC': 4
+                };
 
-                if (itemsWithStock.length === 0 && finalProducts.length > 0) {
-                    const p = finalProducts[0];
-                    console.log(`[InventoryDebug] Sample Check (PID: ${p.product_id}): MapAvailable=${inventoryMap[Number(p.product_id)]?.available ?? 'MISSING'}`);
-                }
+                finalProducts.sort((a, b) => {
+                    const pa = a as { uom: string; display_name: string; product_name: string };
+                    const pb = b as { uom: string; display_name: string; product_name: string };
+                    const rankA = uomPriority[String(pa.uom).toUpperCase()] || 99;
+                    const rankB = uomPriority[String(pb.uom).toUpperCase()] || 99;
+                    if (rankA !== rankB) return rankA - rankB;
+                    return String(pa.display_name || pa.product_name).localeCompare(String(pb.display_name || pb.product_name));
+                });
 
                 return NextResponse.json(finalProducts);
             } catch (err: unknown) {

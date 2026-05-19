@@ -225,7 +225,8 @@ const customerSchema = z.object({
     payment_term: z.coerce.number(),
     store_type: z.coerce.number().nullable(),
     classification: z.coerce.number().nullable(),
-    price_type: z.string(),
+    price_type: z.string().nullable().optional(),
+    price_type_id: z.coerce.number().nullable().optional(),
     discount_type: z.coerce.number().nullable(),
     encoder_id: z.number(),
     isActive: z.coerce.number().default(1),
@@ -262,7 +263,7 @@ interface CustomerFormSheetProps {
 const getDefaultValues = (): CustomerFormValues => ({
     customer_code: "", customer_name: "", store_name: "", store_signage: "", contact_number: "",
     customer_email: "", brgy: "", city: "", province: "", tel_number: "", customer_tin: "",
-    payment_term: 0, store_type: null, classification: null, price_type: "", isActive: 1, isVAT: 0, isEWT: 0,
+    payment_term: 0, store_type: null, classification: null, price_type: "", price_type_id: null, isActive: 1, isVAT: 0, isEWT: 0,
     discount_type: null, type: "Regular", user_id: null, encoder_id: 1, bank_accounts: [],
     customer_image: "", location: "", otherDetails: "",
 });
@@ -316,6 +317,8 @@ export function CustomerFormSheet({ open, onOpenChange, customer, onSubmit, defa
     const [classifications, setClassifications] = useState<ReferenceOption[]>([]);
     const [paymentTerms, setPaymentTerms] = useState<PaymentTerm[]>([]);
     const [bankNames, setBankNames] = useState<ReferenceOption[]>([]);
+    const [priceTypes, setPriceTypes] = useState<ReferenceOption[]>([]);
+    const [isLoadingPriceTypes, setIsLoadingPriceTypes] = useState(false);
 
     const [provincesList, setProvincesList] = useState<LocationOption[]>([]);
     const [citiesList, setCitiesList] = useState<LocationOption[]>([]);
@@ -593,6 +596,33 @@ export function CustomerFormSheet({ open, onOpenChange, customer, onSubmit, defa
     }, [open]);
 
     useEffect(() => {
+        if (!open) return;
+        let isMounted = true;
+
+        const fetchPriceTypes = async () => {
+            setIsLoadingPriceTypes(true);
+            try {
+                const res = await fetch("/api/crm/customer/references?type=price_type");
+                if (!res.ok) throw new Error("Failed to fetch price types");
+                const json = await res.json();
+                if (isMounted) {
+                    setPriceTypes(json.data?.map((item: { price_type_id: number; price_type_name: string }) => ({
+                        id: item.price_type_id,
+                        name: item.price_type_name
+                    })) || []);
+                }
+            } catch {
+                console.error("Failed to fetch price types");
+            } finally {
+                if (isMounted) setIsLoadingPriceTypes(false);
+            }
+        };
+
+        fetchPriceTypes();
+        return () => { isMounted = false; };
+    }, [open]);
+
+    useEffect(() => {
         if (open) {
             if (customer) {
                 form.reset({
@@ -607,6 +637,7 @@ export function CustomerFormSheet({ open, onOpenChange, customer, onSubmit, defa
                     payment_term: customer.payment_term || 0,
                     store_type: customer.store_type || null,
                     price_type: customer.price_type || "",
+                    price_type_id: customer.price_type_id || null,
                     isActive: customer.isActive ?? 1,
                     isVAT: customer.isVAT ?? 0,
                     isEWT: customer.isEWT ?? 0,
@@ -651,7 +682,7 @@ export function CustomerFormSheet({ open, onOpenChange, customer, onSubmit, defa
                 ).length;
             case "billing":
                 return errorKeys.filter(k =>
-                    ["payment_term", "price_type", "isActive", "isVAT", "isEWT"].includes(k)
+                    ["payment_term", "price_type", "price_type_id", "isActive", "isVAT", "isEWT"].includes(k)
                 ).length;
             case "bank":
                 return form.formState.errors.bank_accounts ? 1 : 0;
@@ -1061,12 +1092,39 @@ export function CustomerFormSheet({ open, onOpenChange, customer, onSubmit, defa
                                                 <FormMessage/>
                                             </FormItem>
                                         )}/>
-                                        <FormField control={form.control} name="price_type" render={({field}) => (
-                                            <FormItem><FormLabel
-                                                className="font-bold uppercase text-xs text-muted-foreground">Price
-                                                Type</FormLabel><FormControl><Input className="h-11 bg-muted/30"
-                                                                                    placeholder="Retail/Wholesale" {...field} /></FormControl><FormMessage/></FormItem>
-                                        )}/>
+                                        <FormField control={form.control} name="price_type_id" render={({field}) => (
+                                             <FormItem>
+                                                 <FormLabel
+                                                     className="font-bold uppercase text-xs text-muted-foreground">
+                                                     Price Type
+                                                 </FormLabel>
+                                                 <Select
+                                                     disabled={isLoadingPriceTypes}
+                                                     onValueChange={(val) => {
+                                                         const idVal = Number(val);
+                                                         field.onChange(idVal);
+                                                         const nameVal = priceTypes.find(pt => pt.id === idVal)?.name || "";
+                                                         form.setValue("price_type", nameVal, { shouldValidate: true, shouldDirty: true });
+                                                     }}
+                                                     value={field.value ? String(field.value) : ""}
+                                                 >
+                                                     <FormControl>
+                                                         <SelectTrigger className="h-11 bg-muted/30">
+                                                             <SelectValue
+                                                                 placeholder={isLoadingPriceTypes ? "Loading types..." : "Select price type"}/>
+                                                         </SelectTrigger>
+                                                     </FormControl>
+                                                     <SelectContent>
+                                                         {priceTypes.map((type) => (
+                                                             <SelectItem key={type.id} value={String(type.id)}>
+                                                                 {type.name}
+                                                             </SelectItem>
+                                                         ))}
+                                                     </SelectContent>
+                                                 </Select>
+                                                 <FormMessage/>
+                                             </FormItem>
+                                         )}/>
                                     </div>
 
                                     <div

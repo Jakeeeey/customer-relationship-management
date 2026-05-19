@@ -153,7 +153,7 @@ export function LocalSearchableSelect({
                     className={cn("w-full justify-between font-bold", !value && "text-muted-foreground", className)}
                     disabled={disabled}
                 >
-                    {selectedLabel || placeholder}
+                    <span className="block truncate text-left w-[calc(100%-20px)]">{selectedLabel || placeholder}</span>
                     <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                 </Button>
             </PopoverTrigger>
