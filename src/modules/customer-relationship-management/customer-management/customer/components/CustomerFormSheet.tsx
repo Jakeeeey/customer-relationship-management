@@ -219,15 +219,30 @@ const customerSchema = z.object({
     city: z.string().min(1, "City is required"),
     province: z.string().min(1, "Province is required"),
     type: z.enum(["Regular", "Employee"]),
-    user_id: z.coerce.number().nullable(),
+    user_id: z.preprocess(
+        (val) => (val === "" || val === null || val === undefined || val === 0 || val === "0" ? null : Number(val)),
+        z.number().nullable()
+    ),
     tel_number: z.string(),
     customer_tin: z.string(),
     payment_term: z.coerce.number(),
-    store_type: z.coerce.number().nullable(),
-    classification: z.coerce.number().nullable(),
+    store_type: z.preprocess(
+        (val) => (val === "" || val === null || val === undefined || val === 0 || val === "0" ? undefined : Number(val)),
+        z.number({ error: "Store type is required" })
+    ),
+    classification: z.preprocess(
+        (val) => (val === "" || val === null || val === undefined || val === 0 || val === "0" ? null : Number(val)),
+        z.number().nullable()
+    ),
     price_type: z.string().nullable().optional(),
-    price_type_id: z.coerce.number().nullable().optional(),
-    discount_type: z.coerce.number().nullable(),
+    price_type_id: z.preprocess(
+        (val) => (val === "" || val === null || val === undefined || val === 0 || val === "0" ? null : Number(val)),
+        z.number().nullable().optional()
+    ),
+    discount_type: z.preprocess(
+        (val) => (val === "" || val === null || val === undefined || val === 0 || val === "0" ? null : Number(val)),
+        z.number().nullable()
+    ),
     encoder_id: z.number(),
     isActive: z.coerce.number().default(1),
     isVAT: z.coerce.number().default(0),
@@ -263,7 +278,7 @@ interface CustomerFormSheetProps {
 const getDefaultValues = (): CustomerFormValues => ({
     customer_code: "", customer_name: "", store_name: "", store_signage: "", contact_number: "",
     customer_email: "", brgy: "", city: "", province: "", tel_number: "", customer_tin: "",
-    payment_term: 0, store_type: null, classification: null, price_type: "", price_type_id: null, isActive: 1, isVAT: 0, isEWT: 0,
+    payment_term: 0, store_type: undefined as unknown as number, classification: null, price_type: "", price_type_id: null, isActive: 1, isVAT: 0, isEWT: 0,
     discount_type: null, type: "Regular", user_id: null, encoder_id: 1, bank_accounts: [],
     customer_image: "", location: "", otherDetails: "",
 });
@@ -635,7 +650,7 @@ export function CustomerFormSheet({ open, onOpenChange, customer, onSubmit, defa
                     tel_number: customer.tel_number || "",
                     customer_tin: customer.customer_tin || "",
                     payment_term: customer.payment_term || 0,
-                    store_type: customer.store_type || null,
+                    store_type: customer.store_type || undefined as unknown as number,
                     price_type: customer.price_type || "",
                     price_type_id: customer.price_type_id || null,
                     isActive: customer.isActive ?? 1,

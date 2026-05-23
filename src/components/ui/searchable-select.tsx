@@ -52,7 +52,7 @@ export function SearchableSelect({
 
     return (
         <div className="flex items-center gap-1 group relative">
-            <Popover open={open} onOpenChange={setOpen}>
+            <Popover open={open} onOpenChange={setOpen} modal={true}>
                 <PopoverTrigger asChild>
                     <Button
                         variant="outline"
@@ -79,28 +79,24 @@ export function SearchableSelect({
                 <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
                 <Command>
                     <CommandInput placeholder={`Search ${placeholder.toLowerCase()}...`} />
-                    <CommandList>
+                    <CommandList 
+                        className="custom-scrollbar" 
+                        style={{ maxHeight: "min(300px, calc(var(--radix-popover-content-available-height) - 45px))" }}
+                    >
                         <CommandEmpty>No results found.</CommandEmpty>
                         <CommandGroup>
                             {options.map((opt) => (
                                 <CommandItem
                                     key={opt.value}
-                                    value={opt.label} // Use label for searching
+                                    value={opt.label}
                                     onSelect={() => {
-                                        // We need to map back to the ID/value since CommandItem uses text content or value prop
-                                        // Here we used label as value for search, so we find the option by label and call onValueChange with its value
-                                        // However, simpler is to use the option.value if unique, but Command compares normalized search.
-                                        // Let's stick to using the opt.value if we want precise selection.
-                                        // Re-eval: onSelect returns the value prop (opt.label).
-                                        // Actually, let's use the option value but ensure standard shadcn pattern.
-
                                         onValueChange(opt.value);
                                         setOpen(false);
                                     }}
                                 >
                                     <Check
                                         className={cn(
-                                            "mr-2 h-4 w-4",
+                                            "mr-2 h-4 w-4 shrink-0",
                                             value === opt.value ? "opacity-100" : "opacity-0"
                                         )}
                                     />

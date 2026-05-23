@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { useTheme } from "next-themes"
+import { useTheme } from "./ThemeProvider"
 import { motion, AnimatePresence } from "framer-motion"
 
 // ─────────────────────────────────────────────

@@ -2,7 +2,7 @@
 "use client";
 
 import * as React from "react";
-import { useTheme } from "next-themes";
+import { useTheme } from "./ThemeProvider";
 
 import {
     DEFAULT_THEME_SETTINGS,
