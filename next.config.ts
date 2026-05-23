@@ -2,9 +2,6 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   /* config options here */
-  images: {
-    qualities: [100, 75],
-  },
   allowedDevOrigins: ['msi-andrie', 'msi-jake', '100.81.225.79', '100.124.104.46', 'msi-eulysis', '100.67.250.58'],
 };
 
