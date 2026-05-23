@@ -20,9 +20,6 @@ import {
     Tabs, TabsContent, TabsList, TabsTrigger
 } from "@/components/ui/tabs";
 import { SearchableSelect } from "@/components/ui/searchable-select";
-import {
-    Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
