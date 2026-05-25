@@ -40,12 +40,25 @@ function FilterCombobox({
 }: {
   value: string;
   onChange: (val: string) => void;
-  options: string[];
+  options: string[] | { value: string | number; label: string }[];
   placeholder: string;
   disabled?: boolean;
 }) {
   const [open, setOpen] = useState(false);
-  const selected = value && value.trim() !== "" ? value : "";
+  const isObj = options.length > 0 && typeof options[0] === "object";
+  const selectedVal = value && String(value).trim() !== "" ? String(value) : "";
+
+  let displayLabel = placeholder;
+  if (selectedVal) {
+    if (isObj) {
+      const found = (options as { value: string | number; label: string }[]).find(
+        (o) => String(o.value) === selectedVal,
+      );
+      displayLabel = found ? found.label : selectedVal;
+    } else {
+      displayLabel = selectedVal;
+    }
+  }
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -57,7 +70,7 @@ function FilterCombobox({
           disabled={disabled}
           className="h-11 rounded-xl shadow-sm border-border/60 w-40 justify-between font-bold text-xs uppercase tracking-widest bg-background"
         > 
-          <span className="truncate">{selected ? selected : placeholder}</span>
+          <span className="truncate">{selectedVal ? displayLabel : placeholder}</span>
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
@@ -85,25 +98,33 @@ function FilterCombobox({
               >
                 All {placeholder}s
               </CommandItem>
-              {options.map((opt) => (
-                <CommandItem
-                  key={opt}
-                  value={opt}
-                  onSelect={() => {
-                    onChange(opt);
-                    setOpen(false);
-                  }}
-                  className="text-xs font-medium cursor-pointer"
-                >
-                  <Check
-                    className={cn(
-                      " h-4 w-4 text-primary",
-                      selected === opt ? "opacity-100" : "opacity-0",
-                    )}
-                  />
-                  {opt}
-                </CommandItem>
-              ))}
+              {options.map((opt) => {
+                const optVal = isObj
+                  ? String((opt as { value: string | number }).value)
+                  : (opt as string);
+                const optLabel = isObj
+                  ? (opt as { label: string }).label
+                  : (opt as string);
+                return (
+                  <CommandItem
+                    key={optVal}
+                    value={optLabel}
+                    onSelect={() => {
+                      onChange(optVal);
+                      setOpen(false);
+                    }}
+                    className="text-xs font-medium cursor-pointer"
+                  >
+                    <Check
+                      className={cn(
+                        " h-4 w-4 text-primary",
+                        selectedVal === optVal ? "opacity-100" : "opacity-0",
+                      )}
+                    />
+                    {optLabel}
+                  </CommandItem>
+                );
+              })}
             </CommandGroup>
           </CommandList>
         </Command>
@@ -341,12 +362,13 @@ const DealerListFilter = React.memo(function DealerListFilter({
 
         <div className="flex flex-wrap items-center gap-2 w-full xl:w-auto">
           <FilterCombobox
-            value={filters.dealer_type ?? ""}
-            onChange={handleFilterChange("dealer_type")}
-            options={options.types}
+            value={String(filters.dealer_type_id ?? "")}
+            onChange={handleFilterChange("dealer_type_id")}
+            options={options.types.map((t) => ({
+              value: t.dealer_type_id,
+              label: t.type_name,
+            }))}
             placeholder="Type"
-
-
           />
           <FilterCombobox
             value={filters.dealer_province ?? ""}
@@ -387,9 +409,12 @@ const DealerListFilter = React.memo(function DealerListFilter({
             disabled={options.departments.length === 0}
           />
           {/* <FilterCombobox
-            value={filters.subscription_tier ?? ""}
-            onChange={handleFilterChange("subscription_tier")}
-            options={options.tiers}
+            value={String(filters.subscription_id ?? "")}
+            onChange={handleFilterChange("subscription_id")}
+            options={options.tiers.map((t) => ({
+              value: t.id,
+              label: t.name,
+            }))}
             placeholder="Tier"
             disabled={options.tiers.length === 0}
           /> */}

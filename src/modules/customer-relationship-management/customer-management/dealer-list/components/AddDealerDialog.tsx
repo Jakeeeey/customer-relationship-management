@@ -70,6 +70,7 @@ const EMPTY_FORM: Partial<DealerRecord> = {
   dealer_name: "",
   dealer_code: "",
   dealer_type: "",
+  dealer_type_id: "",
   dealer_address: "",
   dealer_brgy: "",
   dealer_city: "",
@@ -87,6 +88,7 @@ const EMPTY_FORM: Partial<DealerRecord> = {
   dealer_website: "",
   dealer_tags: "",
   subscription_tier: "",
+  subscription_id: "",
   dealer_logo: "",
 };
 
@@ -231,10 +233,13 @@ function SelectField({
   label: string;
   value: string;
   onChange: (v: string) => void;
-  items: string[];
+  items: string[] | { value: string | number; label: string }[];
   placeholder?: string;
   required?: boolean;
 }) {
+  const isObj = items.length > 0 && typeof items[0] === "object";
+  const selectValue = value !== undefined && value !== null ? String(value) : "";
+
   return (
     <div>
       <FieldLabel htmlFor={id} required={required}>
@@ -242,7 +247,7 @@ function SelectField({
       </FieldLabel>
 
       <Select
-        value={value}
+        value={selectValue}
         onValueChange={(v) => onChange(v === "__other__" ? "" : v)}
       >
         <SelectTrigger
@@ -252,12 +257,19 @@ function SelectField({
           <SelectValue placeholder={placeholder ?? `Select ${label}`} />
         </SelectTrigger>
         <SelectContent>
-
-          {items.map((item) => (
-            <SelectItem key={item} value={item}>
-              {item}
-            </SelectItem>
-          ))}
+          {items.map((item) => {
+            const itemVal = isObj
+              ? String((item as { value: string | number }).value)
+              : (item as string);
+            const itemLabel = isObj
+              ? (item as { label: string }).label
+              : (item as string);
+            return (
+              <SelectItem key={itemVal} value={itemVal}>
+                {itemLabel}
+              </SelectItem>
+            );
+          })}
         </SelectContent>
       </Select>
 
@@ -333,6 +345,24 @@ const AddDealerDialog = function AddDealerDialog({
           }
           if (k === "dealer_tin") {
             cleaned[k as keyof DealerRecord] = v ? formatTin(String(v)) : "";
+            return;
+          }
+          if (k === "dealer_type_id") {
+            cleaned[k as keyof DealerRecord] =
+              v && typeof v === "object"
+                ? (v as { dealer_type_id: number }).dealer_type_id
+                : v === null
+                  ? ""
+                  : v;
+            return;
+          }
+          if (k === "subscription_id") {
+            cleaned[k as keyof DealerRecord] =
+              v && typeof v === "object"
+                ? (v as { id: number }).id
+                : v === null
+                  ? ""
+                  : v;
             return;
           }
           cleaned[k as keyof DealerRecord] = v === null ? "" : v;
@@ -805,6 +835,11 @@ Accepted:
       const payload: Partial<DealerRecord> = {};
       Object.entries(form).forEach(([k, v]) => {
         if (k === "dealer_id") return;
+        if (k === "dealer_type_id" || k === "subscription_id") {
+          const num = v ? Number(v) : null;
+          payload[k as keyof DealerRecord] = num === null || isNaN(num) ? null : num;
+          return;
+        }
         if (typeof v === "string") {
           payload[k as keyof DealerRecord] = v.trim() === "" ? null : v.trim();
         } else {
@@ -865,9 +900,12 @@ Accepted:
             <SelectField
               id="add-dealer-type"
               label="Dealer Type"
-              value={String(form.dealer_type ?? "")}
-              onChange={set("dealer_type")}
-              items={options.types}
+              value={form.dealer_type_id ? String(form.dealer_type_id) : ""}
+              onChange={set("dealer_type_id")}
+              items={options.types.map((t) => ({
+                value: t.dealer_type_id,
+                label: t.type_name,
+              }))}
               placeholder="Select Type"
             />
             <SelectField
@@ -880,11 +918,14 @@ Accepted:
             />
             <SelectField
               id="add-dealer-tier"
-              label="Subscription Tier"
-              value={String(form.subscription_tier ?? "")}
-              onChange={set("subscription_tier")}
-              items={options.tiers}
-              placeholder="Select Subscription Tier"
+              label="Subscription"
+              value={form.subscription_id ? String(form.subscription_id) : ""}
+              onChange={set("subscription_id")}
+              items={options.tiers.map((t) => ({
+                value: t.id,
+                label: t.name,
+              }))}
+              placeholder="Select Subscription"
             />
             <TextField
               id="add-dealer-date-admitted"

@@ -131,9 +131,27 @@ const DealerDetail = React.memo(function DealerDetail({
     activeDealer.dealer_department,
     "Department",
   );
+
+  const resolvedType =
+    activeDealer.dealer_type ||
+    (activeDealer.dealer_type_id && typeof activeDealer.dealer_type_id === "object"
+      ? (activeDealer.dealer_type_id as { type_name?: string }).type_name
+      : undefined);
+
+  const resolvedTier =
+    activeDealer.subscription_tier ||
+    (activeDealer.subscription_id && typeof activeDealer.subscription_id === "object"
+      ? (activeDealer.subscription_id as { name?: string }).name
+      : undefined);
+
+  const typeDisplay = withFallback(
+    resolvedType,
+    "Type",
+  );
+
   const tierDisplay = withFallback(
-    activeDealer.subscription_tier,
-    "Subscription Tier",
+    resolvedTier,
+    "Subscription",
   );
 
   const tagList = String(activeDealer.dealer_tags ?? "")
@@ -335,17 +353,17 @@ const DealerDetail = React.memo(function DealerDetail({
                       {activeDealer.dealer_code}
                     </Badge>
                   )}
-                  {activeDealer.dealer_type && (
+                  {resolvedType && (
                     <Badge
                       variant="secondary"
                       className="text-[10px] px-2 py-0.5"
                     >
-                      {activeDealer.dealer_type}
+                      {resolvedType}
                     </Badge>
                   )}
-                  {activeDealer.subscription_tier && (
+                  {resolvedTier && (
                     <Badge className="text-[10px] px-2 py-0.5 bg-primary/90">
-                      {activeDealer.subscription_tier}
+                      {resolvedTier}
                     </Badge>
                   )}
                 </div>
@@ -434,6 +452,12 @@ const DealerDetail = React.memo(function DealerDetail({
                 Classification
               </h3>
               <DetailRow
+                icon={Building2}
+                label="Type"
+                value={typeDisplay.value}
+                muted={typeDisplay.muted}
+              />
+              <DetailRow
                 icon={Layers3}
                 label="Department"
                 value={departmentDisplay.value}
@@ -441,7 +465,7 @@ const DealerDetail = React.memo(function DealerDetail({
               />
               <DetailRow
                 icon={BadgeCheck}
-                label="Subscription Tier"
+                label="Subscription"
                 value={tierDisplay.value}
                 muted={tierDisplay.muted}
               />
@@ -476,9 +500,8 @@ const DealerDetail = React.memo(function DealerDetail({
         {/* Action buttons */}
         <div className="flex items-center justify-end gap-2 p-10">
           <Button
-            id="add-dealer-submit"
-            type="submit"
-            form="add-dealer-form"
+            id="edit-dealer-trigger"
+            type="button"
             onClick={onEdit}
             className="h-12 px-8 font-semibold uppercase text-xs tracking-wider bg-primary hover:bg-primary/90"
           >

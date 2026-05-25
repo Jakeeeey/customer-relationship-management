@@ -2,7 +2,7 @@
 // All Directus calls are proxied through the Next.js API route so no
 // credentials are exposed to the browser. Pattern mirrors inventory-report.
 
-import type { DealerApiResponse, DealerFilters, DealerRecord } from "../types";
+import type { DealerApiResponse, DealerFilters, DealerRecord, DealerTypeRecord, SubscriptionRecord } from "../types";
 
 /** Internal Next.js API route for dealer-list */
 const API_BASE = "/api/crm/customer-management/dealer-list";
@@ -33,13 +33,13 @@ export const fetchDealerData = async (
   params.set("directusCollection", "dealer_list");
   params.set("limit", "-1");
 
-  // Fields we need from the collection
+  // Fields we need from the collection (with relationship objects)
   params.set(
     "fields",
     [
       "dealer_id",
       "dealer_name",
-      "dealer_type",
+      "dealer_type_id.*",
       "dealer_code",
       "dealer_address",
       "dealer_brgy",
@@ -58,7 +58,7 @@ export const fetchDealerData = async (
       "dealer_facebook",
       "dealer_website",
       "dealer_tags",
-      "subscription_tier",
+      "subscription_id.*",
     ].join(","),
   );
 
@@ -67,8 +67,8 @@ export const fetchDealerData = async (
   // Build server-side Directus filter object for single-value filters
   const directusFilter: Record<string, unknown> = {};
 
-  if (filters.dealer_type && filters.dealer_type.toLowerCase() !== "all") {
-    directusFilter["dealer_type"] = { _eq: filters.dealer_type };
+  if (filters.dealer_type_id && String(filters.dealer_type_id).toLowerCase() !== "all") {
+    directusFilter["dealer_type_id"] = { _eq: filters.dealer_type_id };
   }
   if (filters.dealer_city && filters.dealer_city.toLowerCase() !== "all") {
     directusFilter["dealer_city"] = { _eq: filters.dealer_city };
@@ -89,10 +89,10 @@ export const fetchDealerData = async (
     directusFilter["dealer_department"] = { _eq: filters.dealer_department };
   }
   if (
-    filters.subscription_tier &&
-    filters.subscription_tier.toLowerCase() !== "all"
+    filters.subscription_id &&
+    String(filters.subscription_id).toLowerCase() !== "all"
   ) {
-    directusFilter["subscription_tier"] = { _eq: filters.subscription_tier };
+    directusFilter["subscription_id"] = { _eq: filters.subscription_id };
   }
 
   if (Object.keys(directusFilter).length > 0) {
@@ -170,6 +170,70 @@ export const fetchDealerFieldOptions = async (
 };
 
 // ---------------------------------------------------------------------------
+// Fetch dealer types list from Directus dealer_type collection
+// ---------------------------------------------------------------------------
+export const fetchDealerTypes = async (
+  signal?: AbortSignal,
+): Promise<DealerTypeRecord[]> => {
+  const params = new URLSearchParams({
+    directusCollection: "dealer_type",
+    fields: "dealer_type_id,type_name,description",
+    limit: "-1",
+    sort: "type_name",
+  });
+
+  const res = await fetch(`${API_BASE}?${params.toString()}`, {
+    method: "GET",
+    cache: "no-store",
+    credentials: "include",
+    signal,
+  });
+
+  if (!res.ok) return [];
+
+  const json = await res.json().catch(() => null);
+  const rows: DealerTypeRecord[] = Array.isArray(json?.data)
+    ? (json.data as DealerTypeRecord[])
+    : Array.isArray(json)
+      ? (json as DealerTypeRecord[])
+      : [];
+
+  return rows;
+};
+
+// ---------------------------------------------------------------------------
+// Fetch subscription tiers from Directus subscription collection
+// ---------------------------------------------------------------------------
+export const fetchSubscriptions = async (
+  signal?: AbortSignal,
+): Promise<SubscriptionRecord[]> => {
+  const params = new URLSearchParams({
+    directusCollection: "subscription",
+    fields: "id,name,description,tier",
+    limit: "-1",
+    sort: "tier",
+  });
+
+  const res = await fetch(`${API_BASE}?${params.toString()}`, {
+    method: "GET",
+    cache: "no-store",
+    credentials: "include",
+    signal,
+  });
+
+  if (!res.ok) return [];
+
+  const json = await res.json().catch(() => null);
+  const rows: SubscriptionRecord[] = Array.isArray(json?.data)
+    ? (json.data as SubscriptionRecord[])
+    : Array.isArray(json)
+      ? (json as SubscriptionRecord[])
+      : [];
+
+  return rows;
+};
+
+// ---------------------------------------------------------------------------
 // Fetch department options from Directus department collection
 // ---------------------------------------------------------------------------
 export const fetchDepartmentOptions = async (
@@ -177,7 +241,7 @@ export const fetchDepartmentOptions = async (
 ): Promise<string[]> => {
   const params = new URLSearchParams({
     directusCollection: "department",
-    fields: "department_name,name,department",
+    fields: "department_name",
     limit: "-1",
     sort: "department_name",
   });
@@ -202,10 +266,7 @@ export const fetchDepartmentOptions = async (
     .map((r) => {
       const departmentName =
         typeof r.department_name === "string" ? r.department_name.trim() : "";
-      const name = typeof r.name === "string" ? r.name.trim() : "";
-      const department =
-        typeof r.department === "string" ? r.department.trim() : "";
-      return departmentName || name || department || "";
+      return departmentName || "";
     })
     .filter(Boolean);
 
@@ -297,6 +358,8 @@ export const updateDealer = async (
 export const dealerProvider = {
   fetchDealerData,
   fetchDealerFieldOptions,
+  fetchDealerTypes,
+  fetchSubscriptions,
   fetchDepartmentOptions,
   createDealer,
   updateDealer,

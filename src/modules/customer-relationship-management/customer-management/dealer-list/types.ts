@@ -2,13 +2,27 @@
 // Shared TypeScript contracts for the Dealer Registration / Dealer List module.
 // Mirrors the `dealer_list` table schema. No backend changes required.
 
+export interface DealerTypeRecord {
+  dealer_type_id: number;
+  type_name: string;
+  description?: string;
+}
+
+export interface SubscriptionRecord {
+  id: number;
+  name: string;
+  description?: string;
+  tier?: number;
+}
+
 // ---------------------------------------------------------------------------
 // Primary record shape returned from Directus `dealer_list` collection
 // ---------------------------------------------------------------------------
 export interface DealerRecord {
   dealer_id?: number | string;
   dealer_name?: string;
-  dealer_type?: string;
+  dealer_type?: string; // virtual field mapped from dealer_type_id.type_name
+  dealer_type_id?: number | string | DealerTypeRecord | null;
   dealer_code?: string;
   dealer_address?: string;
   dealer_brgy?: string;
@@ -29,7 +43,8 @@ export interface DealerRecord {
   dealer_tags?: string;
   directus?: string;
   springboot?: string;
-  subscription_tier?: string;
+  subscription_tier?: string; // virtual field mapped from subscription_id.name
+  subscription_id?: number | string | SubscriptionRecord | null;
   [key: string]: unknown;
 }
 
@@ -54,11 +69,13 @@ export type DealerApiResponse =
 // ---------------------------------------------------------------------------
 export interface DealerFilters {
   dealer_type?: string;
+  dealer_type_id?: string | number;
   dealer_city?: string;
   dealer_province?: string;
   dealer_brgy?: string;
   dealer_department?: string;
   subscription_tier?: string;
+  subscription_id?: string | number;
   search?: string;
 }
 
@@ -66,11 +83,11 @@ export interface DealerFilters {
 // Lookup options fetched from Directus for filter dropdowns
 // ---------------------------------------------------------------------------
 export interface DealerLookupOptions {
-  types: string[];
+  types: DealerTypeRecord[];
   cities: string[];
   provinces: string[];
   departments: string[];
-  tiers: string[];
+  tiers: SubscriptionRecord[];
 }
 
 // ---------------------------------------------------------------------------
@@ -90,3 +107,4 @@ export interface DealerKPIs {
   dealerTypes: number;
   provinces: number;
 }
+

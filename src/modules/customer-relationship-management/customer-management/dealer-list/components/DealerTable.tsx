@@ -23,6 +23,7 @@ import {
   TableCell,
   TableHead,
   TableHeader,
+
   TableRow,
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
@@ -58,11 +59,13 @@ interface DealerTableProps {
   isLoading: boolean;
   sortBy: SortKey;
   sortDir: "asc" | "desc";
+
   onSort: (key: SortKey) => void;
   onPageChange: (p: number) => void;
   onPageSizeChange: (s: number) => void;
   onRowClick: (dealer: DealerRecord) => void;
   onEdit: (dealer: DealerRecord) => void;
+
   filters?: DealerFilters;
 }
 
@@ -92,6 +95,7 @@ function getEmailLink(email: string): string {
   }
   return `mailto:${email}`;
 }
+
 
 // ---------------------------------------------------------------------------
 // Column sort header helper
@@ -162,6 +166,8 @@ function SkeletonRows({ count = 10 }: { count?: number }) {
           {/* Location */}
           <TableCell>
             <div className="flex gap-2 items-start">
+
+
               <Skeleton className="h-7 w-7 rounded-full shrink-0" />
               <div className="space-y-1 flex-1">
                 <Skeleton className="h-3 w-16" />
@@ -317,27 +323,30 @@ const DealerTable = React.memo(function DealerTable({
                   {/* Dealer Code / Type / Tier */}
                   <TableCell className="min-w-[150px] max-w-[200px]">
                     <div className="flex flex-col gap-1.5">
-                      <span className="font-mono text-xs font-semibold text-foreground">
-                        {dealer.dealer_code || "—"}
-                      </span>
-                      <div className="text-[10px] text-muted-foreground space-y-1">
-                        <div>
-                          Type: <span className="text-foreground font-medium">{dealer.dealer_type || "—"}</span>
-                        </div>
+                      <div className="flex items-center gap-2" >
+                        <span className="font-mono text-xs font-semibold text-foreground">
+                          {dealer.dealer_code || "—"}
+                        </span>
                         {dealer.subscription_tier ? (
                           <div className="flex items-center">
+
                             <Badge
                               variant={tierVariant(dealer.subscription_tier)}
                               className="text-[9px] px-1.5 py-0.5 whitespace-nowrap font-medium leading-none"
                             >
-                              Tier: {dealer.subscription_tier}
+                              {dealer.subscription_tier}
                             </Badge>
                           </div>
                         ) : (
-                          <div>
-                            Tier: <span className="text-foreground font-medium">—</span>
-                          </div>
+                          <div className="text-foreground font-medium"></div>
                         )}
+                      </div>
+
+                      <div className="text-[10px] text-muted-foreground space-y-1">
+                        <div>
+                          Type: <span className="text-foreground font-medium">{dealer.dealer_type || "—"}</span>
+                        </div>
+
                       </div>
                     </div>
                   </TableCell>
@@ -413,13 +422,13 @@ const DealerTable = React.memo(function DealerTable({
                   <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
                     {dealer.dealer_dateAdmitted
                       ? new Date(dealer.dealer_dateAdmitted).toLocaleDateString(
-                          "en-PH",
-                          {
-                            year: "numeric",
-                            month: "short",
-                            day: "numeric",
-                          },
-                        )
+                        "en-PH",
+                        {
+                          year: "numeric",
+                          month: "short",
+                          day: "numeric",
+                        },
+                      )
                       : "—"}
                   </TableCell>
 

@@ -6,6 +6,8 @@ import { toast } from "sonner";
 import {
   fetchDealerData,
   fetchDealerFieldOptions,
+  fetchDealerTypes,
+  fetchSubscriptions,
   fetchDepartmentOptions,
 } from "../providers/fetchProvider";
 import type {
@@ -24,21 +26,43 @@ function parseResponse(
   json: DealerApiResponse | unknown,
 ): NormalizedDealerResult {
   if (!json) return { data: [], total: 0 };
-  if (Array.isArray(json))
-    return { data: json as DealerRecord[], total: json.length };
+  
+  let rawItems: DealerRecord[] = [];
+  let totalCount = 0;
 
-  if (typeof json === "object" && json !== null) {
+  if (Array.isArray(json)) {
+    rawItems = json as DealerRecord[];
+    totalCount = json.length;
+  } else if (typeof json === "object" && json !== null) {
     const obj = json as Record<string, unknown>;
     if (Array.isArray(obj.data)) {
+      rawItems = obj.data as DealerRecord[];
       const meta = obj.meta as Record<string, unknown> | undefined;
-      const total =
+      totalCount =
         (meta &&
           (Number(meta["filter_count"]) || Number(meta["total_count"]))) ||
-        (obj.data as DealerRecord[]).length;
-      return { data: obj.data as DealerRecord[], total };
+        rawItems.length;
     }
   }
-  return { data: [], total: 0 };
+
+  // Map nested objects to raw virtual strings so components continue to work
+  const mappedData = rawItems.map((r) => {
+    const typeObj = r.dealer_type_id;
+    const subObj = r.subscription_id;
+    return {
+      ...r,
+      dealer_type:
+        typeObj && typeof typeObj === "object"
+          ? typeObj.type_name
+          : undefined,
+      subscription_tier:
+        subObj && typeof subObj === "object"
+          ? subObj.name
+          : undefined,
+    };
+  });
+
+  return { data: mappedData, total: totalCount };
 }
 
 // ---------------------------------------------------------------------------
@@ -68,12 +92,12 @@ export function useDealerList(initialPage = 1, initialPageSize = 20) {
   const [total, setTotal] = useState(0);
 
   const [filters, setFilters] = useState<DealerFilters>({
-    dealer_type: "",
+    dealer_type_id: "",
     dealer_city: "",
     dealer_province: "",
     dealer_brgy: "",
     dealer_department: "",
-    subscription_tier: "",
+    subscription_id: "",
     search: "",
   });
 
@@ -97,11 +121,11 @@ export function useDealerList(initialPage = 1, initialPageSize = 20) {
   const loadOptions = useCallback(async () => {
     try {
       const [types, cities, provinces, departments, tiers] = await Promise.all([
-        fetchDealerFieldOptions("dealer_type"),
+        fetchDealerTypes(),
         fetchDealerFieldOptions("dealer_city"),
         fetchDealerFieldOptions("dealer_province"),
         fetchDepartmentOptions(),
-        fetchDealerFieldOptions("subscription_tier"),
+        fetchSubscriptions(),
       ]);
 
       setOptions({ types, cities, provinces, departments, tiers });
@@ -137,12 +161,12 @@ export function useDealerList(initialPage = 1, initialPageSize = 20) {
         // (single-value equality). The free-text `search` filter is applied
         // client-side below.
         const serverFilters: DealerFilters = {
-          dealer_type: useFilters.dealer_type,
+          dealer_type_id: useFilters.dealer_type_id,
           dealer_city: useFilters.dealer_city,
           dealer_province: useFilters.dealer_province,
           dealer_brgy: useFilters.dealer_brgy,
           dealer_department: useFilters.dealer_department,
-          subscription_tier: useFilters.subscription_tier,
+          subscription_id: useFilters.subscription_id,
         };
 
         const resp = (await fetchDealerData(
@@ -211,12 +235,12 @@ export function useDealerList(initialPage = 1, initialPageSize = 20) {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
-    filters.dealer_type,
+    filters.dealer_type_id,
     filters.dealer_city,
     filters.dealer_province,
     filters.dealer_brgy,
     filters.dealer_department,
-    filters.subscription_tier,
+    filters.subscription_id,
   ]);
 
   // -------------------------------------------------------------------------
@@ -259,12 +283,12 @@ export function useDealerList(initialPage = 1, initialPageSize = 20) {
 
   const clearFilters = useCallback(() => {
     setFilters({
-      dealer_type: "",
+      dealer_type_id: "",
       dealer_city: "",
       dealer_province: "",
       dealer_brgy: "",
       dealer_department: "",
-      subscription_tier: "",
+      subscription_id: "",
       search: "",
     });
     setPage(1);

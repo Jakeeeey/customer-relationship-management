@@ -95,10 +95,35 @@ export default function DealerListModule() {
   const handleDealerSaved = useCallback((saved: DealerRecord) => {
     // Reload the full list so the record appears / updates
     reload();
+
+    // Enrich saved record with type_name and name from options lookup lists
+    const typeId = saved.dealer_type_id && typeof saved.dealer_type_id === "object"
+      ? saved.dealer_type_id.dealer_type_id
+      : saved.dealer_type_id;
+    const subId = saved.subscription_id && typeof saved.subscription_id === "object"
+      ? saved.subscription_id.id
+      : saved.subscription_id;
+
+    // Only search if the ID is valid/truthy
+    const typeObj = typeId
+      ? options.types.find((t) => Number(t.dealer_type_id) === Number(typeId))
+      : undefined;
+    const subObj = subId
+      ? options.tiers.find((s) => Number(s.id) === Number(subId))
+      : undefined;
+
+    const enriched: DealerRecord = {
+      ...saved,
+      dealer_type: typeObj ? typeObj.type_name : undefined,
+      subscription_tier: subObj ? subObj.name : undefined,
+      dealer_type_id: typeObj || null,
+      subscription_id: subObj || null,
+    };
+
     // Keep the details view open for the saved record
-    setSelectedDealer(saved);
+    setSelectedDealer(enriched);
     setDealerToEdit(null);
-  }, [reload, setSelectedDealer]);
+  }, [reload, setSelectedDealer, options]);
 
   const handlePageSizeChange = useCallback((s: number) => {
     setPageSize(s);
