@@ -257,6 +257,7 @@ export const ConvertToInvoiceModal: React.FC<ConvertToInvoiceModalProps> = ({
                         const allRecycledReceipts: Receipt[] = invoiceDetails.map((inv, index) => ({
                             id: (index + 1).toString(),
                             receipt_no: inv.display_no ?? "",
+                            target_id: inv.id,
                             items: inv.details.map((d) => ({
                                 product_id: d.product_id as number,
                                 product_name: d.product_name as string,
@@ -624,22 +625,16 @@ export const ConvertToInvoiceModal: React.FC<ConvertToInvoiceModalProps> = ({
 
             if (updateRes.status !== 200) {
                 const errText = await updateRes.text();
-                let errMsg = "Database update failed. Printing cancelled.";
-                try {
-                    const parsed = JSON.parse(errText);
-                    if (parsed.error) {
-                        errMsg = parsed.error;
-                    }
-                    if (parsed.details?.errors && parsed.details.errors.length > 0) {
-                        const subErrors = parsed.details.errors.map((e: { step: string; error: string }) => `- ${e.step}: ${e.error}`).join("\n");
-                        errMsg += `\n\nDetails:\n${subErrors}`;
-                    }
-                } catch {
-                    if (errText && errText.length < 150) errMsg = errText;
-                }
                 
-                console.error("Failed to update DB on print", errText);
-                toast.error(errMsg, { duration: 8000 });
+                // Log the technical details for developers quietly in the background
+                console.error("[Transaction Rollback Error] Full Details:", errText);
+                
+                // Display user-friendly message
+                toast.error("Invoice Generation Failed", { 
+                    description: "A system error occurred while processing your receipts. Don't worry—all your original order quantities and invoices have been safely restored. Please try again or refresh the page if the issue persists.",
+                    duration: 10000 
+                });
+                
                 setIsValidating(false);
                 return;
             }
