@@ -257,6 +257,7 @@ export const ConvertToInvoiceModal: React.FC<ConvertToInvoiceModalProps> = ({
                         const allRecycledReceipts: Receipt[] = invoiceDetails.map((inv, index) => ({
                             id: (index + 1).toString(),
                             receipt_no: inv.display_no ?? "",
+                            target_id: inv.id,
                             items: inv.details.map((d) => ({
                                 product_id: d.product_id as number,
                                 product_name: d.product_name as string,
@@ -622,19 +623,32 @@ export const ConvertToInvoiceModal: React.FC<ConvertToInvoiceModalProps> = ({
                 })
             });
 
-            if (!updateRes.ok) {
+            if (updateRes.status !== 200) {
                 const errText = await updateRes.text();
-                console.error("Failed to update DB on print", errText);
-                toast.error("Database update failed. Printing cancelled.", { duration: 5000 });
+                
+                // Log the technical details for developers quietly in the background
+                console.error("[Transaction Rollback Error] Full Details:", errText);
+                
+                // Display user-friendly message
+                toast.error("Invoice Generation Failed", { 
+                    description: "A system error occurred while processing your receipts. Don't worry—all your original order quantities and invoices have been safely restored. Please try again or refresh the page if the issue persists.",
+                    duration: 10000 
+                });
+                
                 setIsValidating(false);
                 return;
             }
 
             const result = await updateRes.json();
             const createdInvoices = result.details?.createdInvoices || [];
+            const printableReceipts = receipts.filter(r => !r.is_void_reference);
 
             if (createdInvoices.length === 0) {
-                console.warn("No invoices were created by the API.");
+                throw new Error("Database update did not return any created invoice IDs. Printing cancelled.");
+            }
+
+            if (createdInvoices.length !== printableReceipts.length) {
+                throw new Error(`Invoice count mismatch. Expected ${printableReceipts.length}, got ${createdInvoices.length}. Printing cancelled.`);
             }
 
             // 2. PDF Generation & Merging
@@ -642,10 +656,7 @@ export const ConvertToInvoiceModal: React.FC<ConvertToInvoiceModalProps> = ({
             const archivedReceiptNos: string[] = [];
             const invoiceIdsToArchive: number[] = createdInvoices.map((inv: { id: number }) => inv.id);
 
-            for (let i = 0; i < receipts.length; i++) {
-                const r = receipts[i];
-                if (r.is_void_reference) continue;
-                
+            for (const r of printableReceipts) {
                 archivedReceiptNos.push(r.receipt_no);
 
                 const data: ReceiptData = {
@@ -668,17 +679,16 @@ export const ConvertToInvoiceModal: React.FC<ConvertToInvoiceModalProps> = ({
                 mergedDoc = await generateInvoicingPDF(data, mergedDoc || undefined);
             }
 
-            // 2b. Trigger Download for the Merged PDF (Multi-page)
-            if (mergedDoc) {
-                const combinedFilename = `${order.order_no}-${archivedReceiptNos.join("-")}.pdf`;
-                mergedDoc.save(combinedFilename);
+            if (!mergedDoc) {
+                throw new Error("PDF generation failed. No document was created.");
             }
 
-            // 3. Automated PDF Archiving (Linked to Invoice IDs)
-            if (mergedDoc && invoiceIdsToArchive.length > 0) {
+            const combinedFilename = `${order.order_no}-${archivedReceiptNos.join("-")}.pdf`;
+            const pdfBlob = mergedDoc.output('blob');
+
+            // 2b. Automated PDF Archiving (Linked to Invoice IDs)
+            if (invoiceIdsToArchive.length > 0) {
                 try {
-                    const combinedFilename = `${order.order_no}-${archivedReceiptNos.join("-")}.pdf`;
-                    const pdfBlob = mergedDoc.output('blob');
                     const uploadFormData = new FormData();
                     uploadFormData.append("file", pdfBlob, combinedFilename);
                     uploadFormData.append("invoice_ids", JSON.stringify(invoiceIdsToArchive));
@@ -686,25 +696,26 @@ export const ConvertToInvoiceModal: React.FC<ConvertToInvoiceModalProps> = ({
                     uploadFormData.append("width_mm", (orTemplate?.width || 210).toString());
                     uploadFormData.append("height_mm", (orTemplate?.height || 265).toString());
 
-                    fetch(`${INVOICING_API_BASE}/save-pdf`, {
+                    const archiveRes = await fetch(`${INVOICING_API_BASE}/save-pdf`, {
                         method: "POST",
                         body: uploadFormData
-                    }).then(async (res) => {
-                        const data = await res.json();
-                        if (res.ok) {
-                            console.log("[Archive] PDF successfully archived to server.");
-                            if (data.warning) {
-                                toast.info(data.warning, { duration: 8000 });
-                            }
-                        } else {
-                            console.error("[Archive] Failed to archive PDF.");
-                        }
-                    }).catch(_e => console.error("[Archive] Network error during archiving:", _e));
+                    });
+                    const archiveData = await archiveRes.json().catch(() => ({}));
+                    if (!archiveRes.ok) {
+                        throw new Error(archiveData.details || archiveData.error || "Invoice saved, but PDF archive failed.");
+                    }
+                    if (archiveData.warning) {
+                        toast.info(archiveData.warning, { duration: 8000 });
+                    }
                     
                 } catch (archiveErr) {
                     console.error("Archiving initiation failed:", archiveErr);
+                    throw archiveErr;
                 }
             }
+
+            // 3. Trigger Download for the Merged PDF only after Directus archive succeeds.
+            mergedDoc.save(combinedFilename);
 
             toast.success(`Processed ${archivedReceiptNos.length} receipt${archivedReceiptNos.length > 1 ? 's' : ''}`);
             
@@ -717,7 +728,7 @@ export const ConvertToInvoiceModal: React.FC<ConvertToInvoiceModalProps> = ({
 
         } catch (err) {
             console.error("Error in print/generate flow:", err);
-            toast.error("Failed to complete processing");
+            toast.error(err instanceof Error ? err.message : "Failed to complete processing");
             setIsValidating(false);
         }
     };
