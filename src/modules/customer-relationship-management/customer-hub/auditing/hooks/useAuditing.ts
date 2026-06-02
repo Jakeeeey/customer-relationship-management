@@ -24,7 +24,7 @@ export function useAuditing(initialPage = 1, initialSize = 10) {
   const abortControllerRef = useRef<AbortController | null>(null);
 
   // Fetch records dynamically supporting date ranges passed from filters
-  const loadData = useCallback(async (useFilters = filters) => {
+  const loadData = useCallback(async (useFilters: AuditingFilters) => {
     try {
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
@@ -85,7 +85,7 @@ export function useAuditing(initialPage = 1, initialSize = 10) {
 
   // Re-fetch all records only when dates changes dynamically
   useEffect(() => {
-    loadData(filters);
+    loadData({ startDate: filters.startDate, endDate: filters.endDate });
   }, [filters.startDate, filters.endDate, loadData]);
 
   const applyFilters = (next: AuditingFilters) => {
