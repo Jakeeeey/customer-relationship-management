@@ -30,20 +30,16 @@ export async function GET(req: NextRequest) {
     }
 
     const { searchParams } = new URL(req.url);
-    const targetUrl = new URL(
-      `${SPRING_API_BASE_URL.replace(/\/$/, "")}/api/vw-sales-order-pdp-cldto-dp/filter`
-    );
+    const clientStart = searchParams.get("startDate");
+    const clientEnd = searchParams.get("endDate");
 
-    // Forward exact filter query parameters
-    const filterKeys = ["startDate", "endDate", "customerCode", "orderStatus", "orderNo"];
-    filterKeys.forEach((key) => {
-      const val = searchParams.get(key);
-      if (val) {
-        targetUrl.searchParams.append(key, val);
-      }
-    });
+    // Use active client parameters if provided, otherwise default to full dynamic coverage
+    const startDate = clientStart && clientStart.trim() ? clientStart.trim() : "2025-01-01";
+    const endDate = clientEnd && clientEnd.trim() ? clientEnd.trim() : "2026-12-31";
 
-    const response = await fetch(targetUrl.toString(), {
+    const targetUrl = `${SPRING_API_BASE_URL.replace(/\/$/, "")}/api/vw-sales-order-pdp-cldto-dp/filter?startDate=${startDate}&endDate=${endDate}`;
+
+    const response = await fetch(targetUrl, {
       method: "GET",
       headers: {
         "Content-Type": "application/json",

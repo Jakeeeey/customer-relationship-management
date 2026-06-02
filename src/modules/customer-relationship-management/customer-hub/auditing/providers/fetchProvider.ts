@@ -18,12 +18,8 @@ export const fetchAuditingData = async (
   signal?: AbortSignal
 ): Promise<AuditingApiResponse> => {
   const params = new URLSearchParams();
-  Object.entries(filters).forEach(([k, v]) => {
-    if (v === undefined || v === null) return;
-    const s = String(v).trim();
-    if (!s || s.toLowerCase() === "all") return;
-    params.append(k, s);
-  });
+  if (filters.startDate) params.append("startDate", filters.startDate);
+  if (filters.endDate) params.append("endDate", filters.endDate);
 
   const paramString = params.toString();
   const url = paramString ? `${API_BASE}?${paramString}` : API_BASE;

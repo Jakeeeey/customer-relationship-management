@@ -52,6 +52,50 @@ export default function AuditingTable({
     return val;
   };
 
+  // PH Manila Time Zone Formatter (Asia/Manila)
+  const formatPHDateTime = (dateStr: string | undefined) => {
+    if (!dateStr) return "-";
+    try {
+      const dateObj = new Date(dateStr);
+      if (isNaN(dateObj.getTime())) {
+        return dateStr;
+      }
+      return new Intl.DateTimeFormat("en-US", {
+        timeZone: "Asia/Manila",
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+        hour12: true,
+      }).format(dateObj);
+    } catch (e) {
+      console.error(e);
+      return dateStr;
+    }
+  };
+
+  // Helper to display a value paired with its PH Manila Time zone formatted date
+  const formatCellWithDate = (
+    val: string | string[] | null,
+    dateStr: string | string[] | null | undefined
+  ) => {
+    if (!val) return "-";
+    const textVal = formatCellList(val);
+    const dateVal = dateStr ? formatCellList(dateStr) : "";
+
+    if (!dateVal || dateVal === "-") {
+      return <span>{textVal}</span>;
+    }
+
+    return (
+      <div className="space-y-1">
+        <span className="font-semibold text-xs text-foreground block">{textVal}</span>
+        <span className="text-[9px] text-muted-foreground block">{formatPHDateTime(dateVal)}</span>
+      </div>
+    );
+  };
+
   // Safe sorting
   const handleSort = (field: keyof AuditingRow) => {
     if (sortField === field) {
@@ -65,17 +109,13 @@ export default function AuditingTable({
   const processedRows = useMemo(() => {
     let list = [...rows];
 
-    // Local Search
+    // Local Search - Unified to search SO# and Customer Name
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase().trim();
       list = list.filter(
         (r) =>
           (r.orderNo && r.orderNo.toLowerCase().includes(q)) ||
-          (r.customerCode && r.customerCode.toLowerCase().includes(q)) ||
-          (r.orderStatus && r.orderStatus.toLowerCase().includes(q)) ||
-          (typeof r.pdpList === "string" && r.pdpList.toLowerCase().includes(q)) ||
-          (typeof r.cldtoList === "string" && r.cldtoList.toLowerCase().includes(q)) ||
-          (typeof r.dpList === "string" && r.dpList.toLowerCase().includes(q))
+          (r.customerName && r.customerName.toLowerCase().includes(q))
       );
     }
 
@@ -111,16 +151,23 @@ export default function AuditingTable({
         </Badge>
       );
     }
-    if (lower === "audited" || lower === "processing") {
+    if (lower === "audited" || lower === "processing" || lower === "for approval") {
       return (
         <Badge variant="outline" className="bg-blue-500/10 text-blue-600 border-blue-500/20 text-xs font-semibold px-2 py-0.5 rounded-full capitalize">
           {status}
         </Badge>
       );
     }
-    if (lower === "dispatched" || lower === "pending") {
+    if (lower === "dispatched" || lower === "pending" || lower === "for shipping" || lower === "en route") {
       return (
         <Badge variant="outline" className="bg-amber-500/10 text-amber-600 border-amber-500/20 text-xs font-semibold px-2 py-0.5 rounded-full capitalize">
+          {status}
+        </Badge>
+      );
+    }
+    if (lower === "cancelled" || lower === "on hold") {
+      return (
+        <Badge variant="outline" className="bg-rose-500/10 text-rose-600 border-rose-500/20 text-xs font-semibold px-2 py-0.5 rounded-full capitalize">
           {status}
         </Badge>
       );
@@ -138,7 +185,7 @@ export default function AuditingTable({
       <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
         <div className="relative w-full sm:max-w-xs">
           <Input
-            placeholder="Quick search order or status..."
+            placeholder="Search by SO# or Customer Name..."
             className="pl-9 h-9 text-xs rounded-lg border-primary/10 bg-background/50 hover:border-primary/20 focus:border-primary transition-all"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
@@ -176,7 +223,7 @@ export default function AuditingTable({
                   <ArrowUpDown className="w-3.5 h-3.5 opacity-60" />
                 </div>
               </TableHead>
-              <TableHead className="font-semibold text-xs tracking-wider text-muted-foreground py-3.5 px-4 cursor-pointer hover:text-foreground select-none transition-colors" onClick={() => handleSort("customerCode")}>
+              <TableHead className="font-semibold text-xs tracking-wider text-muted-foreground py-3.5 px-4 cursor-pointer hover:text-foreground select-none transition-colors" onClick={() => handleSort("customerName")}>
                 <div className="flex items-center gap-1.5">
                   CUSTOMER
                   <ArrowUpDown className="w-3.5 h-3.5 opacity-60" />
@@ -194,6 +241,12 @@ export default function AuditingTable({
                   <ArrowUpDown className="w-3.5 h-3.5 opacity-60" />
                 </div>
               </TableHead>
+              <TableHead className="font-semibold text-xs tracking-wider text-muted-foreground py-3.5 px-4 cursor-pointer hover:text-foreground select-none transition-colors" onClick={() => handleSort("invoiceList")}>
+                <div className="flex items-center gap-1.5">
+                  INVOICE
+                  <ArrowUpDown className="w-3.5 h-3.5 opacity-60" />
+                </div>
+              </TableHead>
               <TableHead className="font-semibold text-xs tracking-wider text-muted-foreground py-3.5 px-4 cursor-pointer hover:text-foreground select-none transition-colors" onClick={() => handleSort("dpList")}>
                 <div className="flex items-center gap-1.5">
                   DISPATCH PLAN
@@ -208,16 +261,17 @@ export default function AuditingTable({
               Array.from({ length: 5 }).map((_, i) => (
                 <TableRow key={i} className="animate-pulse border-b/40">
                   <TableCell className="p-4"><div className="h-4 bg-muted/60 rounded-md w-28" /></TableCell>
-                  <TableCell className="p-4"><div className="h-4 bg-muted/60 rounded-md w-20" /></TableCell>
                   <TableCell className="p-4"><div className="h-4 bg-muted/60 rounded-md w-36" /></TableCell>
                   <TableCell className="p-4"><div className="h-4 bg-muted/60 rounded-md w-24" /></TableCell>
                   <TableCell className="p-4"><div className="h-4 bg-muted/60 rounded-md w-24" /></TableCell>
+                  <TableCell className="p-4"><div className="h-4 bg-muted/60 rounded-md w-28" /></TableCell>
+                  <TableCell className="p-4"><div className="h-4 bg-muted/60 rounded-md w-28" /></TableCell>
                 </TableRow>
               ))
             ) : paginatedRows.length === 0 ? (
               // Empty State
               <TableRow>
-                <TableCell colSpan={5} className="text-center py-10 text-muted-foreground/80">
+                <TableCell colSpan={6} className="text-center py-10 text-muted-foreground/80">
                   <div className="flex flex-col items-center justify-center space-y-2">
                     <ClipboardList className="w-8 h-8 text-muted-foreground/40 stroke-[1.5]" />
                     <span className="text-xs font-semibold">No auditing matching logs found</span>
@@ -233,28 +287,22 @@ export default function AuditingTable({
                   <TableCell className="py-3 px-4">
                     <div className="space-y-1">
                       <span className="font-semibold text-xs tracking-tight text-foreground">{row.orderNo || "-"}</span>
-                      <div className="flex items-center gap-1.5">
+                      <div className="flex items-center gap-1.5 flex-wrap">
                         {getStatusBadge(row.orderStatus)}
-                        {row.orderDate && (
-                          <span className="text-[9px] text-muted-foreground">
-                            {new Date(row.orderDate).toLocaleDateString(undefined, {
-                              month: "short",
-                              day: "numeric",
-                              year: "numeric",
-                            })}
-                          </span>
-                        )}
+                        <span className="text-[9px] text-muted-foreground whitespace-nowrap">
+                          {formatPHDateTime(row.soCreatedDate || row.orderDate)}
+                        </span>
                       </div>
                     </div>
                   </TableCell>
 
-                  {/* Customer Code Column */}
-                  <TableCell className="py-3 px-4 text-xs font-medium text-foreground">
-                    {row.customerCode || "-"}
+                  {/* Customer Column */}
+                  <TableCell className="py-3 px-4 text-xs font-medium text-foreground max-w-[200px] break-words">
+                    {row.customerName || "-"}
                   </TableCell>
 
                   {/* Pre Dispatch Plan Column */}
-                  <TableCell className="py-3 px-4 text-xs font-mono text-primary font-semibold hover:underline cursor-pointer">
+                  <TableCell className="py-3 px-4 text-xs font-mono text-foreground font-semibold">
                     {formatCellList(row.pdpList)}
                   </TableCell>
 
@@ -263,9 +311,14 @@ export default function AuditingTable({
                     {formatCellList(row.cldtoList)}
                   </TableCell>
 
-                  {/* Dispatch Plan Column */}
-                  <TableCell className="py-3 px-4 text-xs font-mono text-foreground">
-                    {formatCellList(row.dpList)}
+                  {/* Invoice Column with dates */}
+                  <TableCell className="py-3 px-4 text-xs font-mono">
+                    {formatCellWithDate(row.invoiceList, row.invoiceCreatedDates)}
+                  </TableCell>
+
+                  {/* Dispatch Plan Column with dates */}
+                  <TableCell className="py-3 px-4 text-xs font-mono">
+                    {formatCellWithDate(row.dpList, row.dpCreatedDates)}
                   </TableCell>
                 </TableRow>
               ))
@@ -285,7 +338,7 @@ export default function AuditingTable({
 
           <div className="flex items-center gap-2">
             <Button
-              className="h-8 w-8 rounded-lg border border-primary/10 hover:bg-muted text-muted-foreground p-0"
+              className="h-8 w-8 rounded-lg border border-border bg-background hover:bg-muted text-foreground p-0 transition-colors"
               disabled={page === 1}
               onClick={() => onPageChange(page - 1)}
             >
@@ -295,7 +348,7 @@ export default function AuditingTable({
               {page} <span className="text-muted-foreground/60 mx-1">/</span> {totalPages}
             </div>
             <Button
-              className="h-8 w-8 rounded-lg border border-primary/10 hover:bg-muted text-muted-foreground p-0"
+              className="h-8 w-8 rounded-lg border border-border bg-background hover:bg-muted text-foreground p-0 transition-colors"
               disabled={page >= totalPages}
               onClick={() => onPageChange(page + 1)}
             >

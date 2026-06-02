@@ -55,7 +55,7 @@ export default function AuditingFilter({
         <h3 className="text-sm font-semibold tracking-wide text-foreground">Filter & Refine Status</h3>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {/* Date Start */}
         <div className="space-y-1.5">
           <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Start Date</Label>
@@ -84,28 +84,6 @@ export default function AuditingFilter({
           </div>
         </div>
 
-        {/* Sales Order No */}
-        <div className="space-y-1.5">
-          <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Sales Order No</Label>
-          <Input
-            placeholder="SO-20251013..."
-            className="bg-background/50 border-primary/10 hover:border-primary/20 transition-all text-xs h-9 rounded-lg"
-            value={localFilters.orderNo || ""}
-            onChange={(e) => handleChange("orderNo", e.target.value)}
-          />
-        </div>
-
-        {/* Customer Code */}
-        <div className="space-y-1.5">
-          <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Customer Code</Label>
-          <Input
-            placeholder="MAIN - 31632"
-            className="bg-background/50 border-primary/10 hover:border-primary/20 transition-all text-xs h-9 rounded-lg"
-            value={localFilters.customerCode || ""}
-            onChange={(e) => handleChange("customerCode", e.target.value)}
-          />
-        </div>
-
         {/* Order Status */}
         <div className="space-y-1.5">
           <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Order Status</Label>
@@ -119,9 +97,12 @@ export default function AuditingFilter({
             <SelectContent>
               <SelectItem value="all" className="text-xs">All Statuses</SelectItem>
               <SelectItem value="Delivered" className="text-xs">Delivered</SelectItem>
-              <SelectItem value="Processing" className="text-xs">Processing</SelectItem>
-              <SelectItem value="Pending" className="text-xs">Pending</SelectItem>
+              <SelectItem value="For Approval" className="text-xs">For Approval</SelectItem>
+              <SelectItem value="On Hold" className="text-xs">On Hold</SelectItem>
+              <SelectItem value="For Shipping" className="text-xs">For Shipping</SelectItem>
+              <SelectItem value="Draft" className="text-xs">Draft</SelectItem>
               <SelectItem value="Cancelled" className="text-xs">Cancelled</SelectItem>
+              <SelectItem value="En Route" className="text-xs">En Route</SelectItem>
             </SelectContent>
           </Select>
         </div>
