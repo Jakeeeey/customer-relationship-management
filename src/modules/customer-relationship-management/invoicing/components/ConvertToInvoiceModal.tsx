@@ -11,7 +11,7 @@ import { InvoicingService, INVOICING_API_BASE } from "../services/InvoicingServi
 import { generateInvoicingPDF, ReceiptData } from "../utils/generateInvoicingPDF";
 import { format } from "date-fns";
 import { formatToPHT } from "../utils/dateUtils";
-import { ReceiptTemplateEditor } from "./ReceiptTemplateEditor";
+import { ReceiptTemplateEditor, MARIKINA_TEMPLATE, DEFAULT_TEMPLATE } from "./ReceiptTemplateEditor";
 import { jsPDF } from "jspdf";
 
 import {
@@ -56,6 +56,7 @@ interface ReceiptItem {
     net_amount: number;
     unit_shortcut: string;
     ordered_qty: number;
+    barcode?: string;
 }
 
 interface Receipt {
@@ -93,6 +94,7 @@ export const ConvertToInvoiceModal: React.FC<ConvertToInvoiceModalProps> = ({
     const [isPrintConfirmOpen, setIsPrintConfirmOpen] = useState(false);
     const [selectedProductId, setSelectedProductId] = useState<number | null>(null);
     const [sourceProductIds, setSourceProductIds] = useState<Set<number> | null>(null);
+    const [companyCode, setCompanyCode] = useState<string | null>(null);
 
     const componentRef = useRef<HTMLDivElement>(null);
 
@@ -114,11 +116,11 @@ export const ConvertToInvoiceModal: React.FC<ConvertToInvoiceModalProps> = ({
         for (let i = 0; i < availableItems.length; i += maxLen) {
             const chunk = availableItems.slice(i, i + maxLen);
             const receiptItems: ReceiptItem[] = chunk.map(item => {
-                const ordered = item.ordered_quantity || 0;
+                const ordered = item.allocated_quantity || 0;
                 const poolRemaining = item.remaining_quantity || 0;
                 const autoQty = Math.min(ordered, poolRemaining);
                 
-                const dt = discounts.find(d => d.id === item.discount_type);
+                const dt = discounts.find(d => Number(d.id) === Number(item.discount_type));
                 const totalPercent = dt ? Number(dt.total_percent) : 0;
                 const rawDistDiscount = (item.unit_price * autoQty) * (totalPercent / 100);
                 const roundedDistDiscount = Number(rawDistDiscount.toFixed(2));
@@ -135,7 +137,8 @@ export const ConvertToInvoiceModal: React.FC<ConvertToInvoiceModalProps> = ({
                     discount_amount: roundedDistDiscount,
                     net_amount: Number(rawDistNet.toFixed(2)),
                     unit_shortcut: item.unit_shortcut,
-                    ordered_qty: ordered
+                    ordered_qty: ordered,
+                    barcode: item.barcode
                 };
             });
 
@@ -162,6 +165,7 @@ export const ConvertToInvoiceModal: React.FC<ConvertToInvoiceModalProps> = ({
                 InvoicingService.getDiscountTypes(),
                 InvoicingService.getReceiptTypes(),
                 typeId ? InvoicingService.getTemplate(typeId).catch(() => null) : Promise.resolve(null),
+                InvoicingService.getCompany().catch(() => null),
             ];
 
             // Determine what existing invoice(s) to fetch
@@ -186,12 +190,13 @@ export const ConvertToInvoiceModal: React.FC<ConvertToInvoiceModalProps> = ({
                 ))
             ])
                 .then((results) => {
-                    const [logisticsData, convData, discTypes, rTypes, fetchedTemplate, allInvoiceDetails] = results as unknown as [
+                    const [logisticsData, convData, discTypes, rTypes, fetchedTemplate, companyData, allInvoiceDetails] = results as unknown as [
                         LogisticsData[], 
                         ConversionData, 
                         DiscountType[], 
                         ReceiptType[], 
                         ORTemplate | null, 
+                        { company_code: string } | null,
                         { id: number; display_no: string | null; details: Record<string, unknown>[] }[]
                     ];
                     
@@ -201,13 +206,24 @@ export const ConvertToInvoiceModal: React.FC<ConvertToInvoiceModalProps> = ({
                     setConversionData(convData as ConversionData);
                     setDiscountTypes(discTypes as DiscountType[]);
                     setReceiptTypes(rTypes as ReceiptType[]);
+                    setCompanyCode(companyData?.company_code || null);
                     if (order.receipt_type?.id) {
                         setSelectedTypeId(order.receipt_type.id.toString());
                     }
+                    let finalTemplate: ORTemplate;
                     if (fetchedTemplate) {
-                        setOrTemplate(fetchedTemplate as ORTemplate);
+                        finalTemplate = fetchedTemplate as ORTemplate;
+                    } else if (order.receipt_type?.id === 3 && companyData?.company_code === 'MEN2-Marikina') {
+                        finalTemplate = MARIKINA_TEMPLATE;
+                    } else {
+                        finalTemplate = DEFAULT_TEMPLATE;
                     }
-
+                    
+                    // Inject barcode column if missing (e.g. old templates from DB)
+                    if (finalTemplate.tableSettings && finalTemplate.tableSettings.columns && !finalTemplate.tableSettings.columns.barcode) {
+                        finalTemplate.tableSettings.columns.barcode = { x: 10 };
+                    }
+                    setOrTemplate(finalTemplate);
                     if (order.void_invoices && order.void_invoices.length > 0 && invoiceDetails.length > 0) {
                         // ── Void order: multi-dual-receipt setup (Reference + New Editable Copy for each) ──
                         const voidReceipts: Receipt[] = [];
@@ -320,7 +336,7 @@ export const ConvertToInvoiceModal: React.FC<ConvertToInvoiceModalProps> = ({
             ...r,
             items: r.items.map(i => {
                 if (i.product_id === productId) {
-                    const dt = discountTypes.find(d => d.id === i.discount_type);
+                    const dt = discountTypes.find(d => Number(d.id) === Number(i.discount_type));
                     const totalPercent = dt ? Number(dt.total_percent) : 0;
                     const rawDiscount = (newPrice * i.qty) * (totalPercent / 100);
                     const roundedDiscount = Number(rawDiscount.toFixed(2));
@@ -346,7 +362,7 @@ export const ConvertToInvoiceModal: React.FC<ConvertToInvoiceModalProps> = ({
         const convItem = data.items.find(i => i.product_id === productId);
         if (!convItem) return;
 
-        const ordered = convItem.ordered_quantity || 0;
+        const ordered = convItem.allocated_quantity || 0;
         const poolRemaining = convItem.remaining_quantity || 0;
 
         // Use total drafts across ALL receipts EXCEPT potentially the one being edited 
@@ -402,7 +418,7 @@ export const ConvertToInvoiceModal: React.FC<ConvertToInvoiceModalProps> = ({
                 ...r,
                 items: r.items.map(i => {
                     if (i.product_id === productId) {
-                        const dt = discountTypes.find(d => d.id === i.discount_type);
+                        const dt = discountTypes.find(d => Number(d.id) === Number(i.discount_type));
                         const totalPercent = dt ? Number(dt.total_percent) : 0;
                         const rawDiscount = (i.unit_price * finalQty) * (totalPercent / 100);
                         const roundedDiscount = Number(rawDiscount.toFixed(2));
@@ -415,7 +431,8 @@ export const ConvertToInvoiceModal: React.FC<ConvertToInvoiceModalProps> = ({
                             discount_amount: roundedDiscount,
                             net_amount: Number(rawNet.toFixed(2)),
                             unit_shortcut: convItem.unit_shortcut,
-                            ordered_qty: ordered
+                            ordered_qty: ordered,
+                            barcode: convItem.barcode
                         };
                     }
                     return i;
@@ -425,7 +442,7 @@ export const ConvertToInvoiceModal: React.FC<ConvertToInvoiceModalProps> = ({
         }
 
         // New item addition - Logic: Auto overflow if target full
-        const dt = discountTypes.find(d => d.id === convItem.discount_type);
+        const dt = discountTypes.find(d => Number(d.id) === Number(convItem.discount_type));
         const totalPercent = dt ? Number(dt.total_percent) : 0;
         const rawInitialDiscount = (convItem.unit_price * finalQty) * (totalPercent / 100);
         const roundedInitialDiscount = Number(rawInitialDiscount.toFixed(2));
@@ -442,7 +459,8 @@ export const ConvertToInvoiceModal: React.FC<ConvertToInvoiceModalProps> = ({
             discount_amount: roundedInitialDiscount,
             net_amount: Number(rawInitialNet.toFixed(2)),
             unit_shortcut: convItem.unit_shortcut,
-            ordered_qty: ordered
+            ordered_qty: ordered,
+            barcode: convItem.barcode
         };
 
         if (targetR && targetR.items.length < maxLen) {
@@ -556,7 +574,17 @@ export const ConvertToInvoiceModal: React.FC<ConvertToInvoiceModalProps> = ({
     const handlePrint = async () => {
         if (!order || receipts.length === 0) return;
 
-        // 1. Basic UI Validation (Required fields)
+        // Prevent printing if there are any items left with Remaining > 0 AND it's still needed in the order.
+        // This solves the bug where over-picked warehouse items (picked > ordered) get hidden but still block the print.
+        const hasUnallocatedItems = currentRemaining.some(item => item.pool_remaining > 0 && item.order_needed > 0);
+        if (hasUnallocatedItems) {
+            toast.error("Incomplete Allocation", {
+                description: "All items with a 'Remaining' quantity must be allocated to a receipt before printing.",
+                duration: 5000,
+            });
+            return;
+        }
+
         // 1. Basic UI Validation (Required fields) - Skip Void References
         const validReceipts = receipts.filter(r => !r.is_void_reference);
         for (const r of validReceipts) {
@@ -612,49 +640,16 @@ export const ConvertToInvoiceModal: React.FC<ConvertToInvoiceModalProps> = ({
         const address = `${conversionData?.customer?.province || 'N/A'}, ${conversionData?.customer?.city || 'N/A'}, ${conversionData?.customer?.brgy || 'N/A'}`;
 
         try {
-            // 1. Backend Update FIRST: Submit ALL receipts to generate-invoice API
-            const updateRes = await fetch(`${INVOICING_API_BASE}/generate-invoice`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    order: order,
-                    receipts: receipts.filter(r => !r.is_void_reference),
-                    receipt_type_id: parseInt(selectedTypeId)
-                })
-            });
-
-            if (updateRes.status !== 200) {
-                const errText = await updateRes.text();
-                
-                // Log the technical details for developers quietly in the background
-                console.error("[Transaction Rollback Error] Full Details:", errText);
-                
-                // Display user-friendly message
-                toast.error("Invoice Generation Failed", { 
-                    description: "A system error occurred while processing your receipts. Don't worry—all your original order quantities and invoices have been safely restored. Please try again or refresh the page if the issue persists.",
-                    duration: 10000 
-                });
-                
+            const printableReceipts = receipts.filter(r => !r.is_void_reference);
+            if (printableReceipts.length === 0) {
+                toast.error("No valid receipts to print.");
                 setIsValidating(false);
                 return;
             }
 
-            const result = await updateRes.json();
-            const createdInvoices = result.details?.createdInvoices || [];
-            const printableReceipts = receipts.filter(r => !r.is_void_reference);
-
-            if (createdInvoices.length === 0) {
-                throw new Error("Database update did not return any created invoice IDs. Printing cancelled.");
-            }
-
-            if (createdInvoices.length !== printableReceipts.length) {
-                throw new Error(`Invoice count mismatch. Expected ${printableReceipts.length}, got ${createdInvoices.length}. Printing cancelled.`);
-            }
-
-            // 2. PDF Generation & Merging
+            // 1. Generate PDF FIRST (Frontend)
             let mergedDoc: jsPDF | null = null;
             const archivedReceiptNos: string[] = [];
-            const invoiceIdsToArchive: number[] = createdInvoices.map((inv: { id: number }) => inv.id);
 
             for (const r of printableReceipts) {
                 archivedReceiptNos.push(r.receipt_no);
@@ -672,10 +667,11 @@ export const ConvertToInvoiceModal: React.FC<ConvertToInvoiceModalProps> = ({
                     is_official: isOfficialReceipt,
                     discountTypes: discountTypes,
                     barcodeDataUrl: undefined,
-                    template: orTemplate
+                    template: orTemplate || DEFAULT_TEMPLATE,
+                    printBackground: companyCode === 'MEN2-Marikina'
                 };
 
-                // 2a. Accumulate all receipts into a single multi-page document
+                // Accumulate all receipts into a single multi-page document
                 mergedDoc = await generateInvoicingPDF(data, mergedDoc || undefined);
             }
 
@@ -686,35 +682,39 @@ export const ConvertToInvoiceModal: React.FC<ConvertToInvoiceModalProps> = ({
             const combinedFilename = `${order.order_no}-${archivedReceiptNos.join("-")}.pdf`;
             const pdfBlob = mergedDoc.output('blob');
 
-            // 2b. Automated PDF Archiving (Linked to Invoice IDs)
-            if (invoiceIdsToArchive.length > 0) {
-                try {
-                    const uploadFormData = new FormData();
-                    uploadFormData.append("file", pdfBlob, combinedFilename);
-                    uploadFormData.append("invoice_ids", JSON.stringify(invoiceIdsToArchive));
-                    uploadFormData.append("receipt_numbers", archivedReceiptNos.join(", "));
-                    uploadFormData.append("width_mm", (orTemplate?.width || 210).toString());
-                    uploadFormData.append("height_mm", (orTemplate?.height || 265).toString());
+            // 2. Prepare Atomic Request (JSON + PDF Blob)
+            const formData = new FormData();
+            formData.append("order", JSON.stringify(order));
+            formData.append("receipts", JSON.stringify(printableReceipts));
+            formData.append("receipt_type_id", selectedTypeId);
+            formData.append("file", pdfBlob, combinedFilename);
+            formData.append("receipt_numbers", archivedReceiptNos.join(", "));
+            formData.append("width_mm", (orTemplate?.width || 210).toString());
+            formData.append("height_mm", (orTemplate?.height || 265).toString());
 
-                    const archiveRes = await fetch(`${INVOICING_API_BASE}/save-pdf`, {
-                        method: "POST",
-                        body: uploadFormData
-                    });
-                    const archiveData = await archiveRes.json().catch(() => ({}));
-                    if (!archiveRes.ok) {
-                        throw new Error(archiveData.details || archiveData.error || "Invoice saved, but PDF archive failed.");
-                    }
-                    if (archiveData.warning) {
-                        toast.info(archiveData.warning, { duration: 8000 });
-                    }
-                    
-                } catch (archiveErr) {
-                    console.error("Archiving initiation failed:", archiveErr);
-                    throw archiveErr;
-                }
+            // 3. Execute Atomic Backend Transaction
+            const updateRes = await fetch(`${INVOICING_API_BASE}/generate-invoice`, {
+                method: 'POST',
+                // Note: No Content-Type header. fetch automatically sets multipart/form-data boundary.
+                body: formData
+            });
+
+            if (updateRes.status !== 200) {
+                const errText = await updateRes.text();
+                console.error("[Atomic Transaction Error] Full Details:", errText);
+                
+                toast.error("Invoice Generation Failed", { 
+                    description: "A system error occurred. All operations have been rolled back. Please try again.",
+                    duration: 10000 
+                });
+                
+                setIsValidating(false);
+                return;
             }
 
-            // 3. Trigger Download for the Merged PDF only after Directus archive succeeds.
+            const result = await updateRes.json();
+
+            // 4. Trigger Download ONLY after backend fully succeeds
             mergedDoc.save(combinedFilename);
 
             toast.success(`Processed ${archivedReceiptNos.length} receipt${archivedReceiptNos.length > 1 ? 's' : ''}`);
@@ -758,7 +758,7 @@ export const ConvertToInvoiceModal: React.FC<ConvertToInvoiceModalProps> = ({
             return {
                 ...item,
                 pool_remaining: Math.max(0, pool_rem - totalAppliedInDrafts),
-                order_needed: Math.max(0, item.ordered_quantity - totalAppliedInDrafts)
+                order_needed: Math.max(0, item.allocated_quantity - totalAppliedInDrafts)
             };
         });
     }, [conversionData, receipts, sourceProductIds]);
@@ -781,10 +781,13 @@ export const ConvertToInvoiceModal: React.FC<ConvertToInvoiceModalProps> = ({
     };
 
     const isOfficialReceipt = useMemo(() => {
+        if (order.receipt_type?.id === 3 && companyCode === 'MEN2-Dagupan') {
+            return false;
+        }
         const selectedType = receiptTypes.find(t => t.id.toString() === selectedTypeId);
         if (selectedType) return String(selectedType.isOfficial) === "1";
         return String(conversionData?.is_official ?? order.receipt_type?.isOfficial ?? 1) === "1";
-    }, [receiptTypes, selectedTypeId, conversionData, order]);
+    }, [receiptTypes, selectedTypeId, conversionData, order, companyCode]);
 
     const previewPaperWidth = isOfficialReceipt ? "210mm" : "58mm";
     const thermalPaperWidth = "58mm";
@@ -1096,7 +1099,7 @@ export const ConvertToInvoiceModal: React.FC<ConvertToInvoiceModalProps> = ({
                             <Badge variant="outline" className="text-[10px] font-mono">
                                 {currentRemaining.filter(item => {
                                     const isInDraft = receipts.some(r => !r.is_void_reference && r.items.some(i => i.product_id === item.product_id));
-                                    return !isInDraft && item.order_needed > 0;
+                                    return !isInDraft;
                                 }).length} Products
                             </Badge>
                         </div>
@@ -1108,7 +1111,7 @@ export const ConvertToInvoiceModal: React.FC<ConvertToInvoiceModalProps> = ({
                                     if (isInDraft) return false;
 
                                     // Rule 2: Also hide if no more order needed (standard logic)
-                                    return item.order_needed > 0;
+                                    return true;
                                 }).length === 0 ? (
                                     <div className="flex flex-col items-center justify-center py-20 opacity-20">
                                         <CheckCircle size={48} className="mb-4" />
@@ -1118,7 +1121,7 @@ export const ConvertToInvoiceModal: React.FC<ConvertToInvoiceModalProps> = ({
                                     currentRemaining
                                         .filter(item => {
                                             const isInDraft = receipts.some(r => !r.is_void_reference && r.items.some(i => i.product_id === item.product_id));
-                                            return !isInDraft && item.order_needed > 0;
+                                            return !isInDraft;
                                         })
                                         .map((item) => (
                                             <div
@@ -1356,7 +1359,7 @@ export const ConvertToInvoiceModal: React.FC<ConvertToInvoiceModalProps> = ({
                                                             <div className="col-span-2 text-center">
                                                                 <p className="text-[9px] font-normal uppercase text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full inline-block truncate max-w-full">
                                                                     {(() => {
-                                                                        const dt = discountTypes.find(d => d.id === item.discount_type);
+                                                                        const dt = discountTypes.find(d => Number(d.id) === Number(item.discount_type));
                                                                         return dt ? dt.discount_type : "NONE";
                                                                     })()}
                                                                 </p>
@@ -1725,6 +1728,7 @@ export const ConvertToInvoiceModal: React.FC<ConvertToInvoiceModalProps> = ({
                                                             
                                                             // Standardized widths to match designer assumptions
                                                             const w = {
+                                                                barcode: 30,
                                                                 product_name: 85,
                                                                 quantity: 22,
                                                                 unit_price: 28,
@@ -1743,6 +1747,19 @@ export const ConvertToInvoiceModal: React.FC<ConvertToInvoiceModalProps> = ({
                                                                         padding: '1mm 0' // Small padding for breathability
                                                                     }}
                                                                 >
+                                                                    {/* Barcode (if present in template) */}
+                                                                    {cols?.barcode && (
+                                                                        <div 
+                                                                            className="absolute font-normal uppercase whitespace-normal leading-[1.1]" 
+                                                                            style={{ 
+                                                                                left: `${cols.barcode.x}mm`, 
+                                                                                width: `${w.barcode}mm` 
+                                                                            }}
+                                                                        >
+                                                                            {item.barcode || ""}
+                                                                        </div>
+                                                                    )}
+
                                                                     {/* Left Aligned (Relative to push container height) */}
                                                                     <div 
                                                                         className="relative font-normal uppercase whitespace-normal leading-[1.1]" 
@@ -1775,7 +1792,7 @@ export const ConvertToInvoiceModal: React.FC<ConvertToInvoiceModalProps> = ({
                                                                         style={{ left: `${(cols?.discount?.x || 153) - w.discount}mm`, width: `${w.discount}mm` }}
                                                                     >
                                                                         {(() => {
-                                                                            const dt = discountTypes.find(d => d.id === item.discount_type);
+                                                                            const dt = discountTypes.find(d => Number(d.id) === Number(item.discount_type));
                                                                             if (dt) return dt.discount_type;
                                                                             return isOfficialReceipt ? "" : "NONE";
                                                                         })()}
@@ -1852,7 +1869,7 @@ export const ConvertToInvoiceModal: React.FC<ConvertToInvoiceModalProps> = ({
 
             <ReceiptTemplateEditor 
                 isOpen={isTemplateEditorOpen}
-                initialTemplate={orTemplate}
+                initialTemplate={orTemplate || DEFAULT_TEMPLATE}
                 onClose={() => setIsTemplateEditorOpen(false)}
                 onSave={async (newTemplate) => {
                     try {

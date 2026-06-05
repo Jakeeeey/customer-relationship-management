@@ -14,7 +14,7 @@ function directusHeaders() {
 
 export async function GET() {
     try {
-        const url = `${DIRECTUS_BASE}/items/discount_type?limit=100`;
+        const url = `${DIRECTUS_BASE}/items/discount_type?limit=-1`;
         
         const response = await fetch(url, {
             cache: "no-store",
