@@ -109,12 +109,22 @@ export const ReceiptTemplateEditor: React.FC<Props> = ({ isOpen, onClose, onSave
         if (isOpen && initialTemplate) {
             const fallbackTemplate = initialTemplate.id === 'marikina-or' ? MARIKINA_TEMPLATE : DEFAULT_TEMPLATE;
             
-            // Auto-inject barcode column for old legacy templates in the DB that missed it
+            // Auto-inject barcode column for old legacy templates in the DB that missed it.
+            // However, if the initialTemplate explicitly has columns defined but WITHOUT barcode,
+            // respect that — it was deliberately stripped (e.g. MEN2-Dagupan).
+            const initialColumnsExist = !!initialTemplate.tableSettings?.columns;
+            const initialHasBarcode = initialColumnsExist && 'barcode' in (initialTemplate.tableSettings!.columns!);
+
             const mergedColumns = {
                 ...fallbackTemplate.tableSettings.columns,
                 ...(initialTemplate.tableSettings?.columns || {})
             };
-            if (!mergedColumns.barcode) {
+
+            if (initialColumnsExist && !initialHasBarcode) {
+                // Deliberately excluded — strip it from the merged result too
+                delete mergedColumns.barcode;
+            } else if (!mergedColumns.barcode) {
+                // True legacy template with no columns at all — inject it
                 mergedColumns.barcode = { x: 10 };
             }
 

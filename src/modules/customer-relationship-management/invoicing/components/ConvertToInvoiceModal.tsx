@@ -223,6 +223,20 @@ export const ConvertToInvoiceModal: React.FC<ConvertToInvoiceModalProps> = ({
                     if (finalTemplate.tableSettings && finalTemplate.tableSettings.columns && !finalTemplate.tableSettings.columns.barcode) {
                         finalTemplate.tableSettings.columns.barcode = { x: 10 };
                     }
+
+                    // MEN2-Dagupan: hide BARCODE column from table (UI + PDF)
+                    if (companyData?.company_code === 'MEN2-Dagupan' && finalTemplate.tableSettings?.columns) {
+                        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+                        const { barcode: _barcode, ...columnsWithoutBarcode } = finalTemplate.tableSettings.columns;
+                        finalTemplate = {
+                            ...finalTemplate,
+                            tableSettings: {
+                                ...finalTemplate.tableSettings,
+                                columns: columnsWithoutBarcode
+                            }
+                        };
+                    }
+
                     setOrTemplate(finalTemplate);
                     if (order.void_invoices && order.void_invoices.length > 0 && invoiceDetails.length > 0) {
                         // ── Void order: multi-dual-receipt setup (Reference + New Editable Copy for each) ──
