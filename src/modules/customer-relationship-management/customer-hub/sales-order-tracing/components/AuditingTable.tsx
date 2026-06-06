@@ -1,4 +1,4 @@
-// src/modules/customer-relationship-management/customer-hub/auditing/components/AuditingTable.tsx
+// src/modules/customer-relationship-management/customer-hub/sales-order-tracing/components/AuditingTable.tsx
 "use client";
 
 import React, { useMemo, useState } from "react";
@@ -11,12 +11,10 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
   ChevronLeft,
   ChevronRight,
-  Search,
   ArrowUpDown,
   ClipboardList,
 } from "lucide-react";
@@ -29,7 +27,10 @@ interface AuditingTableProps {
   onPageChange: (p: number) => void;
   onPageSizeChange: (s: number) => void;
   isLoading: boolean;
+  total: number;
 }
+
+
 
 export default function AuditingTable({
   rows,
@@ -38,19 +39,12 @@ export default function AuditingTable({
   onPageChange,
   onPageSizeChange,
   isLoading,
+  total,
 }: AuditingTableProps) {
-  const [searchQuery, setSearchQuery] = useState("");
+
   const [sortField, setSortField] = useState<keyof AuditingRow | null>(null);
   const [sortAsc, setSortAsc] = useState(true);
 
-  // Helper to format values or lists safely
-  const formatCellList = (val: string | string[] | null) => {
-    if (!val) return "-";
-    if (Array.isArray(val)) {
-      return val.join(", ");
-    }
-    return val;
-  };
 
   // PH Manila Time Zone Formatter (Asia/Manila)
   const formatPHDateTime = (dateStr: string | undefined) => {
@@ -75,23 +69,39 @@ export default function AuditingTable({
     }
   };
 
-  // Helper to display a value paired with its PH Manila Time zone formatted date
+  // Helper to display value(s) paired with its PH Manila Time zone formatted date(s)
   const formatCellWithDate = (
-    val: string | string[] | null,
+    val: string | string[] | null | undefined,
     dateStr: string | string[] | null | undefined
   ) => {
     if (!val) return "-";
-    const textVal = formatCellList(val);
-    const dateVal = dateStr ? formatCellList(dateStr) : "";
 
-    if (!dateVal || dateVal === "-") {
-      return <span>{textVal}</span>;
-    }
+    const parseToArray = (v: string | string[] | null | undefined): string[] => {
+      if (!v) return [];
+      if (Array.isArray(v)) return v;
+      return v.split(",").map((s) => s.trim()).filter(Boolean);
+    };
+
+    const items = parseToArray(val);
+    const dates = parseToArray(dateStr);
+
+    if (items.length === 0) return "-";
 
     return (
-      <div className="space-y-1">
-        <span className="font-semibold text-xs text-foreground block">{textVal}</span>
-        <span className="text-[9px] text-muted-foreground block">{formatPHDateTime(dateVal)}</span>
+      <div className="space-y-1.5">
+        {items.map((item, idx) => {
+          const dateVal = dates[idx];
+          return (
+            <div key={idx} className="space-y-0.5 border-b border-dashed border-border/20 last:border-0 pb-1 last:pb-0">
+              <span className="font-semibold text-xs text-foreground block">{item}</span>
+              {dateVal && dateVal !== "-" && (
+                <span className="text-[9px] text-muted-foreground block">
+                  {formatPHDateTime(dateVal)}
+                </span>
+              )}
+            </div>
+          );
+        })}
       </div>
     );
   };
@@ -107,17 +117,9 @@ export default function AuditingTable({
   };
 
   const processedRows = useMemo(() => {
-    let list = [...rows];
+    const list = [...rows];
 
-    // Local Search - Unified to search SO# and Customer Name
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase().trim();
-      list = list.filter(
-        (r) =>
-          (r.orderNo && r.orderNo.toLowerCase().includes(q)) ||
-          (r.customerName && r.customerName.toLowerCase().includes(q))
-      );
-    }
+
 
     // Sort
     if (sortField) {
@@ -131,15 +133,12 @@ export default function AuditingTable({
     }
 
     return list;
-  }, [rows, searchQuery, sortField, sortAsc]);
+  }, [rows, sortField, sortAsc]);
 
-  // Client-side pagination
-  const paginatedRows = useMemo(() => {
-    const start = (page - 1) * pageSize;
-    return processedRows.slice(start, start + pageSize);
-  }, [processedRows, page, pageSize]);
+  // Pagination is handled server-side
+  const paginatedRows = processedRows;
 
-  const totalPages = Math.max(1, Math.ceil(processedRows.length / pageSize));
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
   // Determine Badge Colors for statuses
   const getStatusBadge = (status: string) => {
@@ -181,18 +180,8 @@ export default function AuditingTable({
 
   return (
     <div className="space-y-4">
-      {/* Search Bar & Controls */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-        <div className="relative w-full sm:max-w-xs">
-          <Input
-            placeholder="Search by SO# or Customer Name..."
-            className="pl-9 h-9 text-xs rounded-lg border-primary/10 bg-background/50 hover:border-primary/20 focus:border-primary transition-all"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
-          <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground/60" />
-        </div>
-
+      {/* Table Controls */}
+      <div className="flex items-center justify-end gap-4">
         <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
           <span>Rows per page:</span>
           <select
@@ -217,15 +206,21 @@ export default function AuditingTable({
         <Table>
           <TableHeader className="bg-muted/30">
             <TableRow className="hover:bg-transparent border-b/60">
+              <TableHead className="font-semibold text-xs tracking-wider text-muted-foreground py-3.5 px-4 cursor-pointer hover:text-foreground select-none transition-colors" onClick={() => handleSort("customerName")}>
+                <div className="flex items-center gap-1.5">
+                  CUSTOMER
+                  <ArrowUpDown className="w-3.5 h-3.5 opacity-60" />
+                </div>
+              </TableHead>
               <TableHead className="font-semibold text-xs tracking-wider text-muted-foreground py-3.5 px-4 cursor-pointer hover:text-foreground select-none transition-colors" onClick={() => handleSort("orderNo")}>
                 <div className="flex items-center gap-1.5">
                   SALES ORDER
                   <ArrowUpDown className="w-3.5 h-3.5 opacity-60" />
                 </div>
               </TableHead>
-              <TableHead className="font-semibold text-xs tracking-wider text-muted-foreground py-3.5 px-4 cursor-pointer hover:text-foreground select-none transition-colors" onClick={() => handleSort("customerName")}>
+              <TableHead className="font-semibold text-xs tracking-wider text-muted-foreground py-3.5 px-4 cursor-pointer hover:text-foreground select-none transition-colors" onClick={() => handleSort("invoiceList")}>
                 <div className="flex items-center gap-1.5">
-                  CUSTOMER
+                  INVOICE
                   <ArrowUpDown className="w-3.5 h-3.5 opacity-60" />
                 </div>
               </TableHead>
@@ -237,13 +232,7 @@ export default function AuditingTable({
               </TableHead>
               <TableHead className="font-semibold text-xs tracking-wider text-muted-foreground py-3.5 px-4 cursor-pointer hover:text-foreground select-none transition-colors" onClick={() => handleSort("cldtoList")}>
                 <div className="flex items-center gap-1.5">
-                  CONSOLIDATOR
-                  <ArrowUpDown className="w-3.5 h-3.5 opacity-60" />
-                </div>
-              </TableHead>
-              <TableHead className="font-semibold text-xs tracking-wider text-muted-foreground py-3.5 px-4 cursor-pointer hover:text-foreground select-none transition-colors" onClick={() => handleSort("invoiceList")}>
-                <div className="flex items-center gap-1.5">
-                  INVOICE
+                  CONSOLIDATION
                   <ArrowUpDown className="w-3.5 h-3.5 opacity-60" />
                 </div>
               </TableHead>
@@ -260,11 +249,11 @@ export default function AuditingTable({
               // Loading Skeleton State
               Array.from({ length: 5 }).map((_, i) => (
                 <TableRow key={i} className="animate-pulse border-b/40">
-                  <TableCell className="p-4"><div className="h-4 bg-muted/60 rounded-md w-28" /></TableCell>
                   <TableCell className="p-4"><div className="h-4 bg-muted/60 rounded-md w-36" /></TableCell>
-                  <TableCell className="p-4"><div className="h-4 bg-muted/60 rounded-md w-24" /></TableCell>
-                  <TableCell className="p-4"><div className="h-4 bg-muted/60 rounded-md w-24" /></TableCell>
                   <TableCell className="p-4"><div className="h-4 bg-muted/60 rounded-md w-28" /></TableCell>
+                  <TableCell className="p-4"><div className="h-4 bg-muted/60 rounded-md w-28" /></TableCell>
+                  <TableCell className="p-4"><div className="h-4 bg-muted/60 rounded-md w-24" /></TableCell>
+                  <TableCell className="p-4"><div className="h-4 bg-muted/60 rounded-md w-24" /></TableCell>
                   <TableCell className="p-4"><div className="h-4 bg-muted/60 rounded-md w-28" /></TableCell>
                 </TableRow>
               ))
@@ -283,40 +272,40 @@ export default function AuditingTable({
               // Actual Table Rows
               paginatedRows.map((row) => (
                 <TableRow key={row.orderId} className="hover:bg-muted/10 transition-colors border-b/40">
-                  {/* Sales Order Column */}
+                  {/* Customer Column – Name with Status below */}
                   <TableCell className="py-3 px-4">
                     <div className="space-y-1">
-                      <span className="font-semibold text-xs tracking-tight text-foreground">{row.orderNo || "-"}</span>
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        {getStatusBadge(row.orderStatus)}
-                        <span className="text-[9px] text-muted-foreground whitespace-nowrap">
-                          {formatPHDateTime(row.soCreatedDate || row.orderDate)}
-                        </span>
-                      </div>
+                      <span className="font-semibold text-xs text-foreground block max-w-[200px] break-words">{row.customerName || "-"}</span>
+                      {getStatusBadge(row.orderStatus)}
                     </div>
                   </TableCell>
 
-                  {/* Customer Column */}
-                  <TableCell className="py-3 px-4 text-xs font-medium text-foreground max-w-[200px] break-words">
-                    {row.customerName || "-"}
+                  {/* Sales Order Column – Order No with Date & Time below */}
+                  <TableCell className="py-3 px-4">
+                    <div className="space-y-1">
+                      <span className="font-semibold text-xs tracking-tight text-foreground block">{row.orderNo || "-"}</span>
+                      <span className="text-[9px] text-muted-foreground block">
+                        {formatPHDateTime(row.soCreatedDate || row.orderDate)}
+                      </span>
+                    </div>
                   </TableCell>
 
-                  {/* Pre Dispatch Plan Column */}
-                  <TableCell className="py-3 px-4 text-xs font-mono text-foreground font-semibold">
-                    {formatCellList(row.pdpList)}
-                  </TableCell>
-
-                  {/* Consolidator Column */}
-                  <TableCell className="py-3 px-4 text-xs font-mono text-foreground">
-                    {formatCellList(row.cldtoList)}
-                  </TableCell>
-
-                  {/* Invoice Column with dates */}
+                  {/* Invoice Column – Invoice No with Date & Time below */}
                   <TableCell className="py-3 px-4 text-xs font-mono">
                     {formatCellWithDate(row.invoiceList, row.invoiceCreatedDates)}
                   </TableCell>
 
-                  {/* Dispatch Plan Column with dates */}
+                  {/* Pre Dispatch Plan Column – PDP No with Date & Time below */}
+                  <TableCell className="py-3 px-4 text-xs font-mono">
+                    {formatCellWithDate(row.pdpList, row.pdpCreatedDates)}
+                  </TableCell>
+
+                  {/* Consolidation Column – CLDTO No with Date & Time below */}
+                  <TableCell className="py-3 px-4 text-xs font-mono">
+                    {formatCellWithDate(row.cldtoList, row.cldtoCreatedDates)}
+                  </TableCell>
+
+                  {/* Dispatch Plan Column – DP No with Date & Time below */}
                   <TableCell className="py-3 px-4 text-xs font-mono">
                     {formatCellWithDate(row.dpList, row.dpCreatedDates)}
                   </TableCell>
@@ -328,12 +317,12 @@ export default function AuditingTable({
       </div>
 
       {/* Pagination Controls */}
-      {processedRows.length > 0 && (
+      {total > 0 && (
         <div className="flex items-center justify-between py-2 px-1">
           <div className="text-xs text-muted-foreground">
-            Showing <span className="font-bold text-foreground">{Math.min(processedRows.length, (page - 1) * pageSize + 1)}</span> to{" "}
-            <span className="font-bold text-foreground">{Math.min(processedRows.length, page * pageSize)}</span> of{" "}
-            <span className="font-semibold text-foreground">{processedRows.length}</span> records
+            Showing <span className="font-bold text-foreground">{Math.min(total, (page - 1) * pageSize + 1)}</span> to{" "}
+            <span className="font-bold text-foreground">{Math.min(total, page * pageSize)}</span> of{" "}
+            <span className="font-semibold text-foreground">{total}</span> records
           </div>
 
           <div className="flex items-center gap-2">
@@ -360,3 +349,4 @@ export default function AuditingTable({
     </div>
   );
 }
+

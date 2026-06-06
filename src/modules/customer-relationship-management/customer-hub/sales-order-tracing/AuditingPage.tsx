@@ -1,11 +1,11 @@
-// src/modules/customer-relationship-management/customer-hub/auditing/AuditingPage.tsx
+// src/modules/customer-relationship-management/customer-hub/sales-order-tracing/AuditingPage.tsx
 "use client";
 
 import React from "react";
 import useAuditing from "./hooks/useAuditing";
 import AuditingFilter from "./components/AuditingFilter";
 import AuditingTable from "./components/AuditingTable";
-import { Eye } from "lucide-react";
+import { Eye, Loader2 } from "lucide-react";
 
 export default function AuditingPage() {
   const {
@@ -18,6 +18,9 @@ export default function AuditingPage() {
     filters,
     applyFilters,
     clearFilters,
+    customerNames,
+    total,
+    reload,
   } = useAuditing(1, 10);
 
   return (
@@ -28,7 +31,10 @@ export default function AuditingPage() {
           <Eye className="h-5 w-5" />
         </div>
         <div>
-          <h1 className="text-xl font-bold tracking-tight text-foreground leading-tight">Auditing Module</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-xl font-bold tracking-tight text-foreground leading-tight">Sales Order Tracing</h1>
+            {loading && <Loader2 className="h-4 w-4 animate-spin text-primary shrink-0" />}
+          </div>
           <p className="text-[10px] text-muted-foreground uppercase font-semibold tracking-wider">
             Customer Relationship Management • Status Pipeline
           </p>
@@ -38,8 +44,10 @@ export default function AuditingPage() {
       {/* Filter Section */}
       <AuditingFilter
         filters={filters}
+        customerNames={customerNames}
         onApply={applyFilters}
         onClear={clearFilters}
+        onRefresh={reload}
       />
 
       {/* Table Module Section */}
@@ -51,6 +59,7 @@ export default function AuditingPage() {
           onPageChange={setPage}
           onPageSizeChange={setPageSize}
           isLoading={loading}
+          total={total}
         />
       </div>
     </div>

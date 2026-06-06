@@ -1,4 +1,4 @@
-// src/modules/customer-relationship-management/customer-hub/auditing/hooks/useAuditing.ts
+// src/modules/customer-relationship-management/customer-hub/sales-order-tracing/hooks/useAuditing.ts
 "use client";
 
 import { useCallback, useEffect, useState, useRef } from "react";
@@ -7,15 +7,18 @@ import { toast } from "sonner";
 import type { AuditingFilters, AuditingRow } from "../types";
 
 export function useAuditing(initialPage = 1, initialSize = 10) {
-  const [allRows, setAllRows] = useState<AuditingRow[]>([]);
-  const [filteredRows, setFilteredRows] = useState<AuditingRow[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [rows, setRows] = useState<AuditingRow[]>([]);
+  const [total, setTotal] = useState(0);
+  const [customerNames, setCustomerNames] = useState<string[]>([]);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const [page, setPage] = useState(initialPage);
   const [pageSize, setPageSize] = useState(initialSize);
 
   const [filters, setFilters] = useState<AuditingFilters>({
+    search: "",
+    customerName: "",
     startDate: "",
     endDate: "",
     orderStatus: "all",
@@ -23,8 +26,12 @@ export function useAuditing(initialPage = 1, initialSize = 10) {
 
   const abortControllerRef = useRef<AbortController | null>(null);
 
-  // Fetch records dynamically supporting date ranges passed from filters
-  const loadData = useCallback(async (useFilters: AuditingFilters) => {
+  // Fetch records dynamically supporting pagination and filters
+  const loadData = useCallback(async (
+    p: number,
+    s: number,
+    f: AuditingFilters
+  ) => {
     try {
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
@@ -41,15 +48,26 @@ export function useAuditing(initialPage = 1, initialSize = 10) {
     setError(null);
 
     try {
-      const fetchFilters: AuditingFilters = {};
-      if (useFilters.startDate) fetchFilters.startDate = useFilters.startDate;
-      if (useFilters.endDate) fetchFilters.endDate = useFilters.endDate;
-
-      const resp = await fetchAuditingData(fetchFilters, signal);
+      const resp = await fetchAuditingData(
+        {
+          ...f,
+          page: p,
+          size: s,
+        },
+        signal
+      );
       if (signal.aborted) return;
 
-      const dataRows = Array.isArray(resp) ? resp : [];
-      setAllRows(dataRows);
+      if (resp) {
+        setRows(resp.content || []);
+        setTotal(resp.totalElements || 0);
+        if (resp.customerNames) {
+          setCustomerNames(resp.customerNames);
+        }
+      } else {
+        setRows([]);
+        setTotal(0);
+      }
     } catch (err: unknown) {
       const isAbort =
         typeof err === "object" && err !== null && (err as { name?: unknown }).name === "AbortError";
@@ -58,7 +76,7 @@ export function useAuditing(initialPage = 1, initialSize = 10) {
       console.error("Auditing fetch error", err);
       const message = err instanceof Error ? err.message : String(err);
       setError(message);
-      toast.error(message || "Failed to load auditing data");
+      toast.error(message || "Failed to load sales-order-tracing data");
     } finally {
       if (abortControllerRef.current === controller) {
         abortControllerRef.current = null;
@@ -67,53 +85,42 @@ export function useAuditing(initialPage = 1, initialSize = 10) {
     }
   }, []);
 
-  // Client-side filtering for orderStatus
+  // Fetch data on dependency changes
   useEffect(() => {
-    let result = [...allRows];
-
-    // Filter by orderStatus in client memory
-    if (filters.orderStatus && filters.orderStatus.toLowerCase() !== "all") {
-      const targetStatus = filters.orderStatus.toLowerCase();
-      result = result.filter(
-        (row) => row.orderStatus && row.orderStatus.toLowerCase() === targetStatus
-      );
-    }
-
-    setFilteredRows(result);
-    setPage(1);
-  }, [allRows, filters.orderStatus]);
-
-  // Re-fetch all records only when dates changes dynamically
-  useEffect(() => {
-    loadData({ startDate: filters.startDate, endDate: filters.endDate });
-  }, [filters.startDate, filters.endDate, loadData]);
+    loadData(page, pageSize, filters);
+  }, [page, pageSize, filters, loadData]);
 
   const applyFilters = (next: AuditingFilters) => {
     setFilters((prev) => ({ ...prev, ...next }));
+    setPage(1); // Reset page to 1 on filter application
   };
 
   const clearFilters = () => {
     setFilters({
+      search: "",
+      customerName: "",
       startDate: "",
       endDate: "",
       orderStatus: "all",
     });
+    setPage(1); // Reset page to 1 on clear
   };
 
   return {
-    rows: filteredRows,
+    rows,
     loading,
     error,
     page,
     pageSize,
-    total: filteredRows.length,
+    total,
     setPage,
     setPageSize,
     filters,
     setFilters,
     applyFilters,
     clearFilters,
-    reload: () => loadData(filters),
+    customerNames,
+    reload: () => loadData(page, pageSize, filters),
   };
 }
 

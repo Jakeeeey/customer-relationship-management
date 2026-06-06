@@ -618,7 +618,7 @@ export default function LandingPage() {
                             {[
                                 { t: "Audit Tracking", d: "Management of internal and external processes, including scope and scheduling." },
                                 { t: "Findings Repository", d: "Recording, tracking, and resolving compliance gaps with structured remediation." },
-                                { t: "Activity Streams", d: "Real-time logs of critical system actions for non-repudiable auditing." }
+                                { t: "Activity Streams", d: "Real-time logs of critical system actions for non-repudiable sales-order-tracing." }
                             ].map((item, i) => (
                                 <div key={i} className="p-4 rounded-xl bg-rose-500/5 border border-rose-500/10">
                                     <h5 className="text-[10px] font-black text-rose-500 uppercase italic mb-1 tracking-widest">{item.t}</h5>

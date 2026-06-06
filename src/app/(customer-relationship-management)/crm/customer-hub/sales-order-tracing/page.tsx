@@ -12,7 +12,7 @@ import { NavUser } from "@/components/shared/app-sidebar/nav-user";
 
 import { cookies } from "next/headers";
 
-import Auditing from "@/modules/customer-relationship-management/customer-hub/auditing/AuditingPage";
+import Auditing from "@/modules/customer-relationship-management/customer-hub/sales-order-tracing/AuditingPage";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

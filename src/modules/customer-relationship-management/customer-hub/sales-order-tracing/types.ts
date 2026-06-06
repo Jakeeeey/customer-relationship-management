@@ -1,9 +1,13 @@
-// src/modules/customer-relationship-management/customer-hub/auditing/types.ts
+// src/modules/customer-relationship-management/customer-hub/sales-order-tracing/types.ts
 
 export interface AuditingFilters {
+  search?: string;
+  customerName?: string;
   startDate?: string;
   endDate?: string;
   orderStatus?: string;
+  page?: number;
+  size?: number;
 }
 
 export interface AuditingRow {
@@ -17,9 +21,18 @@ export interface AuditingRow {
   invoiceList: string | string[] | null;
   invoiceCreatedDates?: string | string[] | null;
   pdpList: string | string[] | null;
+  pdpCreatedDates?: string | string[] | null;
   cldtoList: string | string[] | null;
+  cldtoCreatedDates?: string | string[] | null;
   dpList: string | string[] | null;
   dpCreatedDates?: string | string[] | null;
 }
 
-export type AuditingApiResponse = AuditingRow[] | null;
+export interface AuditingPaginatedResponse {
+  content: AuditingRow[];
+  totalElements: number;
+  totalPages: number;
+  customerNames: string[];
+}
+
+export type AuditingApiResponse = AuditingPaginatedResponse | null;

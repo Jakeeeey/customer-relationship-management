@@ -1,7 +1,7 @@
-// src/modules/customer-relationship-management/customer-hub/auditing/providers/fetchProvider.ts
+// src/modules/customer-relationship-management/customer-hub/sales-order-tracing/providers/fetchProvider.ts
 import type { AuditingApiResponse, AuditingFilters } from "../types";
 
-const API_BASE = "/api/crm/customer-hub/auditing";
+const API_BASE = "/api/crm/customer-hub/sales-order-tracing";
 
 async function parseJsonSafely(res: Response): Promise<AuditingApiResponse> {
   const text = await res.text();
@@ -20,6 +20,11 @@ export const fetchAuditingData = async (
   const params = new URLSearchParams();
   if (filters.startDate) params.append("startDate", filters.startDate);
   if (filters.endDate) params.append("endDate", filters.endDate);
+  if (filters.search) params.append("search", filters.search);
+  if (filters.customerName) params.append("customerName", filters.customerName);
+  if (filters.orderStatus) params.append("orderStatus", filters.orderStatus);
+  if (filters.page !== undefined) params.append("page", String(filters.page));
+  if (filters.size !== undefined) params.append("size", String(filters.size));
 
   const paramString = params.toString();
   const url = paramString ? `${API_BASE}?${paramString}` : API_BASE;
