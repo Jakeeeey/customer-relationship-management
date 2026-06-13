@@ -12,6 +12,7 @@ import {
 import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { User, Salesman } from "../types";
+import { LocalSearchableSelect } from "./LocalSearchableSelect";
 
 interface FilterSectionProps {
     users: User[];
@@ -97,19 +98,18 @@ export const FilterSection: React.FC<FilterSectionProps> = ({
                                 <div className="w-1.5 h-1.5 rounded-full bg-primary" />
                                 Salesman
                             </Label>
-                            <Select value={selectedEmployeeId} onValueChange={onEmployeeChange}>
-                                <SelectTrigger className="bg-background/40 border-primary/10 hover:border-primary/30 transition-all h-11">
-                                    <SelectValue placeholder="Select Salesman" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="all">All Salesman</SelectItem>
-                                    {users.map((u) => (
-                                        <SelectItem key={u.user_id} value={String(u.user_id)}>
-                                            {u.user_fname} {u.user_lname}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
+                            <LocalSearchableSelect
+                                options={[
+                                    { value: "all", label: "Please Select Salesman" },
+                                    ...users.map((u) => ({
+                                        value: String(u.user_id),
+                                        label: `${u.user_fname} ${u.user_lname}`
+                                    }))
+                                ]}
+                                value={selectedEmployeeId}
+                                onValueChange={onEmployeeChange}
+                                placeholder="Select Salesman"
+                            />
                         </div>
 
                         <div className="space-y-2">
@@ -117,23 +117,19 @@ export const FilterSection: React.FC<FilterSectionProps> = ({
                                 <div className="w-1.5 h-1.5 rounded-full bg-primary" />
                                 Salesman Code
                             </Label>
-                            <Select 
-                                value={selectedSalesmanId} 
+                            <LocalSearchableSelect
+                                options={[
+                                    { value: "all", label: "Please Select Salesman" },
+                                    ...salesmen.map((s) => ({
+                                        value: String(s.id),
+                                        label: `${s.salesman_name} (${s.salesman_code})`
+                                    }))
+                                ]}
+                                value={selectedSalesmanId}
                                 onValueChange={onSalesmanChange}
                                 disabled={!selectedEmployeeId || selectedEmployeeId === "all"}
-                            >
-                                <SelectTrigger className="bg-background/40 border-primary/10 hover:border-primary/30 transition-all h-11 disabled:opacity-50 disabled:cursor-not-allowed">
-                                    <SelectValue placeholder={!selectedEmployeeId || selectedEmployeeId === "all" ? "Select employee first" : "Select Salesman"} />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="all">Please Select Salesman Code</SelectItem>
-                                    {salesmen.map((s) => (
-                                        <SelectItem key={s.id} value={String(s.id)}>
-                                            {s.salesman_name} ({s.salesman_code})
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
+                                placeholder={!selectedEmployeeId || selectedEmployeeId === "all" ? "Select employee first" : "Select Salesman"}
+                            />
                         </div>
                     </div>
                 </CardContent>

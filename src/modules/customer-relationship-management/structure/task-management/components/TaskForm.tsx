@@ -34,6 +34,17 @@ import {
     PopoverContent,
     PopoverTrigger,
 } from "@/components/ui/popover";
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 const taskSchema = z.object({
     task_id: z.string().min(1, "Task is required"),
@@ -631,19 +642,37 @@ export const TaskForm: React.FC<TaskFormProps> = ({
 
             <div className="flex justify-between items-center pt-8 border-t border-primary/5">
                 {initialData && onDelete && (
-                    <Button 
-                        type="button" 
-                        variant="destructive" 
-                        className="font-bold flex items-center gap-2"
-                        onClick={async () => {
-                            if (confirm("Delete this task?")) {
-                                await onDelete(initialData.id);
-                            }
-                        }}
-                    >
-                        <Trash2 className="w-4 h-4" />
-                        Delete
-                    </Button>
+                    <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                            <Button 
+                                type="button" 
+                                variant="destructive" 
+                                className="font-bold flex items-center gap-2"
+                            >
+                                <Trash2 className="w-4 h-4" />
+                                Delete
+                            </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent className="rounded-2xl border-primary/10 shadow-2xl">
+                            <AlertDialogHeader>
+                                <AlertDialogTitle className="text-xl font-black text-primary">Delete Task?</AlertDialogTitle>
+                                <AlertDialogDescription className="text-sm font-medium text-muted-foreground">
+                                    Are you sure you want to delete this task? This action cannot be undone and the task will be permanently removed from the schedule.
+                                </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter className="mt-6">
+                                <AlertDialogCancel className="rounded-xl font-bold border-primary/10">Cancel</AlertDialogCancel>
+                                <AlertDialogAction 
+                                    className="rounded-xl font-bold bg-destructive hover:bg-destructive/90 shadow-lg shadow-destructive/20"
+                                    onClick={async () => {
+                                        await onDelete(initialData.id);
+                                    }}
+                                >
+                                    Confirm Delete
+                                </AlertDialogAction>
+                            </AlertDialogFooter>
+                        </AlertDialogContent>
+                    </AlertDialog>
                 )}
                 <div className="flex gap-3 ml-auto">
                     <Button 
