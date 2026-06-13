@@ -19,7 +19,7 @@ interface SalesInvoiceDetailRow {
     invoice_no: number | string;
     order_id: string | null;
     product_id: number;
-    unit: string | null;
+    unit: number | null;
     unit_price: number;
     quantity: number;
     discount_type: number | null;
@@ -32,8 +32,19 @@ interface SalesInvoiceDetailRow {
 
 export async function POST(req: NextRequest) {
     try {
-        const body = await req.json();
-        const { order, receipts, receipt_type_id } = body;
+        const formData = await req.formData();
+        
+        const orderStr = formData.get("order") as string;
+        const receiptsStr = formData.get("receipts") as string;
+        const receipt_type_id = parseInt(formData.get("receipt_type_id") as string);
+        
+        const file = formData.get("file") as File;
+        const receiptNumbers = formData.get("receipt_numbers") as string;
+        const widthMm = formData.get("width_mm") as string;
+        const heightMm = formData.get("height_mm") as string;
+
+        const order = orderStr ? JSON.parse(orderStr) : null;
+        const receipts = receiptsStr ? JSON.parse(receiptsStr) : null;
 
         if (!order || !receipts || receipts.length === 0) {
             return NextResponse.json({ error: "Missing order or receipts data" }, { status: 400 });
@@ -76,29 +87,22 @@ export async function POST(req: NextRequest) {
         const recycledInvoicesBackedUp: { id: number; originalPayload: Record<string, unknown>; originalDetails: SalesInvoiceDetailRow[] }[] = [];
         const voidInvoicesReplaced: number[] = [];
         const originalSalesOrderReceiptType = order.receipt_type?.id || null;
+        let uploadedFileId: string | null = null;
 
         try {
             const nonVoidReceipts = receipts.filter((receipt: { is_void_reference?: boolean }) => !receipt.is_void_reference);
             const expectedReceiptCount = nonVoidReceipts.length;
             const expectedItemCount = nonVoidReceipts.reduce((sum: number, receipt: { items?: unknown[] }) => sum + (receipt.items?.length || 0), 0);
 
-            // 1. Update sales_order
-            // - order_status = "For Loading"
-            // - for_loading_at = timestamp
-            const orderUpdateRes = await fetch(`${DIRECTUS_BASE}/items/sales_order/${order.order_id}`, {
-                method: 'PATCH',
-                headers: directusHeaders(),
-                body: JSON.stringify({
-                    order_status: "For Loading",
-                    for_loading_at: now,
-                    receipt_type: receipt_type_id || (order.receipt_type?.id) || null
-                })
-            });
-            if (!orderUpdateRes.ok) throw new Error(`Failed to update sales order status: ${await orderUpdateRes.text()}`);
-            results.orderUpdated = true;
-            salesOrderWasUpdated = true;
+            // ─────────────────────────────────────────────────────────────────────
+            // STEP 1: READ-ONLY Pre-flight Checks (No mutations yet)
+            // Resolve consolidator_id for this order (Always get the NEWEST dispatch)
+            // NOTE: sales_order PATCH (order_status → "For Loading") is intentionally
+            // deferred to the VERY LAST STEP. This way, if any invoice/item/PDF step
+            // fails, the order status never changes and no rollback is needed for it.
+            // ─────────────────────────────────────────────────────────────────────
 
-            // 1b. Resolve consolidator_id for this order (Always get the NEWEST dispatch)
+            // 1. Resolve consolidator_id for this order (Always get the NEWEST dispatch)
             // Chain: order.order_id → dispatch_plan_details → dispatch_plan (sort by dispatch_date) → consolidator_dispatches → consolidator
             let consolidatorId: number | null = null;
             
@@ -373,19 +377,20 @@ export async function POST(req: NextRequest) {
                         const grossAmtItem = item.qty * item.unit_price;
                         const totalAmtItem = grossAmtItem - item.discount_amount;
                         
-                        let unitOfMeasurement = item.unit_of_measurement || null;
-                        if (!unitOfMeasurement) {
-                            try {
-                                const prodRes = await fetch(`${DIRECTUS_BASE}/items/products/${item.product_id}?fields=unit_of_measurement`, {
-                                    headers: directusHeaders()
-                                });
-                                if (prodRes.ok) {
-                                    const prodData = await prodRes.json();
-                                    unitOfMeasurement = prodData.data?.unit_of_measurement || null;
-                                }
-                            } catch {
-                                console.warn(`Could not fetch product ${item.product_id} for unit mapping`);
+                        let unitOfMeasurement: number | null = null;
+                        try {
+                            const prodRes = await fetch(`${DIRECTUS_BASE}/items/products/${item.product_id}?fields=unit_of_measurement`, {
+                                headers: directusHeaders()
+                            });
+                            if (prodRes.ok) {
+                                const prodData = await prodRes.json();
+                                // Use ?? (nullish coalescing) NOT || (OR) to preserve 0 as a valid integer value.
+                                // products.unit_of_measurement defaults to 0 in the DB — using || would
+                                // incorrectly coerce 0 to null, causing a NOT NULL violation in sales_invoice_details.unit.
+                                unitOfMeasurement = prodData.data?.unit_of_measurement ?? null;
                             }
+                        } catch {
+                            console.warn(`Could not fetch product ${item.product_id} for unit mapping`);
                         }
 
                         const detailPayload = {
@@ -497,13 +502,100 @@ export async function POST(req: NextRequest) {
                 throw new Error(`Consolidator detail update count mismatch. Expected ${expectedItemCount}, updated ${results.consolidatorDetailsUpdated}.`);
             }
 
+            // ==========================================
+            // NEW: Atomic PDF Upload & Archiving
+            // ==========================================
+            if (file && newlyCreatedInvoiceIds.length > 0) {
+                console.log(`[Atomic Transaction] Archiving PDF for Invoice IDs: ${newlyCreatedInvoiceIds.join(", ")}`);
+                
+                // 1. Upload to Directus
+                const directusFormData = new FormData();
+                directusFormData.append("file", file);
+                directusFormData.append("title", `Invoices PDF (${receiptNumbers})`);
+
+                const uploadRes = await fetch(`${DIRECTUS_BASE}/files`, {
+                    method: "POST",
+                    headers: { Authorization: `Bearer ${process.env.DIRECTUS_STATIC_TOKEN || ""}` },
+                    body: directusFormData,
+                });
+
+                if (!uploadRes.ok) {
+                    throw new Error(`Directus File Upload failed: ${await uploadRes.text()}`);
+                }
+
+                const uploadData = await uploadRes.json();
+                uploadedFileId = uploadData.data.id;
+
+                // 2. Resolve Folder
+                const folderName = process.env.DIRECTUS_INVOICE_PDF_FOLDER_NAME || "sales_invoice_pdf";
+                const targetFolderId = await getOrCreateFolderId(folderName);
+
+                if (targetFolderId) {
+                    await fetch(`${DIRECTUS_BASE}/files/${uploadedFileId}`, {
+                        method: "PATCH",
+                        headers: directusHeaders(),
+                        body: JSON.stringify({ folder: targetFolderId }),
+                    }).catch(err => console.warn("[Atomic Transaction] Folder patch failed:", err));
+                }
+
+                // 3. Insert sales_invoice_pdf (sequential, NOT Promise.all)
+                // Sequential ensures that if one insert fails, subsequent ones are never
+                // attempted — making rollback precise and minimal.
+                for (let index = 0; index < newlyCreatedInvoiceIds.length; index++) {
+                    const id = newlyCreatedInvoiceIds[index];
+                    const recordRes = await fetch(`${DIRECTUS_BASE}/items/sales_invoice_pdf`, {
+                        method: "POST",
+                        headers: directusHeaders(),
+                        body: JSON.stringify({
+                            sales_invoice_id: id,
+                            receipt_numbers: receiptNumbers,
+                            pdf_file: uploadedFileId,
+                            page: index + 1,
+                            width_mm: widthMm ? parseInt(widthMm as string) : null,
+                            height_mm: heightMm ? parseInt(heightMm as string) : null,
+                            created_at: now,
+                            created_by: createdBy,
+                            updated_at: now,
+                            updated_by: createdBy
+                        }),
+                    });
+                    if (!recordRes.ok) {
+                        throw new Error(`Failed to create sales_invoice_pdf record for ID ${id}: ${await recordRes.text()}`);
+                    }
+                }
+            }
+
+            // ─────────────────────────────────────────────────────────────────────
+            // STEP 7 (FINAL): Update sales_order status → "For Loading"
+            // This is intentionally the LAST mutation. All invoice records, item
+            // details, inventory quantity updates, and PDF archiving are fully
+            // committed before we touch the order status. If we reach this point,
+            // the entire transaction is guaranteed to be consistent.
+            // ─────────────────────────────────────────────────────────────────────
+            const orderUpdateRes = await fetch(`${DIRECTUS_BASE}/items/sales_order/${order.order_id}`, {
+                method: 'PATCH',
+                headers: directusHeaders(),
+                body: JSON.stringify({
+                    order_status: "For Loading",
+                    for_loading_at: now,
+                    // Guard against NaN from parseInt() — fall back to the order's existing receipt_type
+                    receipt_type: (!isNaN(receipt_type_id) && receipt_type_id) ? receipt_type_id : (order.receipt_type?.id || null)
+                })
+            });
+            if (!orderUpdateRes.ok) throw new Error(`Failed to update sales order status: ${await orderUpdateRes.text()}`);
+            results.orderUpdated = true;
+            salesOrderWasUpdated = true;
+
             return NextResponse.json({ success: true, details: results }, { status: 200 });
 
         } catch (err: unknown) {
             const errorMessage = err instanceof Error ? err.message : String(err);
             console.error("[Invoicing Transaction Failed] Starting rollback...", errorMessage);
 
-            // 1. Rollback sales_order status
+            // SAFETY NET: Rollback sales_order status only if it was updated.
+            // Since the order PATCH is now the LAST step, this block will only
+            // activate in the rare scenario where everything else succeeded but
+            // the final sales_order PATCH itself threw an error.
             if (salesOrderWasUpdated) {
                 try {
                     await fetch(`${DIRECTUS_BASE}/items/sales_order/${order.order_id}`, {
@@ -521,7 +613,44 @@ export async function POST(req: NextRequest) {
                 }
             }
 
-            // 2. Rollback newly created sales_invoice records (delete details first)
+            // 2. Rollback sales_invoice_pdf records (Must happen BEFORE deleting sales_invoice due to FK constraint)
+            if (newlyCreatedInvoiceIds.length > 0) {
+                try {
+                    const idsString = newlyCreatedInvoiceIds.join(',');
+                    const getPdfRes = await fetch(`${DIRECTUS_BASE}/items/sales_invoice_pdf?filter[sales_invoice_id][_in]=${idsString}&fields=id`, {
+                        headers: directusHeaders(),
+                        cache: 'no-store'
+                    });
+                    if (getPdfRes.ok) {
+                        const pdfData = await getPdfRes.json();
+                        const pdfIdsToDelete = pdfData.data?.map((d: { id: number }) => d.id) || [];
+                        for (const pid of pdfIdsToDelete) {
+                            await fetch(`${DIRECTUS_BASE}/items/sales_invoice_pdf/${pid}`, {
+                                method: 'DELETE',
+                                headers: directusHeaders()
+                            });
+                        }
+                        console.log("[Rollback] Deleted sales_invoice_pdf records tied to:", idsString);
+                    }
+                } catch (e) {
+                    console.error("[Rollback Failed] sales_invoice_pdf deletion:", e);
+                }
+            }
+
+            // 3. Delete Orphaned PDF File from Storage
+            if (uploadedFileId) {
+                try {
+                    await fetch(`${DIRECTUS_BASE}/files/${uploadedFileId}`, {
+                        method: 'DELETE',
+                        headers: { Authorization: `Bearer ${process.env.DIRECTUS_STATIC_TOKEN || ""}` }
+                    });
+                    console.log("[Rollback] Deleted orphaned PDF file from storage:", uploadedFileId);
+                } catch (e) {
+                    console.error("[Rollback Failed] Orphaned PDF file deletion:", e);
+                }
+            }
+
+            // 4. Rollback newly created sales_invoice records (delete details first)
             if (newlyCreatedInvoiceIds.length > 0) {
                 for (const invId of newlyCreatedInvoiceIds) {
                     try {
@@ -659,5 +788,50 @@ export async function POST(req: NextRequest) {
         }
     } catch (err: unknown) {
         return NextResponse.json({ error: "Internal Server Error", details: err instanceof Error ? err.message : String(err) }, { status: 500 });
+    }
+}
+
+/**
+ * Directus Folder Utility
+ */
+async function getOrCreateFolderId(folderName: string): Promise<string | null> {
+    const DIRECTUS_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
+    const DIRECTUS_TOKEN = process.env.DIRECTUS_STATIC_TOKEN;
+
+    if (!DIRECTUS_URL || !DIRECTUS_TOKEN) {
+        console.error("[Directus Folders] Missing API URL or Static Token.");
+        return null;
+    }
+
+    try {
+        const searchUrl = `${DIRECTUS_URL}/folders?filter[name][_eq]=${encodeURIComponent(folderName)}&fields=id`;
+        const searchRes = await fetch(searchUrl, {
+            headers: { Authorization: `Bearer ${DIRECTUS_TOKEN}` },
+            cache: "no-store",
+        });
+
+        if (!searchRes.ok) return null;
+
+        const searchResult = await searchRes.json();
+        if (searchResult.data && searchResult.data.length > 0) {
+            return searchResult.data[0].id;
+        }
+
+        const createRes = await fetch(`${DIRECTUS_URL}/folders`, {
+            method: "POST",
+            headers: {
+                Authorization: `Bearer ${DIRECTUS_TOKEN}`,
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ name: folderName }),
+        });
+
+        if (!createRes.ok) return null;
+
+        const createdResult = await createRes.json();
+        return createdResult.data?.id || null;
+    } catch (error) {
+        console.error(`[Directus Folders] Error for '${folderName}':`, error);
+        return null;
     }
 }
