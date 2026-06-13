@@ -251,7 +251,9 @@ export const useTaskManagementApproval = () => {
                 employee_id: salesman.employee_id,
                 month: getMonth(currentDate) + 1,
                 year: getYear(currentDate),
-                created_by: data.currentUserId
+                created_by: data.currentUserId,
+                created_at: new Date().toISOString(),
+                status: "pending"
             });
             return newMcp;
         } catch {
