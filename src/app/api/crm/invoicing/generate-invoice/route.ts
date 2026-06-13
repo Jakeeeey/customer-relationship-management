@@ -13,6 +13,23 @@ function directusHeaders() {
     return h;
 }
 
+/** Shape of a raw `sales_invoice_details` row returned by Directus */
+interface SalesInvoiceDetailRow {
+    detail_id: number;
+    invoice_no: number | string;
+    order_id: string | null;
+    product_id: number;
+    unit: string | null;
+    unit_price: number;
+    quantity: number;
+    discount_type: number | null;
+    discount_amount: number;
+    gross_amount: number;
+    total_amount: number;
+    created_date: string | null;
+    [key: string]: unknown; // allow extra Directus metadata fields
+}
+
 export async function POST(req: NextRequest) {
     try {
         const body = await req.json();
@@ -55,6 +72,10 @@ export async function POST(req: NextRequest) {
         const updatedSalesOrderDetails: { detailId: number; originalQty: number }[] = [];
         const updatedConsolidatorDetails: { cdRecordId: number; originalQty: number }[] = [];
         let salesOrderWasUpdated = false;
+        
+        const recycledInvoicesBackedUp: { id: number; originalPayload: Record<string, unknown>; originalDetails: SalesInvoiceDetailRow[] }[] = [];
+        const voidInvoicesReplaced: number[] = [];
+        const originalSalesOrderReceiptType = order.receipt_type?.id || null;
 
         try {
             const nonVoidReceipts = receipts.filter((receipt: { is_void_reference?: boolean }) => !receipt.is_void_reference);
@@ -176,6 +197,9 @@ export async function POST(req: NextRequest) {
 
             // Iterate through each receipt generated
             for (const receipt of receipts) {
+                const existingItemsMap = new Map<number, SalesInvoiceDetailRow>();
+                const processedDetailIds = new Set<number>();
+
                 // ── Skip Void Reference Receipt ──
                 if (receipt.is_void_reference) {
                     continue;
@@ -244,10 +268,31 @@ export async function POST(req: NextRequest) {
                                 body: JSON.stringify({ isReplaced: 1 })
                             });
                             if (!voidReplaceRes.ok) throw new Error(`Failed to mark old void invoice ${targetId} as replaced.`);
+                            voidInvoicesReplaced.push(typeof targetId === 'string' ? parseInt(targetId) : targetId);
                         }
                     }
 
                     if (!isVoidReplacement) {
+                        // ── BACKUP BEFORE OVERWRITE (For Recycled Rollback) ──
+                        const numericTargetId = typeof targetId === 'string' ? parseInt(targetId) : targetId;
+                        if (!recycledInvoicesBackedUp.some(b => b.id === numericTargetId)) {
+                            const backupRes = await fetch(`${DIRECTUS_BASE}/items/sales_invoice/${targetId}?fields=*`, {
+                                headers: directusHeaders()
+                            });
+                            const oldDetailsRes = await fetch(`${DIRECTUS_BASE}/items/sales_invoice_details?filter[invoice_no][_eq]=${targetId}`, {
+                                headers: directusHeaders()
+                            });
+                            if (backupRes.ok && oldDetailsRes.ok) {
+                                const backupData = await backupRes.json();
+                                const oldDetailsData = await oldDetailsRes.json();
+                                recycledInvoicesBackedUp.push({
+                                    id: numericTargetId,
+                                    originalPayload: backupData.data,
+                                    originalDetails: oldDetailsData.data || []
+                                });
+                            }
+                        }
+
                         // ── B. Update existing invoice (Non-Void/Recycled) ──
                         const patchRes = await fetch(`${DIRECTUS_BASE}/items/sales_invoice/${targetId}`, {
                             method: 'PATCH',
@@ -257,12 +302,15 @@ export async function POST(req: NextRequest) {
                         if (!patchRes.ok) throw new Error(`Failed to patch existing sales invoice ${targetId}: ${await patchRes.text()}`);
                         targetInvoiceId = targetId;
                         
-                        // Clear old details for this invoice before adding new ones
-                        const clearDetailsRes = await fetch(`${DIRECTUS_BASE}/items/sales_invoice_details?filter[invoice_no][_eq]=${targetInvoiceId}`, {
-                            method: 'DELETE',
-                            headers: directusHeaders()
+                        const getDetailsRes = await fetch(`${DIRECTUS_BASE}/items/sales_invoice_details?filter[invoice_no][_eq]=${targetInvoiceId}&fields=*`, {
+                            headers: directusHeaders(),
+                            cache: 'no-store'
                         });
-                        if (!clearDetailsRes.ok) throw new Error(`Failed to clear old invoice details for invoice ${targetInvoiceId}: ${await clearDetailsRes.text()}`);
+                        if (getDetailsRes.ok) {
+                            const detailsData = await getDetailsRes.json();
+                            const existingDetailsData = detailsData.data || [];
+                            existingDetailsData.forEach((d: SalesInvoiceDetailRow) => existingItemsMap.set(Number(d.product_id), d));
+                        }
                     }
                 }
                 
@@ -354,17 +402,55 @@ export async function POST(req: NextRequest) {
                             created_date: now
                         };
 
-                        const detailRes = await fetch(`${DIRECTUS_BASE}/items/sales_invoice_details`, {
-                            method: 'POST',
-                            headers: directusHeaders(),
-                            body: JSON.stringify(detailPayload)
-                        });
-                        
-                        if (!detailRes.ok) throw new Error(`Failed to create invoice details for product ${item.product_id}: ${await detailRes.text()}`);
+                        const existingDetail = existingItemsMap.get(Number(item.product_id));
+                        if (existingDetail) {
+                            // PATCH existing detail
+                            const detailRes = await fetch(`${DIRECTUS_BASE}/items/sales_invoice_details/${existingDetail.detail_id}`, {
+                                method: 'PATCH',
+                                headers: directusHeaders(),
+                                body: JSON.stringify(detailPayload)
+                            });
+                            if (!detailRes.ok) {
+                                throw new Error(`Failed to update invoice details for product ${item.product_id}: ${await detailRes.text()}`);
+                            }
+                            processedDetailIds.add(existingDetail.detail_id);
+                        } else {
+                            // POST new detail
+                            const detailRes = await fetch(`${DIRECTUS_BASE}/items/sales_invoice_details`, {
+                                method: 'POST',
+                                headers: directusHeaders(),
+                                body: JSON.stringify(detailPayload)
+                            });
+                            if (!detailRes.ok) {
+                                throw new Error(`Failed to create invoice details for product ${item.product_id}: ${await detailRes.text()}`);
+                            }
+                            const createdData = await detailRes.json();
+                            if (createdData.data?.detail_id) {
+                                processedDetailIds.add(createdData.data.detail_id);
+                            }
+                        }
                         results.invoiceDetailsCreated++;
                     }
+                }
 
-                    // 4. Update consolidator_details.applied_quantity (accumulate)
+                // 3c. Delete any details that were removed from the recycled invoice
+                // ⚠️ This MUST run AFTER the entire items loop, NOT inside it.
+                // Running it inside would try to delete items that haven't been processed yet.
+                for (const [productId, detail] of existingItemsMap.entries()) {
+                    if (!processedDetailIds.has(detail.detail_id)) {
+                        const clearRes = await fetch(`${DIRECTUS_BASE}/items/sales_invoice_details/${detail.detail_id}`, {
+                            method: 'DELETE',
+                            headers: directusHeaders()
+                        });
+                        if (!clearRes.ok) {
+                            const errTxt = await clearRes.text();
+                            throw new Error(`Cannot remove product ${productId} from the invoice because it is referenced in an unfulfilled transaction. (detail_id: ${detail.detail_id}): ${errTxt}`);
+                        }
+                    }
+                }
+
+                // 4. Update consolidator_details.applied_quantity (accumulate) — re-enter item loop for consolidator only
+                for (const item of receipt.items) {
                     if (consolidatorId) {
                         // Find the consolidator_details record by consolidator_id + product_id
                         const cdRes = await fetch(
@@ -425,7 +511,8 @@ export async function POST(req: NextRequest) {
                         headers: directusHeaders(),
                         body: JSON.stringify({
                             order_status: order.order_status, // restore original status
-                            for_loading_at: order.for_loading_at || null
+                            for_loading_at: order.for_loading_at || null,
+                            receipt_type: originalSalesOrderReceiptType
                         })
                     });
                     console.log("[Rollback] Restored sales_order status to:", order.order_status);
@@ -439,10 +526,23 @@ export async function POST(req: NextRequest) {
                 for (const invId of newlyCreatedInvoiceIds) {
                     try {
                         // Delete details first
-                        await fetch(`${DIRECTUS_BASE}/items/sales_invoice_details?filter[invoice_no][_eq]=${invId}`, {
-                            method: 'DELETE',
-                            headers: directusHeaders()
+                        const getDetailsRes = await fetch(`${DIRECTUS_BASE}/items/sales_invoice_details?filter[invoice_no][_eq]=${invId}&fields=*`, {
+                            headers: directusHeaders(),
+                            cache: 'no-store'
                         });
+                        if (getDetailsRes.ok) {
+                            const detailsData = await getDetailsRes.json();
+                            const idsToDelete = detailsData.data?.map((d: SalesInvoiceDetailRow) => d.detail_id) || [];
+                            if (idsToDelete.length > 0) {
+                                for (const idToDelete of idsToDelete) {
+                                    if (!idToDelete) continue;
+                                    await fetch(`${DIRECTUS_BASE}/items/sales_invoice_details/${idToDelete}`, {
+                                        method: 'DELETE',
+                                        headers: directusHeaders()
+                                    });
+                                }
+                            }
+                        }
                         
                         // Delete invoice
                         await fetch(`${DIRECTUS_BASE}/items/sales_invoice/${invId}`, {
@@ -456,8 +556,73 @@ export async function POST(req: NextRequest) {
                 }
             }
 
+            // 2b. Restore Recycled (Existing) Invoices
+            if (recycledInvoicesBackedUp.length > 0) {
+                for (const backup of recycledInvoicesBackedUp) {
+                    try {
+                        // Restore header
+                        await fetch(`${DIRECTUS_BASE}/items/sales_invoice/${backup.id}`, {
+                            method: 'PATCH',
+                            headers: directusHeaders(),
+                            body: JSON.stringify(backup.originalPayload)
+                        });
+                        
+                        // Restore original details by matching detail_id
+                        const getDetailsRes = await fetch(`${DIRECTUS_BASE}/items/sales_invoice_details?filter[invoice_no][_eq]=${backup.id}&fields=*`, {
+                            headers: directusHeaders(),
+                            cache: 'no-store'
+                        });
+                        if (getDetailsRes.ok) {
+                            const detailsData = await getDetailsRes.json();
+                            const currentDetails = detailsData.data || [];
+                            const originalDetailsMap = new Map(backup.originalDetails.map((d: SalesInvoiceDetailRow) => [d.detail_id, d]));
+                            
+                            // Delete any details that were newly inserted during the failed transaction
+                            for (const current of currentDetails) {
+                                if (!originalDetailsMap.has(current.detail_id)) {
+                                    await fetch(`${DIRECTUS_BASE}/items/sales_invoice_details/${current.detail_id}`, {
+                                        method: 'DELETE',
+                                        headers: directusHeaders()
+                                    });
+                                }
+                            }
+                            
+                            // Patch back original values
+                            for (const original of backup.originalDetails) {
+                                const { detail_id, ...rest } = original;
+                                await fetch(`${DIRECTUS_BASE}/items/sales_invoice_details/${detail_id}`, {
+                                    method: 'PATCH',
+                                    headers: directusHeaders(),
+                                    body: JSON.stringify(rest)
+                                });
+                            }
+                        }
+                        console.log("[Rollback] Restored recycled invoice and details for ID:", backup.id);
+                    } catch (e) {
+                        console.error("[Rollback Failed] Restore recycled invoice for ID:", backup.id, e);
+                    }
+                }
+            }
+            
+            // 2c. Restore Void Replacement Tags
+            if (voidInvoicesReplaced.length > 0) {
+                for (const voidId of voidInvoicesReplaced) {
+                    try {
+                        await fetch(`${DIRECTUS_BASE}/items/sales_invoice/${voidId}`, {
+                            method: 'PATCH',
+                            headers: directusHeaders(),
+                            body: JSON.stringify({ isReplaced: 0 })
+                        });
+                        console.log("[Rollback] Untagged void replacement for ID:", voidId);
+                    } catch (e) {
+                        console.error("[Rollback Failed] Untag void replacement for ID:", voidId, e);
+                    }
+                }
+            }
+
             // 3. Rollback sales_order_details served_quantity updates
             if (updatedSalesOrderDetails.length > 0) {
+                updatedSalesOrderDetails.reverse(); // Process LIFO
                 for (const detail of updatedSalesOrderDetails) {
                     try {
                         await fetch(`${DIRECTUS_BASE}/items/sales_order_details/${detail.detailId}`, {
@@ -474,6 +639,7 @@ export async function POST(req: NextRequest) {
 
             // 4. Rollback consolidator_details applied_quantity updates
             if (updatedConsolidatorDetails.length > 0) {
+                updatedConsolidatorDetails.reverse(); // Process LIFO
                 for (const cdDetail of updatedConsolidatorDetails) {
                     try {
                         await fetch(`${DIRECTUS_BASE}/items/consolidator_details/${cdDetail.cdRecordId}`, {
