@@ -14,6 +14,7 @@ export interface ReceiptItem {
     discount_amount: number;
     net_amount: number;
     unit_shortcut: string;
+    barcode?: string;
 }
 
 export interface ReceiptData {
@@ -30,6 +31,7 @@ export interface ReceiptData {
     discountTypes: DiscountType[];
     barcodeDataUrl?: string;
     template?: ORTemplate;
+    printBackground?: boolean;
 }
 
 import { DiscountType } from '../types';
@@ -42,8 +44,16 @@ const THERMAL_CONTENT_WIDTH = THERMAL_WIDTH - (THERMAL_MARGIN * 2);
 
 
 
-const getImageDataUrl = async (url: string): Promise<string> => {
-    const response = await fetch(url);
+const getImageDataUrl = async (originalUrl: string): Promise<string> => {
+    if (originalUrl.startsWith("data:")) return originalUrl;
+    
+    // For local assets (starts with /), fetch directly to avoid server-side proxy absolute URL errors.
+    // For external URLs, proxy through our internal Next.js API to bypass CORS blocks.
+    const fetchUrl = originalUrl.startsWith("/") 
+        ? originalUrl 
+        : `/api/crm/invoicing/proxy-image?url=${encodeURIComponent(originalUrl)}`;
+    
+    const response = await fetch(fetchUrl);
     const blob = await response.blob();
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
@@ -188,16 +198,25 @@ const generateOfficialReceipt = async (data: ReceiptData, existingDoc?: jsPDF): 
     });
 
     // Background Image
-    /* 
-    if (template?.backgroundImage) {
+    if (template?.backgroundImage && data.printBackground) {
         try {
-            // Maximizing Potential: High-quality image rendering
-            doc.addImage(template.backgroundImage, 'JPEG', 0, 0, width, height, undefined, 'FAST');
+            let imgUrl = template.backgroundImage;
+            if (!imgUrl.startsWith("data:") && !imgUrl.startsWith("http")) {
+                const baseUrl = (process.env.NEXT_PUBLIC_API_BASE_URL || "").replace(/\/+$/, "");
+                imgUrl = `${baseUrl}/assets/${imgUrl}`;
+            }
+            
+            // Maximizing Potential: High-quality image rendering using fetched Base64
+            const base64Data = await getImageDataUrl(imgUrl);
+            
+            const format = base64Data.substring("data:image/".length, base64Data.indexOf(";base64"));
+            const jsPdfFormat = format.toUpperCase() === 'PNG' ? 'PNG' : 'JPEG';
+            
+            doc.addImage(base64Data, jsPdfFormat, 0, 0, width, height, undefined, 'FAST');
         } catch (err) {
             console.warn("Failed to add background image to OR:", err);
         }
     }
-    */
 
     // Font setup
     doc.setFont('courier', 'normal');
@@ -353,6 +372,12 @@ const generateOfficialReceipt = async (data: ReceiptData, existingDoc?: jsPDF): 
         
         // Calculate vertical middle for alignment of Qty, Price, etc.
         const midYOffset = (actualRowHeight - (tableFontSize * 0.3527)) / 2;
+
+        // Barcode (Vertically Centered)
+        if (cols?.barcode) {
+            const barcodeStr = item.barcode || "";
+            doc.text(barcodeStr, cols.barcode.x, currentY + midYOffset, { baseline: 'top' });
+        }
 
         // Draw Product Name (Lines)
         lines.forEach((line, lineIdx) => {
