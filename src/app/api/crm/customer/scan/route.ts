@@ -19,7 +19,7 @@ export async function GET(req: NextRequest) {
         
         const params = new URLSearchParams({
             limit: limit,
-            fields: "*", // Get all customer fields for auditing
+            fields: "*", // Get all customer fields for sales-order-tracing
             t: Date.now().toString()
         });
 

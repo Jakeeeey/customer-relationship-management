@@ -14,21 +14,21 @@ function directusHeaders() {
 
 export async function GET() {
     try {
-        const url = `${DIRECTUS_BASE}/items/discount_type?limit=-1`;
-        
-        const response = await fetch(url, {
-            cache: "no-store",
+        const response = await fetch(`${DIRECTUS_BASE}/items/company/1?fields=company_code`, {
             headers: directusHeaders(),
+            cache: 'no-store'
         });
 
         if (!response.ok) {
-            const errorText = await response.text();
-            return NextResponse.json({ error: "Failed to fetch discount types", details: errorText }, { status: response.status });
+            return NextResponse.json({ error: "Failed to fetch company data" }, { status: response.status });
         }
 
         const data = await response.json();
-        return NextResponse.json(data.data || []);
+        return NextResponse.json(data);
     } catch (err: unknown) {
-        return NextResponse.json({ error: "Internal Server Error", details: err instanceof Error ? err.message : String(err) }, { status: 500 });
+        return NextResponse.json(
+            { error: "Internal Server Error", details: err instanceof Error ? err.message : String(err) }, 
+            { status: 500 }
+        );
     }
 }

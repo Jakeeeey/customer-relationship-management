@@ -20,7 +20,7 @@ interface Props {
     initialTemplate?: ORTemplate;
 }
 
-const DEFAULT_TEMPLATE: ORTemplate = {
+export const DEFAULT_TEMPLATE: ORTemplate = {
     id: 'default-or',
     name: 'Default Official Receipt',
     width: 210,
@@ -48,11 +48,50 @@ const DEFAULT_TEMPLATE: ORTemplate = {
         fontSize: 10,
         product_name_width: 85, // Default width in mm
         columns: {
-            product_name: { x: 10 },
+            barcode: { x: 10 },
+            product_name: { x: 35 },
             quantity: { x: 105 },
             unit_price: { x: 126 },
             discount: { x: 153 },
             net_amount: { x: 184 }
+        }
+    }
+};
+
+export const MARIKINA_TEMPLATE: ORTemplate = {
+    id: 'marikina-or',
+    name: 'Marikina Official Receipt',
+    width: 205,
+    height: 258,
+    fields: {
+        customer_name: { x: 40, y: 35, fontSize: 11, fontFamily: 'courier', fontWeight: 'bold', label: 'Customer Name' },
+        date: { x: 170, y: 35, fontSize: 11, fontFamily: 'courier', fontWeight: 'bold', label: 'Date' },
+        store_name: { x: 50, y: 43, fontSize: 11, fontFamily: 'courier', fontWeight: 'bold', label: 'Store Name' },
+        payment_name: { x: 170, y: 43, fontSize: 11, fontFamily: 'courier', fontWeight: 'bold', label: 'Terms' },
+        customer_tin: { x: 25, y: 52, fontSize: 11, fontFamily: 'courier', fontWeight: 'bold', label: 'TIN' },
+        address: { x: 45, y: 60, fontSize: 11, fontFamily: 'courier', fontWeight: 'bold', label: 'Address' },
+        vatable_sales: { x: 160, y: 220, fontSize: 10, fontFamily: 'courier', fontWeight: 'normal', label: 'Vatable Sales' },
+        vat_amount: { x: 160, y: 226, fontSize: 10, fontFamily: 'courier', fontWeight: 'normal', label: 'VAT Amount' },
+        gross_total: { x: 160, y: 232, fontSize: 11, fontFamily: 'courier', fontWeight: 'normal', label: 'Gross Total' },
+        discount_total: { x: 160, y: 238, fontSize: 10, fontFamily: 'courier', fontWeight: 'normal', label: 'Discount Total' },
+        net_total: { x: 160, y: 250, fontSize: 12, fontFamily: 'courier', fontWeight: 'bold', label: 'Net Total' },
+        po_no: { x: 10, y: 220, fontSize: 10, fontFamily: 'courier', fontWeight: 'normal', label: 'PO Number', hidden: true },
+        salesman: { x: 10, y: 226, fontSize: 10, fontFamily: 'courier', fontWeight: 'normal', label: 'Salesman Name', hidden: true },
+        total_amount_due: { x: 160, y: 260, fontSize: 12, fontFamily: 'courier', fontWeight: 'bold', label: 'Total Amount Due', hidden: true },
+        barcode: { x: 160, y: 5, fontSize: 12, fontFamily: 'courier', fontWeight: 'normal', label: 'Barcode', hidden: true },
+    },
+    tableSettings: {
+        startY: 75,
+        rowHeight: 12.2,
+        fontSize: 10,
+        product_name_width: 60,
+        columns: {
+            barcode: { x: 10 },
+            product_name: { x: 45 },
+            quantity: { x: 110 },
+            unit_price: { x: 135 },
+            discount: { x: 160 },
+            net_amount: { x: 185 }
         }
     }
 };
@@ -68,15 +107,37 @@ export const ReceiptTemplateEditor: React.FC<Props> = ({ isOpen, onClose, onSave
     // Sync state when initialTemplate changes or modal opens
     useEffect(() => {
         if (isOpen && initialTemplate) {
+            const fallbackTemplate = initialTemplate.id === 'marikina-or' ? MARIKINA_TEMPLATE : DEFAULT_TEMPLATE;
+            
+            // Auto-inject barcode column for old legacy templates in the DB that missed it.
+            // However, if the initialTemplate explicitly has columns defined but WITHOUT barcode,
+            // respect that — it was deliberately stripped (e.g. MEN2-Dagupan).
+            const initialColumnsExist = !!initialTemplate.tableSettings?.columns;
+            const initialHasBarcode = initialColumnsExist && 'barcode' in (initialTemplate.tableSettings!.columns!);
+
+            const mergedColumns = {
+                ...fallbackTemplate.tableSettings.columns,
+                ...(initialTemplate.tableSettings?.columns || {})
+            };
+
+            if (initialColumnsExist && !initialHasBarcode) {
+                // Deliberately excluded — strip it from the merged result too
+                delete mergedColumns.barcode;
+            } else if (!mergedColumns.barcode) {
+                // True legacy template with no columns at all — inject it
+                mergedColumns.barcode = { x: 10 };
+            }
+
             setTemplate({
                 ...initialTemplate,
                 fields: {
-                    ...DEFAULT_TEMPLATE.fields,
+                    ...fallbackTemplate.fields,
                     ...(initialTemplate.fields || {})
                 },
                 tableSettings: {
-                    ...DEFAULT_TEMPLATE.tableSettings,
-                    ...(initialTemplate.tableSettings || {})
+                    ...fallbackTemplate.tableSettings,
+                    ...(initialTemplate.tableSettings || {}),
+                    columns: mergedColumns
                 }
             });
         } else if (isOpen && !initialTemplate) {
@@ -684,6 +745,7 @@ export const ReceiptTemplateEditor: React.FC<Props> = ({ isOpen, onClose, onSave
                                 
                                 // Standardized widths to match Preview logic
                                 const w = {
+                                    barcode: 30,
                                     product_name: 85,
                                     quantity: 22,
                                     unit_price: 28,
@@ -692,8 +754,8 @@ export const ReceiptTemplateEditor: React.FC<Props> = ({ isOpen, onClose, onSave
                                 };
 
                                 return [
-                                    { product_name: 'SAMPLE PRODUCT NAME 48X180G', quantity: '90 BOX', unit_price: 'P2,208.00', discount: 'L4', net_amount: 'P190,771.20' },
-                                    { product_name: 'ANOTHER SAMPLE ITEM 50X100G', quantity: '120 BOX', unit_price: 'P996.00', discount: 'L3', net_amount: 'P114,739.20' }
+                                    { barcode: '4800012345', product_name: 'SAMPLE PRODUCT NAME 48X180G', quantity: '90 BOX', unit_price: 'P2,208.00', discount: 'L4', net_amount: 'P190,771.20' },
+                                    { barcode: '4800067890', product_name: 'ANOTHER SAMPLE ITEM 50X100G', quantity: '120 BOX', unit_price: 'P996.00', discount: 'L3', net_amount: 'P114,739.20' }
                                 ].map((item, idx) => (
                                     <div 
                                         key={`sample-row-${idx}`}
@@ -706,7 +768,10 @@ export const ReceiptTemplateEditor: React.FC<Props> = ({ isOpen, onClose, onSave
                                             fontWeight: 'bold'
                                         }}
                                     >
-                                        <div className="absolute truncate" style={{ left: `${cols.product_name?.x || 10}mm`, width: `${w.product_name}mm` }}>{item.product_name}</div>
+                                        {cols.barcode && (
+                                            <div className="absolute truncate" style={{ left: `${cols.barcode.x}mm`, width: `${w.barcode}mm` }}>{item.barcode}</div>
+                                        )}
+                                        <div className="absolute truncate" style={{ left: `${cols.product_name?.x || 10}mm`, width: `${template.tableSettings.product_name_width || w.product_name}mm` }}>{item.product_name}</div>
                                         <div className="absolute text-center" style={{ left: `${(cols.quantity?.x || 105) - (w.quantity / 2)}mm`, width: `${w.quantity}mm` }}>{item.quantity}</div>
                                         <div className="absolute text-right" style={{ left: `${(cols.unit_price?.x || 126) - w.unit_price}mm`, width: `${w.unit_price}mm` }}>{item.unit_price}</div>
                                         <div className="absolute text-right" style={{ left: `${(cols.discount?.x || 153) - w.discount}mm`, width: `${w.discount}mm` }}>{item.discount}</div>

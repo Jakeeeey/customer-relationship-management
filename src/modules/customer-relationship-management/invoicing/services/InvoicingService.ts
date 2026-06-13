@@ -58,6 +58,17 @@ export const InvoicingService = {
         return response.json();
     },
 
+    async getCompany(): Promise<{ company_code: string } | null> {
+        try {
+            const response = await fetch("/api/crm/invoicing/company");
+            if (!response.ok) return null;
+            const json = await response.json();
+            return json.data || null;
+        } catch {
+            return null;
+        }
+    },
+
     async updateSalesOrderRemarks(orderId: number, remarks: string | null): Promise<{ success: boolean }> {
         const url = `/api/crm/invoicing/sales-orders/${orderId}`;
         const response = await fetch(url, {
