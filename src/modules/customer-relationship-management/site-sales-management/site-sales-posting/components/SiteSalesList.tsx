@@ -56,6 +56,7 @@ interface SiteSalesListProps {
     customers: Customer[];
     salesTypes: SalesType[];
     totalCount: number;
+    onSearchCustomers?: (search: string) => Promise<void>;
     onFilterChange: (filters: WorklistFilters) => void;
 }
 
@@ -64,6 +65,7 @@ export const SiteSalesList: React.FC<SiteSalesListProps> = ({
     isLoading,
     salesmen,
     customers,
+    onSearchCustomers,
     salesTypes,
     totalCount,
     onFilterChange 
@@ -88,7 +90,17 @@ export const SiteSalesList: React.FC<SiteSalesListProps> = ({
     const [sorting, setSorting] = useState<SortingState>([{ id: "invoice_date", desc: true }]);
     const [rowSelection, setRowSelection] = useState({});
     const [openCustomer, setOpenCustomer] = useState(false);
+    const [searchCustomerQuery, setSearchCustomerQuery] = useState("");
     const [openSalesman, setOpenSalesman] = useState(false);
+
+    // Debounced customer search
+    useEffect(() => {
+        if (!onSearchCustomers) return;
+        const timer = setTimeout(() => {
+            onSearchCustomers(searchCustomerQuery);
+        }, 500);
+        return () => clearTimeout(timer);
+    }, [searchCustomerQuery, onSearchCustomers]);
 
     const applyFilters = useCallback(() => {
         onFilterChange({
@@ -385,8 +397,12 @@ export const SiteSalesList: React.FC<SiteSalesListProps> = ({
                                 </Button>
                             </PopoverTrigger>
                             <PopoverContent className="w-[300px] p-0" align="start">
-                                <Command>
-                                    <CommandInput placeholder="Search customer..." />
+                                <Command shouldFilter={!onSearchCustomers}>
+                                    <CommandInput 
+                                        placeholder="Search customer..." 
+                                        value={searchCustomerQuery}
+                                        onValueChange={setSearchCustomerQuery}
+                                    />
                                     <CommandList>
                                         <CommandEmpty>No results found.</CommandEmpty>
                                         <CommandGroup>
