@@ -21,7 +21,7 @@ export interface SubscriptionRecord {
 export interface DealerRecord {
   dealer_id?: number | string;
   dealer_name?: string;
-  dealer_type?: string; // virtual field mapped from dealer_type_id.type_name
+  dealer_type?: string; // dealer_type
   dealer_type_id?: number | string | DealerTypeRecord | null;
   dealer_code?: string;
   dealer_address?: string;

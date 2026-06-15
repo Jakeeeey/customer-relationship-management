@@ -51,9 +51,9 @@ function FilterCombobox({
   let displayLabel = placeholder;
   if (selectedVal) {
     if (isObj) {
-      const found = (options as { value: string | number; label: string }[]).find(
-        (o) => String(o.value) === selectedVal,
-      );
+      const found = (
+        options as { value: string | number; label: string }[]
+      ).find((o) => String(o.value) === selectedVal);
       displayLabel = found ? found.label : selectedVal;
     } else {
       displayLabel = selectedVal;
@@ -69,8 +69,10 @@ function FilterCombobox({
           aria-expanded={open}
           disabled={disabled}
           className="h-11 rounded-xl shadow-sm border-border/60 w-40 justify-between font-bold text-xs uppercase tracking-widest bg-background"
-        > 
-          <span className="truncate">{selectedVal ? displayLabel : placeholder}</span>
+        >
+          <span className="truncate">
+            {selectedVal ? displayLabel : placeholder}
+          </span>
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
@@ -98,7 +100,7 @@ function FilterCombobox({
               >
                 All {placeholder}s
               </CommandItem>
-              {options.map((opt) => {
+              {options.map((opt, index) => {
                 const optVal = isObj
                   ? String((opt as { value: string | number }).value)
                   : (opt as string);
@@ -107,7 +109,7 @@ function FilterCombobox({
                   : (opt as string);
                 return (
                   <CommandItem
-                    key={optVal}
+                    key={`${optVal}-${index}`}
                     value={optLabel}
                     onSelect={() => {
                       onChange(optVal);
@@ -154,7 +156,9 @@ const DealerListFilter = React.memo(function DealerListFilter({
   const [provincesList, setProvincesList] = useState<PSGCItem[]>([]);
   const [allCitiesList, setAllCitiesList] = useState<PSGCItem[]>([]);
   const [citiesList, setCitiesList] = useState<PSGCItem[]>([]);
-  const [barangaysList, setBarangaysList] = useState<{ code: string; name: string }[]>([]);
+  const [barangaysList, setBarangaysList] = useState<
+    { code: string; name: string }[]
+  >([]);
 
   const [isLoadingProvinces, setIsLoadingProvinces] = useState(false);
   const [isLoadingAllCities, setIsLoadingAllCities] = useState(false);
@@ -191,7 +195,11 @@ const DealerListFilter = React.memo(function DealerListFilter({
           if (isMounted) {
             setAllCitiesList(
               cityData
-                .map((c) => ({ code: c.code, name: c.name, provinceCode: c.provinceCode }))
+                .map((c) => ({
+                  code: c.code,
+                  name: c.name,
+                  provinceCode: c.provinceCode,
+                }))
                 .sort((a, b) => a.name.localeCompare(b.name)),
             );
           }
@@ -238,7 +246,11 @@ const DealerListFilter = React.memo(function DealerListFilter({
         if (isMounted) {
           setCitiesList(
             data
-              .map((c) => ({ code: c.code, name: c.name, provinceCode: c.provinceCode }))
+              .map((c) => ({
+                code: c.code,
+                name: c.name,
+                provinceCode: c.provinceCode,
+              }))
               .sort((a, b) => a.name.localeCompare(b.name)),
           );
         }
@@ -321,7 +333,9 @@ const DealerListFilter = React.memo(function DealerListFilter({
     if (!filters.dealer_province) {
       const cityObj = allCitiesList.find((c) => c.name === val);
       if (cityObj && cityObj.provinceCode) {
-        const provObj = provincesList.find((p) => p.code === cityObj.provinceCode);
+        const provObj = provincesList.find(
+          (p) => p.code === cityObj.provinceCode,
+        );
         if (provObj) {
           onApply({
             dealer_province: provObj.name,
@@ -374,7 +388,9 @@ const DealerListFilter = React.memo(function DealerListFilter({
             value={filters.dealer_province ?? ""}
             onChange={handleProvinceChange}
             options={provincesList.map((p) => p.name)}
-            placeholder={isLoadingProvinces ? "Loading Provinces..." : "Province"}
+            placeholder={
+              isLoadingProvinces ? "Loading Provinces..." : "Province"
+            }
             disabled={isLoadingProvinces}
           />
           <FilterCombobox
@@ -386,7 +402,10 @@ const DealerListFilter = React.memo(function DealerListFilter({
                 ? "Loading Cities..."
                 : "City"
             }
-            disabled={isLoadingCities || (isLoadingAllCities && !filters.dealer_province)}
+            disabled={
+              isLoadingCities ||
+              (isLoadingAllCities && !filters.dealer_province)
+            }
           />
           <FilterCombobox
             value={filters.dealer_brgy ?? ""}
