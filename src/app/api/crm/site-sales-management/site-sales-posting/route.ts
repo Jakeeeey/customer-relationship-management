@@ -987,12 +987,35 @@ export async function GET(req: NextRequest) {
 
         if (type === "customers") {
             const search = searchParams.get("search") || "";
-            // Remove the 100 limit to show all active customers
-            let url = `${DIRECTUS_URL}/items/customer?filter[isActive][_eq]=1&fields=id,customer_code,customer_name,store_name,city,province,isActive,payment_term&limit=-1`;
+            const page = searchParams.get("page") || "1";
+            // Use a reasonable limit like 100 for the dropdown, rather than infinite.
+            const limit = searchParams.get("limit") || "100";
+
+            const filters: { _and: Record<string, unknown>[] } = {
+                _and: [
+                    { isActive: { _eq: 1 } }
+                ]
+            };
 
             if (search) {
-                url += `&filter[_or][0][customer_name][_icontains]=${encodeURIComponent(search)}&filter[_or][1][customer_code][_icontains]=${encodeURIComponent(search)}`;
+                const searchDecoded = decodeURIComponent(search);
+                filters._and.push({
+                    _or: [
+                        { customer_name: { _icontains: searchDecoded } },
+                        { customer_code: { _icontains: searchDecoded } },
+                        { store_name: { _icontains: searchDecoded } }
+                    ]
+                });
             }
+
+            const queryParams = new URLSearchParams({
+                filter: JSON.stringify(filters),
+                fields: "id,customer_code,customer_name,store_name,city,province,isActive,payment_term",
+                limit: limit,
+                page: page
+            });
+
+            const url = `${DIRECTUS_URL}/items/customer?${queryParams.toString()}`;
 
             const res = await fetch(url, {
                 headers: fetchHeaders,

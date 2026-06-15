@@ -144,10 +144,10 @@ export default function TaskManagementApprovalModule() {
     };
 
     const selectedEmployee = filteredEmployees.find(u => String(u.user_id) === selectedEmployeeId);
-    const employeeName = selectedEmployee ? `${selectedEmployee.user_fname} ${selectedEmployee.user_lname}` : "All Salesman";
+    const employeeName = selectedEmployee ? `${selectedEmployee.user_fname} ${selectedEmployee.user_lname}` : "No Employee Selected";
 
     const selectedSalesman = filteredSalesmen.find(s => String(s.id) === selectedSalesmanId);
-    const salesmanAccount = selectedSalesman ? `${selectedSalesman.salesman_name} (${selectedSalesman.salesman_code})` : "All Accounts";
+    const salesmanAccount = selectedSalesman ? `${selectedSalesman.salesman_name} (${selectedSalesman.salesman_code})` : "No Account Selected";
 
     if (isLoading) {
         return (
