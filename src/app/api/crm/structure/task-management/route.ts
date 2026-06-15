@@ -89,7 +89,7 @@ export async function GET() {
             taskTypes,
             customers,
             tasks,
-            actionPlans,
+            actionPlans: actionPlans.filter((ap: { is_deleted?: number | string }) => ap.is_deleted !== 1 && ap.is_deleted !== "1"),
             attachments,
             monthlyCoveragePlans,
             currentUserId: userId
@@ -253,18 +253,32 @@ export async function DELETE(req: NextRequest) {
     }
 
     try {
-        const res = await fetch(`${DIRECTUS_URL}/items/daily_action_plan/${id}`, {
-            method: "DELETE",
-            headers: fetchHeaders,
+        const url = `${DIRECTUS_URL}/items/daily_action_plan/${id}`;
+        
+        const res = await fetch(url, {
+            method: "PATCH",
+            headers: {
+                "Authorization": `Bearer ${STATIC_TOKEN}`,
+                "Content-Type": "application/json",
+                "Accept": "application/json"
+            },
+            body: JSON.stringify({ is_deleted: 1 })
         });
 
+        const responseData = await res.json();
+
         if (!res.ok) {
-            const err = await res.text();
-            throw new Error(`Failed to delete task: ${err}`);
+            console.error("Directus Error Details:", responseData);
+            return NextResponse.json({ 
+                ok: false, 
+                message: responseData.errors?.[0]?.message || "Directus failed to update",
+                details: responseData 
+            }, { status: res.status });
         }
 
-        return NextResponse.json({ ok: true });
+        return NextResponse.json({ ok: true, data: responseData.data });
     } catch (error) {
+        console.error("API Soft Delete Exception:", error);
         return NextResponse.json({ ok: false, message: error instanceof Error ? error.message : "Internal Server Error" }, { status: 500 });
     }
 }
