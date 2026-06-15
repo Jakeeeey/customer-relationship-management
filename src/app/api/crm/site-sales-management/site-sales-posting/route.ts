@@ -56,6 +56,7 @@ interface InvoiceDetailItem {
         product_brand?: CategoryBrand | number | null;
         product_category?: CategoryBrand | number | null;
         unit_of_measurement_count?: number;
+        unit_of_measurement?: number;
     } | number | null;
     quantity: number;
     unit_price: number;
@@ -464,7 +465,7 @@ export async function GET(req: NextRequest) {
             }
 
             // Fetch Details (Items) with brand and category
-            const detRes = await fetch(`${DIRECTUS_URL}/items/sales_invoice_details?filter[invoice_no][_eq]=${invoiceId}&fields=*,product_id.product_id,product_id.product_name,product_id.product_code,product_id.product_brand.brand_name,product_id.product_category.category_name,product_id.unit_of_measurement_count,discount_type.discount_type&limit=-1`, { headers: fetchHeaders });
+            const detRes = await fetch(`${DIRECTUS_URL}/items/sales_invoice_details?filter[invoice_no][_eq]=${invoiceId}&fields=*,product_id.product_id,product_id.product_name,product_id.product_code,product_id.product_brand.brand_name,product_id.product_category.category_name,product_id.unit_of_measurement_count,product_id.unit_of_measurement,discount_type.discount_type&limit=-1`, { headers: fetchHeaders });
             const details = (await detRes.json()).data || [];
 
             // Identify Main Supplier from existing items
@@ -678,7 +679,9 @@ export async function GET(req: NextRequest) {
                     product_name: prod?.product_name || `Product ${prod?.product_id || 'N/A'}`,
                     brand_name: brand?.brand_name || 'N/A',
                     category_name: category?.category_name || 'N/A',
-                    unit_name: (d.unit && unitMap[Number(d.unit)]) ? unitMap[Number(d.unit)] : 'PCS',
+                    unit_name: (prod?.unit_of_measurement && unitMap[Number(prod.unit_of_measurement)]) 
+                        ? unitMap[Number(prod.unit_of_measurement)] 
+                        : (d.unit && unitMap[Number(d.unit)]) ? unitMap[Number(d.unit)] : 'PCS',
                     unit_count: Number(prod?.unit_of_measurement_count) || 1,
                     discount_type_name: discTypeName,
                     discounts: dtId ? (detailDiscountMap[Number(dtId)] || []) : []
