@@ -39,13 +39,13 @@ export async function GET() {
                 const productsData = await productsRes.json();
                 const costMap = new Map();
                 if (productsData?.data) {
-                    productsData.data.forEach((p: any) => {
+                    productsData.data.forEach((p: { product_id: number; cost_per_unit: number }) => {
                         costMap.set(p.product_id, p.cost_per_unit);
                     });
                 }
                 
                 // Map cost_per_unit into each item in the data array
-                data.forEach((item: any) => {
+                data.forEach((item: Record<string, unknown>) => {
                     const pid = item.productId || item.product_id;
                     if (pid && costMap.has(pid)) {
                         item.cost_per_unit = costMap.get(pid);
