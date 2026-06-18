@@ -30,6 +30,10 @@ interface RawInventoryItem {
     product_barcode?: string;
     cost_per_unit?: number | string;
     costPerUnit?: number | string;
+    price?: number | string;
+    unit_price?: number | string;
+    unitPrice?: number | string;
+    cost?: number | string;
 }
 
 export const fetchInventoryData = async (): Promise<InventoryItem[]> => {
