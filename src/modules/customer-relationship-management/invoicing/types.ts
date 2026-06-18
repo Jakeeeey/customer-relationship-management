@@ -135,6 +135,7 @@ export interface ConversionItem {
     discount_amount: number;
     net_amount: number;
     unit_shortcut: string;
+    barcode?: string;
 }
 
 export interface ConversionData {
@@ -189,6 +190,7 @@ export interface ORTemplate {
         fontSize: number;
         product_name_width?: number; // width in mm
         columns?: {
+            barcode?: { x: number };
             product_name?: { x: number };
             quantity?: { x: number };
             unit_price?: { x: number };

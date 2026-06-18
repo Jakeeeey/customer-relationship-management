@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
@@ -24,6 +24,7 @@ import {
 interface SiteSalesHeaderProps {
     // Selection State
     customers: Customer[];
+    onSearchCustomers?: (search: string) => Promise<void>;
     selectedCustomer: Customer | null;
     onCustomerSelect: (customer: Customer) => void;
 
@@ -71,7 +72,7 @@ interface SiteSalesHeaderProps {
 }
 
 export function SiteSalesHeader({
-    customers, selectedCustomer, onCustomerSelect,
+    customers, onSearchCustomers, selectedCustomer, onCustomerSelect,
     masterUsers, selectedSalesman, onSalesmanSelect,
     accounts, selectedAccount, loadingAccounts, onAccountSelect,
     suppliers, selectedSupplier, onSupplierSelect,
@@ -85,10 +86,20 @@ export function SiteSalesHeader({
     previewInvoiceNo
 }: SiteSalesHeaderProps) {
     const [openCustomer, setOpenCustomer] = useState(false);
+    const [searchCustomerQuery, setSearchCustomerQuery] = useState("");
     const [openSalesman, setOpenSalesman] = useState(false);
     const [openAccount, setOpenAccount] = useState(false);
     const [openSupplier, setOpenSupplier] = useState(false);
     const [openBranch, setOpenBranch] = useState(false);
+
+    // Debounced customer search
+    useEffect(() => {
+        if (!onSearchCustomers) return;
+        const timer = setTimeout(() => {
+            onSearchCustomers(searchCustomerQuery);
+        }, 500);
+        return () => clearTimeout(timer);
+    }, [searchCustomerQuery, onSearchCustomers]);
 
     const activeCustomerPaymentTerm = selectedCustomer?.payment_term
         ? paymentTerms.find(t => t.id.toString() === selectedCustomer.payment_term?.toString())
@@ -134,8 +145,12 @@ export function SiteSalesHeader({
                             </Button>
                         </PopoverTrigger>
                         <PopoverContent className="w-[350px] p-0" align="start">
-                            <Command>
-                                <CommandInput placeholder="Search customer code or name..." />
+                            <Command shouldFilter={!onSearchCustomers}>
+                                <CommandInput 
+                                    placeholder="Search customer code or name..." 
+                                    value={searchCustomerQuery}
+                                    onValueChange={setSearchCustomerQuery}
+                                />
                                 <CommandList className="max-h-[300px]">
                                     <CommandEmpty>No customer found.</CommandEmpty>
                                     <CommandGroup>

@@ -82,19 +82,20 @@ export async function GET(
         const productIds = Array.from(new Set(items.map((it: { product_id: unknown }) => normalizeId(it.product_id)).filter(Boolean)));
         console.log(`[Conversion API] Unique Product IDs to lookup:`, productIds);
 
-        const productMap: Record<string, { name: string; unit: string }> = {};
+        const productMap: Record<string, { name: string; unit: string; barcode: string }> = {};
 
         if (productIds.length > 0) {
             // Fetch product_name and unit_shortcut
-            const prodUrl = `${DIRECTUS_BASE}/items/products?filter[product_id][_in]=${productIds.join(",")}&fields=product_id,product_name,unit_of_measurement.unit_shortcut`;
+            const prodUrl = `${DIRECTUS_BASE}/items/products?filter[product_id][_in]=${productIds.join(",")}&fields=product_id,product_name,barcode,unit_of_measurement.unit_shortcut`;
             const prodRes = await fetch(prodUrl, { headers: directusHeaders() });
             const prodData = await prodRes.json();
             
-            (prodData.data || []).forEach((p: { product_id: number; product_name: string; unit_of_measurement?: { unit_shortcut: string } }) => {
+            (prodData.data || []).forEach((p: { product_id: number; product_name: string; barcode?: string; unit_of_measurement?: { unit_shortcut: string } }) => {
                 if (p.product_id) {
                     productMap[String(p.product_id)] = {
                         name: p.product_name,
-                        unit: p.unit_of_measurement?.unit_shortcut || "PCS"
+                        unit: p.unit_of_measurement?.unit_shortcut || "PCS",
+                        barcode: p.barcode || ""
                     };
                 }
             });
@@ -149,7 +150,7 @@ export async function GET(
             const pid = normalizeId(sod.product_id);
             const pidStr = pid ? String(pid) : "";
             
-            const pInfo = productMap[pidStr] || { name: "N/A", unit: "PCS" };
+            const pInfo = productMap[pidStr] || { name: "N/A", unit: "PCS", barcode: "" };
             const pname = pInfo.name;
             const ushortcut = pInfo.unit;
             const cd = conDetailsMap[pidStr] || {};
@@ -175,11 +176,12 @@ export async function GET(
                 discount_type: sod.discount_type,
                 discount_amount: sod.discount_amount,
                 net_amount: sod.net_amount,
-                unit_shortcut: ushortcut
+                unit_shortcut: ushortcut,
+                barcode: pInfo.barcode
             };
         });
 
-        const dtRes = await fetch(`${DIRECTUS_BASE}/items/discount_type?fields=*`, { headers: directusHeaders() });
+        const dtRes = await fetch(`${DIRECTUS_BASE}/items/discount_type?limit=-1&fields=*`, { headers: directusHeaders() });
         const dtData = await dtRes.json();
 
         return NextResponse.json({
