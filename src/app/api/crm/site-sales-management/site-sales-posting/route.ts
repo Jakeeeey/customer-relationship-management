@@ -210,7 +210,7 @@ export async function GET(req: NextRequest) {
                 filter: JSON.stringify(filters),
                 page: page.toString(),
                 limit: limit.toString(),
-                fields: "*,salesman_id.salesman_name", // Removed customer_code expansion for now
+                fields: "*,salesman_id.salesman_name,invoice_type.shortcut", // Removed customer_code expansion for now
                 meta: "filter_count"
             });
 

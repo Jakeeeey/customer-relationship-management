@@ -29,6 +29,33 @@ export async function GET() {
         }
 
         const data = await response.json();
+
+        // MERGE: Fetch cost_per_unit from Directus Products table to supply the missing price
+        try {
+            const directusUrl = `${process.env.NEXT_PUBLIC_API_BASE_URL || 'http://goatedcodoer:8091'}/items/products?access_token=${process.env.DIRECTUS_STATIC_TOKEN}&limit=-1&fields=product_id,cost_per_unit`;
+            const productsRes = await fetch(directusUrl, { cache: "no-store" });
+            
+            if (productsRes.ok) {
+                const productsData = await productsRes.json();
+                const costMap = new Map();
+                if (productsData?.data) {
+                    productsData.data.forEach((p: { product_id: number; cost_per_unit: number }) => {
+                        costMap.set(p.product_id, p.cost_per_unit);
+                    });
+                }
+                
+                // Map cost_per_unit into each item in the data array
+                data.forEach((item: Record<string, unknown>) => {
+                    const pid = item.productId || item.product_id;
+                    if (pid && costMap.has(pid)) {
+                        item.cost_per_unit = costMap.get(pid);
+                    }
+                });
+            }
+        } catch (e) {
+            console.error("Failed to merge cost_per_unit from Directus:", e);
+        }
+
         return NextResponse.json(data);
     } catch (err: unknown) {
         return NextResponse.json({ 

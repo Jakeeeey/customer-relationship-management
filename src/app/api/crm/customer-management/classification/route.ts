@@ -104,6 +104,21 @@ async function getCurrentUserId(): Promise<number | null> {
 	return decodeUserIdFromJwt(token);
 }
 
+function getCurrentTimeInPHT(): string {
+	const formatter = new Intl.DateTimeFormat("sv-SE", {
+		timeZone: "Asia/Manila",
+		year: "numeric",
+		month: "2-digit",
+		day: "2-digit",
+		hour: "2-digit",
+		minute: "2-digit",
+		second: "2-digit",
+		hour12: false,
+	});
+
+	return formatter.format(new Date()).replace(" ", "T");
+}
+
 export async function GET(req: NextRequest) {
 	const configError = requireApiConfig();
 	if (configError) return configError;
@@ -222,10 +237,13 @@ export async function POST(req: NextRequest) {
 			return NextResponse.json({ ok: false, message: "Type already exists." }, { status: 409 });
 		}
 
+		const currentTime = getCurrentTimeInPHT();
 		const payload = {
 			classification_name: classificationName,
 			created_by: userId,
 			updated_by: userId,
+			created_at: currentTime,
+			updated_at: currentTime,
 		};
 
 		const response = await fetch(`${DIRECTUS_URL}/items/customer_classification`, {
@@ -285,9 +303,11 @@ export async function PATCH(req: NextRequest) {
 			return NextResponse.json({ ok: false, message: "Type already exists." }, { status: 409 });
 		}
 
+		const currentTime = getCurrentTimeInPHT();
 		const payload = {
 			classification_name: classificationName,
 			updated_by: userId,
+			updated_at: currentTime,
 		};
 
 		const response = await fetch(`${DIRECTUS_URL}/items/customer_classification/${id}`, {
