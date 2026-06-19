@@ -193,7 +193,13 @@ export const SiteSalesList: React.FC<SiteSalesListProps> = ({
         {
             accessorKey: "invoice_type",
             header: "Type",
-            cell: () => <Badge variant="outline">DR</Badge>
+            cell: ({ row }) => {
+                const invType = row.original.invoice_type;
+                const shortcut = (invType && typeof invType === "object" && "shortcut" in invType)
+                    ? (invType.shortcut as string)
+                    : "--";
+                return <Badge variant="outline">{shortcut}</Badge>;
+            }
         },
         {
             accessorKey: "invoice_date",
