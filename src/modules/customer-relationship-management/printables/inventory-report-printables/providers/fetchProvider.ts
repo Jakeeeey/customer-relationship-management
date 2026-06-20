@@ -28,6 +28,12 @@ interface RawInventoryItem {
     product_id?: string | number;
     productBarcode?: string;
     product_barcode?: string;
+    cost_per_unit?: number | string;
+    costPerUnit?: number | string;
+    price?: number | string;
+    unit_price?: number | string;
+    unitPrice?: number | string;
+    cost?: number | string;
 }
 
 export const fetchInventoryData = async (): Promise<InventoryItem[]> => {
@@ -50,6 +56,7 @@ export const fetchInventoryData = async (): Promise<InventoryItem[]> => {
         runningInventory: Number(item.runningInventoryUnit || item.running_inventory_unit || item.runningInventory || 0),
         unitCount: Number(item.unitCount || item.unit_count || 1),
         productId: item.productId || item.product_id || 0,
-        barcode: item.productBarcode || item.product_barcode || ""
+        barcode: item.productBarcode || item.product_barcode || "",
+        price: Number(item.cost_per_unit || item.costPerUnit || item.price || item.unit_price || item.unitPrice || item.cost || 0)
     }));
 };
