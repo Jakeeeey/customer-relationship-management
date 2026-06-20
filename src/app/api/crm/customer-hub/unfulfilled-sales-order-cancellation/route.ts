@@ -172,7 +172,7 @@ export async function GET() {
               const isReplaced = rep === true || rep === 1 || rep === "1" || rep === "true" || 
                 (rep && typeof rep === 'object' && 'data' in rep && Array.isArray((rep as { data: unknown }).data) && (rep as { data: number[] }).data[0] === 1);
               
-              if (isReplaced || inv.transaction_status === "Void") return;
+              if (isReplaced || inv.transaction_status !== "Not Delivered") return;
               
               if (inv.order_id && inv.invoice_no) {
                 const orderId = String(inv.order_id);
@@ -334,8 +334,12 @@ export async function PATCH(req: NextRequest) {
 
   try {
     const body = await req.json();
-    const cancelled_at = body.cancelled_at;
     const remarks = body.remarks;
+
+    // Generate literal Philippine Time (UTC+8) formatted as YYYY-MM-DD HH:mm:ss for DATETIME column
+    const now = new Date();
+    const phTimeDate = new Date(now.getTime() + 8 * 60 * 60 * 1000);
+    const phTimeStr = phTimeDate.toISOString().replace("T", " ").substring(0, 19);
 
     const directusRes = await fetch(targetUrl, {
       method: "PATCH",
@@ -345,7 +349,7 @@ export async function PATCH(req: NextRequest) {
       },
       body: JSON.stringify({
         order_status: "Cancelled",
-        cancelled_at: cancelled_at,
+        cancelled_at: phTimeStr,
         isCancelled: true,
         remarks: remarks
       }),
