@@ -6,6 +6,7 @@ import { useCallback, useMemo, useState } from "react";
 import { SummaryCards } from "./components/cards/SummaryCards";
 import { OrderDataTable } from "./components/data-table";
 import { CancelOrderModal } from "./components/cancel-modal";
+import { OrderDetailsModal } from "./components/data-table/order-details-modal";
 import { useUnfulfilledOrders } from "./hooks/use-unfulfilled-orders";
 import { SalesOrder } from "./types";
 
@@ -14,6 +15,12 @@ export default function UnfulfilledSoCancellationPage() {
   const [selectedOrder, setSelectedOrder] = useState<SalesOrder | null>(null);
   const [remarks, setRemarks] = useState<string>("");
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
+
+  const handleViewDetails = useCallback((order: SalesOrder) => {
+    setSelectedOrder(order);
+    setIsDetailsModalOpen(true);
+  }, []);
 
   const handleRequestClick = useCallback((order: SalesOrder, cancellationRemarks: string) => {
     setSelectedOrder(order);
@@ -77,10 +84,19 @@ export default function UnfulfilledSoCancellationPage() {
             <SummaryCards stats={stats} />
             
             <div className="rounded-2xl border bg-card/50 shadow-sm backdrop-blur-sm overflow-hidden p-1">
-              <OrderDataTable data={orders} onRequest={handleRequestClick} />
+              <OrderDataTable data={orders} onViewDetails={handleViewDetails} />
             </div>
           </>
         )}
+
+        <OrderDetailsModal
+          isOpen={isDetailsModalOpen}
+          onClose={() => setIsDetailsModalOpen(false)}
+          order={selectedOrder}
+          onCancelOrder={(order, remarks) => {
+            handleRequestClick(order, remarks);
+          }}
+        />
 
         <CancelOrderModal
           isOpen={isModalOpen}
@@ -89,6 +105,7 @@ export default function UnfulfilledSoCancellationPage() {
           remarks={remarks}
           onSuccess={() => {
             refresh();
+            setIsDetailsModalOpen(false);
           }}
         />
       </div>

@@ -25,14 +25,13 @@ import { SalesOrder } from "../../types";
 import { DataTablePagination } from "./pagination";
 
 import { TableToolbar } from "./toolbar";
-import { OrderDetailsModal } from "./order-details-modal";
 
 interface DataTableProps {
   data: SalesOrder[];
-  onRequest: (order: SalesOrder, remarks: string) => void;
+  onViewDetails: (order: SalesOrder) => void;
 }
 
-export function OrderDataTable({ data, onRequest }: DataTableProps) {
+export function OrderDataTable({ data, onViewDetails }: DataTableProps) {
   const [sorting, setSorting] = React.useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
     [],
@@ -42,13 +41,6 @@ export function OrderDataTable({ data, onRequest }: DataTableProps) {
     pageSize: 10,
   });
   const [globalFilter, setGlobalFilter] = React.useState("");
-  const [selectedOrder, setSelectedOrder] = React.useState<SalesOrder | null>(null);
-  const [isModalOpen, setIsModalOpen] = React.useState(false);
-
-  const handleViewDetails = (order: SalesOrder) => {
-    setSelectedOrder(order);
-    setIsModalOpen(true);
-  };
 
   // eslint-disable-next-line react-hooks/incompatible-library
   const table = useReactTable({
@@ -60,7 +52,7 @@ export function OrderDataTable({ data, onRequest }: DataTableProps) {
       globalFilter,
     },
     onSortingChange: setSorting,
-    columns: columnDefs(handleViewDetails),
+    columns: columnDefs(onViewDetails),
     onColumnFiltersChange: setColumnFilters,
     getFilteredRowModel: getFilteredRowModel(),
     getCoreRowModel: getCoreRowModel(),
@@ -96,7 +88,7 @@ export function OrderDataTable({ data, onRequest }: DataTableProps) {
               table.getRowModel().rows.map((row) => (
                 <TableRow 
                   key={row.id}
-                  onClick={() => handleViewDetails(row.original)}
+                  onClick={() => onViewDetails(row.original)}
                   className="cursor-pointer hover:bg-muted/50 transition-colors"
                 >
                   {row.getVisibleCells().map((cell) => (
@@ -123,16 +115,6 @@ export function OrderDataTable({ data, onRequest }: DataTableProps) {
         </Table>
       </div>
       <DataTablePagination table={table} />
-      
-      <OrderDetailsModal 
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        order={selectedOrder}
-        onCancelOrder={(order, remarks) => {
-          setIsModalOpen(false);
-          onRequest(order, remarks);
-        }}
-      />
     </div>
   );
 }

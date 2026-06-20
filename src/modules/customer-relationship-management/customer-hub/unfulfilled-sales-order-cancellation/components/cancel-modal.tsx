@@ -36,15 +36,10 @@ export function CancelOrderModal({
     setIsSubmitting(true);
 
     try {
-      // Add 8 hours to trick Directus into saving the exact literal Philippine Time 
-      // without timezone conversion making it 8 hours behind in DBeaver.
+      // Generate literal Philippine Time (UTC+8) formatted as YYYY-MM-DD HH:mm:ss for DATETIME column
       const now = new Date();
-      now.setHours(now.getHours() + 8);
-      
-      const phTime = now.toLocaleString("sv-SE", { 
-        timeZone: "Asia/Manila", 
-        hour12: false 
-      }).replace("T", " ");
+      const phTimeDate = new Date(now.getTime() + 8 * 60 * 60 * 1000);
+      const phTime = phTimeDate.toISOString().replace("T", " ").substring(0, 19);
 
       await SalesOrderService.cancelOrder(order.order_id, phTime, remarks);
 

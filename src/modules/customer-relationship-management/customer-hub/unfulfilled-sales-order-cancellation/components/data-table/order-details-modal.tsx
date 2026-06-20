@@ -127,7 +127,7 @@ export function OrderDetailsModal({ order, isOpen, onClose, onCancelOrder }: Ord
             ) : detailsGroups.length === 0 ? (
               <div className="flex-1 flex items-center justify-center flex-col gap-2 text-muted-foreground">
                 <p className="font-medium text-lg">No Invoices Found</p>
-                <p className="text-sm">This order does not have any generated invoices yet.</p>
+                <p className="text-sm">This order does not have any invoices with a &quot;Not Delivered&quot; status.</p>
               </div>
             ) : (
               <Tabs defaultValue={detailsGroups[0]?.invoice_no} className="flex-1 flex flex-col min-h-0">
