@@ -37,7 +37,8 @@ export default function DealerSalesInvoiceNewRecordPage() {
         searchProducts,
         customers: allCustomers,
         fetchUtilityData,
-        createInvoice
+        createInvoice,
+        checkOrderIdExists
     } = useDealerSalesInvoice();
 
     // Utility Data State
@@ -61,6 +62,9 @@ export default function DealerSalesInvoiceNewRecordPage() {
     const [selectedSalesType, setSelectedSalesType] = useState<string>("3"); // Default to Site Sale (3)
     const [selectedBranch, setSelectedBranch] = useState<string>("");
     const [manualInvoiceNo, setManualInvoiceNo] = useState<string>("");
+    const [orderIdExists, setOrderIdExists] = useState<boolean>(false);
+    const [isCheckingOrderId, setIsCheckingOrderId] = useState<boolean>(false);
+
     // Internal states for auto-calculated values
     const [dueDate, setDueDate] = useState<string>(format(new Date(), "yyyy-MM-dd"));
     const [deliveryDate, setDeliveryDate] = useState<string>(format(new Date(), "yyyy-MM-dd"));
@@ -102,6 +106,28 @@ export default function DealerSalesInvoiceNewRecordPage() {
         const datePart = format(now, "yyyyMMddHHmmssSSS");
         return `${prefix}-${datePart}`;
     }, [isOfficial, manualInvoiceNo, selectedAccount]);
+
+    // Debounce check for Order ID uniqueness
+    useEffect(() => {
+        if (!isOfficial || !manualInvoiceNo.trim()) {
+            setOrderIdExists(false);
+            return;
+        }
+
+        const timer = setTimeout(async () => {
+            setIsCheckingOrderId(true);
+            try {
+                const exists = await checkOrderIdExists(manualInvoiceNo.trim());
+                setOrderIdExists(exists);
+            } catch (e) {
+                console.error(e);
+            } finally {
+                setIsCheckingOrderId(false);
+            }
+        }, 500);
+
+        return () => clearTimeout(timer);
+    }, [manualInvoiceNo, isOfficial, checkOrderIdExists]);
 
     // 1. Initial Data Fetch
     useEffect(() => {
@@ -380,7 +406,7 @@ export default function DealerSalesInvoiceNewRecordPage() {
 
     const totalDiscount = totalGross - totalNet;
 
-    const isHeaderComplete = !!(selectedCustomer && selectedAccount && selectedSupplier && selectedBranch && (!isOfficial || manualInvoiceNo.trim() !== ""));
+    const isHeaderComplete = !!(selectedCustomer && selectedAccount && selectedSupplier && selectedBranch && (!isOfficial || (manualInvoiceNo.trim() !== "" && !orderIdExists)));
 
     // Opens the Print Preview modal (validates header + cart first)
     const handleOpenPreview = () => {
@@ -390,6 +416,10 @@ export default function DealerSalesInvoiceNewRecordPage() {
         }
         if (isOfficial && !manualInvoiceNo.trim()) {
             toast.error("Please enter the Order ID.");
+            return;
+        }
+        if (isOfficial && orderIdExists) {
+            toast.error("This Order ID is already taken. Please enter a unique one.");
             return;
         }
         if (cart.length === 0) {
@@ -481,6 +511,8 @@ export default function DealerSalesInvoiceNewRecordPage() {
 
                         previewInvoiceNo={previewInvoiceNo}
                         onInvoiceNoChange={setManualInvoiceNo}
+                        orderIdExists={orderIdExists}
+                        isCheckingOrderId={isCheckingOrderId}
                     />
 
                     {/* Content Area - Encoding Component (100% Sales Order Parity) */}

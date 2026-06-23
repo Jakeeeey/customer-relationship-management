@@ -253,5 +253,12 @@ export const dealerInvoiceProvider = {
         const res = await fetch(`${API_BASE}?type=invoice_pdf&invoiceId=${invoiceId}`);
         if (!res.ok) throw new Error("Failed to fetch invoice PDF");
         return res.json();
+    },
+    
+    checkOrderIdExists: async (orderId: string): Promise<boolean> => {
+        const res = await fetch(`${API_BASE}?type=check_order_id&orderId=${encodeURIComponent(orderId)}`);
+        if (!res.ok) throw new Error("Failed to check Order ID");
+        const data = await res.json();
+        return data.exists;
     }
 };
