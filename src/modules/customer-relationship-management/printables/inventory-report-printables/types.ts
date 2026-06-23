@@ -11,6 +11,7 @@ export interface InventoryItem {
     unitCount: number;
     productId: string | number;
     barcode?: string;
+    price: number;
 }
 
 export interface InventoryUnit {
@@ -30,4 +31,5 @@ export interface GroupedInventoryItem {
     units: InventoryUnit[];
     box: number;
     piece: number;
+    price: number;
 }
