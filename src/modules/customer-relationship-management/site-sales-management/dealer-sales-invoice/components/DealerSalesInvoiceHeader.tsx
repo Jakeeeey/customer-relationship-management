@@ -71,6 +71,8 @@ interface DealerSalesInvoiceHeaderProps {
     previewInvoiceNo?: string;
     onInvoiceNoChange?: (val: string) => void;
     isLoading?: boolean;
+    orderIdExists?: boolean;
+    isCheckingOrderId?: boolean;
 }
 
 export function DealerSalesInvoiceHeader({
@@ -85,7 +87,9 @@ export function DealerSalesInvoiceHeader({
     salesTypes, selectedSalesType, onSalesTypeChange,
     dueDate, onDueDateChange,
     deliveryDate, onDeliveryDateChange,
-    previewInvoiceNo, onInvoiceNoChange
+    previewInvoiceNo, onInvoiceNoChange,
+    orderIdExists = false,
+    isCheckingOrderId = false
 }: DealerSalesInvoiceHeaderProps) {
     const [openCustomer, setOpenCustomer] = useState(false);
     const [openSalesman, setOpenSalesman] = useState(false);
@@ -499,13 +503,23 @@ export function DealerSalesInvoiceHeader({
                             disabled={!isOfficial}
                             placeholder={isOfficial ? "Enter Order ID..." : "Auto-generating..."}
                             className={cn(
-                                "h-12 pl-12 rounded-xl text-[11px] font-black uppercase tracking-tight shadow-sm",
+                                "h-12 pl-12 pr-10 rounded-xl text-[11px] font-black uppercase tracking-tight shadow-sm transition-all duration-300",
                                 !isOfficial 
                                     ? "bg-slate-50/50 border-slate-200 dark:border-slate-800 cursor-not-allowed italic text-slate-400 opacity-80" 
-                                    : "bg-slate-50/30 border-slate-200"
+                                    : orderIdExists
+                                        ? "border-rose-500 focus-visible:ring-rose-500 text-rose-600 bg-rose-50/10 focus-visible:border-rose-500 focus-visible:ring-2"
+                                        : "bg-slate-50/30 border-slate-200"
                             )}
                         />
+                        {isCheckingOrderId && (
+                            <Loader2 className="absolute right-4 top-1/2 -translate-y-1/2 h-4 w-4 text-primary animate-spin" />
+                        )}
                     </div>
+                    {orderIdExists && (
+                        <p className="text-[9px] font-black uppercase tracking-tight text-rose-500 mt-1 pl-1 animate-in fade-in slide-in-from-top-1 duration-300">
+                            This Order ID is already taken. Please enter a unique one.
+                        </p>
+                    )}
                 </div>
 
                 {/* 12. PAYMENT TERMS */}

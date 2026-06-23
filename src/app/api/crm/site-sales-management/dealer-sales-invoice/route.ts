@@ -125,6 +125,16 @@ export async function GET(req: NextRequest) {
     const searchParams = req.nextUrl.searchParams;
 
     try {
+        if (type === "check_order_id") {
+            const orderId = searchParams.get("orderId");
+            if (!orderId) return NextResponse.json({ error: "orderId required" }, { status: 400 });
+            const res = await fetch(`${DIRECTUS_URL}/items/sales_invoice?filter[order_id][_eq]=${encodeURIComponent(orderId)}&limit=1&fields=invoice_id`, { headers: fetchHeaders });
+            if (!res.ok) return NextResponse.json({ error: "Failed to check order ID" }, { status: res.status });
+            const json = await res.json();
+            const exists = json.data && json.data.length > 0;
+            return NextResponse.json({ exists });
+        }
+
         if (type === "invoice_pdf") {
             const invoiceId = searchParams.get("invoiceId");
             if (!invoiceId) return NextResponse.json({ error: "invoiceId required" }, { status: 400 });
