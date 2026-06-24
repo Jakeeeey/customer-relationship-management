@@ -239,7 +239,7 @@ export const exportToExcel = async (
         cell.font = { name: 'Calibri', bold: true, color: { argb: 'FFFFD700' } }; // Gold
         cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0D1B2A' } };
         cell.border = { top: { style: 'medium', color: { argb: 'FF1E88E5' } } };
-        if (cell.type === ExcelJS.ValueType.Formula) {
+        if (cell.type === 6 /* ExcelJS.ValueType.Formula */) {
             cell.numFmt = '₱#,##0.00';
             cell.alignment = { horizontal: 'right', vertical: 'middle' };
         } else {
