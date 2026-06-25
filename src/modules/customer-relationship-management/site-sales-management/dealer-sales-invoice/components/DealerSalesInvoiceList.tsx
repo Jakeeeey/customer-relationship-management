@@ -2,6 +2,8 @@
 import { cn } from "@/lib/utils";
 
 import React, { useState, useEffect, useCallback } from "react";
+import { useDebounce } from "use-debounce";
+import { dealerInvoiceProvider } from "../providers/fetchProvider";
 import { useDealerInvoiceStore } from "../store";
 import { 
     ColumnDef, 
@@ -13,7 +15,6 @@ import {
     flexRender,
 } from "@tanstack/react-table";
 import { Badge } from "@/components/ui/badge";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { 
@@ -47,6 +48,7 @@ import {
 import { format, isValid, parseISO } from "date-fns";
 import { DealerInvoiceHeader, Salesman, Customer, SalesType, WorklistFilters } from "../types";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { EmptyPlaceholder } from "@/components/shared/EmptyPlaceholder";
 
 interface DealerSalesInvoiceListProps {
@@ -68,6 +70,7 @@ export const DealerSalesInvoiceList: React.FC<DealerSalesInvoiceListProps> = ({
     totalCount,
     onFilterChange 
 }) => {
+    const router = useRouter();
     const formatDate = (dateString?: string | null) => {
         if (!dateString) return "--";
         const date = parseISO(dateString);
@@ -79,16 +82,118 @@ export const DealerSalesInvoiceList: React.FC<DealerSalesInvoiceListProps> = ({
         customer, setCustomer,
         salesman, setSalesman,
         dateFrom, setDateFrom,
-        dateTo, setDateTo,
-        isDispatched, setIsDispatched,
-        isPaid, setIsPaid
+        dateTo, setDateTo
     } = useDealerInvoiceStore();
 
-    const [salesType] = useState("3");
+    const [salesType, setSalesType] = useState("all");
     const [sorting, setSorting] = useState<SortingState>([{ id: "invoice_date", desc: true }]);
     const [rowSelection, setRowSelection] = useState({});
     const [openCustomer, setOpenCustomer] = useState(false);
     const [openSalesman, setOpenSalesman] = useState(false);
+    const [openSalesType, setOpenSalesType] = useState(false);
+
+    // Infinite scroll & search state for Customer Filter
+    const [localCustomers, setLocalCustomers] = useState<Customer[]>([]);
+    const [searchQuery, setSearchQuery] = useState("");
+    const [debouncedSearch] = useDebounce(searchQuery, 350);
+    const [page, setPage] = useState(1);
+    const [loading, setLoading] = useState(false);
+    const [hasMore, setHasMore] = useState(true);
+
+    // Synchronize prop customers on initial load
+    useEffect(() => {
+        if (customers && customers.length > 0) {
+            setLocalCustomers(customers);
+            setHasMore(customers.length >= 50);
+        }
+    }, [customers]);
+
+    // Ensure selected customer from store is fetched and prepended if missing
+    useEffect(() => {
+        if (customer && customer !== "all") {
+            const exists = localCustomers.some(c => c.customer_code === customer);
+            if (!exists) {
+                dealerInvoiceProvider.getCustomers(customer, 1, 1)
+                    .then(results => {
+                        if (results.length > 0) {
+                            setLocalCustomers(prev => {
+                                if (!prev.some(c => c.customer_code === customer)) {
+                                    return [results[0], ...prev];
+                                }
+                                return prev;
+                            });
+                        }
+                    })
+                    .catch(console.error);
+            }
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [customer, customers]);
+
+    // Search query hook
+    useEffect(() => {
+        let active = true;
+        const fetchSearch = async () => {
+            setLoading(true);
+            try {
+                const results = await dealerInvoiceProvider.getCustomers(debouncedSearch, 1, 50);
+                if (active) {
+                    setLocalCustomers(() => {
+                        const merged = [...results];
+                        if (customer && customer !== "all") {
+                            const found = localCustomers.find(c => c.customer_code === customer);
+                            if (found && !results.some(c => c.customer_code === customer)) {
+                                merged.unshift(found);
+                            }
+                        }
+                        return merged;
+                    });
+                    setPage(1);
+                    setHasMore(results.length >= 50);
+                }
+            } catch (err) {
+                console.error(err);
+            } finally {
+                if (active) setLoading(false);
+            }
+        };
+
+        if (debouncedSearch !== "" || page > 1 || (customers && customers.length === 0)) {
+            fetchSearch();
+        }
+        return () => { active = false; };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [debouncedSearch]);
+
+    const loadNextPage = async () => {
+        if (loading || !hasMore) return;
+        setLoading(true);
+        const nextPage = page + 1;
+        try {
+            const results = await dealerInvoiceProvider.getCustomers(debouncedSearch, nextPage, 50);
+            if (results.length > 0) {
+                setLocalCustomers(prev => {
+                    const uniqueNew = results.filter(newCust => !prev.some(p => p.customer_code === newCust.customer_code));
+                    return [...prev, ...uniqueNew];
+                });
+                setPage(nextPage);
+                setHasMore(results.length >= 50);
+            } else {
+                setHasMore(false);
+            }
+        } catch (err) {
+            console.error(err);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+        const target = e.currentTarget;
+        if (target.scrollHeight - target.scrollTop <= target.clientHeight + 20) {
+            loadNextPage();
+        }
+    };
 
     const applyFilters = useCallback(() => {
         onFilterChange({
@@ -98,10 +203,10 @@ export const DealerSalesInvoiceList: React.FC<DealerSalesInvoiceListProps> = ({
             salesTypeId: salesType === "all" ? undefined : salesType,
             startDate: dateFrom,
             endDate: dateTo,
-            isDispatched,
-            isPaid
+            isDispatched: undefined,
+            isPaid: undefined
         });
-    }, [onFilterChange, search, salesman, customer, salesType, dateFrom, dateTo, isDispatched, isPaid]);
+    }, [onFilterChange, search, salesman, customer, salesType, dateFrom, dateTo]);
 
     useEffect(() => {
         const timer = setTimeout(applyFilters, 500);
@@ -124,12 +229,9 @@ export const DealerSalesInvoiceList: React.FC<DealerSalesInvoiceListProps> = ({
                 );
             },
             cell: ({ row }) => (
-                <Link 
-                    href={`/crm/site-sales-management/dealer-sales-invoice/${row.original.invoice_id}`}
-                    className="block -m-3 p-3 font-black text-primary hover:bg-primary/5 transition-all"
-                >
+                <div className="font-black text-primary">
                     {row.original.invoice_no}
-                </Link>
+                </div>
             )
         },
         {
@@ -147,12 +249,14 @@ export const DealerSalesInvoiceList: React.FC<DealerSalesInvoiceListProps> = ({
                 );
             },
             cell: ({ row }) => (
-                <Link 
-                    href={`/crm/site-sales-management/dealer-sales-invoice/${row.original.invoice_id}`}
-                    className="block -m-3 p-3 hover:bg-primary/5 transition-colors font-medium text-slate-700 dark:text-slate-300"
-                >
-                    {row.original.salesman_name || "--"}
-                </Link>
+                <div className="text-left">
+                    <div className="font-medium text-slate-700 dark:text-slate-300">
+                        {row.original.salesman_name || "--"}
+                    </div>
+                    <div className="text-[10px] text-slate-400 dark:text-slate-500 font-mono">
+                        {row.original.salesman_code || "--"}
+                    </div>
+                </div>
             )
         },
         {
@@ -170,18 +274,37 @@ export const DealerSalesInvoiceList: React.FC<DealerSalesInvoiceListProps> = ({
                 );
             },
             cell: ({ row }) => (
-                <Link 
-                    href={`/crm/site-sales-management/dealer-sales-invoice/${row.original.invoice_id}`}
-                    className="block -m-3 p-3 hover:bg-primary/5 transition-colors"
-                >
-                    <span className="font-bold text-slate-900 dark:text-slate-100">{row.original.customer_name || "N/A"}</span>
-                </Link>
+                <div className="text-left">
+                    <div className="font-bold text-slate-900 dark:text-slate-100">
+                        {row.original.customer_name || "N/A"}
+                    </div>
+                    <div className="text-[10px] text-slate-400 dark:text-slate-500 font-mono">
+                        {row.original.customer_code || "--"}
+                    </div>
+                </div>
             )
         },
         {
-            accessorKey: "invoice_type",
-            header: "Type",
-            cell: () => <Badge variant="outline">DR</Badge>
+            accessorKey: "sales_type",
+            header: "Sales Type",
+            cell: ({ row }) => {
+                const st = row.original.sales_type;
+                const code = st && typeof st === "object" ? (st.operation_code || st.operation_name) : "--";
+                return (
+                    <Badge variant="secondary" className="uppercase font-bold text-[10px]">
+                        {code}
+                    </Badge>
+                );
+            }
+        },
+        {
+            accessorKey: "invoice_type_shortcut",
+            header: "Receipt Type",
+            cell: ({ row }) => (
+                <Badge variant="outline" className="uppercase font-bold text-[10px]">
+                    {row.original.invoice_type_shortcut || "DR"}
+                </Badge>
+            )
         },
         {
             accessorKey: "invoice_date",
@@ -198,71 +321,78 @@ export const DealerSalesInvoiceList: React.FC<DealerSalesInvoiceListProps> = ({
                 );
             },
             cell: ({ row }) => (
-                <Link 
-                    href={`/crm/site-sales-management/dealer-sales-invoice/${row.original.invoice_id}`}
-                    className="block -m-3 p-3 hover:bg-primary/5 transition-colors"
-                >
-                    <span className="text-slate-500 dark:text-slate-400">{formatDate(row.original.invoice_date)}</span>
-                </Link>
+                <span className="text-slate-500 dark:text-slate-400">{formatDate(row.original.invoice_date)}</span>
             )
         },
         {
-            accessorKey: "dispatch_date",
+            accessorKey: "gross_amount",
             header: ({ column }) => {
                 return (
-                    <Button
-                        variant="ghost"
-                        onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-                        className="p-0 hover:bg-transparent font-black uppercase tracking-widest text-[10px]"
-                    >
-                        Dispatch Date
-                        <ArrowUpDown className="ml-2 h-3 w-3" />
-                    </Button>
+                    <div className="text-right">
+                        <Button
+                            variant="ghost"
+                            onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+                            className="p-0 hover:bg-transparent font-black uppercase tracking-widest text-[10px] ml-auto"
+                        >
+                            Gross Amount
+                            <ArrowUpDown className="ml-2 h-3 w-3" />
+                        </Button>
+                    </div>
                 );
             },
             cell: ({ row }) => (
-                <Link 
-                    href={`/crm/site-sales-management/dealer-sales-invoice/${row.original.invoice_id}`}
-                    className="block -m-3 p-3 hover:bg-primary/5 transition-colors"
-                >
-                    <span className="text-slate-500 dark:text-slate-400 font-medium italic">{formatDate(row.original.dispatch_date)}</span>
-                </Link>
+                <div className="text-right font-medium text-slate-700 dark:text-slate-300">
+                    ₱{Number(row.original.gross_amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                </div>
+            )
+        },
+        {
+            accessorKey: "discount_amount",
+            header: ({ column }) => {
+                return (
+                    <div className="text-right">
+                        <Button
+                            variant="ghost"
+                            onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+                            className="p-0 hover:bg-transparent font-black uppercase tracking-widest text-[10px] ml-auto"
+                        >
+                            Discount Amount
+                            <ArrowUpDown className="ml-2 h-3 w-3" />
+                        </Button>
+                    </div>
+                );
+            },
+            cell: ({ row }) => (
+                <div className="text-right font-medium text-rose-500">
+                    ₱{Number(row.original.discount_amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                </div>
             )
         },
         {
             accessorKey: "total_amount",
-            header: () => <div className="text-right">Total Amount</div>,
-            cell: ({ row }) => (
-                <Link 
-                    href={`/crm/site-sales-management/dealer-sales-invoice/${row.original.invoice_id}`}
-                    className="block -m-3 p-3 hover:bg-primary/5 transition-colors"
-                >
-                    <div className="text-right font-bold text-slate-900 dark:text-slate-100">
-                        ₱{Number(row.original.total_amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+            header: ({ column }) => {
+                return (
+                    <div className="text-right">
+                        <Button
+                            variant="ghost"
+                            onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+                            className="p-0 hover:bg-transparent font-black uppercase tracking-widest text-[10px] ml-auto"
+                        >
+                            Net Amount
+                            <ArrowUpDown className="ml-2 h-3 w-3" />
+                        </Button>
                     </div>
-                </Link>
+                );
+            },
+            cell: ({ row }) => (
+                <div className="text-right font-bold text-slate-900 dark:text-slate-100">
+                    ₱{Number(row.original.total_amount || row.original.net_amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                </div>
             )
         },
         {
-            accessorKey: "transaction_status",
-            header: "Trans. Status",
-            cell: ({ row }) => {
-                const status = row.original.transaction_status?.toUpperCase() || 'PREPARED';
-                const colors = 
-                    status === 'VOID' ? 'bg-red-50 text-red-700 border-red-200' :
-                    status === 'COMPLETED' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
-                    'bg-sky-50 text-sky-700 border-sky-200';
-                
-                return (
-                    <Badge variant="outline" className={cn("uppercase text-[9px] font-black px-2 py-0.5 rounded-md tracking-tighter", colors)}>
-                        {status}
-                    </Badge>
-                );
-            }
-        },
-        {
             accessorKey: "payment_status",
-            header: "Payment",
+            header: "Payment Status",
             cell: ({ row }) => {
                 const status = row.original.payment_status?.toUpperCase() || 'UNPAID';
                 const isPaid = status === 'PAID';
@@ -326,13 +456,17 @@ export const DealerSalesInvoiceList: React.FC<DealerSalesInvoiceListProps> = ({
         </div>
     );
 
-    // eslint-disable-next-line react-hooks/incompatible-library
     const table = useReactTable({
         data,
         columns,
         state: {
             sorting,
             rowSelection,
+        },
+        initialState: {
+            pagination: {
+                pageSize: 50,
+            },
         },
         enableRowSelection: true,
         onRowSelectionChange: setRowSelection,
@@ -345,7 +479,7 @@ export const DealerSalesInvoiceList: React.FC<DealerSalesInvoiceListProps> = ({
     return (
         <div className="space-y-6">
             <div className="bg-card p-6 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4 hover:shadow-md transition-shadow duration-300">
-                <div className="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-7 gap-4 items-end">
+                <div className="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-6 gap-4 items-end">
                     <div className="space-y-1.5">
                         <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Receipt No</label>
                         <Input 
@@ -355,7 +489,6 @@ export const DealerSalesInvoiceList: React.FC<DealerSalesInvoiceListProps> = ({
                             className="h-9 rounded-lg border-slate-200 focus:border-primary"
                         />
                     </div>
-
                     <div className="space-y-1.5">
                         <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Customer</label>
                         <Popover open={openCustomer} onOpenChange={setOpenCustomer}>
@@ -370,13 +503,13 @@ export const DealerSalesInvoiceList: React.FC<DealerSalesInvoiceListProps> = ({
                                         <span className="font-medium text-slate-900 dark:text-slate-100 truncate w-full">
                                             {customer === "all" 
                                                 ? "Select Customer" 
-                                                : (customers.find(c => c.customer_code === customer)?.customer_name || 
-                                                   customers.find(c => c.customer_code === customer)?.store_name || 
+                                                : (localCustomers.find(c => c.customer_code === customer)?.customer_name || 
+                                                   localCustomers.find(c => c.customer_code === customer)?.store_name || 
                                                    customer)}
                                         </span>
                                         {customer !== "all" && (
                                             <span className="text-[10px] text-muted-foreground truncate w-full">
-                                                {[customers.find(c => c.customer_code === customer)?.city, customers.find(c => c.customer_code === customer)?.province].filter(Boolean).join(", ")}
+                                                {[localCustomers.find(c => c.customer_code === customer)?.city, localCustomers.find(c => c.customer_code === customer)?.province].filter(Boolean).join(", ")}
                                             </span>
                                         )}
                                     </div>
@@ -384,9 +517,9 @@ export const DealerSalesInvoiceList: React.FC<DealerSalesInvoiceListProps> = ({
                                 </Button>
                             </PopoverTrigger>
                             <PopoverContent className="w-[300px] p-0" align="start">
-                                <Command>
-                                    <CommandInput placeholder="Search customer..." />
-                                    <CommandList>
+                                <Command shouldFilter={false}>
+                                    <CommandInput placeholder="Search customer..." value={searchQuery} onValueChange={setSearchQuery} />
+                                    <CommandList onScroll={handleScroll}>
                                         <CommandEmpty>No results found.</CommandEmpty>
                                         <CommandGroup>
                                             <CommandItem
@@ -400,7 +533,7 @@ export const DealerSalesInvoiceList: React.FC<DealerSalesInvoiceListProps> = ({
                                                 <Check className={cn("h-4 w-4 shrink-0", customer === "all" ? "opacity-100" : "opacity-0")} />
                                                 <span className="font-medium text-slate-900 dark:text-slate-100">All Customers</span>
                                             </CommandItem>
-                                            {customers.map((c) => (
+                                            {localCustomers.map((c) => (
                                                 <CommandItem
                                                     key={c.customer_code}
                                                     value={`${c.customer_name} ${c.store_name} ${c.customer_code} ${c.city} ${c.province}`}
@@ -424,6 +557,12 @@ export const DealerSalesInvoiceList: React.FC<DealerSalesInvoiceListProps> = ({
                                                 </CommandItem>
                                             ))}
                                         </CommandGroup>
+                                        {loading && (
+                                            <div className="py-2 text-center text-xs flex items-center justify-center text-slate-400">
+                                                <Loader2 className="h-3 w-3 animate-spin mr-2" />
+                                                Loading more customers...
+                                            </div>
+                                        )}
                                     </CommandList>
                                 </Command>
                             </PopoverContent>
@@ -432,12 +571,64 @@ export const DealerSalesInvoiceList: React.FC<DealerSalesInvoiceListProps> = ({
 
                     <div className="space-y-1.5">
                         <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Sales Type</label>
-                        <Input 
-                            value={salesTypes.find(st => st.id.toString() === salesType)?.operation_name || "SITE SALES"} 
-                            readOnly 
-                            disabled
-                            className="h-9 rounded-lg border-slate-200 bg-slate-50/50 text-[10px] font-black uppercase tracking-tight cursor-not-allowed italic text-slate-400 shadow-none" 
-                        />
+                        <Popover open={openSalesType} onOpenChange={setOpenSalesType}>
+                            <PopoverTrigger asChild>
+                                <Button
+                                    variant="outline"
+                                    role="combobox"
+                                    aria-expanded={openSalesType}
+                                    className={cn("w-full justify-between h-auto py-2 px-3", salesType === "all" && "text-muted-foreground")}
+                                >
+                                    <div className="flex flex-col items-start truncate text-left">
+                                        <span className="font-medium text-slate-900 dark:text-slate-100 truncate w-full">
+                                            {salesType === "all" 
+                                                ? "Select Sales Type" 
+                                                : (salesTypes.find(st => st.id.toString() === salesType)?.operation_name || salesType)}
+                                        </span>
+                                    </div>
+                                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-[300px] p-0" align="start">
+                                <Command>
+                                    <CommandInput placeholder="Search sales type..." />
+                                    <CommandList>
+                                        <CommandEmpty>No results found.</CommandEmpty>
+                                        <CommandGroup>
+                                            <CommandItem
+                                                value="all"
+                                                onSelect={() => {
+                                                    setSalesType("all");
+                                                    setOpenSalesType(false);
+                                                }}
+                                                className="flex items-center gap-2 py-3 cursor-pointer"
+                                            >
+                                                <Check className={cn("h-4 w-4 shrink-0", salesType === "all" ? "opacity-100" : "opacity-0")} />
+                                                <span className="font-medium text-slate-900 dark:text-slate-100">All Sales Types</span>
+                                            </CommandItem>
+                                            {salesTypes.map((st) => (
+                                                <CommandItem
+                                                    key={st.id}
+                                                    value={st.operation_name}
+                                                    onSelect={() => {
+                                                        setSalesType(st.id.toString());
+                                                        setOpenSalesType(false);
+                                                    }}
+                                                    className="flex items-center gap-2 py-3 cursor-pointer"
+                                                >
+                                                    <Check className={cn("h-4 w-4 shrink-0", salesType === st.id.toString() ? "opacity-100" : "opacity-0")} />
+                                                    <div className="flex flex-col overflow-hidden flex-1 min-w-0">
+                                                        <span className="font-medium text-slate-900 dark:text-slate-100 leading-tight whitespace-normal break-words overflow-hidden" style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
+                                                            {st.operation_name}
+                                                        </span>
+                                                    </div>
+                                                </CommandItem>
+                                            ))}
+                                        </CommandGroup>
+                                    </CommandList>
+                                </Command>
+                            </PopoverContent>
+                        </Popover>
                     </div>
 
                     <div className="space-y-1.5">
@@ -531,25 +722,6 @@ export const DealerSalesInvoiceList: React.FC<DealerSalesInvoiceListProps> = ({
                             onChange={(e) => setDateTo(e.target.value)} 
                         />
                     </div>
-
-                    <div className="flex flex-col justify-end gap-2 pb-1.5 h-full">
-                        <div className="flex items-center space-x-2">
-                            <Checkbox 
-                                id="isDispatched" 
-                                checked={isDispatched} 
-                                onCheckedChange={(c) => setIsDispatched(c === true)} 
-                            />
-                            <label htmlFor="isDispatched" className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest cursor-pointer">isDispatched</label>
-                        </div>
-                        <div className="flex items-center space-x-2">
-                            <Checkbox 
-                                id="isPaid" 
-                                checked={isPaid} 
-                                onCheckedChange={(c) => setIsPaid(c === true)} 
-                            />
-                            <label htmlFor="isPaid" className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest cursor-pointer">isPaid</label>
-                        </div>
-                    </div>
                 </div>
             </div>
 
@@ -578,7 +750,21 @@ export const DealerSalesInvoiceList: React.FC<DealerSalesInvoiceListProps> = ({
                             {table.getHeaderGroups().map((headerGroup) => (
                                 <TableRow key={headerGroup.id} className="bg-slate-50/50 dark:bg-slate-900/50 border-b dark:border-slate-800">
                                     {headerGroup.headers.map((header) => (
-                                        <TableHead key={header.id} className="font-bold py-4 px-6 text-[10px] uppercase tracking-widest text-slate-500">
+                                        <TableHead 
+                                            key={header.id} 
+                                            className={cn(
+                                                "font-bold py-4 px-6 text-[10px] uppercase tracking-widest text-slate-500",
+                                                header.column.id === "customer_name" && "min-w-[250px]",
+                                                header.column.id === "invoice_date" && "min-w-[180px]",
+                                                header.column.id === "gross_amount" || 
+                                                header.column.id === "discount_amount" || 
+                                                header.column.id === "total_amount"
+                                                    ? "text-right"
+                                                    : header.column.id === "isPosted" || header.column.id === "invoice_type_shortcut"
+                                                        ? "text-center"
+                                                        : "text-left"
+                                            )}
+                                        >
                                             {header.isPlaceholder
                                                 ? null
                                                 : flexRender(
@@ -605,10 +791,25 @@ export const DealerSalesInvoiceList: React.FC<DealerSalesInvoiceListProps> = ({
                                 table.getRowModel().rows.map((row) => (
                                     <TableRow
                                         key={row.id}
-                                        className="group hover:bg-slate-50 dark:hover:bg-slate-900/50 transition-colors border-b dark:border-slate-800 last:border-0"
+                                        onClick={() => router.push(`/crm/site-sales-management/dealer-sales-invoice/${row.original.invoice_id}`)}
+                                        className="group hover:bg-slate-50 dark:hover:bg-slate-900/50 transition-colors border-b dark:border-slate-800 last:border-0 cursor-pointer"
                                     >
                                         {row.getVisibleCells().map((cell) => (
-                                            <TableCell key={cell.id} className="py-4 px-6">
+                                            <TableCell 
+                                                key={cell.id} 
+                                                className={cn(
+                                                    "py-4 px-6",
+                                                    cell.column.id === "customer_name" && "min-w-[250px]",
+                                                    cell.column.id === "invoice_date" && "min-w-[180px]",
+                                                    cell.column.id === "gross_amount" || 
+                                                    cell.column.id === "discount_amount" || 
+                                                    cell.column.id === "total_amount"
+                                                        ? "text-right"
+                                                        : cell.column.id === "isPosted" || cell.column.id === "invoice_type_shortcut"
+                                                            ? "text-center"
+                                                            : "text-left"
+                                                )}
+                                            >
                                                 {flexRender(
                                                     cell.column.columnDef.cell,
                                                     cell.getContext()

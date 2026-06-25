@@ -26,6 +26,7 @@ import { calculateChainNetPrice } from "./utils";
 import { toast } from "sonner";
 import { DealerSalesInvoiceHeader } from "./components/DealerSalesInvoiceHeader";
 import { DealerSalesInvoiceEncoding } from "./components/DealerSalesInvoiceEncoding";
+import { DealerCreatePrintPreviewModal } from "./components/DealerCreatePrintPreviewModal";
 
 export default function DealerSalesInvoiceNewRecordPage() {
     const router = useRouter();
@@ -36,7 +37,8 @@ export default function DealerSalesInvoiceNewRecordPage() {
         searchProducts,
         customers: allCustomers,
         fetchUtilityData,
-        createInvoice
+        createInvoice,
+        checkOrderIdExists
     } = useDealerSalesInvoice();
 
     // Utility Data State
@@ -59,6 +61,10 @@ export default function DealerSalesInvoiceNewRecordPage() {
     const [selectedInvoiceType, setSelectedInvoiceType] = useState<string>("");
     const [selectedSalesType, setSelectedSalesType] = useState<string>("3"); // Default to Site Sale (3)
     const [selectedBranch, setSelectedBranch] = useState<string>("");
+    const [manualInvoiceNo, setManualInvoiceNo] = useState<string>("");
+    const [orderIdExists, setOrderIdExists] = useState<boolean>(false);
+    const [isCheckingOrderId, setIsCheckingOrderId] = useState<boolean>(false);
+
     // Internal states for auto-calculated values
     const [dueDate, setDueDate] = useState<string>(format(new Date(), "yyyy-MM-dd"));
     const [deliveryDate, setDeliveryDate] = useState<string>(format(new Date(), "yyyy-MM-dd"));
@@ -69,8 +75,10 @@ export default function DealerSalesInvoiceNewRecordPage() {
     const [catalogProducts, setCatalogProducts] = useState<SearchProduct[]>([]);
     const [isSearching, setIsSearching] = useState(false);
     const [cart, setCart] = useState<CartItem[]>([]);
-    const [isSaving, setIsSaving] = useState(false);
     const [filteredSalesmen, setFilteredSalesmen] = useState<MasterUser[]>([]);
+
+    // Print Preview Modal State
+    const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
 
     // 0. Business Rules: Max Length Enforcement (Century's Best Practice)
     const currentMaxLength = useMemo(() => {
@@ -83,14 +91,43 @@ export default function DealerSalesInvoiceNewRecordPage() {
         return cart.length >= currentMaxLength;
     }, [cart.length, currentMaxLength]);
 
+    const isOfficial = useMemo(() => {
+        if (!selectedInvoiceType) return false;
+        const type = invoiceTypes.find(t => t.id.toString() === selectedInvoiceType);
+        return type ? Number(type.isOfficial) === 1 : false;
+    }, [selectedInvoiceType, invoiceTypes]);
+
     // Auto-generate preview ID
     const previewInvoiceNo = useMemo(() => {
+        if (isOfficial) return manualInvoiceNo;
         if (!selectedAccount) return "DRAFT-INV";
         const prefix = selectedAccount.salesman_code || "INV";
         const now = new Date();
         const datePart = format(now, "yyyyMMddHHmmssSSS");
         return `${prefix}-${datePart}`;
-    }, [selectedAccount]);
+    }, [isOfficial, manualInvoiceNo, selectedAccount]);
+
+    // Debounce check for Order ID uniqueness
+    useEffect(() => {
+        if (!isOfficial || !manualInvoiceNo.trim()) {
+            setOrderIdExists(false);
+            return;
+        }
+
+        const timer = setTimeout(async () => {
+            setIsCheckingOrderId(true);
+            try {
+                const exists = await checkOrderIdExists(manualInvoiceNo.trim());
+                setOrderIdExists(exists);
+            } catch (e) {
+                console.error(e);
+            } finally {
+                setIsCheckingOrderId(false);
+            }
+        }, 500);
+
+        return () => clearTimeout(timer);
+    }, [manualInvoiceNo, isOfficial, checkOrderIdExists]);
 
     // 1. Initial Data Fetch
     useEffect(() => {
@@ -141,6 +178,21 @@ export default function DealerSalesInvoiceNewRecordPage() {
             }
         }
     }, [selectedInvoiceType, invoiceTypes, isLoadingData]);
+
+    // 1.2 Cart Truncation Guard on Receipt Type Change
+    useEffect(() => {
+        if (selectedInvoiceType && invoiceTypes.length > 0 && cart.length > 0) {
+            const typeObj = invoiceTypes.find(t => t.id.toString() === selectedInvoiceType);
+            if (typeObj) {
+                const limit = typeObj.max_length || Infinity;
+                if (cart.length > limit) {
+                    setCart(prev => prev.slice(0, limit));
+                    toast.warning(`Receipt Type changed. Cart truncated to the limit of ${limit} items.`);
+                }
+            }
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [selectedInvoiceType, invoiceTypes]);
 
     // 2. Auto-fill logic when customer is selected
     const handleCustomerSelect = async (customer: Customer) => {
@@ -354,67 +406,27 @@ export default function DealerSalesInvoiceNewRecordPage() {
 
     const totalDiscount = totalGross - totalNet;
 
-    const isHeaderComplete = !!(selectedCustomer && selectedAccount && selectedSupplier && selectedBranch);
+    const isHeaderComplete = !!(selectedCustomer && selectedAccount && selectedSupplier && selectedBranch && (!isOfficial || (manualInvoiceNo.trim() !== "" && !orderIdExists)));
 
-    const handleSave = async () => {
-        if (!selectedCustomer || !selectedAccount || !selectedSupplier || cart.length === 0) {
-            toast.error("Please complete all required fields and add items to cart.");
+    // Opens the Print Preview modal (validates header + cart first)
+    const handleOpenPreview = () => {
+        if (!selectedCustomer || !selectedAccount || !selectedSupplier || !selectedBranch) {
+            toast.error("Please complete all header fields before previewing.");
             return;
         }
-
-        setIsSaving(true);
-        try {
-            const now = new Date();
-            const timestamp = format(now, "yyyyMMddHHmmssSSS");
-            const prefix = selectedAccount.salesman_code || "INV";
-            const generatedId = `${prefix}-${timestamp}`;
-
-            const priceTypeName = priceTypes.find(pt => pt.price_type_id.toString() === selectedPriceType)?.price_type_name || "";
-
-            const payload = {
-                order_id: generatedId,
-                invoice_no: generatedId,
-                customer_code: selectedCustomer.customer_code,
-                salesman_id: selectedAccount.id,
-                branch_id: Number(selectedBranch) || null,
-                invoice_date: format(now, "yyyy-MM-dd HH:mm:ss"),
-                due_date: dueDate,
-                payment_terms: (selectedCustomer.payment_term && selectedCustomer.payment_term > 0) ? Number(selectedCustomer.payment_term) : null,
-                sales_type: Number(selectedSalesType) || null,
-                invoice_type: Number(selectedInvoiceType) || null,
-                price_type: priceTypeName,
-                gross_amount: totalGross,
-                discount_amount: totalDiscount,
-                vat_amount: isVatApplicable ? totalVat : 0,
-                net_amount: totalNet,
-                total_amount: totalNet,
-                remarks: "Auto-generated invoice",
-                items: cart.map(item => ({
-                    product_id: item.product_id,
-                    quantity: item.quantity,
-                    unit_price: item.unit_price,
-                    discount_amount: (item.unit_price - calculateChainNetPrice(item.unit_price, item.discounts || [])) * item.quantity,
-                    total_amount: item.total_amount,
-                    unit_id: item.unit_id,
-                    discount_type: item.discount_type
-                }))
-            };
-
-            const result = await createInvoice(payload);
-
-            if (result.success) {
-                toast.success(`Invoice ${generatedId} created successfully!`);
-                router.push("/crm/site-sales-management/dealer-sales-invoice");
-            } else {
-                throw new Error("API failure");
-            }
-        } catch (e: unknown) {
-            console.error(e);
-            const errorMessage = e instanceof Error ? e.message : "Failed to create invoice";
-            toast.error(errorMessage);
-        } finally {
-            setIsSaving(false);
+        if (isOfficial && !manualInvoiceNo.trim()) {
+            toast.error("Please enter the Order ID.");
+            return;
         }
+        if (isOfficial && orderIdExists) {
+            toast.error("This Order ID is already taken. Please enter a unique one.");
+            return;
+        }
+        if (cart.length === 0) {
+            toast.error("Please add at least one item to the cart.");
+            return;
+        }
+        setIsPreviewModalOpen(true);
     };
 
     // Effect to update filtered salesmen when initial load completes
@@ -498,6 +510,9 @@ export default function DealerSalesInvoiceNewRecordPage() {
                         onDeliveryDateChange={setDeliveryDate}
 
                         previewInvoiceNo={previewInvoiceNo}
+                        onInvoiceNoChange={setManualInvoiceNo}
+                        orderIdExists={orderIdExists}
+                        isCheckingOrderId={isCheckingOrderId}
                     />
 
                     {/* Content Area - Encoding Component (100% Sales Order Parity) */}
@@ -520,15 +535,44 @@ export default function DealerSalesInvoiceNewRecordPage() {
                         isVatApplicable={isVatApplicable}
 
                         isHeaderComplete={isHeaderComplete}
-                        onSave={handleSave}
-                        isSaving={isSaving}
+                        onPrintPreview={handleOpenPreview}
 
                         maxLength={currentMaxLength}
                         isLimitReached={isLimitReached}
                     />
                 </div>
             </div>
+
+            {/* Print Preview Modal (create flow) */}
+            {selectedCustomer && selectedAccount && selectedSupplier && (
+                <DealerCreatePrintPreviewModal
+                    isOpen={isPreviewModalOpen}
+                    onClose={() => setIsPreviewModalOpen(false)}
+
+                    selectedCustomer={selectedCustomer}
+                    selectedAccount={selectedAccount}
+                    selectedBranch={selectedBranch}
+                    branches={branches}
+
+                    invoiceTypes={invoiceTypes}
+                    selectedInvoiceType={selectedInvoiceType}
+                    selectedSalesType={selectedSalesType}
+                    priceTypes={priceTypes}
+                    selectedPriceType={selectedPriceType}
+
+                    cart={cart}
+                    dueDate={dueDate}
+                    previewInvoiceNo={previewInvoiceNo}
+
+                    totalGross={totalGross}
+                    totalDiscount={totalDiscount}
+                    totalVat={totalVat}
+                    totalNet={totalNet}
+                    isVatApplicable={isVatApplicable}
+
+                    onCreateAndPrint={createInvoice}
+                />
+            )}
         </div>
     );
 }
-
