@@ -82,82 +82,101 @@ export function ApprovalModal({
     const isInvoiceStatus = ["For Loading", "For Shipping", "En Route", "Delivered"].includes(activeOrder?.order_status || "");
 
     useEffect(() => {
+        let isMounted = true;
+        
         if (open && order) {
-            // 1. Fetch Header first to be sure
-            const refreshHeader = async () => {
-                try {
-                    const fresh = await getOrderHeader(order.order_id);
-                    setFreshOrder(fresh);
-                } catch (e) {
-                    console.error("Failed to fetch fresh header", e);
-                    setFreshOrder(order); // Fallback
+            const loadData = async () => {
+                const promises: Promise<any>[] = [];
+
+                // 1. Fetch Discount Types if not loaded
+                if (Object.keys(discountTypes).length === 0) {
+                    promises.push(
+                        fetch(`${window.location.origin}/api/crm/customer-hub/sales-order-approval?type=discount-types`)
+                            .then(res => res.ok ? res.json() : null)
+                            .then(data => {
+                                if (data && isMounted) {
+                                    const map: Record<number, string> = {};
+                                    (data || []).forEach((dt: { id: number; discount_type: string }) => {
+                                        map[dt.id] = dt.discount_type;
+                                    });
+                                    setDiscountTypes(map);
+                                }
+                            })
+                            .catch(e => console.error("Failed to fetch discount types", e))
+                    );
                 }
-            };
-            refreshHeader();
 
-            // 2. Fetch Discount Types
-            const fetchDiscountTypes = async () => {
-                try {
-                    const res = await fetch(`${window.location.origin}/api/crm/customer-hub/sales-order-approval?type=discount-types`);
-                    if (res.ok) {
-                        const data = await res.json();
-                        const map: Record<number, string> = {};
-                        (data || []).forEach((dt: { id: number; discount_type: string }) => {
-                            map[dt.id] = dt.discount_type;
-                        });
-                        setDiscountTypes(map);
-                    }
-                } catch (e) {
-                    console.error("Failed to fetch discount types", e);
+                // 2. Fetch Fresh Header
+                let fresh = order;
+                const headerPromise = getOrderHeader(order.order_id)
+                    .then(res => {
+                        fresh = res;
+                        if (isMounted) setFreshOrder(fresh);
+                    })
+                    .catch(e => {
+                        console.error("Failed to fetch fresh header", e);
+                        if (isMounted) setFreshOrder(order);
+                    });
+                
+                promises.push(headerPromise);
+
+                // Wait for header to resolve so we know the correct status
+                await headerPromise;
+
+                const statusToCheck = fresh?.order_status || order?.order_status || "";
+                const isInvoice = ["For Loading", "For Shipping", "En Route", "Delivered"].includes(statusToCheck);
+
+                if (isInvoice) {
+                    if (isMounted) setLoadingInvoice(true);
+                    promises.push(
+                        getInvoiceDetails(order.order_id, order.order_no)
+                            .then(data => {
+                                if (isMounted) setInvoiceData(data);
+                            })
+                            .catch(e => console.error("Failed to load invoice details", e))
+                            .finally(() => {
+                                if (isMounted) setLoadingInvoice(false);
+                            })
+                    );
+                } else {
+                    if (isMounted) setLoadingDetails(true);
+                    promises.push(
+                        Promise.all([
+                            getOrderAttachments(order.order_id, order.order_no).catch(e => {
+                                console.error("Failed to load attachments", e);
+                                return [];
+                            }),
+                            getOrderDetails(order.order_id, order.branch_id).catch(e => {
+                                console.error("Failed to load order details", e);
+                                return [];
+                            })
+                        ]).then(([atts, data]) => {
+                            if (isMounted) {
+                                setAttachments(atts);
+                                setDetails(data || []);
+                            }
+                        }).finally(() => {
+                            if (isMounted) setLoadingDetails(false);
+                        })
+                    );
                 }
+
+                await Promise.all(promises);
             };
-            fetchDiscountTypes();
 
-            if (isInvoiceStatus) {
-                const fetchInvoice = async () => {
-                    setLoadingInvoice(true);
-                    try {
-                        const data = await getInvoiceDetails(order.order_id, order.order_no);
-                        setInvoiceData(data);
-                    } catch (error) {
-                        console.error("Failed to load invoice details", error);
-                    } finally {
-                        setLoadingInvoice(false);
-                    }
-                };
-                fetchInvoice();
-            } else {
-                const fetchAttachments = async () => {
-                    try {
-                        const atts = await getOrderAttachments(order.order_id, order.order_no);
-                        setAttachments(atts);
-                    } catch (e) {
-                        console.error("Failed to load attachments", e);
-                    }
-                };
-                fetchAttachments();
-
-                const fetchDetails = async () => {
-                    setLoadingDetails(true);
-                    try {
-                        const data = await getOrderDetails(order.order_id, order.branch_id);
-                        // FETCH FRESH DATA: No more aggressive visual guards; show what is exactly on the DB record
-                        setDetails(data || []);
-                    } catch (error) {
-                        console.error("Failed to load order details", error);
-                    } finally {
-                        setLoadingDetails(false);
-                    }
-                };
-                fetchDetails();
-            }
+            loadData();
         } else {
             setDetails([]);
             setFreshOrder(null);
             setInvoiceData(null);
             setAttachments([]);
         }
-    }, [open, order, isInvoiceStatus]);
+
+        return () => {
+            isMounted = false;
+        };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [open, order]);
 
     if (!activeOrder) return null;
 
