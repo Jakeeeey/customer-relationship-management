@@ -86,7 +86,7 @@ export function ApprovalModal({
         
         if (open && order) {
             const loadData = async () => {
-                const promises: Promise<any>[] = [];
+                const promises: Promise<unknown>[] = [];
 
                 // 1. Fetch Discount Types if not loaded
                 if (Object.keys(discountTypes).length === 0) {
