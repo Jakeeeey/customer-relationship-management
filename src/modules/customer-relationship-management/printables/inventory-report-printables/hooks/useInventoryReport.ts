@@ -58,7 +58,8 @@ export const useInventoryReport = () => {
                     units: [],
                     box: 0,
                     piece: 0,
-                    targetUnitCount: 1
+                    targetUnitCount: 1,
+                    price: item.price
                 };
                 groupedMap.set(key, g);
             }
@@ -92,6 +93,11 @@ export const useInventoryReport = () => {
 
     // 2. Filter grouped data (Much faster because grouped dataset is smaller)
     const displayData = useMemo(() => {
+        // Prevent loading data until both branch and supplier are explicitly selected
+        if (selectedBranch === "all" || selectedSupplier === "all") {
+            return [];
+        }
+
         let filtered = groupedData;
 
         // Apply Branch Filter

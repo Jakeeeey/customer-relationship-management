@@ -23,7 +23,8 @@ export const SiteSalesPostingPage = () => {
         salesmen, 
         customers,
         salesTypes,
-        totalCount
+        totalCount,
+        searchCustomersAction
     } = useSiteSalesPosting();
 
     useEffect(() => {
@@ -52,6 +53,7 @@ export const SiteSalesPostingPage = () => {
                     isLoading={isLoading} 
                     salesmen={salesmen}
                     customers={customers}
+                    onSearchCustomers={searchCustomersAction}
                     salesTypes={salesTypes}
                     totalCount={totalCount}
                     onFilterChange={handleFilterChange}

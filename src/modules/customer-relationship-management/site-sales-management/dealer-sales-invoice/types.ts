@@ -15,7 +15,7 @@ export const DealerInvoiceHeaderSchema = z.object({
     transaction_status: z.string().nullable().optional(),
     payment_status: z.string().nullable().optional(),
     total_amount: z.number().nullable().optional(),
-    sales_type: z.number().or(z.object({ operation_name: z.string() })).nullable().optional(),
+    sales_type: z.number().or(z.object({ operation_name: z.string(), operation_code: z.string().optional().nullable() })).nullable().optional(),
     invoice_type: z.number().or(z.object({ type: z.string(), max_length: z.number().optional() })).nullable().optional(),
     price_type: z.string().nullable().optional(),
     vat_amount: z.number().nullable().optional(),
@@ -34,6 +34,8 @@ export const DealerInvoiceHeaderSchema = z.object({
     salesman_name: z.string().optional(),
     price_type_name: z.string().optional(),
     customer_tin: z.string().optional(),
+    salesman_code: z.string().optional(),
+    invoice_type_shortcut: z.string().optional(),
 });
 
 export interface Branch {

@@ -7,7 +7,6 @@ import { DataTable } from "@/components/ui/new-data-table"
 import { ColumnDef } from "@tanstack/react-table"
 import { Input } from "@/components/ui/input"
 import { LocalSearchableSelect } from "./components/LocalSearchableSelect"
-import Barcode from "react-barcode"
 import { toast } from "sonner"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Card, CardContent } from "@/components/ui/card"
@@ -108,16 +107,7 @@ export const InventoryReportModule = ({ userName }: { userName?: string }) => {
                                             </Badge>
                                         </div>
                                         {u.barcode ? (
-                                            <div className="mt-1.5 scale-[0.65] origin-left h-7 opacity-70 hover:opacity-100 transition-opacity">
-                                                <Barcode 
-                                                    value={u.barcode} 
-                                                    height={25} 
-                                                    width={1.2} 
-                                                    fontSize={10} 
-                                                    background="transparent"
-                                                    margin={0}
-                                                />
-                                            </div>
+                                            <span className="text-[10px] font-mono text-muted-foreground mt-1 tracking-wider">{u.barcode}</span>
                                         ) : (
                                             <span className="text-[9px] text-muted-foreground/50 uppercase font-black italic mt-1">No Barcode</span>
                                         )}
@@ -395,15 +385,23 @@ export const InventoryReportModule = ({ userName }: { userName?: string }) => {
                     loading ? "opacity-20 scale-[0.99] blur-sm" : "opacity-100 scale-100 blur-0"
                 )}>
                     <CardContent className="p-0">
-                        <div className="p-1">
-                            <DataTable 
-                                columns={columns} 
-                                data={data} 
-                                isLoading={loading}
-                                emptyTitle="No Records Found"
-                                emptyDescription="Try adjusting your filters or search keywords."
-                            />
-                        </div>
+                        {!isFiltersSelected ? (
+                            <div className="flex flex-col items-center justify-center py-24 text-muted-foreground/60">
+                                <Boxes className="h-16 w-16 mb-4 opacity-20" />
+                                <h3 className="text-xl font-black uppercase tracking-widest text-foreground/50">Select Filters to Load Data</h3>
+                                <p className="text-sm font-medium mt-2">Please select a specific Branch and Supplier from the dropdowns above.</p>
+                            </div>
+                        ) : (
+                            <div className="p-1">
+                                <DataTable 
+                                    columns={columns} 
+                                    data={data} 
+                                    isLoading={loading}
+                                    emptyTitle="No Records Found"
+                                    emptyDescription="Try adjusting your filters or search keywords."
+                                />
+                            </div>
+                        )}
                     </CardContent>
                 </Card>
             </div>

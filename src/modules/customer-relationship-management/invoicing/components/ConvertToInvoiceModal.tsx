@@ -1410,7 +1410,7 @@ export const ConvertToInvoiceModal: React.FC<ConvertToInvoiceModalProps> = ({
                         <Button
                             variant="outline"
                             className={cn(
-                                "flex-1 sm:flex-none h-11 rounded-xl font-bold uppercase text-[10px] tracking-widest transition-all duration-300",
+                                "hidden flex-1 sm:flex-none h-11 rounded-xl font-bold uppercase text-[10px] tracking-widest transition-all duration-300",
                                 (!conversionData || receipts.some(r => !r.is_void_reference && r.items.length > 0))
                                     ? "opacity-40 cursor-not-allowed pointer-events-none bg-muted text-muted-foreground border-border/50"
                                     : "bg-amber-500/5 border-amber-500/20 text-amber-600 hover:bg-amber-500 hover:text-white"
