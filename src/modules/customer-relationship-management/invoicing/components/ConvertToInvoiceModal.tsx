@@ -92,6 +92,7 @@ export const ConvertToInvoiceModal: React.FC<ConvertToInvoiceModalProps> = ({
     const [receiptTypes, setReceiptTypes] = useState<ReceiptType[]>([]);
     const [selectedTypeId, setSelectedTypeId] = useState<string>("");
     const [isPrintConfirmOpen, setIsPrintConfirmOpen] = useState(false);
+    const [isInsufficientAlertOpen, setIsInsufficientAlertOpen] = useState(false);
     const [selectedProductId, setSelectedProductId] = useState<number | null>(null);
     const [sourceProductIds, setSourceProductIds] = useState<Set<number> | null>(null);
     const [companyCode, setCompanyCode] = useState<string | null>(null);
@@ -115,41 +116,47 @@ export const ConvertToInvoiceModal: React.FC<ConvertToInvoiceModalProps> = ({
 
         for (let i = 0; i < availableItems.length; i += maxLen) {
             const chunk = availableItems.slice(i, i + maxLen);
-            const receiptItems: ReceiptItem[] = chunk.map(item => {
-                const ordered = item.allocated_quantity || 0;
-                const poolRemaining = item.remaining_quantity || 0;
-                const autoQty = Math.min(ordered, poolRemaining);
-                
-                const dt = discounts.find(d => Number(d.id) === Number(item.discount_type));
-                const totalPercent = dt ? Number(dt.total_percent) : 0;
-                const rawDistDiscount = (item.unit_price * autoQty) * (totalPercent / 100);
-                const roundedDistDiscount = Number(rawDistDiscount.toFixed(2));
-                const rawDistNet = (item.unit_price * autoQty) - roundedDistDiscount;
+            const receiptItems: ReceiptItem[] = chunk
+                .map(item => {
+                    const ordered = item.allocated_quantity || 0;
+                    const poolRemaining = item.remaining_quantity || 0;
+                    const autoQty = Math.min(ordered, poolRemaining);
+                    
+                    const dt = discounts.find(d => Number(d.id) === Number(item.discount_type));
+                    const totalPercent = dt ? Number(dt.total_percent) : 0;
+                    const rawDistDiscount = (item.unit_price * autoQty) * (totalPercent / 100);
+                    const roundedDistDiscount = Number(rawDistDiscount.toFixed(2));
+                    const rawDistNet = (item.unit_price * autoQty) - roundedDistDiscount;
 
-                return {
-                    product_id: item.product_id,
-                    product_name: item.product_name,
-                    order_no: item.order_no,
-                    allocated_qty: item.allocated_quantity || 0,
-                    qty: autoQty,
-                    unit_price: item.unit_price,
-                    discount_type: item.discount_type,
-                    discount_amount: roundedDistDiscount,
-                    net_amount: Number(rawDistNet.toFixed(2)),
-                    unit_shortcut: item.unit_shortcut,
-                    ordered_qty: ordered,
-                    barcode: item.barcode
-                };
-            });
+                    return {
+                        product_id: item.product_id,
+                        product_name: item.product_name,
+                        order_no: item.order_no,
+                        allocated_qty: item.allocated_quantity || 0,
+                        qty: autoQty,
+                        unit_price: item.unit_price,
+                        discount_type: item.discount_type,
+                        discount_amount: roundedDistDiscount,
+                        net_amount: Number(rawDistNet.toFixed(2)),
+                        unit_shortcut: item.unit_shortcut,
+                        ordered_qty: ordered,
+                        barcode: item.barcode
+                    };
+                })
+                .filter(item => item.qty > 0);
 
-            newReceipts.push({
-                id: (newReceipts.length + 1).toString(),
-                receipt_no: "",
-                items: receiptItems
-            });
+            if (receiptItems.length > 0) {
+                newReceipts.push({
+                    id: (newReceipts.length + 1).toString(),
+                    receipt_no: "",
+                    items: receiptItems
+                });
+            }
         }
-        setReceipts(newReceipts);
-        if (newReceipts.length > 0) {
+        if (newReceipts.length === 0) {
+            setReceipts([{ id: "1", receipt_no: "", items: [] }]);
+        } else {
+            setReceipts(newReceipts);
             setActiveReceiptId(newReceipts[0].id);
         }
     }, []);
@@ -244,19 +251,21 @@ export const ConvertToInvoiceModal: React.FC<ConvertToInvoiceModalProps> = ({
                         const allPids = new Set<number>();
                         
                         invoiceDetails.forEach((inv, index) => {
-                            const voidItems: ReceiptItem[] = inv.details.map((d) => ({
-                                product_id: d.product_id as number,
-                                product_name: d.product_name as string,
-                                order_no: order.order_no,
-                                allocated_qty: d.quantity as number,
-                                qty: d.quantity as number,
-                                unit_price: d.unit_price as number,
-                                discount_type: (d.discount_type as number) ?? null,
-                                discount_amount: (d.discount_amount as number) ?? 0,
-                                net_amount: (d.total_amount as number) ?? 0,
-                                unit_shortcut: (d.unit_shortcut as string) ?? "",
-                                ordered_qty: d.quantity as number,
-                            }));
+                            const voidItems: ReceiptItem[] = inv.details
+                                .filter((d) => Number(d.quantity || 0) > 0)
+                                .map((d) => ({
+                                    product_id: d.product_id as number,
+                                    product_name: d.product_name as string,
+                                    order_no: order.order_no,
+                                    allocated_qty: d.quantity as number,
+                                    qty: d.quantity as number,
+                                    unit_price: d.unit_price as number,
+                                    discount_type: (d.discount_type as number) ?? null,
+                                    discount_amount: (d.discount_amount as number) ?? 0,
+                                    net_amount: (d.total_amount as number) ?? 0,
+                                    unit_shortcut: (d.unit_shortcut as string) ?? "",
+                                    ordered_qty: d.quantity as number,
+                                }));
 
                             voidItems.forEach(i => allPids.add(i.product_id));
 
@@ -288,26 +297,42 @@ export const ConvertToInvoiceModal: React.FC<ConvertToInvoiceModalProps> = ({
                             id: (index + 1).toString(),
                             receipt_no: inv.display_no ?? "",
                             target_id: inv.id,
-                            items: inv.details.map((d) => ({
-                                product_id: d.product_id as number,
-                                product_name: d.product_name as string,
-                                order_no: order.order_no,
-                                allocated_qty: d.quantity as number,
-                                qty: d.quantity as number,
-                                unit_price: d.unit_price as number,
-                                discount_type: (d.discount_type as number) ?? null,
-                                discount_amount: (d.discount_amount as number) ?? 0,
-                                net_amount: (d.total_amount as number) ?? 0,
-                                unit_shortcut: (d.unit_shortcut as string) ?? "",
-                                ordered_qty: d.quantity as number,
-                            }))
+                            items: inv.details
+                                .filter((d) => {
+                                    const qtyVal = Number(d.quantity || 0);
+                                    if (qtyVal <= 0) return false;
+                                    
+                                    const convItem = convData.items.find(c => c.product_id === d.product_id);
+                                    if (convItem) {
+                                        const availableQty = convItem.picked_quantity - convItem.applied_quantity;
+                                        return availableQty >= qtyVal;
+                                    }
+                                    return true;
+                                })
+                                .map((d) => ({
+                                    product_id: d.product_id as number,
+                                    product_name: d.product_name as string,
+                                    order_no: order.order_no,
+                                    allocated_qty: d.quantity as number,
+                                    qty: d.quantity as number,
+                                    unit_price: d.unit_price as number,
+                                    discount_type: (d.discount_type as number) ?? null,
+                                    discount_amount: (d.discount_amount as number) ?? 0,
+                                    net_amount: (d.total_amount as number) ?? 0,
+                                    unit_shortcut: (d.unit_shortcut as string) ?? "",
+                                    ordered_qty: d.quantity as number,
+                                }))
                         }));
 
                         setReceipts(allRecycledReceipts);
                         
-                        // Collect all product IDs from all invoices for strict filtering
+                        // Collect all product IDs from all original invoice details (including insufficient ones) for sourceProductIds
                         const allPids = new Set<number>();
-                        allRecycledReceipts.forEach(r => r.items.forEach(i => allPids.add(i.product_id)));
+                        invoiceDetails.forEach(inv => {
+                            inv.details.forEach(d => {
+                                if (d.product_id) allPids.add(Number(d.product_id));
+                            });
+                        });
                         setSourceProductIds(allPids);
                         
                         setActiveReceiptId("1");
@@ -373,11 +398,34 @@ export const ConvertToInvoiceModal: React.FC<ConvertToInvoiceModalProps> = ({
         if (!data) return;
 
         const maxLen = data.max_receipt_length || 15;
+
         const convItem = data.items.find(i => i.product_id === productId);
         if (!convItem) return;
 
+        if (convItem.allocated_quantity === 0) {
+            toast.error("Cannot add item: This product has zero allocated quantity for this order.", {
+                duration: 4000,
+                style: { background: '#fee2e2', color: '#991b1b', border: '1px solid #fecaca' }
+            });
+            return;
+        }
+
         const ordered = convItem.allocated_quantity || 0;
         const poolRemaining = convItem.remaining_quantity || 0;
+
+        const isRecycledOrder = (order.existing_invoices && order.existing_invoices.length > 0) || !!order.existing_invoice_no;
+        const isVoidOrder = order.void_invoices && order.void_invoices.length > 0;
+        
+        if (isRecycledOrder && !isVoidOrder) {
+            const availableQty = convItem.picked_quantity - convItem.applied_quantity;
+            if (newQty > 0 && availableQty < ordered) {
+                toast.error("Cannot add item: Remaining quantity is insufficient for the ordered quantity.", {
+                    duration: 4000,
+                    style: { background: '#fee2e2', color: '#991b1b', border: '1px solid #fecaca' }
+                });
+                return;
+            }
+        }
 
         // Use total drafts across ALL receipts EXCEPT potentially the one being edited 
         // to see what's actually left for the order
@@ -587,6 +635,24 @@ export const ConvertToInvoiceModal: React.FC<ConvertToInvoiceModalProps> = ({
      */
     const handlePrint = async () => {
         if (!order || receipts.length === 0) return;
+
+        const isRecycledOrder = (order.existing_invoices && order.existing_invoices.length > 0) || !!order.existing_invoice_no;
+        const isVoidOrder = order.void_invoices && order.void_invoices.length > 0;
+        
+        if (isRecycledOrder && !isVoidOrder) {
+            const hasInsufficientAvailableItems = currentRemaining.some(item => {
+                const isInDraft = receipts.some(r => !r.is_void_reference && r.items.some(i => i.product_id === item.product_id));
+                if (isInDraft) return false;
+                
+                const availableQty = item.picked_quantity - item.applied_quantity;
+                return item.allocated_quantity > 0 && availableQty < item.allocated_quantity;
+            });
+            
+            if (hasInsufficientAvailableItems) {
+                setIsInsufficientAlertOpen(true);
+                return;
+            }
+        }
 
         // Prevent printing if there are any items left with Remaining > 0 AND it's still needed in the order.
         // This solves the bug where over-picked warehouse items (picked > ordered) get hidden but still block the print.
@@ -1981,6 +2047,31 @@ export const ConvertToInvoiceModal: React.FC<ConvertToInvoiceModalProps> = ({
                             </Button>
                         </div>
                     </div>
+                </DialogContent>
+            </Dialog>
+
+            {/* Insufficient Quantity Alert Dialog */}
+            <Dialog open={isInsufficientAlertOpen} onOpenChange={setIsInsufficientAlertOpen}>
+                <DialogContent showCloseButton={false} className="max-w-[400px] rounded-2xl border-none shadow-2xl p-6 bg-background/95 backdrop-blur-xl">
+                    <DialogHeader className="space-y-3">
+                        <DialogTitle className="text-lg font-black uppercase tracking-wider text-destructive flex items-center gap-2">
+                            <span>Insufficient Allocation</span>
+                        </DialogTitle>
+                    </DialogHeader>
+                    <div className="py-4">
+                        <p className="text-sm font-medium text-muted-foreground leading-relaxed">
+                            Cannot proceed with printing the receipt. Some of the required items in this order have insufficient remaining quantities compared to their allocated amount. Please cancel the sales order.
+                        </p>
+                    </div>
+                    <DialogFooter className="sm:justify-end">
+                        <Button 
+                            variant="destructive" 
+                            className="rounded-xl font-bold uppercase text-[10px] tracking-wider w-full sm:w-auto" 
+                            onClick={() => setIsInsufficientAlertOpen(false)}
+                        >
+                            Okay
+                        </Button>
+                    </DialogFooter>
                 </DialogContent>
             </Dialog>
         </>
