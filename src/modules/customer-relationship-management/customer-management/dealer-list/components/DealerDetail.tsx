@@ -20,6 +20,7 @@ import {
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import type { DealerRecord } from "../types";
 
 // ---------------------------------------------------------------------------
@@ -345,6 +346,17 @@ const DealerDetail = React.memo(function DealerDetail({
                   {activeDealer.dealer_name || "Unknown Dealer"}
                 </SheetTitle>
                 <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+                  <Badge
+                    variant={activeDealer.status === "Inactive" ? "destructive" : "outline"}
+                    className={cn(
+                      "text-[10px] px-2 py-0.5 whitespace-nowrap font-semibold uppercase tracking-wider",
+                      activeDealer.status === "Inactive"
+                        ? "bg-destructive/15 text-destructive border-destructive/25"
+                        : "bg-emerald-500/10 text-emerald-600 border-emerald-500/20 dark:text-emerald-400"
+                    )}
+                  >
+                    {activeDealer.status || "Active"}
+                  </Badge>
                   {activeDealer.dealer_code && (
                     <Badge
                       variant="outline"
@@ -443,6 +455,22 @@ const DealerDetail = React.memo(function DealerDetail({
                 label="Date Admitted"
                 value={dateAdmittedDisplay.value}
                 muted={dateAdmittedDisplay.muted}
+              />
+              <DetailRow
+                icon={Calendar}
+                label="Created Date"
+                value={activeDealer.created_date ? new Date(activeDealer.created_date).toLocaleString("en-PH", {
+                  year: "numeric",
+                  month: "long",
+                  day: "numeric",
+                  hour: "2-digit",
+                  minute: "2-digit"
+                }) : "—"}
+              />
+              <DetailRow
+                icon={FileText}
+                label="Created By"
+                value={activeDealer.created_by || "Active User"}
               />
             </section>
 

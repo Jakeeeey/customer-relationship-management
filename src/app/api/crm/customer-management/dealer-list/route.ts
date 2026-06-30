@@ -11,6 +11,54 @@ const DIRECTUS_BASE = (process.env.NEXT_PUBLIC_API_BASE_URL || "").replace(
 );
 const DIRECTUS_TOKEN = process.env.DIRECTUS_STATIC_TOKEN;
 
+function decodeJwtPayload(token: string): Record<string, unknown> | null {
+  try {
+    const parts = token.split(".");
+    if (parts.length < 2) return null;
+
+    const p = parts[1];
+    const b64 = p.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = b64 + "=".repeat((4 - (b64.length % 4)) % 4);
+
+    const json = Buffer.from(padded, "base64").toString("utf8");
+    return JSON.parse(json);
+  } catch {
+    return null;
+  }
+}
+
+function pickString(obj: Record<string, unknown> | null | undefined, keys: string[]): string {
+  for (const k of keys) {
+    const v = obj?.[k];
+    if (typeof v === "string" && v.trim()) return v.trim();
+  }
+  return "";
+}
+
+function getCreatorNameFromToken(token: string | null | undefined): string {
+  if (!token) return "Active User";
+  const payload = token ? decodeJwtPayload(token) : null;
+  if (!payload) return "Active User";
+
+  const first = pickString(payload, [
+    "Firstname",
+    "FirstName",
+    "firstName",
+    "firstname",
+    "first_name",
+  ]);
+  const last = pickString(payload, [
+    "LastName",
+    "Lastname",
+    "lastName",
+    "lastname",
+    "last_name",
+  ]);
+  const email = pickString(payload, ["email", "Email"]);
+
+  return [first, last].filter(Boolean).join(" ") || email || "Active User";
+}
+
 function getDirectusHeaders(): Record<string, string> {
   const h: Record<string, string> = {
     "Content-Type": "application/json",
@@ -284,6 +332,61 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const code = String(body.dealer_code || "").trim();
+    const name = String(body.dealer_name || "").trim();
+
+    if (!code || !name) {
+      return NextResponse.json(
+        { error: "Dealer Code and Dealer Name are required" },
+        { status: 400 },
+      );
+    }
+
+    // Check uniqueness in Directus
+    const checkTarget = `${DIRECTUS_BASE}/items/dealer_list?filter=${encodeURIComponent(
+      JSON.stringify({
+        _or: [
+          { dealer_code: { _eq: code } },
+          { dealer_name: { _eq: name } }
+        ]
+      })
+    )}`;
+
+    const checkRes = await fetch(checkTarget, {
+      method: "GET",
+      headers: getDirectusHeaders(),
+    });
+
+    if (checkRes.ok) {
+      const checkJson = await checkRes.json().catch(() => null);
+      const existing = Array.isArray(checkJson?.data) ? checkJson.data : [];
+      if (existing.length > 0) {
+        const duplicate = existing[0];
+        if (String(duplicate.dealer_code).toLowerCase() === code.toLowerCase()) {
+          return NextResponse.json(
+            { error: `Dealer Code "${code}" is already in use. It must be unique.` },
+            { status: 409 },
+          );
+        }
+        if (String(duplicate.dealer_name).toLowerCase() === name.toLowerCase()) {
+          return NextResponse.json(
+            { error: `Dealer Name "${name}" is already in use. It must be unique.` },
+            { status: 409 },
+          );
+        }
+      }
+    }
+
+    const token =
+      req.headers.get("authorization")?.replace("Bearer ", "") ||
+      req.cookies.get("vos_access_token")?.value;
+
+    body.created_date = new Date().toISOString();
+    body.created_by = getCreatorNameFromToken(token);
+    if (!body.status) {
+      body.status = "Active";
+    }
+
     const target = `${DIRECTUS_BASE}/items/dealer_list`;
 
     const res = await fetch(target, {
@@ -352,6 +455,49 @@ export async function PATCH(req: NextRequest) {
         { error: "Invalid request body" },
         { status: 400 },
       );
+    }
+
+    const code = body.dealer_code ? String(body.dealer_code).trim() : undefined;
+    const name = body.dealer_name ? String(body.dealer_name).trim() : undefined;
+
+    if (code || name) {
+      const orFilters: Record<string, unknown>[] = [];
+      if (code) orFilters.push({ dealer_code: { _eq: code } });
+      if (name) orFilters.push({ dealer_name: { _eq: name } });
+
+      const checkTarget = `${DIRECTUS_BASE}/items/dealer_list?filter=${encodeURIComponent(
+        JSON.stringify({
+          _and: [
+            { dealer_id: { _neq: Number(dealerId) } },
+            { _or: orFilters }
+          ]
+        })
+      )}`;
+
+      const checkRes = await fetch(checkTarget, {
+        method: "GET",
+        headers: getDirectusHeaders(),
+      });
+
+      if (checkRes.ok) {
+        const checkJson = await checkRes.json().catch(() => null);
+        const existing = Array.isArray(checkJson?.data) ? checkJson.data : [];
+        if (existing.length > 0) {
+          const duplicate = existing[0];
+          if (code && String(duplicate.dealer_code).toLowerCase() === code.toLowerCase()) {
+            return NextResponse.json(
+              { error: `Dealer Code "${code}" is already in use. It must be unique.` },
+              { status: 409 },
+            );
+          }
+          if (name && String(duplicate.dealer_name).toLowerCase() === name.toLowerCase()) {
+            return NextResponse.json(
+              { error: `Dealer Name "${name}" is already in use. It must be unique.` },
+              { status: 409 },
+            );
+          }
+        }
+      }
     }
 
     const target = `${DIRECTUS_BASE}/items/dealer_list/${encodeURIComponent(dealerId)}`;
