@@ -76,7 +76,7 @@ export const MARIKINA_TEMPLATE: ORTemplate = {
         discount_total: { x: 160, y: 238, fontSize: 10, fontFamily: 'courier', fontWeight: 'normal', label: 'Discount Total' },
         net_total: { x: 160, y: 250, fontSize: 12, fontFamily: 'courier', fontWeight: 'bold', label: 'Net Total' },
         po_no: { x: 10, y: 220, fontSize: 10, fontFamily: 'courier', fontWeight: 'normal', label: 'PO Number', hidden: true },
-        salesman: { x: 10, y: 226, fontSize: 10, fontFamily: 'courier', fontWeight: 'normal', label: 'Salesman Name', hidden: true },
+        salesman: { x: 10, y: 226, fontSize: 10, fontFamily: 'courier', fontWeight: 'normal', label: 'Salesman Name' },
         total_amount_due: { x: 160, y: 260, fontSize: 12, fontFamily: 'courier', fontWeight: 'bold', label: 'Total Amount Due', hidden: true },
         barcode: { x: 160, y: 5, fontSize: 12, fontFamily: 'courier', fontWeight: 'normal', label: 'Barcode', hidden: true },
     },
