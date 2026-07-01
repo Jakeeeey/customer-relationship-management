@@ -606,24 +606,26 @@ export const DealerSalesInvoiceList: React.FC<DealerSalesInvoiceListProps> = ({
                                                 <Check className={cn("h-4 w-4 shrink-0", salesType === "all" ? "opacity-100" : "opacity-0")} />
                                                 <span className="font-medium text-slate-900 dark:text-slate-100">All Sales Types</span>
                                             </CommandItem>
-                                            {salesTypes.map((st) => (
-                                                <CommandItem
-                                                    key={st.id}
-                                                    value={st.operation_name}
-                                                    onSelect={() => {
-                                                        setSalesType(st.id.toString());
-                                                        setOpenSalesType(false);
-                                                    }}
-                                                    className="flex items-center gap-2 py-3 cursor-pointer"
-                                                >
-                                                    <Check className={cn("h-4 w-4 shrink-0", salesType === st.id.toString() ? "opacity-100" : "opacity-0")} />
-                                                    <div className="flex flex-col overflow-hidden flex-1 min-w-0">
-                                                        <span className="font-medium text-slate-900 dark:text-slate-100 leading-tight whitespace-normal break-words overflow-hidden" style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
-                                                            {st.operation_name}
-                                                        </span>
-                                                    </div>
-                                                </CommandItem>
-                                            ))}
+                                            {salesTypes
+                                                .filter((st) => st.operation_name?.toUpperCase() !== "SITE SALES" && st.id !== 3)
+                                                .map((st) => (
+                                                    <CommandItem
+                                                        key={st.id}
+                                                        value={st.operation_name}
+                                                        onSelect={() => {
+                                                            setSalesType(st.id.toString());
+                                                            setOpenSalesType(false);
+                                                        }}
+                                                        className="flex items-center gap-2 py-3 cursor-pointer"
+                                                    >
+                                                        <Check className={cn("h-4 w-4 shrink-0", salesType === st.id.toString() ? "opacity-100" : "opacity-0")} />
+                                                        <div className="flex flex-col overflow-hidden flex-1 min-w-0">
+                                                            <span className="font-medium text-slate-900 dark:text-slate-100 leading-tight whitespace-normal break-words overflow-hidden" style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
+                                                                {st.operation_name}
+                                                            </span>
+                                                        </div>
+                                                    </CommandItem>
+                                                ))}
                                         </CommandGroup>
                                     </CommandList>
                                 </Command>

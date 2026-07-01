@@ -421,11 +421,13 @@ export function DealerSalesInvoiceHeader({
                             <SelectValue placeholder="Select Sales Type" />
                         </SelectTrigger>
                         <SelectContent>
-                            {salesTypes.map(s => (
-                                <SelectItem key={s.id} value={s.id.toString()} className="font-black text-[10px] uppercase">
-                                    {s.operation_name}
-                                </SelectItem>
-                            ))}
+                            {salesTypes
+                                .filter(s => s.operation_name?.toUpperCase() !== "SITE SALES" && s.id !== 3)
+                                .map(s => (
+                                    <SelectItem key={s.id} value={s.id.toString()} className="font-black text-[10px] uppercase">
+                                        {s.operation_name}
+                                    </SelectItem>
+                                ))}
                         </SelectContent>
                     </Select>
                 </div>
