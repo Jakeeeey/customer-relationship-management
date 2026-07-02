@@ -10,6 +10,8 @@ export const useInventoryReport = () => {
     const [search, setSearch] = useState("");
     const [selectedBranch, setSelectedBranch] = useState<string>("all");
     const [selectedSupplier, setSelectedSupplier] = useState<string>("all");
+    const [stockFilter, setStockFilter] = useState<"all" | "positive" | "negative">("all");
+
 
     useEffect(() => {
         const load = async () => {
@@ -110,6 +112,13 @@ export const useInventoryReport = () => {
             filtered = filtered.filter(item => item.supplier === selectedSupplier);
         }
 
+        // Apply Stock Status Filter
+        if (stockFilter === "positive") {
+            filtered = filtered.filter(item => item.piece > 0);
+        } else if (stockFilter === "negative") {
+            filtered = filtered.filter(item => item.piece < 0);
+        }
+
         // Apply Search Filter
         if (search) {
             const lowSearch = search.toLowerCase();
@@ -122,7 +131,7 @@ export const useInventoryReport = () => {
         }
 
         return filtered;
-    }, [groupedData, search, selectedBranch, selectedSupplier]);
+    }, [groupedData, search, selectedBranch, selectedSupplier, stockFilter]);
 
     return {
         data: displayData,
@@ -136,6 +145,8 @@ export const useInventoryReport = () => {
         setSelectedBranch,
         selectedSupplier,
         setSelectedSupplier,
+        stockFilter,
+        setStockFilter,
         branches,
         suppliers,
         rawCount: data.length
