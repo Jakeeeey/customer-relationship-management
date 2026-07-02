@@ -14,7 +14,7 @@ import { Badge } from "@/components/ui/badge"
 import { 
     Search, Package, Box, Hash, RefreshCcw, 
     LayoutGrid, Layers, MapPin, 
-    Boxes, Eye, Download
+    Boxes, Eye, Download, TrendingUp
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -25,6 +25,7 @@ export const InventoryReportModule = ({ userName }: { userName?: string }) => {
     const { 
         data, loading, error, mode, setMode, search, setSearch, 
         selectedBranch, setSelectedBranch, selectedSupplier, setSelectedSupplier,
+        stockFilter, setStockFilter,
         branches, suppliers
     } = useInventoryReport()
 
@@ -262,7 +263,7 @@ export const InventoryReportModule = ({ userName }: { userName?: string }) => {
             {/* Premium Filter Section */}
             <div className="relative group p-0.5 rounded-3xl bg-gradient-to-br from-primary/10 via-transparent to-primary/5 shadow-2xl transition-all duration-500 hover:shadow-primary/5">
                 <div className="bg-background/80 backdrop-blur-2xl rounded-[calc(1.5rem-2px)] border p-4 shadow-inner">
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-6 items-end">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-6 items-end">
                         
                         {/* Mode Selection */}
                         <div className="space-y-2 lg:col-span-1 xl:col-span-1">
@@ -321,8 +322,29 @@ export const InventoryReportModule = ({ userName }: { userName?: string }) => {
                             />
                         </div>
 
+                        {/* Stock Status Filter */}
+                        <div className="space-y-2">
+                            <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/70 flex items-center gap-2">
+                                <TrendingUp size={12} className="text-primary/60" /> Stock Status
+                            </label>
+                            <LocalSearchableSelect 
+                                options={[
+                                    { value: "all", label: "All Stock" },
+                                    { value: "positive", label: "Positive Stock" },
+                                    { value: "negative", label: "Negative Stock" }
+                                ]} 
+                                value={stockFilter} 
+                                onValueChange={(val) => setStockFilter(val as "all" | "positive" | "negative")} 
+                                placeholder="Select Status..."
+                                className={cn(
+                                    "h-11 rounded-xl bg-muted/20 border-border/50 focus:bg-background transition-all duration-300",
+                                    stockFilter !== "all" && "border-primary/30 bg-primary/5"
+                                )}
+                            />
+                        </div>
+
                         {/* Search Input */}
-                        <div className="space-y-2 xl:col-span-1">
+                        <div className="space-y-2">
                             <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/70 flex items-center gap-2">
                                 <Search size={12} className="text-primary/60" /> Quick Search
                             </label>
