@@ -45,6 +45,9 @@ export interface DealerRecord {
   springboot?: string;
   subscription_tier?: string; // virtual field mapped from subscription_id.name
   subscription_id?: number | string | SubscriptionRecord | null;
+  created_date?: string;
+  created_by?: string;
+  status?: string;
   [key: string]: unknown;
 }
 

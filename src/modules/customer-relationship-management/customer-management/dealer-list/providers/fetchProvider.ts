@@ -59,6 +59,9 @@ export const fetchDealerData = async (
       "dealer_website",
       "dealer_tags",
       "subscription_id.*",
+      "status",
+      "created_date",
+      "created_by",
     ].join(","),
   );
 

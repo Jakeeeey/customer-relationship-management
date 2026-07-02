@@ -29,6 +29,7 @@ interface FilterProps {
   options: DealerLookupOptions;
   onApply: (next: Partial<DealerFilters>) => void;
   onAddDealer?: () => void;
+  onReset?: () => void;
 }
 
 function FilterCombobox({
@@ -143,6 +144,7 @@ const DealerListFilter = React.memo(function DealerListFilter({
   options,
   onApply,
   onAddDealer,
+  onReset,
 }: FilterProps) {
   const [localSearch, setLocalSearch] = useState(filters.search ?? "");
 
@@ -437,10 +439,25 @@ const DealerListFilter = React.memo(function DealerListFilter({
             placeholder="Tier"
             disabled={options.tiers.length === 0}
           /> */}
+          {onReset && (
+            <Button
+              variant="outline"
+              onClick={() => {
+                setLocalSearch("");
+                onReset();
+              }}
+              className="h-11 rounded-xl shadow-sm border-border/60 font-bold text-xs uppercase tracking-widest text-muted-foreground hover:text-foreground ml-auto xl:ml-2"
+            >
+              Reset Filters
+            </Button>
+          )}
           {onAddDealer && (
             <Button
               onClick={onAddDealer}
-              className="h-11 rounded-xl shadow-lg bg-primary text-primary-foreground font-black text-xs uppercase tracking-widest px-6 ml-auto xl:ml-2"
+              className={cn(
+                "h-11 rounded-xl shadow-lg bg-primary text-primary-foreground font-black text-xs uppercase tracking-widest px-6",
+                onReset ? "ml-2" : "ml-auto xl:ml-2"
+              )}
             >
               <UserPlus className="mr-2 h-4 w-4" />
               Add Dealer

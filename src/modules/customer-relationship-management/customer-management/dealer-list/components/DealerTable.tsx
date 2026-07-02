@@ -36,6 +36,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { cn } from "@/lib/utils";
 import type { DealerRecord, DealerFilters } from "../types";
 
 // ---------------------------------------------------------------------------
@@ -183,9 +184,20 @@ function SkeletonRows({ count = 10 }: { count?: number }) {
               <Skeleton className="h-3 w-24" />
             </div>
           </TableCell>
+          {/* Status */}
+          <TableCell>
+            <Skeleton className="h-4 w-14 rounded-full" />
+          </TableCell>
           {/* Date Admitted */}
           <TableCell>
             <Skeleton className="h-4 w-20" />
+          </TableCell>
+          {/* Created Details */}
+          <TableCell>
+            <div className="space-y-1">
+              <Skeleton className="h-3 w-16" />
+              <Skeleton className="h-3 w-20" />
+            </div>
           </TableCell>
           {/* Actions */}
           <TableCell className="text-right pr-6">
@@ -285,6 +297,9 @@ const DealerTable = React.memo(function DealerTable({
               <TableHead className="text-foreground whitespace-nowrap">
                 Contacts
               </TableHead>
+              <TableHead className="text-foreground whitespace-nowrap">
+                Status
+              </TableHead>
               <SortHeader
                 col="dealer_dateAdmitted"
                 label="Date Admitted"
@@ -292,6 +307,9 @@ const DealerTable = React.memo(function DealerTable({
                 sortDir={sortDir}
                 onSort={onSort}
               />
+              <TableHead className="text-foreground whitespace-nowrap">
+                Created Details
+              </TableHead>
               <TableHead className="text-foreground text-right pr-6">
                 Actions
               </TableHead>
@@ -304,7 +322,7 @@ const DealerTable = React.memo(function DealerTable({
             ) : rows.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={6}
+                  colSpan={8}
                   className="py-16 text-center text-muted-foreground"
                 >
                   <div className="flex flex-col items-center gap-2">
@@ -418,6 +436,21 @@ const DealerTable = React.memo(function DealerTable({
                     </div>
                   </TableCell>
 
+                  {/* Status Badge */}
+                  <TableCell>
+                    <Badge
+                      variant={dealer.status === "Inactive" ? "destructive" : "outline"}
+                      className={cn(
+                        "text-[10px] px-2 py-0.5 whitespace-nowrap font-semibold uppercase tracking-wider",
+                        dealer.status === "Inactive"
+                          ? "bg-destructive/15 text-destructive border-destructive/25 hover:bg-destructive/15"
+                          : "bg-emerald-500/10 text-emerald-600 border-emerald-500/20 hover:bg-emerald-500/10 dark:text-emerald-400"
+                      )}
+                    >
+                      {dealer.status || "Active"}
+                    </Badge>
+                  </TableCell>
+
                   {/* Date Admitted */}
                   <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
                     {dealer.dealer_dateAdmitted
@@ -430,6 +463,27 @@ const DealerTable = React.memo(function DealerTable({
                         },
                       )
                       : "—"}
+                  </TableCell>
+
+                  {/* Created Details */}
+                  <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
+                    <div className="flex flex-col gap-0.5">
+                      <span className="text-foreground font-medium">
+                        {dealer.created_by || "Active User"}
+                      </span>
+                      <span>
+                        {dealer.created_date
+                          ? new Date(dealer.created_date).toLocaleDateString(
+                            "en-PH",
+                            {
+                              year: "numeric",
+                              month: "short",
+                              day: "numeric",
+                            },
+                          )
+                          : "—"}
+                      </span>
+                    </div>
                   </TableCell>
 
                   {/* Actions */}
