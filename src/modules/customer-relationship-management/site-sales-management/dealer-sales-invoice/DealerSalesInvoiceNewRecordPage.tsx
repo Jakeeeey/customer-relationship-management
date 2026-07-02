@@ -59,7 +59,7 @@ export default function DealerSalesInvoiceNewRecordPage() {
     const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
     const [selectedPriceType, setSelectedPriceType] = useState<string>("");
     const [selectedInvoiceType, setSelectedInvoiceType] = useState<string>("");
-    const [selectedSalesType, setSelectedSalesType] = useState<string>("3"); // Default to Site Sale (3)
+    const [selectedSalesType, setSelectedSalesType] = useState<string>("");
     const [selectedBranch, setSelectedBranch] = useState<string>("");
     const [manualInvoiceNo, setManualInvoiceNo] = useState<string>("");
     const [orderIdExists, setOrderIdExists] = useState<boolean>(false);
@@ -150,6 +150,13 @@ export default function DealerSalesInvoiceNewRecordPage() {
                 const res = await fetch(`${window.location.origin}/api/crm/site-sales-management/dealer-sales-invoice?type=sales_types`);
                 const st = await res.json();
                 setSalesTypes(st);
+
+                const dealerOver = st.find((s: SalesType) => s.operation_name?.toUpperCase() === "DEALEROVER");
+                if (dealerOver) {
+                    setSelectedSalesType(dealerOver.id.toString());
+                } else {
+                    setSelectedSalesType("3");
+                }
 
                 if (data.invoiceTypes.length > 0) setSelectedInvoiceType(data.invoiceTypes[0].id.toString());
                 if (data.priceTypes.length > 0) setSelectedPriceType(data.priceTypes[0].price_type_id.toString());

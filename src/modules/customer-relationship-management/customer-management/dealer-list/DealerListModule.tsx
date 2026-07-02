@@ -45,6 +45,7 @@ function sortRows(
 export default function DealerListModule() {
   const {
     filteredRows,
+    allRows,
     loading,
     error,
     page,
@@ -54,6 +55,7 @@ export default function DealerListModule() {
     setPageSize,
     filters,
     applyFilters,
+    clearFilters,
     options,
     selectedDealer,
     setSelectedDealer,
@@ -197,6 +199,7 @@ export default function DealerListModule() {
         options={options}
         onApply={applyFilters}
         onAddDealer={handleAddDealer}
+        onReset={clearFilters}
       />
 
       {/* ── Error banner ── */}
@@ -239,6 +242,7 @@ export default function DealerListModule() {
         onSuccess={handleDealerSaved}
         options={options}
         dealerToEdit={dealerToEdit}
+        existingDealers={allRows}
       />
     </div>
   );

@@ -214,9 +214,11 @@ export async function GET(req: NextRequest) {
                 _and: []
             };
 
-            // Filter by Sales Type if specified
+            // Filter by Sales Type if specified, otherwise exclude SITE SALES (3)
             if (salesTypeId && salesTypeId !== "all") {
                 filters._and.push({ sales_type: { _eq: salesTypeId } });
+            } else {
+                filters._and.push({ sales_type: { _neq: 3 } });
             }
 
             if (searchParams.has("isDispatched")) {
@@ -383,8 +385,8 @@ export async function GET(req: NextRequest) {
 
             if (salesTypeId && salesTypeId !== "all") {
                 filters._and.push({ sales_type: { _eq: salesTypeId } });
-            } else if (!salesTypeId) {
-                filters._and.push({ sales_type: { _eq: 3 } });
+            } else {
+                filters._and.push({ sales_type: { _neq: 3 } });
             }
             if (searchParams.has("isDispatched")) {
                 if (isDispatched) {

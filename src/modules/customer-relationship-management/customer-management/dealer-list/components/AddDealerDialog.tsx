@@ -13,7 +13,7 @@
  * (no proxy route or Popover/Command needed).
  */
 
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState, useMemo } from "react";
 import {
   Building2,
   MapPin,
@@ -25,6 +25,8 @@ import {
   UploadCloud,
   AlertCircle,
   Handshake,
+  ChevronsUpDown,
+  Check,
 } from "lucide-react";
 import {
   Sheet,
@@ -41,8 +43,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 import { createDealer, updateDealer } from "../providers/fetchProvider";
 import type { DealerLookupOptions, DealerRecord } from "../types";
 import PSGCCombobox, { PSGCOption } from "./PSGCCombobox";
@@ -61,6 +70,7 @@ interface AddDealerDialogProps {
   onSuccess: (created: DealerRecord) => void;
   options: DealerLookupOptions;
   dealerToEdit?: DealerRecord | null;
+  existingDealers?: DealerRecord[];
 }
 
 // ---------------------------------------------------------------------------
@@ -90,6 +100,7 @@ const EMPTY_FORM: Partial<DealerRecord> = {
   subscription_tier: "",
   subscription_id: "",
   dealer_logo: "",
+  status: "Active",
 };
 
 // ---------------------------------------------------------------------------
@@ -143,6 +154,7 @@ function TextField({
   required = false,
   colSpan,
   error,
+  disabled = false,
 }: {
   id: string;
   label: string;
@@ -154,6 +166,7 @@ function TextField({
   required?: boolean;
   colSpan?: "full";
   error?: string;
+  disabled?: boolean;
 }) {
   const hasError = Boolean(error);
   return (
@@ -168,6 +181,7 @@ function TextField({
         onChange={(e) => onChange(e.target.value)}
         onBlur={onBlur}
         placeholder={placeholder}
+        disabled={disabled}
         aria-invalid={hasError}
         aria-describedby={hasError ? `${id}-error` : undefined}
         className={`h-10 text-sm border-border/80 bg-background shadow-sm transition-colors ${hasError
@@ -184,6 +198,118 @@ function TextField({
           <span className="leading-snug">{error}</span>
         </div>
       )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Searchable Combobox Field (with input filter)
+// ---------------------------------------------------------------------------
+function ComboboxField({
+  id,
+  label,
+  value,
+  onChange,
+  items,
+  placeholder,
+  required = false,
+}: {
+  id: string;
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  items: string[];
+  placeholder?: string;
+  required?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const filteredItems = useMemo(() => {
+    if (!query.trim()) return items;
+    return items.filter((item) =>
+      item.toLowerCase().includes(query.trim().toLowerCase())
+    );
+  }, [items, query]);
+
+  const handleOpenChange = (next: boolean) => {
+    setOpen(next);
+    if (!next) setQuery("");
+    if (next) setTimeout(() => inputRef.current?.focus(), 50);
+  };
+
+  return (
+    <div>
+      <FieldLabel htmlFor={id} required={required}>
+        {label}
+      </FieldLabel>
+      <DropdownMenu open={open} onOpenChange={handleOpenChange}>
+        <DropdownMenuTrigger asChild>
+          <Button
+            id={id}
+            type="button"
+            variant="outline"
+            role="combobox"
+            aria-expanded={open}
+            className={cn(
+              "w-full h-10 justify-between font-normal text-sm bg-background border-border/80 shadow-sm",
+              !value && "text-muted-foreground"
+            )}
+          >
+            <span className="truncate">{value || placeholder || `Select ${label}`}</span>
+            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent
+          className="w-full sm:w-[--radix-popper-anchor-width] min-w-[--radix-popper-anchor-width] p-0 shadow-xl rounded-xl border-border bg-popover"
+          align="start"
+          sideOffset={6}
+          style={{
+            width: "max(var(--radix-popper-anchor-width), 100%)",
+          }}
+        >
+          <div className="flex items-center border-b px-3 sticky top-0 bg-popover z-10">
+            <input
+              ref={inputRef}
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={(e) => e.stopPropagation()}
+              placeholder="Search..."
+              className="flex w-full h-10 bg-transparent py-3 text-sm outline-none placeholder:text-muted-foreground"
+            />
+          </div>
+          {filteredItems.length === 0 && (
+            <div className="py-6 text-center text-sm text-muted-foreground">
+              No results found.
+            </div>
+          )}
+          <div className="max-h-60 overflow-y-auto">
+            {filteredItems.map((item, index) => (
+              <DropdownMenuItem
+                key={`${item}-${index}`}
+                onSelect={() => {
+                  onChange(item);
+                  setOpen(false);
+                  setQuery("");
+                }}
+                className={cn(
+                  "cursor-pointer px-3 py-2 text-sm",
+                  value === item && "bg-accent/50 font-medium"
+                )}
+              >
+                <Check
+                  className={cn(
+                    "mr-2 h-4 w-4 text-primary shrink-0",
+                    value === item ? "opacity-100" : "opacity-0"
+                  )}
+                />
+                {item}
+              </DropdownMenuItem>
+            ))}
+          </div>
+        </DropdownMenuContent>
+      </DropdownMenu>
     </div>
   );
 }
@@ -289,6 +415,7 @@ function PSGCField({
   placeholder,
   disabled = false,
   isLoading = false,
+  required = false,
 }: {
   id: string;
   label: string;
@@ -298,10 +425,11 @@ function PSGCField({
   placeholder?: string;
   disabled?: boolean;
   isLoading?: boolean;
+  required?: boolean;
 }) {
   return (
     <div>
-      <FieldLabel htmlFor={id}>{label}</FieldLabel>
+      <FieldLabel htmlFor={id} required={required}>{label}</FieldLabel>
       <PSGCCombobox
         id={id}
         value={value}
@@ -316,6 +444,26 @@ function PSGCField({
 }
 
 // ---------------------------------------------------------------------------
+// Automatic Dealer Code Generator Suffix Sorter
+// ---------------------------------------------------------------------------
+function generateNextDealerCode(existingDealers: DealerRecord[]): string {
+  let maxNum = 0;
+  existingDealers.forEach((dealer) => {
+    const code = dealer.dealer_code;
+    if (code && typeof code === "string") {
+      const match = code.match(/^DLR-(\d+)$/i);
+      if (match) {
+        const num = parseInt(match[1], 10);
+        if (num > maxNum) {
+          maxNum = num;
+        }
+      }
+    }
+  });
+  return `DLR-${String(maxNum + 1).padStart(3, "0")}`;
+}
+
+// ---------------------------------------------------------------------------
 // Main component
 // ---------------------------------------------------------------------------
 const AddDealerDialog = function AddDealerDialog({
@@ -324,6 +472,7 @@ const AddDealerDialog = function AddDealerDialog({
   onSuccess,
   options,
   dealerToEdit,
+  existingDealers,
 }: AddDealerDialogProps) {
   const [form, setForm] = useState<Partial<DealerRecord>>(EMPTY_FORM);
   const [activeTab, setActiveTab] = useState<TabId>("basic");
@@ -369,12 +518,17 @@ const AddDealerDialog = function AddDealerDialog({
         });
         setForm({ ...EMPTY_FORM, ...cleaned });
       } else {
-        setForm(EMPTY_FORM);
+        const nextCode = generateNextDealerCode(existingDealers || []);
+        setForm({
+          ...EMPTY_FORM,
+          dealer_code: nextCode,
+          status: "Active",
+        });
       }
       setErrors({});
       setActiveTab("basic");
     }
-  }, [open, dealerToEdit]);
+  }, [open, dealerToEdit, existingDealers]);
 
   const validateField = (field: keyof DealerRecord, val: string): string => {
     const trimmed = val ? val.trim() : "";
@@ -800,6 +954,18 @@ Accepted:
     if (!form.dealer_contact?.trim()) {
       newErrors["dealer_contact"] = "Phone / Mobile number is required";
     }
+    if (!form.dealer_province?.trim()) {
+      newErrors["dealer_province"] = "Province is required";
+    }
+    if (!form.dealer_city?.trim()) {
+      newErrors["dealer_city"] = "City / Municipality is required";
+    }
+    if (!form.dealer_dateAdmitted?.trim()) {
+      newErrors["dealer_dateAdmitted"] = "Date Admitted is required";
+    }
+    if (!form.subscription_id) {
+      newErrors["subscription_id"] = "Subscription is required";
+    }
 
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
@@ -807,9 +973,9 @@ Accepted:
       toast.error(`Validation failed: ${newErrors[firstErrField]}`);
 
       // Auto-switch tabs to show the error
-      if (["dealer_code"].includes(firstErrField)) {
+      if (["dealer_code", "dealer_name", "dealer_dateAdmitted", "subscription_id"].includes(firstErrField)) {
         setActiveTab("basic");
-      } else if (["dealer_zipCode"].includes(firstErrField)) {
+      } else if (["dealer_province", "dealer_city", "dealer_zipCode"].includes(firstErrField)) {
         setActiveTab("location");
       } else if (
         [
@@ -886,6 +1052,7 @@ Accepted:
               error={errors.dealer_code}
               placeholder="e.g. DLR-001"
               required
+              disabled
             />
             <TextField
               id="add-dealer-name"
@@ -908,7 +1075,7 @@ Accepted:
               }))}
               placeholder="Select Type"
             />
-            <SelectField
+            <ComboboxField
               id="add-dealer-department"
               label="Department"
               value={String(form.dealer_department ?? "")}
@@ -926,13 +1093,28 @@ Accepted:
                 label: t.name,
               }))}
               placeholder="Select Subscription"
+              required
             />
             <TextField
               id="add-dealer-date-admitted"
               label="Date Admitted"
               value={String(form.dealer_dateAdmitted ?? "")}
               onChange={set("dealer_dateAdmitted")}
+              onBlur={() => handleBlur("dealer_dateAdmitted")}
+              error={errors.dealer_dateAdmitted}
               type="date"
+              required
+            />
+            <SelectField
+              id="add-dealer-status"
+              label="Status"
+              value={String(form.status ?? "Active")}
+              onChange={set("status")}
+              items={[
+                { value: "Active", label: "Active" },
+                { value: "Inactive", label: "Inactive" },
+              ]}
+              placeholder="Select Status"
             />
             <div className="col-span-2">
               <FieldLabel htmlFor="add-dealer-logo">
@@ -997,6 +1179,7 @@ Accepted:
               items={provincesList}
               placeholder="Select province"
               isLoading={isLoadingProvinces}
+              required
             />
             <PSGCField
               id="add-dealer-city"
@@ -1009,6 +1192,7 @@ Accepted:
               }
               disabled={!selectedProvince}
               isLoading={isLoadingCities}
+              required
             />
             <PSGCField
               id="add-dealer-brgy"
@@ -1162,8 +1346,8 @@ Accepted:
             {TABS.map(({ id, label, icon: Icon }) => {
               const isActive = activeTab === id;
               const hasError = (() => {
-                if (id === "basic") return !!errors.dealer_code || !!errors.dealer_name;
-                if (id === "location") return !!errors.dealer_zipCode;
+                if (id === "basic") return !!errors.dealer_code || !!errors.dealer_name || !!errors.dealer_dateAdmitted || !!errors.subscription_id;
+                if (id === "location") return !!errors.dealer_province || !!errors.dealer_city || !!errors.dealer_zipCode;
                 if (id === "contact") {
                   return (
                     !!errors.dealer_contact ||
