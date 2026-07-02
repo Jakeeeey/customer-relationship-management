@@ -20,6 +20,25 @@ import {
 
 const API_BASE = "/api/crm/site-sales-management/dealer-sales-invoice";
 
+const getCache = <T>(key: string): T | null => {
+    if (typeof window === "undefined") return null;
+    try {
+        const item = localStorage.getItem(`cache_dsi_${key}`);
+        return item ? JSON.parse(item) : null;
+    } catch {
+        return null;
+    }
+};
+
+const setCache = <T>(key: string, data: T): void => {
+    if (typeof window === "undefined") return;
+    try {
+        localStorage.setItem(`cache_dsi_${key}`, JSON.stringify(data));
+    } catch (e) {
+        console.error(e);
+    }
+};
+
 export const dealerInvoiceProvider = {
     // 1. Fetch Worklist (isDispatched = 0, sales_type = 3)
     getWorklist: async (params: WorklistFilters): Promise<{ data: DealerInvoiceHeader[], metadata: { totalCount: number } }> => {
@@ -94,9 +113,17 @@ export const dealerInvoiceProvider = {
 
     // 5. Utility Data
     getSalesmen: async (): Promise<Salesman[]> => {
-        const res = await fetch(`${API_BASE}?type=salesmen`);
-        if (!res.ok) throw new Error("Failed to fetch salesmen");
-        return res.json();
+        try {
+            const res = await fetch(`${API_BASE}?type=salesmen`);
+            if (!res.ok) throw new Error("Failed to fetch salesmen");
+            const data = await res.json();
+            setCache("salesmen", data);
+            return data;
+        } catch (err) {
+            const cached = getCache<Salesman[]>("salesmen");
+            if (cached) return cached;
+            throw err;
+        }
     },
 
     getMasterUsers: async (): Promise<MasterUser[]> => {
@@ -118,15 +145,35 @@ export const dealerInvoiceProvider = {
     },
 
     getSalesTypes: async (): Promise<SalesType[]> => {
-        const res = await fetch(`${API_BASE}?type=sales_types`);
-        if (!res.ok) throw new Error("Failed to fetch sales types");
-        return res.json();
+        try {
+            const res = await fetch(`${API_BASE}?type=sales_types`);
+            if (!res.ok) throw new Error("Failed to fetch sales types");
+            const data = await res.json();
+            setCache("sales_types", data);
+            return data;
+        } catch (err) {
+            const cached = getCache<SalesType[]>("sales_types");
+            if (cached) return cached;
+            throw err;
+        }
     },
 
-    getCustomers: async (search: string = ""): Promise<Customer[]> => {
-        const res = await fetch(`${API_BASE}?type=customers&search=${search}`);
-        if (!res.ok) throw new Error("Failed to fetch customers");
-        return res.json();
+    getCustomers: async (search: string = "", page: number = 1, limit: number = 50): Promise<Customer[]> => {
+        try {
+            const res = await fetch(`${API_BASE}?type=customers&search=${encodeURIComponent(search)}&page=${page}&limit=${limit}`);
+            if (!res.ok) throw new Error("Failed to fetch customers");
+            const data = await res.json();
+            if (search === "" && page === 1) {
+                setCache("customers_default", data);
+            }
+            return data;
+        } catch (err) {
+            if (search === "" && page === 1) {
+                const cached = getCache<Customer[]>("customers_default");
+                if (cached) return cached;
+            }
+            throw err;
+        }
     },
 
 
@@ -200,5 +247,18 @@ export const dealerInvoiceProvider = {
             throw new Error(errorData.error || errorData.message || "Failed to create invoice");
         }
         return res.json();
+    },
+
+    getInvoicePdf: async (invoiceId: string | number): Promise<{ pdfFileId: string | null; widthMm: number | null }> => {
+        const res = await fetch(`${API_BASE}?type=invoice_pdf&invoiceId=${invoiceId}`);
+        if (!res.ok) throw new Error("Failed to fetch invoice PDF");
+        return res.json();
+    },
+    
+    checkOrderIdExists: async (orderId: string): Promise<boolean> => {
+        const res = await fetch(`${API_BASE}?type=check_order_id&orderId=${encodeURIComponent(orderId)}`);
+        if (!res.ok) throw new Error("Failed to check Order ID");
+        const data = await res.json();
+        return data.exists;
     }
 };

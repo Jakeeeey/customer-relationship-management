@@ -56,6 +56,16 @@ export function useSalesOrder() {
     // Product Results
     const [supplierProducts, setSupplierProducts] = useState<Product[]>([]);
     const [loadingProducts, setLoadingProducts] = useState(false);
+    const [productSearch, setProductSearch] = useState("");
+    const [debouncedProductSearch, setDebouncedProductSearch] = useState("");
+
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            setDebouncedProductSearch(productSearch);
+        }, 400);
+        return () => clearTimeout(timer);
+    }, [productSearch]);
+
 
     // Cart
     const [lineItems, setLineItems] = useState<LineItem[]>([]);
@@ -387,7 +397,7 @@ export function useSalesOrder() {
                                             discount_type: it.discount_type || p.discount_type,
                                             id: p.id || p.product_id,
                                             product_id: p.product_id || pid,
-                                            display_name: p.display_name || p.product_name,
+                                            display_name: p.display_name || p.description || p.product_name || `Unknown Product ${pid}`,
                                             product_name: p.product_name,
                                             description: p.description,
                                             available_qty: p.available_qty ?? 0,
@@ -624,7 +634,7 @@ export function useSalesOrder() {
                 setLoadingProducts(true);
 
                 // Concurrent fetch for products
-                salesOrderProvider.searchProducts("", customerCode, Number(supplierId), priceType, Number(customerId), priceTypeId || undefined, sSalesmanId, sBranchId)
+                salesOrderProvider.searchProducts(debouncedProductSearch, customerCode, Number(supplierId), priceType, Number(customerId), priceTypeId || undefined, sSalesmanId, sBranchId)
                     .then((productsData) => {
                         setSupplierProducts(Array.isArray(productsData) ? productsData : []);
                     }).finally(() => setLoadingProducts(false));
@@ -632,7 +642,7 @@ export function useSalesOrder() {
         } else {
             setSupplierProducts([]);
         }
-    }, [selectedCustomerId, selectedSupplierId, priceType, priceTypeId, selectedAccountId, selectedBranchId, customers]);
+    }, [debouncedProductSearch, selectedCustomerId, selectedSupplierId, priceType, priceTypeId, selectedAccountId, selectedBranchId, customers]);
 
     // Sync cart items with freshly fetched products (especially 'available' stock info)
     useEffect(() => {
@@ -1008,6 +1018,7 @@ export function useSalesOrder() {
         poNo, setPoNo,
         priceType, priceTypeId, priceTypeModels,
         supplierProducts, loadingProducts,
+        productSearch, setProductSearch,
         lineItems,
         addProduct, removeLineItem, updateLineItemQty,
         summary, isValidAllocation,

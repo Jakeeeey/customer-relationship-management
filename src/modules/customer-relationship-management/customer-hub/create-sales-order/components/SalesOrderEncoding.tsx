@@ -13,6 +13,8 @@ import { LineItem, Product } from "../types";
 interface SalesOrderEncodingProps {
     products: Product[];
     loadingProducts: boolean;
+    productSearch: string;
+    setProductSearch: (search: string) => void;
     lineItems: LineItem[];
     addProduct: (product: Product, qty: number, uom: string) => void;
     removeLineItem: (id: string) => void;
@@ -36,26 +38,17 @@ interface SalesOrderEncodingProps {
 }
 
 export function SalesOrderEncoding({
-    products, loadingProducts, lineItems,
+    products, loadingProducts, productSearch, setProductSearch, lineItems,
     addProduct, removeLineItem, updateLineItemQty,
     summary, onSubmit, submitting
 }: SalesOrderEncodingProps) {
-    const [search, setSearch] = useState("");
     const [showOnlyAvailable, setShowOnlyAvailable] = useState(false);
 
     const displayProducts = Array.isArray(products)
         ? products.filter(p => {
-            // Text Search Filter
-            const pName = (p.display_name || p.product_name || "").toLowerCase();
-            const pCode = (p.product_code || "").toLowerCase();
-            const parentName = (p.parent_product_name || "").toLowerCase();
-            const s = search.toLowerCase();
-            const matchesText = pName.includes(s) || pCode.includes(s) || parentName.includes(s);
-
-            // Availability Filter
+            // Availability Filter Only (Text search is now handled server-side)
             const matchesAvailability = !showOnlyAvailable || (Number(p.available_qty) || 0) > 0;
-
-            return matchesText && matchesAvailability;
+            return matchesAvailability;
         })
         : [];
 
@@ -75,8 +68,8 @@ export function SalesOrderEncoding({
                             <Input
                                 placeholder="Search products..."
                                 className="pl-9 h-9 text-xs shadow-inner bg-slate-50/50"
-                                value={search}
-                                onChange={(e) => setSearch(e.target.value)}
+                                value={productSearch}
+                                onChange={(e) => setProductSearch(e.target.value)}
                             />
                         </div>
                         <Button
