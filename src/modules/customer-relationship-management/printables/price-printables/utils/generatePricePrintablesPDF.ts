@@ -42,7 +42,7 @@ export async function generatePricePrintablesPDF({
         if (res.ok) {
             const data = await res.json();
             if (Array.isArray(data)) {
-                data.forEach((c: any) => categoryMap.set(String(c.id), c.category_name));
+                data.forEach((c: { id: number | string; category_name: string }) => categoryMap.set(String(c.id), c.category_name));
             }
         }
     } catch (error) {

@@ -58,7 +58,7 @@ export async function GET(req: NextRequest) {
                 throw new Error(`Failed to fetch categories from Directus: ${res.status} ${text}`);
             }
             const json = await res.json();
-            const mappedData = (json.data || []).map((c: any) => ({
+            const mappedData = (json.data || []).map((c: { category_id: number; category_name: string }) => ({
                 id: c.category_id,
                 category_name: c.category_name
             }));
@@ -77,7 +77,7 @@ export async function GET(req: NextRequest) {
                 throw new Error(`Failed to fetch segments from Directus: ${res.status} ${text}`);
             }
             const json = await res.json();
-            const mappedData = (json.data || []).map((s: any) => ({
+            const mappedData = (json.data || []).map((s: { id?: number; segment_id?: number; product_segment_id?: number; segment_name: string }) => ({
                 id: s.id || s.segment_id || s.product_segment_id || 0,
                 segment_name: s.segment_name
             }));
