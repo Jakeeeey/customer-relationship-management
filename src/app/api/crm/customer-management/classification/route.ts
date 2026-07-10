@@ -32,7 +32,10 @@ function buildFetchHeaders() {
 }
 
 function normalizeClassificationName(value: string): string {
-	return value.trim().replace(/\s+/g, " ").toLowerCase();
+	return value
+		.trim()
+		.toLowerCase()
+		.replace(/[^a-z0-9]/g, '');
 }
 
 async function isClassificationDuplicate(classificationName: string, excludeId?: number): Promise<boolean> {

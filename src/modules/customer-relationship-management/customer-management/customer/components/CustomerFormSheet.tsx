@@ -129,21 +129,11 @@ function CreatableCombobox({items, value, onChange, onCreate, placeholder, itemN
             </PopoverTrigger>
             <PopoverContent className="w-[300px] p-0 shadow-xl rounded-xl border-border/50 z-[9999]">
                 <Command className="bg-transparent overflow-hidden rounded-xl">
-                    <CommandInput placeholder={`Search or create ${itemName}...`} onValueChange={setInputValue}
+                    <CommandInput placeholder={`Search ${itemName}...`} onValueChange={setInputValue}
                                   className="h-11"/>
                     <CommandList className="max-h-[200px] overflow-y-auto custom-scrollbar">
                         <CommandEmpty className="p-2">
-                            {inputValue && !exactMatch ? (
-                                <Button variant="ghost"
-                                        className="w-full justify-start text-primary text-xs font-bold uppercase tracking-widest"
-                                        onClick={() => {
-                                            onCreate(inputValue);
-                                            setInputValue("");
-                                            setOpen(false);
-                                        }}>
-                                    <Plus className="mr-2 h-4 w-4"/> Create &quot;{inputValue}&quot;
-                                </Button>
-                            ) : `No ${itemName} found.`}
+                            {`No ${itemName} found.`}
                         </CommandEmpty>
                         <CommandGroup>
                             {items.map((item, index) => (
@@ -900,7 +890,7 @@ export function CustomerFormSheet({ open, onOpenChange, customer, onSubmit, defa
                                                                                    value={field.value}
                                                                                    onChange={field.onChange}
                                                                                    onCreate={handleCreateStoreType}
-                                                                                   placeholder="Select or create..."
+                                                                                   placeholder="Select store type..."
                                                                                    itemName="Store Type"/><FormMessage/></FormItem>
                                         )}/>
 
@@ -908,7 +898,7 @@ export function CustomerFormSheet({ open, onOpenChange, customer, onSubmit, defa
                                             <FormItem className="flex flex-col pt-1.5"><FormLabel
                                                 className="font-bold uppercase text-xs text-muted-foreground">Classification</FormLabel><CreatableCombobox
                                                 items={classifications} value={field.value} onChange={field.onChange}
-                                                onCreate={handleCreateClassification} placeholder="Select or create..."
+                                                onCreate={handleCreateClassification} placeholder="Select classification..."
                                                 itemName="Classification"/><FormMessage/></FormItem>
                                         )}/>
 
