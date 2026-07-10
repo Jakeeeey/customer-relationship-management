@@ -25,7 +25,11 @@ type StoreTypeRow = {
 };
 
 function normalizeStoreType(value: string): string {
-	return value.trim().toLowerCase();
+	return value
+		.trim()
+		.toLowerCase()
+		.replace(/[^a-z0-9]/g, '')
+		.replace(/store$/, '');
 }
 
 async function isStoreTypeDuplicate(storeType: string, excludeId?: number): Promise<boolean> {
