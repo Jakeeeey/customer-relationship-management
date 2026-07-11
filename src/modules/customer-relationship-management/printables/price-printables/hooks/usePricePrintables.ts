@@ -25,6 +25,9 @@ export function usePricePrintables() {
     const [pdfUrl, setPdfUrl] = useState<string | null>(null);
     const [isPreviewOpen, setIsPreviewOpen] = useState(false);
     
+    // Barcode state
+    const [showBarcode, setShowBarcode] = useState(false);
+    
     const [isLoading, setIsLoading] = useState(true);
     const [isGenerating, setIsGenerating] = useState(false);
 
@@ -112,7 +115,8 @@ export function usePricePrintables() {
                 salesmanCode: salesman?.salesman_code || "",
                 supplierName: supplier?.supplier_name || "All",
                 segmentName: selectedSegmentName,
-                categoryName: category?.category_name || "All"
+                categoryName: category?.category_name || "All",
+                showBarcode
             });
 
             // Handle Download if requested
@@ -171,6 +175,8 @@ export function usePricePrintables() {
         isGenerating,
         customFilename,
         handleFilenameChange,
-        handleGenerate
+        handleGenerate,
+        showBarcode,
+        setShowBarcode
     };
 }
