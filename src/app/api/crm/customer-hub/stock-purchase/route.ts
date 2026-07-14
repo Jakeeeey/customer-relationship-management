@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 
 const COOKIE_NAME = "vos_access_token";
-// Force re-scan to resolve duplicate handler issue
 const DIRECTUS_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
 const DIRECTUS_TOKEN = process.env.DIRECTUS_STATIC_TOKEN;
 const SPRING_API_BASE_URL = process.env.SPRING_API_BASE_URL;
@@ -54,8 +53,6 @@ interface DiscountItem {
     discount_type_id?: number;
     unit_price?: number | string;
 }
-
-
 
 function decodeJwtPayload(token: string): JwtPayload | null {
     try {
@@ -153,7 +150,6 @@ export async function GET(req: NextRequest) {
             const id = searchParams.get("id");
             if (!id) return NextResponse.json({ error: "Template ID is required" }, { status: 400 });
 
-            // Filter by sales_invoice_type_id to be more robust
             const query = new URLSearchParams({
                 "filter[sales_invoice_type_id][_eq]": id,
                 "fields": "id,sales_invoice_type_id,template_config",
@@ -208,12 +204,17 @@ export async function GET(req: NextRequest) {
             const page = parseInt(searchParams.get("page") || "1", 10);
             const limit = parseInt(searchParams.get("limit") || "-1", 10);
 
-            // Filter building
             const filters: { _and: Record<string, unknown>[] } = {
                 _and: []
             };
 
-            // Filter by Sales Type if specified, otherwise exclude SITE SALES (3)
+            // Restrict always to Delivery Receipt (shortcut "DR")
+            filters._and.push({
+                invoice_type: {
+                    shortcut: { _eq: "DR" }
+                }
+            });
+
             if (salesTypeId && salesTypeId !== "all") {
                 filters._and.push({ sales_type: { _eq: salesTypeId } });
             } else {
@@ -382,6 +383,13 @@ export async function GET(req: NextRequest) {
 
             const filters: { _and: Record<string, unknown>[] } = { _and: [] };
 
+            // Restrict always to Delivery Receipt (shortcut "DR")
+            filters._and.push({
+                invoice_type: {
+                    shortcut: { _eq: "DR" }
+                }
+            });
+
             if (salesTypeId && salesTypeId !== "all") {
                 filters._and.push({ sales_type: { _eq: salesTypeId } });
             } else {
@@ -464,6 +472,7 @@ export async function GET(req: NextRequest) {
                 totalBalance
             });
         }
+
         if (type === "details") {
             const invoiceId = searchParams.get("invoiceId");
             if (!invoiceId) return NextResponse.json({ error: "invoiceId required" }, { status: 400 });
@@ -508,9 +517,6 @@ export async function GET(req: NextRequest) {
             }
 
             const linkedDocs: unknown[] = [];
-
-
-
             let collections: Record<string, unknown>[] = [];
             try {
                 const collRes = await fetch(`${DIRECTUS_URL}/items/collection_invoices?filter[invoice_id][_eq]=${invoiceId}&fields=*,collection_id.collection_receipt_no,collection_id.collection_date,collection_id.isPosted&limit=-1`, { headers: fetchHeaders });
@@ -598,7 +604,6 @@ export async function GET(req: NextRequest) {
 
             const initialProducts = await fetchInChunks<ProductItem>(`${DIRECTUS_URL}/items/products?filter[isActive][_eq]=1&fields=*,product_category.category_id,product_category.category_name,product_brand.brand_id,product_brand.brand_name`, linkedProductIds, "product_id");
 
-            // Filter by search and strict price requirement
             const sellableItems = initialProducts.filter((p) => {
                 const hasPrice = Object.prototype.hasOwnProperty.call(priceOverrides, Number(p.product_id));
                 const q = search.toLowerCase().trim();
@@ -672,25 +677,21 @@ export async function GET(req: NextRequest) {
                 let winId = null;
                 let price = priceOverrides[Number(p.product_id)] || 0;
 
-                // L1 check
                 const l1 = l1Items.find(i => Number(i.product_id) === Number(p.product_id));
                 if (l1) { winId = l1.discount_type; price = Number(l1.unit_price) || price; }
 
-                // L2 check
                 if (!winId) {
                     const rawCatId = (p.product_category as CategoryBrand)?.category_id || (p.product_category as CategoryBrand)?.id || p.product_category;
                     const l2 = l2Items.find((item) => Number(item.category_id) === Number(rawCatId) || !item.category_id || item.category_id === 0);
                     if (l2) winId = l2.discount_type;
                 }
 
-                // L4 check
                 if (!winId) {
                     const rawBrandId = (p.product_brand as CategoryBrand)?.brand_id || (p.product_brand as CategoryBrand)?.id || p.product_brand;
                     const l4 = l4Items.find((item) => Number(item.brand_id) === Number(rawBrandId));
                     if (l4) winId = l4.discount_type_id;
                 }
 
-                // L0 check
                 if (!winId && customerData?.discount_type) winId = customerData.discount_type;
 
                 const inv = inventoryMap[Number(p.product_id)] || { available: 0, unitCount: Number(p.unit_of_measurement_count) || 1 };
@@ -719,7 +720,6 @@ export async function GET(req: NextRequest) {
             });
 
             return NextResponse.json(results);
-
         }
 
         if (type === "salesmen") {
@@ -783,8 +783,6 @@ export async function GET(req: NextRequest) {
             return NextResponse.json((await res.json()).data || []);
         }
 
-
-
         if (type === "suppliers") {
             const res = await fetch(`${DIRECTUS_URL}/items/suppliers?filter[supplier_type][_eq]=Trade&filter[isActive][_eq]=1&limit=-1`, { headers: fetchHeaders });
             return NextResponse.json((await res.json()).data || []);
@@ -819,7 +817,6 @@ export async function PATCH(req: NextRequest) {
     try {
         const body = await req.json();
 
-        // Template Designer Save Logic
         if (type === "template" && id) {
             const res = await fetch(`${DIRECTUS_URL}/items/sales_invoice_template/${id}`, {
                 method: "PATCH",
@@ -836,7 +833,6 @@ export async function PATCH(req: NextRequest) {
             return NextResponse.json({ success: true, data: data.data });
         }
 
-        // Existing Adjustment Logic
         const { action, invoiceId, customer_code, order_id, invoice_date, due_date, remarks, details, deletedDetailIds } = body;
 
         if (action === "save_adjustments") {
@@ -947,7 +943,6 @@ export async function POST(req: NextRequest) {
                     isReceipt: isOfficial === 1 ? 1 : 0
                 };
                 
-                // If it's not official (e.g. Delivery Receipt), ensure vat_amount is 0 if it was ID 3 (existing logic)
                 if (Number(invData?.invoice_type?.id) === 3) update.vat_amount = 0;
 
                 await fetch(`${DIRECTUS_URL}/items/sales_invoice/${id}`, { method: "PATCH", headers: fetchHeaders, body: JSON.stringify(update) });
@@ -991,7 +986,6 @@ export async function POST(req: NextRequest) {
             delete headerPayload.items;
             delete headerPayload.action;
 
-            console.log("[CreateInvoice] Creating header...", headerPayload);
             const hRes = await fetch(`${DIRECTUS_URL}/items/sales_invoice`, { 
                 method: "POST", 
                 headers: fetchHeaders, 
@@ -1022,7 +1016,6 @@ export async function POST(req: NextRequest) {
                     created_date: now
                 }));
 
-                console.log("[CreateInvoice] Creating details...", detailsPayload.length);
                 const dRes = await fetch(`${DIRECTUS_URL}/items/sales_invoice_details`, { 
                     method: "POST", 
                     headers: fetchHeaders, 
