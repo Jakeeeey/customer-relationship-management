@@ -712,7 +712,7 @@ export const DealerTemplateDesigner: React.FC<Props> = ({ isOpen, onClose, onSav
                                         <div className="absolute truncate" style={{ left: `${cols['product_name']?.x || 10}mm`, width: `${w.product_name}mm` }}>{item.product_name}</div>
                                         <div className="absolute text-center" style={{ left: `${(cols['quantity']?.x || 105) - (w.quantity / 2)}mm`, width: `${w.quantity}mm` }}>{item.quantity}</div>
                                         <div className="absolute text-right" style={{ left: `${(cols['unit_price']?.x || 126) - w.unit_price}mm`, width: `${w.unit_price}mm` }}>{item.unit_price}</div>
-                                        <div className="absolute text-right" style={{ left: `${(cols['discount']?.x || 153) - w.discount}mm`, width: `${w.discount}mm` }}>{item.discount}</div>
+                                        <div className="absolute text-right" style={{ left: `${(cols['discount']?.x || 153) - w.discount}mm`, width: `${w.discount}mm` }}>{item.discount || "L4"}</div>
                                         <div className="absolute text-right" style={{ left: `${(cols['net_amount']?.x || 184) - w.net_amount}mm`, width: `${w.net_amount}mm` }}>{item.net_amount}</div>
                                     </div>
                                 ));

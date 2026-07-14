@@ -73,7 +73,8 @@ export const DealerSalesInvoiceList: React.FC<DealerSalesInvoiceListProps> = ({
     const router = useRouter();
     const formatDate = (dateString?: string | null) => {
         if (!dateString) return "--";
-        const date = parseISO(dateString);
+        const cleanString = dateString.endsWith("Z") ? dateString.slice(0, -1) : dateString;
+        const date = parseISO(cleanString);
         return isValid(date) ? format(date, "MMM dd, yyyy hh:mm a") : dateString;
     };
 
