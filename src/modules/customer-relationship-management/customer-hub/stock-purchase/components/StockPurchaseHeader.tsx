@@ -93,10 +93,6 @@ export function StockPurchaseHeader({
     const [openAccount, setOpenAccount] = useState(false);
     const [openSupplier, setOpenSupplier] = useState(false);
     const [openBranch, setOpenBranch] = useState(false);
-
-    const selectedInvoiceTypeObj = invoiceTypes.find(t => t.id.toString() === selectedInvoiceType) ?? null;
-    const isOfficial = selectedInvoiceTypeObj ? Number(selectedInvoiceTypeObj.isOfficial) === 1 : true;
-
     const [localCustomers, setLocalCustomers] = useState<Customer[]>([]);
     const [searchQuery, setSearchQuery] = useState("");
     const [debouncedSearch] = useDebounce(searchQuery, 350);
