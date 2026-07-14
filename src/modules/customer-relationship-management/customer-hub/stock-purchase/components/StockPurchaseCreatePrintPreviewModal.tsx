@@ -288,7 +288,7 @@ export const StockPurchaseCreatePrintPreviewModal: React.FC<StockPurchaseCreateP
                 console.warn('[StockPurchaseCreatePrintPreviewModal] PDF archival failed (non-fatal):', archiveErr);
             }
 
-            doc.save(`StockPurchase-${previewInvoiceNo}.pdf`);
+            doc.save(`${previewInvoiceNo.toLowerCase()}.pdf`);
 
             toast.success(`Stock Purchase ${previewInvoiceNo} created and dispatched!`);
             router.push('/crm/customer-hub/stock-purchase');

@@ -13,9 +13,16 @@ const fetchHeaders = {
 };
 
 function getPhTimeISO(): string {
-    const date = new Date();
-    const phDate = new Date(date.getTime() + (3600000 * 8));
-    return phDate.toISOString();
+    const now = new Date();
+    const formatter = new Intl.DateTimeFormat('en-US', {
+        timeZone: 'Asia/Manila',
+        year: 'numeric', month: '2-digit', day: '2-digit',
+        hour: '2-digit', minute: '2-digit', second: '2-digit',
+        hour12: false
+    });
+    const parts = formatter.formatToParts(now);
+    const partMap = Object.fromEntries(parts.map(p => [p.type, p.value]));
+    return `${partMap.year}-${partMap.month}-${partMap.day}T${partMap.hour}:${partMap.minute}:${partMap.second}`;
 }
 
 export const dynamic = "force-dynamic";
@@ -244,12 +251,12 @@ export async function GET(req: NextRequest) {
             }
 
             if (startDate) {
-                const startOfDay = startDate.includes("T") || startDate.includes(" ") ? startDate : `${startDate}T00:00:00+08:00`;
+                const startOfDay = startDate.includes("T") || startDate.includes(" ") ? startDate : `${startDate}T00:00:00`;
                 filters._and.push({ invoice_date: { _gte: startOfDay } });
             }
 
             if (endDate) {
-                const endOfDay = endDate.includes("T") || endDate.includes(" ") ? endDate : `${endDate}T23:59:59+08:00`;
+                const endOfDay = endDate.includes("T") || endDate.includes(" ") ? endDate : `${endDate}T23:59:59`;
                 filters._and.push({ invoice_date: { _lte: endOfDay } });
             }
 

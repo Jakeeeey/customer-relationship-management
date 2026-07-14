@@ -9,7 +9,8 @@ import { dealerInvoiceProvider } from '../providers/fetchProvider';
 
 const formatSafeDate = (dateStr?: string | null, formatStr: string = 'MM/dd/yyyy') => {
     if (!dateStr) return '';
-    const date = parseISO(dateStr);
+    const cleanStr = dateStr.endsWith("Z") ? dateStr.slice(0, -1) : dateStr;
+    const date = parseISO(cleanStr);
     return isValid(date) ? format(date, formatStr) : dateStr;
 };
 
@@ -162,6 +163,28 @@ export const DealerSalesInvoiceDetails: React.FC<DealerSalesInvoiceDetailsProps>
             isFirstLoad.current = false;
         }
     }, [id]); // No modification flags in deps = no automatic re-fetch while editing
+
+    const handlePrintReceipt = useCallback(async () => {
+        if (!pdfFileId) return;
+        try {
+            const url = `/api/crm/site-sales-management/dealer-sales-invoice?type=asset&id=${pdfFileId}`;
+            const response = await fetch(url);
+            if (!response.ok) throw new Error("Failed to fetch PDF asset");
+            const blob = await response.blob();
+            const blobUrl = window.URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.href = blobUrl;
+            link.download = `${header?.invoice_no?.toLowerCase() || "invoice"}.pdf`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            window.URL.revokeObjectURL(blobUrl);
+            toast.success("Receipt downloaded successfully");
+        } catch (error) {
+            console.error("Print receipt error:", error);
+            toast.error("Failed to download receipt");
+        }
+    }, [pdfFileId, header?.invoice_no]);
 
     const handleOpenAddProductModal = useCallback(async () => {
         setIsAddProductModalOpen(true);
@@ -797,7 +820,16 @@ export const DealerSalesInvoiceDetails: React.FC<DealerSalesInvoiceDetailsProps>
                     </div>
 
                     {/* Footer */}
-                    <div className="px-6 py-4 bg-white border-t flex items-center justify-end shadow-[0_-4px_20px_rgba(0,0,0,0.03)]">
+                    <div className="px-6 py-4 bg-white border-t flex items-center justify-end gap-2 shadow-[0_-4px_20px_rgba(0,0,0,0.03)]">
+                        {pdfFileId && (
+                            <Button
+                                onClick={handlePrintReceipt}
+                                className="rounded-2xl h-11 px-6 bg-indigo-600 hover:bg-indigo-700 text-white font-black tracking-tighter active:scale-95 transition-all flex items-center gap-2"
+                            >
+                                <Printer className="w-4 h-4" />
+                                PRINT
+                            </Button>
+                        )}
                         <Button
                             onClick={() => setIsReceiptModalOpen(false)}
                             variant="outline"
