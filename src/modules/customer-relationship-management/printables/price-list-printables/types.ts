@@ -19,6 +19,8 @@ export interface PriceListItem {
     unit: string;
     price: number | null;
     priceType: string;
+    barcode?: string;
+    barcodeNo?: string;
 }
 
 export interface PriceListPrintablesState {

@@ -21,6 +21,9 @@ export function usePriceList() {
     const [pdfUrl, setPdfUrl] = useState<string | null>(null);
     const [isPreviewOpen, setIsPreviewOpen] = useState(false);
     
+    // Barcode state
+    const [showBarcode, setShowBarcode] = useState(false);
+    
     const [isLoading, setIsLoading] = useState(true);
     const [isGenerating, setIsGenerating] = useState(false);
 
@@ -94,7 +97,8 @@ export function usePriceList() {
                 templateName: selectedTemplateName,
                 salesmanName: salesman?.salesman_name || "",
                 salesmanCode: salesman?.salesman_code || "",
-                supplierName: supplier?.supplier_name || ""
+                supplierName: supplier?.supplier_name || "",
+                showBarcode
             });
 
             // Handle Download if requested
@@ -147,6 +151,8 @@ export function usePriceList() {
         isGenerating,
         customFilename,
         handleFilenameChange,
-        handleGenerate
+        handleGenerate,
+        showBarcode,
+        setShowBarcode
     };
 }

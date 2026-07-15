@@ -757,7 +757,12 @@ export async function GET(req: NextRequest) {
 
             // 3. Enrich products
             if (items.length > 0) {
-                const productIds = Array.from(new Set(items.map((i: { product_id: number }) => i.product_id))).filter(Boolean);
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const productIds = Array.from(new Set(items.map((i: any) => {
+                    const p = i.product_id;
+                    return typeof p === 'object' && p !== null ? (p.product_id || p.id) : p;
+                }))).filter(Boolean);
+                
                 // Included description and discount_type
                 const pRes = await fetch(`${DIRECTUS_URL}/items/products?filter[product_id][_in]=${productIds.join(',')}&fields=product_id,product_name,product_code,description,discount_type&limit=-1`, { headers: fetchHeaders });
                 const products = (await pRes.json()).data || [];
@@ -773,8 +778,10 @@ export async function GET(req: NextRequest) {
                     });
                 }
 
-                items.forEach((item: { product_id: number; discount_type?: string | number; product?: unknown; discountType?: string | number;[key: string]: unknown }) => {
-                    const pid = Number(item.product_id);
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                items.forEach((item: { product_id: any; discount_type?: string | number; product?: unknown; discountType?: string | number;[key: string]: unknown }) => {
+                    const pVal = item.product_id;
+                    const pid = Number(typeof pVal === 'object' && pVal !== null ? (pVal.product_id || pVal.id) : pVal);
                     if (pMap.has(pid)) {
                         const pData = pMap.get(pid)!;
 

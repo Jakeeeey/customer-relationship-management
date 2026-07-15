@@ -321,10 +321,14 @@ export async function POST(req: NextRequest) {
                     }
                 }
                 
+                const isRecycledInvoice = targetId && !isVoidReplacement;
+
                 if (!isVoidReplacement) {
                     expectedConsolidatorUpdatesCount += receipt.items.length;
                 }
-                expectedOrderUpdatesCount += receipt.items.length;
+                if (!isRecycledInvoice) {
+                    expectedOrderUpdatesCount += receipt.items.length;
+                }
 
                 if (!targetInvoiceId) {
                     // ── Create new invoice (Normal or VOID Replacement) ──
@@ -356,29 +360,31 @@ export async function POST(req: NextRequest) {
 
                 // 3. Process items for this receipt
                 for (const item of receipt.items) {
-                    // 3a. Update sales_order_details (served_quantity)
-                    const podRes = await fetch(`${DIRECTUS_BASE}/items/sales_order_details?filter[order_id][_eq]=${order.order_id}&filter[product_id][_eq]=${item.product_id}`, {
-                        headers: directusHeaders()
-                    });
-                    if (!podRes.ok) throw new Error(`Failed to fetch sales order details for product ${item.product_id}`);
-                    const podData = await podRes.json();
-                    if (!podData.data || podData.data.length === 0) {
-                        throw new Error(`Missing sales_order_details row for order ${order.order_id}, product ${item.product_id}`);
+                    if (!isRecycledInvoice) {
+                        // 3a. Update sales_order_details (served_quantity)
+                        const podRes = await fetch(`${DIRECTUS_BASE}/items/sales_order_details?filter[order_id][_eq]=${order.order_id}&filter[product_id][_eq]=${item.product_id}`, {
+                            headers: directusHeaders()
+                        });
+                        if (!podRes.ok) throw new Error(`Failed to fetch sales order details for product ${item.product_id}`);
+                        const podData = await podRes.json();
+                        if (!podData.data || podData.data.length === 0) {
+                            throw new Error(`Missing sales_order_details row for order ${order.order_id}, product ${item.product_id}`);
+                        }
+                        const detailId = podData.data[0].detail_id;
+                        const currentServed = podData.data[0].served_quantity || 0;
+                        const newServedQty = currentServed + item.qty;
+
+                        // Track original served quantity for rollback
+                        updatedSalesOrderDetails.push({ detailId, originalQty: currentServed });
+
+                        const updatePodRes = await fetch(`${DIRECTUS_BASE}/items/sales_order_details/${detailId}`, {
+                            method: 'PATCH',
+                            headers: directusHeaders(),
+                            body: JSON.stringify({ served_quantity: newServedQty })
+                        });
+                        if (!updatePodRes.ok) throw new Error(`Failed to update served quantity for detail ${detailId}: ${await updatePodRes.text()}`);
+                        results.orderDetailsUpdated++;
                     }
-                    const detailId = podData.data[0].detail_id;
-                    const currentServed = podData.data[0].served_quantity || 0;
-                    const newServedQty = currentServed + item.qty;
-
-                    // Track original served quantity for rollback
-                    updatedSalesOrderDetails.push({ detailId, originalQty: currentServed });
-
-                    const updatePodRes = await fetch(`${DIRECTUS_BASE}/items/sales_order_details/${detailId}`, {
-                        method: 'PATCH',
-                        headers: directusHeaders(),
-                        body: JSON.stringify({ served_quantity: newServedQty })
-                    });
-                    if (!updatePodRes.ok) throw new Error(`Failed to update served quantity for detail ${detailId}: ${await updatePodRes.text()}`);
-                    results.orderDetailsUpdated++;
 
                     // 3b. Create sales_invoice_details
                     if (targetInvoiceId) {

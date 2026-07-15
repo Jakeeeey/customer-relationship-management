@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
-import { CreditCard, Loader2, Users, Building2, MapPin, Receipt, Check, ChevronsUpDown, Plus, AlertCircle, ArrowRight, UploadCloud } from "lucide-react";
+import { CreditCard, Loader2, Users, Building2, MapPin, Receipt, Check, ChevronsUpDown, AlertCircle, ArrowRight, UploadCloud } from "lucide-react";
 import { useForm, Resolver, SubmitHandler } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -43,7 +43,6 @@ interface CreatableComboboxProps {
     items: ReferenceOption[];
     value: number | string | null;
     onChange: (value: number | string) => void;
-    onCreate: (name: string) => void;
     placeholder: string;
     itemName: string;
 }
@@ -110,11 +109,9 @@ const renderImagePreview = (imageId: string | null | undefined) => {
 // ============================================================================
 // CREATABLE COMBOBOX
 // ============================================================================
-function CreatableCombobox({items, value, onChange, onCreate, placeholder, itemName}: CreatableComboboxProps) {
+function CreatableCombobox({items, value, onChange, placeholder, itemName}: Omit<CreatableComboboxProps, 'onCreate'>) {
     const [open, setOpen] = useState(false);
-    const [inputValue, setInputValue] = useState("");
     const selectedItem = items.find((i) => String(i.id) === String(value));
-    const exactMatch = items.some((i) => i.name.toLowerCase() === inputValue.toLowerCase());
 
     return (
         <Popover open={open} onOpenChange={setOpen}>
@@ -129,21 +126,10 @@ function CreatableCombobox({items, value, onChange, onCreate, placeholder, itemN
             </PopoverTrigger>
             <PopoverContent className="w-[300px] p-0 shadow-xl rounded-xl border-border/50 z-[9999]">
                 <Command className="bg-transparent overflow-hidden rounded-xl">
-                    <CommandInput placeholder={`Search or create ${itemName}...`} onValueChange={setInputValue}
-                                  className="h-11"/>
+                    <CommandInput placeholder={`Search ${itemName}...`} className="h-11"/>
                     <CommandList className="max-h-[200px] overflow-y-auto custom-scrollbar">
                         <CommandEmpty className="p-2">
-                            {inputValue && !exactMatch ? (
-                                <Button variant="ghost"
-                                        className="w-full justify-start text-primary text-xs font-bold uppercase tracking-widest"
-                                        onClick={() => {
-                                            onCreate(inputValue);
-                                            setInputValue("");
-                                            setOpen(false);
-                                        }}>
-                                    <Plus className="mr-2 h-4 w-4"/> Create &quot;{inputValue}&quot;
-                                </Button>
-                            ) : `No ${itemName} found.`}
+                            {`No ${itemName} found.`}
                         </CommandEmpty>
                         <CommandGroup>
                             {items.map((item, index) => (
@@ -743,41 +729,7 @@ export function CustomerFormSheet({ open, onOpenChange, customer, onSubmit, defa
     };
 
     // [handleCreateStoreType & handleCreateClassification omitted for brevity, they remain unchanged]
-    const handleCreateStoreType = async (name: string) => {
-        try {
-            const res = await fetch("/api/crm/customer/references", {
-                method: "POST",
-                headers: {"Content-Type": "application/json"},
-                body: JSON.stringify({type: "store_type", name})
-            });
-            if (!res.ok) throw new Error("Failed to create store type");
-            const json = await res.json();
-            const newId = json.data.id;
-            setStoreTypes(prev => [...prev, {id: newId, name}]);
-            form.setValue("store_type", newId, {shouldValidate: true});
-            toast.success(`Store Type "${name}" created successfully!`);
-        } catch {
-            toast.error("Failed to create store type.");
-        }
-    };
 
-    const handleCreateClassification = async (name: string) => {
-        try {
-            const res = await fetch("/api/crm/customer/references", {
-                method: "POST",
-                headers: {"Content-Type": "application/json"},
-                body: JSON.stringify({type: "classification", name})
-            });
-            if (!res.ok) throw new Error("Failed to create classification");
-            const json = await res.json();
-            const newId = json.data.id;
-            setClassifications(prev => [...prev, {id: newId, name}]);
-            form.setValue("classification", newId, {shouldValidate: true});
-            toast.success(`Classification "${name}" created successfully!`);
-        } catch {
-            toast.error("Failed to create classification.");
-        }
-    };
 
     return (
         <Sheet open={open} onOpenChange={onOpenChange}>
@@ -899,8 +851,7 @@ export function CustomerFormSheet({ open, onOpenChange, customer, onSubmit, defa
                                                 Type<RequiredMark /></FormLabel><CreatableCombobox items={storeTypes}
                                                                                    value={field.value}
                                                                                    onChange={field.onChange}
-                                                                                   onCreate={handleCreateStoreType}
-                                                                                   placeholder="Select or create..."
+                                                                                   placeholder="Select store type..."
                                                                                    itemName="Store Type"/><FormMessage/></FormItem>
                                         )}/>
 
@@ -908,7 +859,7 @@ export function CustomerFormSheet({ open, onOpenChange, customer, onSubmit, defa
                                             <FormItem className="flex flex-col pt-1.5"><FormLabel
                                                 className="font-bold uppercase text-xs text-muted-foreground">Classification</FormLabel><CreatableCombobox
                                                 items={classifications} value={field.value} onChange={field.onChange}
-                                                onCreate={handleCreateClassification} placeholder="Select or create..."
+                                                placeholder="Select classification..."
                                                 itemName="Classification"/><FormMessage/></FormItem>
                                         )}/>
 

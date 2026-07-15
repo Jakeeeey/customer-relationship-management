@@ -179,6 +179,7 @@ export const DealerCreatePrintPreviewModal: React.FC<DealerCreatePrintPreviewMod
             category_name: item.category_name,
             discount_amount: item.discount_amount,
             discount_type_name: item.discount_type_name,
+            discount_type: item.discount_type,
             total_amount: item.total_amount,
             gross_amount: item.unit_price * item.quantity,
             discounts: item.discounts,
@@ -317,7 +318,7 @@ export const DealerCreatePrintPreviewModal: React.FC<DealerCreatePrintPreviewMod
                     archiveFormData.append('height_mm', '297');
                 }
 
-                await fetch('/api/crm/invoicing/save-pdf', {
+                await fetch('/api/crm/site-sales-management/dealer-sales-invoice/save-pdf', {
                     method: 'POST',
                     body: archiveFormData,
                 });
@@ -325,7 +326,7 @@ export const DealerCreatePrintPreviewModal: React.FC<DealerCreatePrintPreviewMod
                 console.warn('[DealerCreatePrintPreviewModal] PDF archival failed (non-fatal):', archiveErr);
             }
 
-            doc.save(`Invoice-${previewInvoiceNo}.pdf`);
+            doc.save(`${previewInvoiceNo.toLowerCase()}.pdf`);
 
             // Step 4: Success + Redirect
             toast.success(`Invoice ${previewInvoiceNo} created and dispatched!`);
