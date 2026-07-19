@@ -298,8 +298,8 @@ export async function POST(req: NextRequest) {
             updated_by: userId || null
         };
         delete newCustomerData.bank_accounts;
-        if (!newCustomerData.customer_email || newCustomerData.customer_email.trim() === "") {
-            delete newCustomerData.customer_email;
+        if (newCustomerData.customer_email === undefined || newCustomerData.customer_email === null || String(newCustomerData.customer_email).trim() === "") {
+            newCustomerData.customer_email = null;
         }
 
         if (!newCustomerData.otherDetails || newCustomerData.otherDetails.trim() === "") {

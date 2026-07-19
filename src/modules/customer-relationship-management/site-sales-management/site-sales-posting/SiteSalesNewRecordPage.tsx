@@ -36,7 +36,8 @@ export default function SiteSalesNewRecordPage() {
         searchProducts,
         customers: allCustomers,
         fetchUtilityData,
-        createInvoice
+        createInvoice,
+        searchCustomersAction
     } = useSiteSalesPosting();
 
     // Utility Data State
@@ -423,6 +424,7 @@ export default function SiteSalesNewRecordPage() {
                     {/* Header Configuration - Refactored Component */}
                     <SiteSalesHeader
                         customers={allCustomers}
+                        onSearchCustomers={searchCustomersAction}
                         selectedCustomer={selectedCustomer}
                         onCustomerSelect={handleCustomerSelect}
 

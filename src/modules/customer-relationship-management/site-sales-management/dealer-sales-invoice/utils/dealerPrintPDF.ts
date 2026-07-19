@@ -9,15 +9,22 @@ const THERMAL_WIDTH = 48;
 const THERMAL_MARGIN = 2;
 const THERMAL_CONTENT_WIDTH = THERMAL_WIDTH - (THERMAL_MARGIN * 2);
 
+const imageCache: Record<string, string> = {};
+
 const getImageDataUrl = async (url: string): Promise<string> => {
+    if (imageCache[url]) {
+        return imageCache[url];
+    }
     const response = await fetch(url);
     const blob = await response.blob();
-    return new Promise((resolve, reject) => {
+    const dataUrl = await new Promise<string>((resolve, reject) => {
         const reader = new FileReader();
         reader.onloadend = () => resolve(reader.result as string);
         reader.onerror = reject;
         reader.readAsDataURL(blob);
     });
+    imageCache[url] = dataUrl;
+    return dataUrl;
 };
 
 const formatCurrency = (amount: number) => {

@@ -531,7 +531,7 @@ export function CustomerRegistrationFormSheet({ open, onOpenChange, customer, on
                                                                 options={classifications.map(cl => ({ value: cl.id.toString(), label: cl.classification_name }))}
                                                                 value={field.value?.toString()}
                                                                 onValueChange={field.onChange}
-                                                                placeholder="Select or create..."
+                                                                placeholder="Select classification..."
                                                                 className="h-16 bg-muted/20 border-border/40 rounded-3xl focus:ring-blue-500/20 text-sm font-bold shadow-sm px-6 hover:bg-muted/30 transition-all"
                                                             />
                                                             <FormMessage />
