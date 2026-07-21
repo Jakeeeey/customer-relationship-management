@@ -9,6 +9,7 @@ interface GenerateParams {
     salesmanName: string;
     salesmanCode: string;
     supplierName: string;
+    showBarcode?: boolean;
 }
 
 export async function generatePriceListPDF({
@@ -16,7 +17,8 @@ export async function generatePriceListPDF({
     templateName,
     salesmanName,
     salesmanCode,
-    supplierName
+    supplierName,
+    showBarcode = false
 }: GenerateParams): Promise<jsPDF> {
     // 1. Fetch Company Data
     let companyData = null;
@@ -118,12 +120,13 @@ export async function generatePriceListPDF({
         // Group items by productName
         interface GroupedItem {
             categoryCode: string;
+            productCode?: string;
             productName: string;
-            productCode: string;
             pckg: number;
             casePrice: number | null;
             bagPrice: number | null;
             piecePrice: number | null;
+            barcode: string;
         }
 
         const groupedItemsMap = new Map<string, GroupedItem>();
@@ -139,6 +142,7 @@ export async function generatePriceListPDF({
                     casePrice: null,
                     bagPrice: null,
                     piecePrice: null,
+                    barcode: item.barcode || item.barcodeNo || "",
                 });
             }
 
@@ -166,37 +170,76 @@ export async function generatePriceListPDF({
                 return val.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
             };
 
-            return [
+            const row = [];
+            if (showBarcode) {
+                row.push(item.barcode || ""); // the barcode string
+            }
+
+            row.push(
                 isFirstInGroup ? categoryName : "", // Only show for first in group
                 item.productName,
-                item.productCode, // FG CODE
+                item.productCode || "", // FG CODE
+            );
+
+            row.push(
                 item.pckg,
                 formatCurrency(item.casePrice),
                 formatCurrency(item.bagPrice),
                 formatCurrency(item.piecePrice)
-            ];
+            );
+
+            return row;
         });
 
         // --- SECTION: AUTO-TABLE WITH COMPLEX HEADERS ---
+        const head1: Record<string, unknown>[] = [];
+        
+        if (showBarcode) {
+            head1.push({ content: 'BARCODE', rowSpan: 2, styles: { valign: 'middle', halign: 'center' } });
+        }
+
+        head1.push(
+            { content: 'CATEGORY', rowSpan: 2, styles: { valign: 'middle' } },
+            { content: 'PRODUCT DESCRIPTION', rowSpan: 2, styles: { valign: 'middle', halign: 'center' } },
+            { content: 'FG CODE', rowSpan: 2, styles: { valign: 'middle' } },
+            { content: 'PCKG', rowSpan: 2, styles: { valign: 'middle' } },
+            { content: 'PRICE', colSpan: 3, styles: { halign: 'center' } }
+        );
+
+        const head2 = [
+            { content: 'Cases', styles: { halign: 'center' as const } },
+            { content: 'Bag', styles: { halign: 'center' as const } },
+            { content: 'Piece', styles: { halign: 'center' as const } }
+        ];
+
+        const colStyles: Record<number, Record<string, unknown>> = {};
+
+        if (showBarcode) {
+            colStyles[0] = { cellWidth: 18, halign: 'center', fontSize: 7 }; // Barcode
+            colStyles[1] = { cellWidth: 25, fontSize: 6 }; // Category Code
+            colStyles[2] = { fontSize: 7 };                 // Description
+            colStyles[3] = { cellWidth: 15, halign: 'center', fontSize: 7 }; // FG Code
+            colStyles[4] = { cellWidth: 10, halign: 'center', fontSize: 7 }; // PCKG
+            colStyles[5] = { cellWidth: 18, halign: 'right', fontSize: 7 };  // Case
+            colStyles[6] = { cellWidth: 18, halign: 'right', fontSize: 7 };  // Bag
+            colStyles[7] = { cellWidth: 18, halign: 'right', fontSize: 7 };  // Piece
+        } else {
+            colStyles[0] = { cellWidth: 25, fontSize: 6 }; // Category Code
+            colStyles[1] = { fontSize: 7 };                 // Description
+            colStyles[2] = { cellWidth: 15, halign: 'center', fontSize: 7 }; // FG Code
+            colStyles[3] = { cellWidth: 15, halign: 'center', fontSize: 7 }; // PCKG
+            colStyles[4] = { cellWidth: 22, halign: 'right', fontSize: 7 };  // Case
+            colStyles[5] = { cellWidth: 22, halign: 'right', fontSize: 7 };  // Bag
+            colStyles[6] = { cellWidth: 22, halign: 'right', fontSize: 7 };  // Piece
+        }
+
+        const priceColStartIndex = showBarcode ? 5 : 4;
         autoTable(doc, {
             startY: metaY + 15,
             margin: { ...margins, top: 10, bottom: 25 }, // Explicit bottom margin for safety
 
             // Nested Headers to match the image
-            head: [
-                [
-                    { content: 'CATEGORY', rowSpan: 2, styles: { valign: 'middle' } },
-                    { content: 'PRODUCT DESCRIPTION', rowSpan: 2, styles: { valign: 'middle', halign: 'center' } },
-                    { content: 'FG CODE', rowSpan: 2, styles: { valign: 'middle' } },
-                    { content: 'PCKG', rowSpan: 2, styles: { valign: 'middle' } },
-                    { content: 'PRICE', colSpan: 3, styles: { halign: 'center' } }
-                ],
-                [
-                    { content: 'Cases', styles: { halign: 'center' } },
-                    { content: 'Bag', styles: { halign: 'center' } },
-                    { content: 'Piece', styles: { halign: 'center' } }
-                ]
-            ],
+            head: [head1, head2],
 
             body: tableBody,
 
@@ -211,22 +254,15 @@ export async function generatePriceListPDF({
                 lineColor: [0, 0, 0] // Black borders for header
             },
 
-            columnStyles: {
-                0: { cellWidth: 25, fontSize: 7 }, // Category Code
-                1: { fontSize: 8 },                 // Description
-                2: { cellWidth: 20, halign: 'center', fontSize: 8 }, // FG Code
-                3: { cellWidth: 15, halign: 'center', fontSize: 8 }, // PCKG
-                4: { cellWidth: 22, halign: 'right', fontSize: 8 },  // Case
-                5: { cellWidth: 22, halign: 'right', fontSize: 8 },  // Bag
-                6: { cellWidth: 22, halign: 'right', fontSize: 8 }   // Piece
-            },
+            columnStyles: colStyles,
 
             styles: {
                 lineColor: [0, 0, 0], // Black grid lines
                 lineWidth: 0.1,
                 valign: 'middle',
                 textColor: [0, 0, 0],
-                cellPadding: 1
+                cellPadding: { top: 0.2, bottom: 0.2, left: 0.5, right: 0.5 },
+                minCellHeight: 3
             },
 
             // Customize specific parts of the table
@@ -241,7 +277,7 @@ export async function generatePriceListPDF({
             // Custom Drawing for the special grid look if needed
             didDrawCell: (data) => {
                 // Draw a thicker vertical separator before the pricing section
-                if (data.section === 'body' && data.column.index === 4) {
+                if (data.section === 'body' && data.column.index === priceColStartIndex) {
                     const doc = data.doc;
                     doc.setDrawColor(0, 0, 0); // Still black, but could be thicker
                     doc.setLineWidth(0.3);
