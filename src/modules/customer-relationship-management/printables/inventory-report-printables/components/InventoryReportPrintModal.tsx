@@ -116,7 +116,9 @@ export const InventoryReportPrintModal = ({
                     let totalAmount = 0;
                     data.forEach(item => {
                         item.units.forEach((u: InventoryUnit) => {
-                            const lineAmount = (Number(u.runningInventory) || 0) * (Number(item.price) || 0);
+                            // Take the exact price from the unit of measurement
+                            const unitPrice = Number(u.price) || 0;
+                            const lineAmount = (Number(u.runningInventory) || 0) * unitPrice;
                             totalAmount += lineAmount;
                             body.push([
                                 u.barcode || '',
@@ -134,7 +136,10 @@ export const InventoryReportPrintModal = ({
                     head.push(['BRAND', 'CATEGORY', 'PRODUCT', 'AVAILABLE BOX', 'AMOUNT']);
                     let totalAmount = 0;
                     data.forEach(item => {
-                        const lineAmount = (Number(item.box) || 0) * (Number(item.price) || 0);
+                        // Try to find the box unit to get its actual exact price
+                        const boxUnit = item.units.find(u => u.unit.toUpperCase().includes('BOX') || u.unitCount === (item as { targetUnitCount?: number }).targetUnitCount);
+                        const unitPrice = boxUnit ? Number(boxUnit.price) : (Number(item.price) || 0) * ((item as { targetUnitCount?: number }).targetUnitCount || 1);
+                        const lineAmount = (Number(item.box) || 0) * unitPrice;
                         totalAmount += lineAmount;
                         body.push([
                             item.brand,
@@ -149,7 +154,10 @@ export const InventoryReportPrintModal = ({
                     head.push(['BRAND', 'CATEGORY', 'PRODUCT', 'AVAILABLE PIECE', 'AMOUNT']);
                     let totalAmount = 0;
                     data.forEach(item => {
-                        const lineAmount = (Number(item.piece) || 0) * (Number(item.price) || 0);
+                        // Try to find the piece unit to get its actual exact price
+                        const pieceUnit = item.units.find(u => u.unitCount === 1 || u.unit.toUpperCase().includes('PIECE') || u.unit.toUpperCase().includes('PCS'));
+                        const unitPrice = pieceUnit ? Number(pieceUnit.price) : (Number(item.price) || 0);
+                        const lineAmount = (Number(item.piece) || 0) * unitPrice;
                         totalAmount += lineAmount;
                         body.push([
                             item.brand,
