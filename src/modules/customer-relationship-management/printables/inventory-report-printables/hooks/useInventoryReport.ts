@@ -71,7 +71,8 @@ export const useInventoryReport = () => {
                 // Breakdown computation: running_inventory / unit_count
                 runningInventory: item.runningInventory / (item.unitCount || 1),
                 unitCount: item.unitCount,
-                barcode: item.barcode
+                barcode: item.barcode,
+                price: item.price
             });
 
             // For Piece/Box views, we keep summing the RAW runningInventory (total pieces)

@@ -19,6 +19,7 @@ export interface InventoryUnit {
     runningInventory: number;
     unitCount: number;
     barcode?: string;
+    price: number;
 }
 
 export interface GroupedInventoryItem {
