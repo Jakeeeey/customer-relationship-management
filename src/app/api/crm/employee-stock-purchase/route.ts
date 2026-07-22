@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { fetchAllEmployeeStockPurchases, createEmployeeStockPurchase } from "@/modules/customer-relationship-management/employee-stock-purchase/services/employee-stock-purchase";
+import { fetchAllEmployeeStockPurchases, createEmployeeStockPurchase } from "@/modules/customer-relationship-management/employee-stock-purchase/creation/services/employee-stock-purchase";
 import { cookies } from "next/headers";
 
 function decodeUserIdFromJwt(token: string): number | null {
