@@ -76,7 +76,11 @@ export function SearchableSelect({
                     </button>
                 )}
 
-                <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                <PopoverContent 
+                    className="w-[--radix-popover-trigger-width] p-0 max-h-[300px] overflow-hidden flex flex-col" 
+                    align="start"
+                    onWheel={(e) => e.stopPropagation()}
+                >
                 <Command>
                     <CommandInput placeholder={`Search ${placeholder.toLowerCase()}...`} />
                     <CommandList>

@@ -16,6 +16,7 @@ export const employeeStockPurchaseSchema = z.object({
         (val) => (val === "" || val === null || val === undefined ? undefined : Number(val)),
         z.number().optional()
     ),
+    invoice_date: z.string().optional(),
     manual_invoice_no: z.string().optional().or(z.literal("")),
     customer_code: z.string().optional(),
     dr_payment_id: z.number().optional(),
@@ -39,6 +40,7 @@ export interface EmployeeStockPurchase {
     user_id: number;
     employee_name?: string;
     invoice_id?: number;
+    invoice_date?: string;
     manual_invoice_no?: string;
     customer_code?: string;
     dr_payment_id?: number;

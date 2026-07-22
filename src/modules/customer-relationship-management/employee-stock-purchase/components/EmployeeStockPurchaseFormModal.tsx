@@ -36,6 +36,7 @@ export function EmployeeStockPurchaseFormModal({ open, onOpenChange, onSubmit }:
             company_id: undefined,
             user_id: undefined,
             invoice_id: undefined,
+            invoice_date: undefined,
             manual_invoice_no: "",
             amount: undefined,
             remarks: "",
@@ -103,7 +104,7 @@ export function EmployeeStockPurchaseFormModal({ open, onOpenChange, onSubmit }:
                         const amount = i.net_amount ?? i.total_amount ?? i.gross_amount ?? 0;
                         return {
                             value: i.invoice_id.toString(),
-                            label: `INV-${i.invoice_no} (${amount})`,
+                            label: `${i.invoice_no} (${amount})`,
                             data: i
                         };
                     }));
@@ -243,6 +244,25 @@ export function EmployeeStockPurchaseFormModal({ open, onOpenChange, onSubmit }:
                                             <FormLabel className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground px-1">Or Manual Invoice No</FormLabel>
                                             <FormControl>
                                                 <Input {...field} disabled={!!selectedInvoiceId} className="h-14 bg-muted/20 border-border/40 rounded-2xl focus-visible:ring-blue-500/20 text-sm font-bold shadow-sm px-6" placeholder="Manual number..." />
+                                            </FormControl>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+                                
+                                <FormField
+                                    control={form.control}
+                                    name="invoice_date"
+                                    render={({ field }) => (
+                                        <FormItem className="sm:col-span-2">
+                                            <FormLabel className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground px-1">Invoice Date</FormLabel>
+                                            <FormControl>
+                                                <Input 
+                                                    {...field}
+                                                    type="date"
+                                                    value={field.value || ""} 
+                                                    className="h-14 bg-muted/20 border-border/40 rounded-2xl focus-visible:ring-blue-500/20 text-sm font-bold shadow-sm px-6" 
+                                                />
                                             </FormControl>
                                             <FormMessage />
                                         </FormItem>
