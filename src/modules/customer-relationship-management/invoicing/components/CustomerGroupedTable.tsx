@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import {
     Table,
     TableBody,
@@ -11,11 +11,18 @@ import {
 } from "@/components/ui/table";
 import { CustomerGroup, SalesOrder, ReceiptType } from "../types";
 import { formatToPHT } from "../utils/dateUtils";
-import { ChevronDown, ChevronRight, FileText, User, Hash, Calendar, MapPin } from "lucide-react";
+import { ChevronDown, ChevronRight, FileText, User, Hash, Calendar, MapPin, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { SalesOrderModal } from "./SalesOrderModal";
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+    DialogFooter,
+} from "@/components/ui/dialog";
 
 interface CustomerGroupedTableProps {
     groups: CustomerGroup[];
@@ -27,6 +34,22 @@ export const CustomerGroupedTable: React.FC<CustomerGroupedTableProps> = ({ grou
     const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
     const [selectedOrder, setSelectedOrder] = useState<SalesOrder | null>(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [isWarningOpen, setIsWarningOpen] = useState(false);
+    const [warningMessage, setWarningMessage] = useState("");
+
+    const { hasAnyGlobalVoid, hasAnyGlobalRecycled } = useMemo(() => {
+        let hasVoid = false;
+        let hasRecycled = false;
+        for (const group of groups) {
+            for (const order of group.orders) {
+                const isOrderVoid = !!order.void_invoices && order.void_invoices.length > 0;
+                const isOrderRecycled = (order.existing_invoices && order.existing_invoices.length > 0) || !!order.existing_invoice_no || !!order.existing_invoice_display_no;
+                if (isOrderVoid) hasVoid = true;
+                if (isOrderRecycled) hasRecycled = true;
+            }
+        }
+        return { hasAnyGlobalVoid: hasVoid, hasAnyGlobalRecycled: hasRecycled };
+    }, [groups]);
 
     const toggleGroup = (customerCode: string) => {
         const newExpanded = new Set(expandedGroups);
@@ -47,6 +70,21 @@ export const CustomerGroupedTable: React.FC<CustomerGroupedTableProps> = ({ grou
     };
 
     const handleRowClick = (order: SalesOrder) => {
+        const isOrderVoid = !!order.void_invoices && order.void_invoices.length > 0;
+        const isOrderRecycled = (order.existing_invoices && order.existing_invoices.length > 0) || !!order.existing_invoice_no || !!order.existing_invoice_display_no;
+
+        if (!isOrderVoid && hasAnyGlobalVoid) {
+            setWarningMessage("Please process all pending Void invoices first before opening Recycled or Normal orders.");
+            setIsWarningOpen(true);
+            return;
+        }
+
+        if (!isOrderVoid && !isOrderRecycled && hasAnyGlobalRecycled) {
+            setWarningMessage("Please process all pending Recycled invoices first before opening Normal orders.");
+            setIsWarningOpen(true);
+            return;
+        }
+
         setSelectedOrder(order);
         setIsModalOpen(true);
     };
@@ -263,6 +301,30 @@ export const CustomerGroupedTable: React.FC<CustomerGroupedTableProps> = ({ grou
                 onUpdateRemarks={handleRemarksUpdate}
                 onUpdateReceiptType={handleReceiptTypeUpdate}
             />
+
+            <Dialog open={isWarningOpen} onOpenChange={setIsWarningOpen}>
+                <DialogContent className="max-w-md p-6 rounded-2xl border bg-background/95 backdrop-blur-xl shadow-2xl ring-1 ring-border/50 flex flex-col gap-4">
+                    <DialogHeader className="flex flex-col items-center text-center gap-2">
+                        <div className="bg-amber-500/10 p-3 rounded-full border border-amber-500/20 text-amber-500 animate-bounce">
+                            <AlertTriangle size={32} />
+                        </div>
+                        <DialogTitle className="text-xl font-black tracking-tight text-foreground/90 uppercase">
+                            Action Restricted
+                        </DialogTitle>
+                    </DialogHeader>
+                    <div className="text-center text-sm text-muted-foreground/80 leading-relaxed font-medium">
+                        {warningMessage}
+                    </div>
+                    <DialogFooter className="sm:justify-center">
+                        <Button 
+                            onClick={() => setIsWarningOpen(false)}
+                            className="w-full sm:w-auto rounded-full px-8 font-bold bg-amber-500 hover:bg-amber-600 text-white shadow-lg active:scale-95 transition-all duration-200"
+                        >
+                            Got it
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </>
     );
 };

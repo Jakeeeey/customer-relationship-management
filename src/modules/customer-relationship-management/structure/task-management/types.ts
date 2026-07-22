@@ -103,6 +103,7 @@ export interface DailyActionPlan {
     employee_email?: string | null;
     created_by: number;
     created_at: string;
+    is_deleted?: number | null;
 }
 
 export interface DailyActionPlanAttachment {

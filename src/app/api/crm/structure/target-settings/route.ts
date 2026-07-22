@@ -237,32 +237,31 @@ export async function GET(req: NextRequest) {
             created_at?: string;
         }
 
+        // FETCH FROM BIA: target_setting_salesman
+        const fiscalPeriod = dateFrom.split(' ')[0];
+        const stRes = await fetch(`${DIRECTUS_URL}/items/target_setting_salesman?filter[salesman_id][_in]=${smIds.join(',')}&filter[fiscal_period][_eq]=${fiscalPeriod}&limit=-1`, { headers: fetchHeaders });
+        const stData = await stRes.json() as DirectusResponse<BIASupplierTarget[]>;
+        const rawSupplierTargets = stData.data || [];
+        
+        // Map BIA records to CRM format to ensure frontend join works
+        const supplierTargets = rawSupplierTargets.map(rst => {
+            const matchingTarget = targets.find((t: { salesman_id: number; id: number }) => t.salesman_id === rst.salesman_id);
+            return {
+                id: rst.id,
+                target_setting_id: matchingTarget ? matchingTarget.id : 0,
+                salesman_id: rst.salesman_id, // Include salesman_id for fallback matching
+                supplier_id: rst.supplier_id,
+                target_amount: rst.target_amount,
+                created_at: rst.created_at
+            } as SupplierTarget & { salesman_id: number };
+        });
+
         let customerTargets: object[] = [];
-        let supplierTargets: SupplierTarget[] = [];
         let areaTargets: object[] = [];
         if (targetIds.length > 0) {
             const ctRes = await fetch(`${DIRECTUS_URL}/items/salesman_target_customer_sales?filter[target_setting_id][_in]=${targetIds.join(',')}&limit=-1`, { headers: fetchHeaders });
             const ctData = await ctRes.json() as DirectusResponse<object[]>;
             customerTargets = ctData.data || [];
-
-            // FETCH FROM BIA: target_setting_salesman
-            const fiscalPeriod = dateFrom.split(' ')[0];
-            const stRes = await fetch(`${DIRECTUS_URL}/items/target_setting_salesman?filter[salesman_id][_in]=${smIds.join(',')}&filter[fiscal_period][_eq]=${fiscalPeriod}&limit=-1`, { headers: fetchHeaders });
-            const stData = await stRes.json() as DirectusResponse<BIASupplierTarget[]>;
-            const rawSupplierTargets = stData.data || [];
-            
-            // Map BIA records to CRM format to ensure frontend join works
-            supplierTargets = rawSupplierTargets.map(rst => {
-                const matchingTarget = targets.find((t: { salesman_id: number; id: number }) => t.salesman_id === rst.salesman_id);
-                return {
-                    id: rst.id,
-                    target_setting_id: matchingTarget ? matchingTarget.id : 0,
-                    salesman_id: rst.salesman_id, // Include salesman_id for fallback matching
-                    supplier_id: rst.supplier_id,
-                    target_amount: rst.target_amount,
-                    created_at: rst.created_at
-                } as SupplierTarget & { salesman_id: number };
-            });
 
             const areaRes = await fetch(`${DIRECTUS_URL}/items/salesman_target_area_sales?filter[target_setting_id][_in]=${targetIds.join(',')}&limit=-1`, { headers: fetchHeaders });
             const areaData = await areaRes.json() as DirectusResponse<object[]>;

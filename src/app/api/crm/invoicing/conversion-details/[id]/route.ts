@@ -56,7 +56,26 @@ export async function GET(
         }
 
         const maxLength = order.receipt_type?.max_length || 15;
-        const paymentName = order.payment_terms?.payment_name || "N/A";
+        
+        let paymentName = "N/A";
+        const ptValue = order.payment_terms;
+        if (ptValue) {
+            if (typeof ptValue === "object" && ptValue !== null) {
+                paymentName = (ptValue as { payment_name?: string }).payment_name || "N/A";
+            } else {
+                try {
+                    const ptRes = await fetch(`${DIRECTUS_BASE}/items/payment_terms/${ptValue}?fields=payment_name`, {
+                        headers: directusHeaders()
+                    });
+                    if (ptRes.ok) {
+                        const ptData = await ptRes.json();
+                        paymentName = ptData.data?.payment_name || "N/A";
+                    }
+                } catch (e) {
+                    console.error("Failed to fetch payment terms detail:", e);
+                }
+            }
+        }
         const customerCode = order.customer_code;
 
         // 1.1 Fetch Customer Details

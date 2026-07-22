@@ -1,14 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Check, ChevronsUpDown, Calendar as CalendarIcon, Hash, RotateCw } from "lucide-react";
+import { Check, ChevronsUpDown, Calendar as CalendarIcon, Hash, RotateCw, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useDebounce } from "use-debounce";
+import { dealerInvoiceProvider } from "../providers/fetchProvider";
 import {
     Customer,
     MasterUser,
@@ -67,7 +69,10 @@ interface DealerSalesInvoiceHeaderProps {
     onDeliveryDateChange: (val: string) => void;
 
     previewInvoiceNo?: string;
+    onInvoiceNoChange?: (val: string) => void;
     isLoading?: boolean;
+    orderIdExists?: boolean;
+    isCheckingOrderId?: boolean;
 }
 
 export function DealerSalesInvoiceHeader({
@@ -79,16 +84,113 @@ export function DealerSalesInvoiceHeader({
     branches, selectedBranch, onBranchChange,
     priceTypes, selectedPriceType, onPriceTypeChange,
     paymentTerms,
-    salesTypes, selectedSalesType,
+    salesTypes, selectedSalesType, onSalesTypeChange,
     dueDate, onDueDateChange,
     deliveryDate, onDeliveryDateChange,
-    previewInvoiceNo
+    previewInvoiceNo, onInvoiceNoChange,
+    orderIdExists = false,
+    isCheckingOrderId = false
 }: DealerSalesInvoiceHeaderProps) {
     const [openCustomer, setOpenCustomer] = useState(false);
     const [openSalesman, setOpenSalesman] = useState(false);
     const [openAccount, setOpenAccount] = useState(false);
     const [openSupplier, setOpenSupplier] = useState(false);
     const [openBranch, setOpenBranch] = useState(false);
+
+    // Derive official status
+    const selectedInvoiceTypeObj = invoiceTypes.find(t => t.id.toString() === selectedInvoiceType) ?? null;
+    const isOfficial = selectedInvoiceTypeObj ? Number(selectedInvoiceTypeObj.isOfficial) === 1 : true;
+
+    // Infinite scroll & search state
+    const [localCustomers, setLocalCustomers] = useState<Customer[]>([]);
+    const [searchQuery, setSearchQuery] = useState("");
+    const [debouncedSearch] = useDebounce(searchQuery, 350);
+    const [page, setPage] = useState(1);
+    const [loading, setLoading] = useState(false);
+    const [hasMore, setHasMore] = useState(true);
+
+    // Synchronize prop customers on initial load
+    useEffect(() => {
+        if (customers && customers.length > 0) {
+            setLocalCustomers(customers);
+            setHasMore(customers.length >= 50);
+        }
+    }, [customers]);
+
+    // Keep selected customer at the top of local list if it's not in the array
+    useEffect(() => {
+        if (selectedCustomer) {
+            setLocalCustomers(prev => {
+                const exists = prev.some(c => c.customer_code === selectedCustomer.customer_code);
+                if (!exists) {
+                    return [selectedCustomer, ...prev];
+                }
+                return prev;
+            });
+        }
+    }, [selectedCustomer]);
+
+    // Search query hook
+    useEffect(() => {
+        let active = true;
+        const fetchSearch = async () => {
+            setLoading(true);
+            try {
+                const results = await dealerInvoiceProvider.getCustomers(debouncedSearch, 1, 50);
+                if (active) {
+                    setLocalCustomers(() => {
+                        const merged = [...results];
+                        if (selectedCustomer && !results.some(c => c.customer_code === selectedCustomer.customer_code)) {
+                            merged.unshift(selectedCustomer);
+                        }
+                        return merged;
+                    });
+                    setPage(1);
+                    setHasMore(results.length >= 50);
+                }
+            } catch (err) {
+                console.error(err);
+            } finally {
+                if (active) setLoading(false);
+            }
+        };
+
+        if (debouncedSearch !== "" || page > 1 || (customers && customers.length === 0)) {
+            fetchSearch();
+        }
+        return () => { active = false; };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [debouncedSearch]);
+
+    const loadNextPage = async () => {
+        if (loading || !hasMore) return;
+        setLoading(true);
+        const nextPage = page + 1;
+        try {
+            const results = await dealerInvoiceProvider.getCustomers(debouncedSearch, nextPage, 50);
+            if (results.length > 0) {
+                setLocalCustomers(prev => {
+                    const uniqueNew = results.filter(newCust => !prev.some(p => p.customer_code === newCust.customer_code));
+                    return [...prev, ...uniqueNew];
+                });
+                setPage(nextPage);
+                setHasMore(results.length >= 50);
+            } else {
+                setHasMore(false);
+            }
+        } catch (err) {
+            console.error(err);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+        const target = e.currentTarget;
+        if (target.scrollHeight - target.scrollTop <= target.clientHeight + 20) {
+            loadNextPage();
+        }
+    };
 
     const activeCustomerPaymentTerm = selectedCustomer?.payment_term
         ? paymentTerms.find(t => t.id.toString() === selectedCustomer.payment_term?.toString())
@@ -114,7 +216,6 @@ export function DealerSalesInvoiceHeader({
                         </Select>
                     </div>
                 )}
-                {/* Removed Configuration Phase div */}
             </CardHeader>
             <CardContent className="p-10 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-x-12 gap-y-10">
                 {/* 1. CUSTOMER */}
@@ -134,12 +235,12 @@ export function DealerSalesInvoiceHeader({
                             </Button>
                         </PopoverTrigger>
                         <PopoverContent className="w-[350px] p-0" align="start">
-                            <Command>
-                                <CommandInput placeholder="Search customer code or name..." />
-                                <CommandList className="max-h-[300px]">
+                            <Command shouldFilter={false}>
+                                <CommandInput placeholder="Search customer code or name..." value={searchQuery} onValueChange={setSearchQuery} />
+                                <CommandList className="max-h-[300px]" onScroll={handleScroll}>
                                     <CommandEmpty>No customer found.</CommandEmpty>
                                     <CommandGroup>
-                                        {customers.filter(c => c.isActive !== 0).map(c => (
+                                        {localCustomers.filter(c => c.isActive !== 0).map(c => (
                                             <CommandItem
                                                 key={c.id}
                                                 value={`${c.customer_name} ${c.customer_code} ${c.city || ""} ${c.province || ""}`}
@@ -156,6 +257,12 @@ export function DealerSalesInvoiceHeader({
                                             </CommandItem>
                                         ))}
                                     </CommandGroup>
+                                    {loading && (
+                                        <div className="py-2 text-center text-xs flex items-center justify-center text-slate-400">
+                                            <Loader2 className="h-3 w-3 animate-spin mr-2" />
+                                            Loading more customers...
+                                        </div>
+                                    )}
                                 </CommandList>
                             </Command>
                         </PopoverContent>
@@ -306,17 +413,23 @@ export function DealerSalesInvoiceHeader({
                     </Select>
                 </div>
 
-                {/* 6. SALES TYPE (LOCKED TO DEFAULT) */}
+                {/* 6. SALES TYPE */}
                 <div className="space-y-2">
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Sales Type</label>
-                    <div className="relative group opacity-80">
-                        <Input
-                            value={salesTypes.find(s => s.id.toString() === selectedSalesType)?.operation_name}
-                            readOnly
-                            disabled
-                            className="h-12 rounded-xl bg-slate-50/50 border-slate-200 dark:border-slate-800 text-[11px] font-black uppercase tracking-tight shadow-sm cursor-not-allowed italic text-slate-400"
-                        />
-                    </div>
+                    <Select value={selectedSalesType} onValueChange={onSalesTypeChange}>
+                        <SelectTrigger className="h-12 rounded-xl bg-slate-50/30 border-slate-200 dark:border-slate-800 font-black text-[11px] uppercase tracking-tight shadow-sm">
+                            <SelectValue placeholder="Select Sales Type" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {salesTypes
+                                .filter(s => s.operation_name?.toUpperCase() !== "SITE SALES" && s.id !== 3)
+                                .map(s => (
+                                    <SelectItem key={s.id} value={s.id.toString()} className="font-black text-[10px] uppercase">
+                                        {s.operation_name}
+                                    </SelectItem>
+                                ))}
+                        </SelectContent>
+                    </Select>
                 </div>
                 {/* 8. DUE DATE */}
                 <div className="space-y-2">
@@ -378,18 +491,37 @@ export function DealerSalesInvoiceHeader({
                 </div>
 
 
-                {/* 11. ORDER ID (AUTO-GENERATED) */}
+                {/* 11. ORDER ID */}
                 <div className="space-y-2">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Order ID</label>
-                    <div className="relative group opacity-80">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">
+                        Order ID {isOfficial && <span className="text-rose-500">*</span>}
+                    </label>
+                    <div className="relative group">
                         <Hash className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-300" />
                         <Input
-                            value={previewInvoiceNo || "Auto-generating..."}
-                            readOnly
-                            disabled
-                            className="h-12 pl-12 rounded-xl bg-slate-50/50 border-slate-200 dark:border-slate-800 text-[11px] font-black uppercase tracking-tight shadow-sm cursor-not-allowed italic text-slate-400"
+                            value={previewInvoiceNo || ""}
+                            onChange={(e) => onInvoiceNoChange?.(e.target.value)}
+                            readOnly={!isOfficial}
+                            disabled={!isOfficial}
+                            placeholder={isOfficial ? "Enter Order ID..." : "Auto-generating..."}
+                            className={cn(
+                                "h-12 pl-12 pr-10 rounded-xl text-[11px] font-black uppercase tracking-tight shadow-sm transition-all duration-300",
+                                !isOfficial 
+                                    ? "bg-slate-50/50 border-slate-200 dark:border-slate-800 cursor-not-allowed italic text-slate-400 opacity-80" 
+                                    : orderIdExists
+                                        ? "border-rose-500 focus-visible:ring-rose-500 text-rose-600 bg-rose-50/10 focus-visible:border-rose-500 focus-visible:ring-2"
+                                        : "bg-slate-50/30 border-slate-200"
+                            )}
                         />
+                        {isCheckingOrderId && (
+                            <Loader2 className="absolute right-4 top-1/2 -translate-y-1/2 h-4 w-4 text-primary animate-spin" />
+                        )}
                     </div>
+                    {orderIdExists && (
+                        <p className="text-[9px] font-black uppercase tracking-tight text-rose-500 mt-1 pl-1 animate-in fade-in slide-in-from-top-1 duration-300">
+                            This Order ID is already taken. Please enter a unique one.
+                        </p>
+                    )}
                 </div>
 
                 {/* 12. PAYMENT TERMS */}

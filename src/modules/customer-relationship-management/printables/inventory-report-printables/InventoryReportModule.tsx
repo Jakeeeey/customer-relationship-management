@@ -7,7 +7,6 @@ import { DataTable } from "@/components/ui/new-data-table"
 import { ColumnDef } from "@tanstack/react-table"
 import { Input } from "@/components/ui/input"
 import { LocalSearchableSelect } from "./components/LocalSearchableSelect"
-import Barcode from "react-barcode"
 import { toast } from "sonner"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Card, CardContent } from "@/components/ui/card"
@@ -15,7 +14,7 @@ import { Badge } from "@/components/ui/badge"
 import { 
     Search, Package, Box, Hash, RefreshCcw, 
     LayoutGrid, Layers, MapPin, 
-    Boxes, Eye, Download
+    Boxes, Eye, Download, TrendingUp
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -26,6 +25,7 @@ export const InventoryReportModule = ({ userName }: { userName?: string }) => {
     const { 
         data, loading, error, mode, setMode, search, setSearch, 
         selectedBranch, setSelectedBranch, selectedSupplier, setSelectedSupplier,
+        stockFilter, setStockFilter,
         branches, suppliers
     } = useInventoryReport()
 
@@ -108,16 +108,7 @@ export const InventoryReportModule = ({ userName }: { userName?: string }) => {
                                             </Badge>
                                         </div>
                                         {u.barcode ? (
-                                            <div className="mt-1.5 scale-[0.65] origin-left h-7 opacity-70 hover:opacity-100 transition-opacity">
-                                                <Barcode 
-                                                    value={u.barcode} 
-                                                    height={25} 
-                                                    width={1.2} 
-                                                    fontSize={10} 
-                                                    background="transparent"
-                                                    margin={0}
-                                                />
-                                            </div>
+                                            <span className="text-[10px] font-mono text-muted-foreground mt-1 tracking-wider">{u.barcode}</span>
                                         ) : (
                                             <span className="text-[9px] text-muted-foreground/50 uppercase font-black italic mt-1">No Barcode</span>
                                         )}
@@ -272,7 +263,7 @@ export const InventoryReportModule = ({ userName }: { userName?: string }) => {
             {/* Premium Filter Section */}
             <div className="relative group p-0.5 rounded-3xl bg-gradient-to-br from-primary/10 via-transparent to-primary/5 shadow-2xl transition-all duration-500 hover:shadow-primary/5">
                 <div className="bg-background/80 backdrop-blur-2xl rounded-[calc(1.5rem-2px)] border p-4 shadow-inner">
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-6 items-end">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-6 items-end">
                         
                         {/* Mode Selection */}
                         <div className="space-y-2 lg:col-span-1 xl:col-span-1">
@@ -331,8 +322,29 @@ export const InventoryReportModule = ({ userName }: { userName?: string }) => {
                             />
                         </div>
 
+                        {/* Stock Status Filter */}
+                        <div className="space-y-2">
+                            <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/70 flex items-center gap-2">
+                                <TrendingUp size={12} className="text-primary/60" /> Stock Status
+                            </label>
+                            <LocalSearchableSelect 
+                                options={[
+                                    { value: "all", label: "All Stock" },
+                                    { value: "positive", label: "Positive Stock" },
+                                    { value: "negative", label: "Negative Stock" }
+                                ]} 
+                                value={stockFilter} 
+                                onValueChange={(val) => setStockFilter(val as "all" | "positive" | "negative")} 
+                                placeholder="Select Status..."
+                                className={cn(
+                                    "h-11 rounded-xl bg-muted/20 border-border/50 focus:bg-background transition-all duration-300",
+                                    stockFilter !== "all" && "border-primary/30 bg-primary/5"
+                                )}
+                            />
+                        </div>
+
                         {/* Search Input */}
-                        <div className="space-y-2 xl:col-span-1">
+                        <div className="space-y-2">
                             <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/70 flex items-center gap-2">
                                 <Search size={12} className="text-primary/60" /> Quick Search
                             </label>
@@ -395,15 +407,23 @@ export const InventoryReportModule = ({ userName }: { userName?: string }) => {
                     loading ? "opacity-20 scale-[0.99] blur-sm" : "opacity-100 scale-100 blur-0"
                 )}>
                     <CardContent className="p-0">
-                        <div className="p-1">
-                            <DataTable 
-                                columns={columns} 
-                                data={data} 
-                                isLoading={loading}
-                                emptyTitle="No Records Found"
-                                emptyDescription="Try adjusting your filters or search keywords."
-                            />
-                        </div>
+                        {!isFiltersSelected ? (
+                            <div className="flex flex-col items-center justify-center py-24 text-muted-foreground/60">
+                                <Boxes className="h-16 w-16 mb-4 opacity-20" />
+                                <h3 className="text-xl font-black uppercase tracking-widest text-foreground/50">Select Filters to Load Data</h3>
+                                <p className="text-sm font-medium mt-2">Please select a specific Branch and Supplier from the dropdowns above.</p>
+                            </div>
+                        ) : (
+                            <div className="p-1">
+                                <DataTable 
+                                    columns={columns} 
+                                    data={data} 
+                                    isLoading={loading}
+                                    emptyTitle="No Records Found"
+                                    emptyDescription="Try adjusting your filters or search keywords."
+                                />
+                            </div>
+                        )}
                     </CardContent>
                 </Card>
             </div>

@@ -61,6 +61,7 @@ interface UseSiteSalesPostingReturn {
         customerCode?: string | null
     }) => Promise<SearchProduct[]>;
     createInvoice: (payload: Record<string, unknown>) => Promise<{ success: boolean; invoiceId: number }>;
+    searchCustomersAction: (search: string) => Promise<void>;
 }
 
 export const useSiteSalesPosting = (): UseSiteSalesPostingReturn => {
@@ -220,6 +221,15 @@ export const useSiteSalesPosting = (): UseSiteSalesPostingReturn => {
         }
     }, []);
 
+    const searchCustomersAction = useCallback(async (search: string) => {
+        try {
+            const cs = await siteSalesPostingProvider.getCustomers(search);
+            setCustomers(cs);
+        } catch (err) {
+            console.error("Search customers error:", err);
+        }
+    }, []);
+
     return {
         worklist,
         salesmen,
@@ -238,6 +248,7 @@ export const useSiteSalesPosting = (): UseSiteSalesPostingReturn => {
         getSalesmanByCustomer,
         getAccounts,
         searchProducts,
-        createInvoice
+        createInvoice,
+        searchCustomersAction
     };
 };

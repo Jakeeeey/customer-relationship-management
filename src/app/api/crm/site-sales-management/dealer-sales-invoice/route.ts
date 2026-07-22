@@ -12,6 +12,19 @@ const fetchHeaders = {
     "Content-Type": "application/json",
 };
 
+function getPhTimeISO(): string {
+    const now = new Date();
+    const formatter = new Intl.DateTimeFormat('en-US', {
+        timeZone: 'Asia/Manila',
+        year: 'numeric', month: '2-digit', day: '2-digit',
+        hour: '2-digit', minute: '2-digit', second: '2-digit',
+        hour12: false
+    });
+    const parts = formatter.formatToParts(now);
+    const partMap = Object.fromEntries(parts.map(p => [p.type, p.value]));
+    return `${partMap.year}-${partMap.month}-${partMap.day}T${partMap.hour}:${partMap.minute}:${partMap.second}`;
+}
+
 export const dynamic = "force-dynamic";
 
 interface JwtPayload {
@@ -118,6 +131,31 @@ export async function GET(req: NextRequest) {
     const searchParams = req.nextUrl.searchParams;
 
     try {
+        if (type === "check_order_id") {
+            const orderId = searchParams.get("orderId");
+            if (!orderId) return NextResponse.json({ error: "orderId required" }, { status: 400 });
+            const res = await fetch(`${DIRECTUS_URL}/items/sales_invoice?filter[order_id][_eq]=${encodeURIComponent(orderId)}&limit=1&fields=invoice_id`, { headers: fetchHeaders });
+            if (!res.ok) return NextResponse.json({ error: "Failed to check order ID" }, { status: res.status });
+            const json = await res.json();
+            const exists = json.data && json.data.length > 0;
+            return NextResponse.json({ exists });
+        }
+
+        if (type === "invoice_pdf") {
+            const invoiceId = searchParams.get("invoiceId");
+            if (!invoiceId) return NextResponse.json({ error: "invoiceId required" }, { status: 400 });
+
+            const res = await fetch(`${DIRECTUS_URL}/items/sales_invoice_pdf?filter[sales_invoice_id][_eq]=${invoiceId}&fields=pdf_file,width_mm&limit=1`, { headers: fetchHeaders });
+            if (!res.ok) return NextResponse.json({ error: "Failed to fetch sales invoice PDF record" }, { status: res.status });
+
+            const json = await res.json();
+            const pdfRecord = json.data?.[0];
+            return NextResponse.json({
+                pdfFileId: pdfRecord?.pdf_file || null,
+                widthMm: pdfRecord?.width_mm || null
+            });
+        }
+
         if (type === "template") {
             const id = searchParams.get("id");
             if (!id) return NextResponse.json({ error: "Template ID is required" }, { status: 400 });
@@ -182,12 +220,11 @@ export async function GET(req: NextRequest) {
                 _and: []
             };
 
-            // Filter by Sales Type if specified
+            // Filter by Sales Type if specified, otherwise exclude SITE SALES (3)
             if (salesTypeId && salesTypeId !== "all") {
                 filters._and.push({ sales_type: { _eq: salesTypeId } });
-            } else if (!salesTypeId) {
-                // DEFAULT FOR DEALER SALES - Adjust this ID as needed
-                filters._and.push({ sales_type: { _eq: 3 } }); 
+            } else {
+                filters._and.push({ sales_type: { _neq: 3 } });
             }
 
             if (searchParams.has("isDispatched")) {
@@ -214,7 +251,8 @@ export async function GET(req: NextRequest) {
             }
 
             if (startDate) {
-                filters._and.push({ invoice_date: { _gte: startDate } });
+                const startOfDay = startDate.includes("T") || startDate.includes(" ") ? startDate : `${startDate}T00:00:00`;
+                filters._and.push({ invoice_date: { _gte: startOfDay } });
             }
 
             if (endDate) {
@@ -234,7 +272,7 @@ export async function GET(req: NextRequest) {
                 filter: JSON.stringify(filters),
                 page: page.toString(),
                 limit: limit.toString(),
-                fields: "*,salesman_id.salesman_name", 
+                fields: "*,salesman_id.salesman_name,salesman_id.salesman_code,invoice_type.type,invoice_type.shortcut,sales_type.operation_name,sales_type.operation_code", 
                 meta: "filter_count"
             });
 
@@ -302,7 +340,8 @@ export async function GET(req: NextRequest) {
             const data = rawData.map((item: {
                 invoice_id: number | string;
                 customer_code: string;
-                salesman_id: { id: string | number; salesman_name: string } | string | number;
+                salesman_id: { id: string | number; salesman_name: string; salesman_code?: string } | string | number;
+                invoice_type: { id: string | number; type?: string; shortcut?: string } | string | number;
                 net_amount: number;
             }) => {
                 const id = String(item.invoice_id);
@@ -312,9 +351,14 @@ export async function GET(req: NextRequest) {
                 const net = Number(item.net_amount || 0);
                 const bal = net - cre - ret + deb;
 
+                const salesmanCode = typeof item.salesman_id === 'object' ? item.salesman_id?.salesman_code : "N/A";
+                const invoiceTypeShortcut = typeof item.invoice_type === 'object' ? (item.invoice_type?.shortcut || item.invoice_type?.type) : "N/A";
+
                 return {
                     ...item,
                     salesman_name: typeof item.salesman_id === 'object' ? item.salesman_id?.salesman_name : "N/A",
+                    salesman_code: salesmanCode || "N/A",
+                    invoice_type_shortcut: invoiceTypeShortcut || "DR",
                     customer_name: customerMap[item.customer_code?.trim()] || item.customer_code || "N/A",
                     salesman_id: typeof item.salesman_id === 'object' ? item.salesman_id?.id : item.salesman_id,
                     credits: cre,
@@ -347,8 +391,8 @@ export async function GET(req: NextRequest) {
 
             if (salesTypeId && salesTypeId !== "all") {
                 filters._and.push({ sales_type: { _eq: salesTypeId } });
-            } else if (!salesTypeId) {
-                filters._and.push({ sales_type: { _eq: 3 } });
+            } else {
+                filters._and.push({ sales_type: { _neq: 3 } });
             }
             if (searchParams.has("isDispatched")) {
                 if (isDispatched) {
@@ -727,8 +771,21 @@ export async function GET(req: NextRequest) {
 
         if (type === "customers") {
             const search = searchParams.get("search") || "";
-            let url = `${DIRECTUS_URL}/items/customer?filter[isActive][_eq]=1&fields=id,customer_code,customer_name,store_name,city,province,isActive,payment_term&limit=-1`;
-            if (search) url += `&filter[_or][0][customer_name][_icontains]=${encodeURIComponent(search)}&filter[_or][1][customer_code][_icontains]=${encodeURIComponent(search)}`;
+            const page = searchParams.get("page") ? parseInt(searchParams.get("page")!, 10) : null;
+            const limit = searchParams.get("limit") ? parseInt(searchParams.get("limit")!, 10) : null;
+
+            let url = `${DIRECTUS_URL}/items/customer?filter[isActive][_eq]=1&fields=id,customer_code,customer_name,store_name,city,province,isActive,payment_term`;
+            if (search) {
+                url += `&filter[_or][0][customer_name][_icontains]=${encodeURIComponent(search)}&filter[_or][1][customer_code][_icontains]=${encodeURIComponent(search)}`;
+            }
+            if (limit !== null) {
+                url += `&limit=${limit}`;
+            } else {
+                url += `&limit=-1`;
+            }
+            if (page !== null) {
+                url += `&page=${page}`;
+            }
             const res = await fetch(url, { headers: fetchHeaders });
             return NextResponse.json((await res.json()).data || []);
         }
@@ -791,7 +848,7 @@ export async function PATCH(req: NextRequest) {
 
         if (action === "save_adjustments") {
             const userId = await resolveUserId();
-            const now = new Date().toISOString();
+            const now = getPhTimeISO();
 
             if (deletedDetailIds?.length > 0) {
                 for (const id of deletedDetailIds) {
@@ -882,7 +939,7 @@ export async function POST(req: NextRequest) {
 
         if (action === "finalize_settlement") {
             const userId = await resolveUserId();
-            const now = new Date().toISOString();
+            const now = getPhTimeISO();
             for (const id of invoiceIds) {
                 const invRes = await fetch(`${DIRECTUS_URL}/items/sales_invoice/${id}?fields=invoice_type.isOfficial`, { headers: fetchHeaders });
                 const invData = (await invRes.json()).data;
@@ -910,20 +967,20 @@ export async function POST(req: NextRequest) {
             const userId = await resolveUserId();
             const res = await fetch(`${DIRECTUS_URL}/items/sales_invoice_sales_return`, {
                 method: "POST", headers: fetchHeaders,
-                body: JSON.stringify({ invoice_no: invoiceId, return_no: returnId, amount, linked_by: userId, created_at: new Date().toISOString() })
+                body: JSON.stringify({ invoice_no: invoiceId, return_no: returnId, amount, linked_by: userId, created_at: getPhTimeISO() })
             });
             if (!res.ok) throw new Error("Link failed");
             return NextResponse.json({ success: true });
         }
 
         if (action === "un_dispatch") {
-            await fetch(`${DIRECTUS_URL}/items/sales_invoice/${body.id}`, { method: "PATCH", headers: fetchHeaders, body: JSON.stringify({ transaction_status: "New Invoice", isDispatched: 0, dispatch_date: null, modified_date: new Date().toISOString() }) });
+            await fetch(`${DIRECTUS_URL}/items/sales_invoice/${body.id}`, { method: "PATCH", headers: fetchHeaders, body: JSON.stringify({ transaction_status: "New Invoice", isDispatched: 0, dispatch_date: null, modified_date: getPhTimeISO() }) });
             return NextResponse.json({ success: true });
         }
 
         if (action === "create_invoice") {
             const userId = await resolveUserId();
-            const now = new Date().toISOString();
+            const now = getPhTimeISO();
             
             const headerPayload = {
                 ...body,

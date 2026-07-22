@@ -10,6 +10,8 @@ export const useInventoryReport = () => {
     const [search, setSearch] = useState("");
     const [selectedBranch, setSelectedBranch] = useState<string>("all");
     const [selectedSupplier, setSelectedSupplier] = useState<string>("all");
+    const [stockFilter, setStockFilter] = useState<"all" | "positive" | "negative">("all");
+
 
     useEffect(() => {
         const load = async () => {
@@ -58,7 +60,8 @@ export const useInventoryReport = () => {
                     units: [],
                     box: 0,
                     piece: 0,
-                    targetUnitCount: 1
+                    targetUnitCount: 1,
+                    price: item.price
                 };
                 groupedMap.set(key, g);
             }
@@ -68,7 +71,8 @@ export const useInventoryReport = () => {
                 // Breakdown computation: running_inventory / unit_count
                 runningInventory: item.runningInventory / (item.unitCount || 1),
                 unitCount: item.unitCount,
-                barcode: item.barcode
+                barcode: item.barcode,
+                price: item.price
             });
 
             // For Piece/Box views, we keep summing the RAW runningInventory (total pieces)
@@ -92,6 +96,11 @@ export const useInventoryReport = () => {
 
     // 2. Filter grouped data (Much faster because grouped dataset is smaller)
     const displayData = useMemo(() => {
+        // Prevent loading data until both branch and supplier are explicitly selected
+        if (selectedBranch === "all" || selectedSupplier === "all") {
+            return [];
+        }
+
         let filtered = groupedData;
 
         // Apply Branch Filter
@@ -102,6 +111,13 @@ export const useInventoryReport = () => {
         // Apply Supplier Filter
         if (selectedSupplier !== "all") {
             filtered = filtered.filter(item => item.supplier === selectedSupplier);
+        }
+
+        // Apply Stock Status Filter
+        if (stockFilter === "positive") {
+            filtered = filtered.filter(item => item.piece > 0);
+        } else if (stockFilter === "negative") {
+            filtered = filtered.filter(item => item.piece < 0);
         }
 
         // Apply Search Filter
@@ -116,7 +132,7 @@ export const useInventoryReport = () => {
         }
 
         return filtered;
-    }, [groupedData, search, selectedBranch, selectedSupplier]);
+    }, [groupedData, search, selectedBranch, selectedSupplier, stockFilter]);
 
     return {
         data: displayData,
@@ -130,6 +146,8 @@ export const useInventoryReport = () => {
         setSelectedBranch,
         selectedSupplier,
         setSelectedSupplier,
+        stockFilter,
+        setStockFilter,
         branches,
         suppliers,
         rawCount: data.length

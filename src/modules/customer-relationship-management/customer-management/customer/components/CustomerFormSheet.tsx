@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
-import { CreditCard, Loader2, Users, Building2, MapPin, Receipt, Check, ChevronsUpDown, Plus, AlertCircle, ArrowRight, UploadCloud } from "lucide-react";
+import { CreditCard, Loader2, Users, Building2, MapPin, Receipt, Check, ChevronsUpDown, AlertCircle, ArrowRight, UploadCloud } from "lucide-react";
 import { useForm, Resolver, SubmitHandler } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -43,7 +43,6 @@ interface CreatableComboboxProps {
     items: ReferenceOption[];
     value: number | string | null;
     onChange: (value: number | string) => void;
-    onCreate: (name: string) => void;
     placeholder: string;
     itemName: string;
 }
@@ -63,14 +62,21 @@ interface SearchableComboboxProps {
 }
 
 // ============================================================================
+// 🚀 REQUIRED MARK HELPER
+// ============================================================================
+const RequiredMark = () => (
+    <span className="text-destructive ml-0.5" aria-hidden="true">*</span>
+);
+
+// ============================================================================
 // 🚀 IMAGE PREVIEW HELPER
 // ============================================================================
 const renderImagePreview = (imageId: string | null | undefined) => {
     if (!imageId || imageId.trim() === "") return null;
 
+    // Route through our Next.js proxy to avoid Directus auth issues on <img> src
     const isUrl = imageId.startsWith('http');
-    const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8055";
-    const imageUrl = isUrl ? imageId : `${baseUrl}/assets/${imageId}`;
+    const imageUrl = isUrl ? imageId : `/api/crm/upload/asset?id=${encodeURIComponent(imageId)}`;
 
     return (
         <div className="mt-4 relative w-full sm:w-[250px] aspect-video rounded-xl overflow-hidden border border-border shadow-sm group bg-muted/30">
@@ -80,7 +86,15 @@ const renderImagePreview = (imageId: string | null | undefined) => {
                 alt="Customer/Store Preview"
                 className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
                 onError={(e) => {
-                    (e.target as HTMLImageElement).src = "https://placehold.co/400x300/e2e8f0/64748b?text=Image+Not+Found";
+                    const target = e.target as HTMLImageElement;
+                    target.style.display = 'none';
+                    const parent = target.parentElement;
+                    if (parent && !parent.querySelector('.img-error-fallback')) {
+                        const fallback = document.createElement('div');
+                        fallback.className = 'img-error-fallback w-full h-full flex flex-col items-center justify-center bg-muted/50 gap-2';
+                        fallback.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-muted-foreground opacity-40" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg><span style="font-size:9px;font-weight:900;text-transform:uppercase;letter-spacing:0.1em;color:var(--muted-foreground)">Image Not Available</span>`;
+                        parent.appendChild(fallback);
+                    }
                 }}
             />
             <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-2 pt-6">
@@ -95,11 +109,9 @@ const renderImagePreview = (imageId: string | null | undefined) => {
 // ============================================================================
 // CREATABLE COMBOBOX
 // ============================================================================
-function CreatableCombobox({items, value, onChange, onCreate, placeholder, itemName}: CreatableComboboxProps) {
+function CreatableCombobox({items, value, onChange, placeholder, itemName}: Omit<CreatableComboboxProps, 'onCreate'>) {
     const [open, setOpen] = useState(false);
-    const [inputValue, setInputValue] = useState("");
     const selectedItem = items.find((i) => String(i.id) === String(value));
-    const exactMatch = items.some((i) => i.name.toLowerCase() === inputValue.toLowerCase());
 
     return (
         <Popover open={open} onOpenChange={setOpen}>
@@ -112,23 +124,12 @@ function CreatableCombobox({items, value, onChange, onCreate, placeholder, itemN
                     </Button>
                 </FormControl>
             </PopoverTrigger>
-            <PopoverContent className="w-[300px] p-0 shadow-xl rounded-xl border-border/50">
+            <PopoverContent className="w-[300px] p-0 shadow-xl rounded-xl border-border/50 z-[9999]">
                 <Command className="bg-transparent overflow-hidden rounded-xl">
-                    <CommandInput placeholder={`Search or create ${itemName}...`} onValueChange={setInputValue}
-                                  className="h-11"/>
+                    <CommandInput placeholder={`Search ${itemName}...`} className="h-11"/>
                     <CommandList className="max-h-[200px] overflow-y-auto custom-scrollbar">
                         <CommandEmpty className="p-2">
-                            {inputValue && !exactMatch ? (
-                                <Button variant="ghost"
-                                        className="w-full justify-start text-primary text-xs font-bold uppercase tracking-widest"
-                                        onClick={() => {
-                                            onCreate(inputValue);
-                                            setInputValue("");
-                                            setOpen(false);
-                                        }}>
-                                    <Plus className="mr-2 h-4 w-4"/> Create &quot;{inputValue}&quot;
-                                </Button>
-                            ) : `No ${itemName} found.`}
+                            {`No ${itemName} found.`}
                         </CommandEmpty>
                         <CommandGroup>
                             {items.map((item, index) => (
@@ -177,7 +178,7 @@ function SearchableCombobox({items, value, onChange, placeholder, disabled, isLo
                     </Button>
                 </FormControl>
             </PopoverTrigger>
-            <PopoverContent className="w-[300px] p-0 shadow-xl rounded-xl border-border/50">
+            <PopoverContent className="w-[300px] p-0 shadow-xl rounded-xl border-border/50 z-[9999]">
                 <Command className="bg-transparent overflow-hidden rounded-xl filter-none">
                     <CommandInput placeholder="Search..." className="h-11"/>
                     <CommandList className="max-h-[250px] overflow-y-auto custom-scrollbar">
@@ -728,41 +729,7 @@ export function CustomerFormSheet({ open, onOpenChange, customer, onSubmit, defa
     };
 
     // [handleCreateStoreType & handleCreateClassification omitted for brevity, they remain unchanged]
-    const handleCreateStoreType = async (name: string) => {
-        try {
-            const res = await fetch("/api/crm/customer/references", {
-                method: "POST",
-                headers: {"Content-Type": "application/json"},
-                body: JSON.stringify({type: "store_type", name})
-            });
-            if (!res.ok) throw new Error("Failed to create store type");
-            const json = await res.json();
-            const newId = json.data.id;
-            setStoreTypes(prev => [...prev, {id: newId, name}]);
-            form.setValue("store_type", newId, {shouldValidate: true});
-            toast.success(`Store Type "${name}" created successfully!`);
-        } catch {
-            toast.error("Failed to create store type.");
-        }
-    };
 
-    const handleCreateClassification = async (name: string) => {
-        try {
-            const res = await fetch("/api/crm/customer/references", {
-                method: "POST",
-                headers: {"Content-Type": "application/json"},
-                body: JSON.stringify({type: "classification", name})
-            });
-            if (!res.ok) throw new Error("Failed to create classification");
-            const json = await res.json();
-            const newId = json.data.id;
-            setClassifications(prev => [...prev, {id: newId, name}]);
-            form.setValue("classification", newId, {shouldValidate: true});
-            toast.success(`Classification "${name}" created successfully!`);
-        } catch {
-            toast.error("Failed to create classification.");
-        }
-    };
 
     return (
         <Sheet open={open} onOpenChange={onOpenChange}>
@@ -873,7 +840,7 @@ export function CustomerFormSheet({ open, onOpenChange, customer, onSubmit, defa
                                                    render={({field}) => (
                                                        <FormItem><FormLabel
                                                            className="font-bold uppercase text-xs text-muted-foreground">Customer
-                                                           Name</FormLabel><FormControl><Input
+                                                           Name<RequiredMark /></FormLabel><FormControl><Input
                                                            className="h-11 bg-muted/30"
                                                            placeholder="John Doe" {...field} /></FormControl><FormMessage/></FormItem>
                                                    )}/>
@@ -881,11 +848,10 @@ export function CustomerFormSheet({ open, onOpenChange, customer, onSubmit, defa
                                         <FormField control={form.control} name="store_type" render={({field}) => (
                                             <FormItem className="flex flex-col pt-1.5"><FormLabel
                                                 className="font-bold uppercase text-xs text-muted-foreground">Store
-                                                Type</FormLabel><CreatableCombobox items={storeTypes}
+                                                Type<RequiredMark /></FormLabel><CreatableCombobox items={storeTypes}
                                                                                    value={field.value}
                                                                                    onChange={field.onChange}
-                                                                                   onCreate={handleCreateStoreType}
-                                                                                   placeholder="Select or create..."
+                                                                                   placeholder="Select store type..."
                                                                                    itemName="Store Type"/><FormMessage/></FormItem>
                                         )}/>
 
@@ -893,14 +859,14 @@ export function CustomerFormSheet({ open, onOpenChange, customer, onSubmit, defa
                                             <FormItem className="flex flex-col pt-1.5"><FormLabel
                                                 className="font-bold uppercase text-xs text-muted-foreground">Classification</FormLabel><CreatableCombobox
                                                 items={classifications} value={field.value} onChange={field.onChange}
-                                                onCreate={handleCreateClassification} placeholder="Select or create..."
+                                                placeholder="Select classification..."
                                                 itemName="Classification"/><FormMessage/></FormItem>
                                         )}/>
 
                                         <FormField control={form.control} name="store_name" render={({field}) => (
                                             <FormItem><FormLabel
                                                 className="font-bold uppercase text-xs text-muted-foreground">Store
-                                                Name</FormLabel><FormControl><Input className="h-11 bg-muted/30"
+                                                Name<RequiredMark /></FormLabel><FormControl><Input className="h-11 bg-muted/30"
                                                                                     placeholder="Main Branch" {...field} /></FormControl><FormMessage/></FormItem>
                                         )}/>
                                         <FormField control={form.control} name="store_signage" render={({field}) => (
@@ -967,7 +933,7 @@ export function CustomerFormSheet({ open, onOpenChange, customer, onSubmit, defa
                                         <FormField control={form.control} name="province" render={({field}) => (
                                             <FormItem className="flex flex-col md:col-span-2">
                                                 <FormLabel
-                                                    className="font-bold uppercase text-xs text-muted-foreground">Province</FormLabel>
+                                                    className="font-bold uppercase text-xs text-muted-foreground">Province<RequiredMark /></FormLabel>
                                                 <SearchableCombobox
                                                     items={provincesList}
                                                     value={field.value}
@@ -988,7 +954,7 @@ export function CustomerFormSheet({ open, onOpenChange, customer, onSubmit, defa
                                             <FormItem className="flex flex-col">
                                                 <FormLabel
                                                     className="font-bold uppercase text-xs text-muted-foreground">City /
-                                                    Municipality</FormLabel>
+                                                    Municipality<RequiredMark /></FormLabel>
                                                 <SearchableCombobox
                                                     items={citiesList}
                                                     value={field.value}
@@ -1007,7 +973,7 @@ export function CustomerFormSheet({ open, onOpenChange, customer, onSubmit, defa
                                         <FormField control={form.control} name="brgy" render={({field}) => (
                                             <FormItem className="flex flex-col">
                                                 <FormLabel
-                                                    className="font-bold uppercase text-xs text-muted-foreground">Barangay</FormLabel>
+                                                    className="font-bold uppercase text-xs text-muted-foreground">Barangay<RequiredMark /></FormLabel>
                                                 <SearchableCombobox
                                                     items={barangaysList}
                                                     value={field.value}
@@ -1057,7 +1023,7 @@ export function CustomerFormSheet({ open, onOpenChange, customer, onSubmit, defa
                                         <FormField control={form.control} name="contact_number" render={({field}) => (
                                             <FormItem><FormLabel
                                                 className="font-bold uppercase text-xs text-muted-foreground">Mobile
-                                                Number</FormLabel><FormControl><Input className="h-11 bg-muted/30"
+                                                Number<RequiredMark /></FormLabel><FormControl><Input className="h-11 bg-muted/30"
                                                                                       placeholder="09123456789" {...field} /></FormControl><FormMessage/></FormItem>
                                         )}/>
                                         <FormField control={form.control} name="tel_number" render={({field}) => (

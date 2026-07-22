@@ -20,12 +20,14 @@ import {
     Layout,
     X,
     Download,
-    Type
+    Type,
+    Barcode
 } from "lucide-react";
 import { usePriceList } from "./hooks/usePriceList";
 import { Badge } from "@/components/ui/badge";
 import { LocalSearchableSelect } from "./components/LocalSearchableSelect";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 
 export function PriceListPrintablesModule() {
     const {
@@ -45,7 +47,9 @@ export function PriceListPrintablesModule() {
         isGenerating,
         customFilename,
         handleFilenameChange,
-        handleGenerate
+        handleGenerate,
+        showBarcode,
+        setShowBarcode
     } = usePriceList();
 
     // Mapping for SearchableSelect
@@ -148,6 +152,25 @@ export function PriceListPrintablesModule() {
                                 placeholder="Enter custom filename..."
                                 disabled={isLoading || isGenerating}
                                 className="h-14 bg-slate-50/50 border-slate-200 rounded-2xl focus:ring-blue-500/20 px-6 font-bold text-slate-700 transition-all hover:bg-white hover:border-blue-200 shadow-sm"
+                            />
+                        </div>
+                    </div>
+
+                    {/* Options */}
+                    <div className="grid grid-cols-1 gap-8">
+                        <div className="flex flex-row items-center justify-between rounded-2xl border border-slate-200 bg-slate-50/50 p-4 px-6 shadow-sm">
+                            <div className="space-y-0.5">
+                                <Label className="text-sm font-bold text-slate-700 flex items-center gap-2">
+                                    <Barcode size={16} className="text-blue-500" />
+                                    Show Barcode
+                                </Label>
+                                <p className="text-xs text-slate-500 font-medium">Include product barcodes in the printout if available</p>
+                            </div>
+                            <Switch
+                                checked={showBarcode}
+                                onCheckedChange={setShowBarcode}
+                                disabled={isLoading || isGenerating}
+                                className="data-[state=checked]:bg-blue-600"
                             />
                         </div>
                     </div>

@@ -3,9 +3,16 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { DealerInvoiceHeader, DealerInvoiceDetail, SearchProduct, Supplier } from '../types';
-import { dealerInvoiceProvider } from '../providers/fetchProvider';
 import { cn } from '@/lib/utils';
-import { format, parseISO } from 'date-fns';
+import { format, parseISO, isValid } from 'date-fns';
+import { dealerInvoiceProvider } from '../providers/fetchProvider';
+
+const formatSafeDate = (dateStr?: string | null, formatStr: string = 'MM/dd/yyyy') => {
+    if (!dateStr) return '';
+    const cleanStr = dateStr.endsWith("Z") ? dateStr.slice(0, -1) : dateStr;
+    const date = parseISO(cleanStr);
+    return isValid(date) ? format(date, formatStr) : dateStr;
+};
 
 import {
     ChevronLeft,
@@ -15,7 +22,8 @@ import {
     Plus,
     Trash,
     RotateCw,
-    Printer
+    Printer,
+    X
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -26,6 +34,11 @@ import { Separator } from '@/components/ui/separator';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Skeleton } from '@/components/ui/skeleton';
+import {
+    Dialog,
+    DialogContent,
+    DialogTitle,
+} from "@/components/ui/dialog";
 
 import { DealerAddProductModal } from './DealerAddProductModal';
 import { DealerSalesInvoiceEditModal } from './DealerSalesInvoiceEditModal';
@@ -50,6 +63,11 @@ export const DealerSalesInvoiceDetails: React.FC<DealerSalesInvoiceDetailsProps>
     const [mainSupplierId, setMainSupplierId] = useState<number | null>(null);
     const [currentModalSupplierId, setCurrentModalSupplierId] = useState<number | string | null>(null);
     const [deletedDetailIds, setDeletedDetailIds] = useState<number[]>([]);
+
+    const [pdfFileId, setPdfFileId] = useState<string | null>(null);
+    const [pdfWidthMm, setPdfWidthMm] = useState<number | null>(null);
+    const [isReceiptModalOpen, setIsReceiptModalOpen] = useState(false);
+    const [isLoadingPdf, setIsLoadingPdf] = useState(false);
 
     // Helper to handle BIT(1) from DB (can be boolean, number, or Buffer)
     const checkBit = useCallback((val: unknown) => {
@@ -126,6 +144,18 @@ export const DealerSalesInvoiceDetails: React.FC<DealerSalesInvoiceDetailsProps>
             setInitialGross(Number(data.header.gross_amount || 0));
             setInitialDiscount(Number(data.header.discount_amount || 0));
             setInitialNet(Number(data.header.net_amount || data.header.total_amount || 0));
+
+            // Fetch PDF info
+            setIsLoadingPdf(true);
+            try {
+                const pdfRes = await dealerInvoiceProvider.getInvoicePdf(id);
+                setPdfFileId(pdfRes.pdfFileId);
+                setPdfWidthMm(pdfRes.widthMm);
+            } catch (pdfErr) {
+                console.error("Failed to fetch invoice PDF:", pdfErr);
+            } finally {
+                setIsLoadingPdf(false);
+            }
         } catch (error) {
             console.error("Failed to fetch dealer invoice details:", error);
         } finally {
@@ -133,6 +163,28 @@ export const DealerSalesInvoiceDetails: React.FC<DealerSalesInvoiceDetailsProps>
             isFirstLoad.current = false;
         }
     }, [id]); // No modification flags in deps = no automatic re-fetch while editing
+
+    const handlePrintReceipt = useCallback(async () => {
+        if (!pdfFileId) return;
+        try {
+            const url = `/api/crm/site-sales-management/dealer-sales-invoice?type=asset&id=${pdfFileId}`;
+            const response = await fetch(url);
+            if (!response.ok) throw new Error("Failed to fetch PDF asset");
+            const blob = await response.blob();
+            const blobUrl = window.URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.href = blobUrl;
+            link.download = `${header?.invoice_no?.toLowerCase() || "invoice"}.pdf`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            window.URL.revokeObjectURL(blobUrl);
+            toast.success("Receipt downloaded successfully");
+        } catch (error) {
+            console.error("Print receipt error:", error);
+            toast.error("Failed to download receipt");
+        }
+    }, [pdfFileId, header?.invoice_no]);
 
     const handleOpenAddProductModal = useCallback(async () => {
         setIsAddProductModalOpen(true);
@@ -249,6 +301,7 @@ export const DealerSalesInvoiceDetails: React.FC<DealerSalesInvoiceDetailsProps>
     };
 
 
+    /*
     const handleUnDispatch = async () => {
         setIsSaving(true);
         try {
@@ -262,6 +315,7 @@ export const DealerSalesInvoiceDetails: React.FC<DealerSalesInvoiceDetailsProps>
             setIsSaving(false);
         }
     };
+    */
 
     useEffect(() => {
         fetchData();
@@ -338,15 +392,10 @@ export const DealerSalesInvoiceDetails: React.FC<DealerSalesInvoiceDetailsProps>
                             <p className="text-[9px] font-black text-slate-400 uppercase">Date</p>
                             <div className="flex items-center">
                                 <Input
-                                    type="date"
-                                    className="h-6 w-28 p-0 border-none bg-transparent font-bold text-slate-700 dark:text-slate-300 text-[11px] focus-visible:ring-0"
-                                    value={header.invoice_date ? format(parseISO(header.invoice_date), 'yyyy-MM-dd') : ''}
-                                    onChange={(e) => {
-                                        if (header) {
-                                            setHeader({ ...header, invoice_date: e.target.value });
-                                            setIsHeaderModified(true);
-                                        }
-                                    }}
+                                    type="text"
+                                    readOnly
+                                    className="h-6 w-24 p-0 border-none bg-transparent font-bold text-slate-700 dark:text-slate-300 text-[11px] focus-visible:ring-0 cursor-default"
+                                    value={formatSafeDate(header.invoice_date)}
                                 />
                             </div>
                         </div>
@@ -354,15 +403,10 @@ export const DealerSalesInvoiceDetails: React.FC<DealerSalesInvoiceDetailsProps>
                             <p className="text-[9px] font-black text-slate-400 uppercase">Due</p>
                             <div className="flex items-center">
                                 <Input
-                                    type="date"
-                                    className="h-6 w-28 p-0 border-none bg-transparent font-bold text-slate-700 dark:text-slate-300 text-[11px] focus-visible:ring-0"
-                                    value={header.due_date ? format(parseISO(header.due_date), 'yyyy-MM-dd') : ''}
-                                    onChange={(e) => {
-                                        if (header) {
-                                            setHeader({ ...header, due_date: e.target.value });
-                                            setIsHeaderModified(true);
-                                        }
-                                    }}
+                                    type="text"
+                                    readOnly
+                                    className="h-6 w-24 p-0 border-none bg-transparent font-bold text-slate-700 dark:text-slate-300 text-[11px] focus-visible:ring-0 cursor-default"
+                                    value={formatSafeDate(header.due_date)}
                                 />
                             </div>
                         </div>
@@ -618,6 +662,14 @@ export const DealerSalesInvoiceDetails: React.FC<DealerSalesInvoiceDetailsProps>
                                     </div>
 
                                     <div className="pt-2 space-y-3">
+                                        <Button
+                                            onClick={() => setIsReceiptModalOpen(true)}
+                                            variant="outline"
+                                            className="w-full border-indigo-200 dark:border-indigo-800 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/30 rounded-xl px-4 h-12 font-black text-xs uppercase tracking-widest gap-2 shadow-sm transition-all hover:scale-[1.02] active:scale-95 flex items-center justify-center"
+                                        >
+                                            <FileText className="h-4 w-4" />
+                                            View Receipt
+                                        </Button>
                                         {(() => {
                                             const checkBit = (val: unknown) => {
                                                 if (typeof val === 'boolean') return val;
@@ -630,29 +682,11 @@ export const DealerSalesInvoiceDetails: React.FC<DealerSalesInvoiceDetailsProps>
                                             const isDispatched = checkBit(header.isDispatched) || header.transaction_status === 'Dispatched';
 
                                             if (isPosted) {
-                                                return (
-                                                    <div className="px-6 py-3 bg-slate-100 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 text-center">
-                                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">View Only (Posted)</p>
-                                                    </div>
-                                                );
+                                                return null;
                                             }
 
                                             if (isDispatched) {
-                                                return (
-                                                    <div className="space-y-3">
-                                                        <Button
-                                                            disabled={isSaving}
-                                                            onClick={handleUnDispatch}
-                                                            variant="outline"
-                                                            className="w-full border-rose-500 text-rose-500 hover:bg-rose-50 rounded-xl px-8 font-black text-xs uppercase tracking-widest gap-2 shadow-lg shadow-rose-500/5 transition-all hover:scale-[1.02] active:scale-95"
-                                                        >
-                                                            {isSaving && (
-                                                                <div className="h-4 w-4 animate-spin rounded-full border-2 border-rose-500 border-t-transparent" />
-                                                            )}
-                                                            Undispatch
-                                                        </Button>
-                                                    </div>
-                                                );
+                                                return null;
                                             }
 
                                             return (
@@ -723,6 +757,89 @@ export const DealerSalesInvoiceDetails: React.FC<DealerSalesInvoiceDetailsProps>
                     details={details}
                 />
             )}
+
+            {/* View Receipt PDF Modal */}
+            <Dialog open={isReceiptModalOpen} onOpenChange={setIsReceiptModalOpen}>
+                <DialogContent className={cn(
+                    "h-[85vh] flex flex-col p-0 gap-0 overflow-hidden bg-slate-50 border-none shadow-2xl rounded-3xl",
+                    pdfWidthMm && Number(pdfWidthMm) === 80
+                        ? "!w-[min(450px,calc(100vw-1rem))] !max-w-[min(450px,calc(100vw-1rem))]"
+                        : "!w-[min(calc(210mm+3rem),calc(100vw-1rem))] !max-w-[min(calc(210mm+3rem),calc(100vw-1rem))]"
+                )}>
+                    {/* Header */}
+                    <div className="flex items-center justify-between px-6 py-4 bg-white border-b shadow-sm z-10">
+                        <div className="flex items-center gap-3">
+                            <div className="p-2.5 bg-indigo-600 rounded-xl shadow-indigo-100 shadow-lg">
+                                <FileText className="w-5 h-5 text-white" />
+                            </div>
+                            <div>
+                                <DialogTitle className="text-xl font-black tracking-tighter text-slate-900 uppercase">
+                                    View Receipt
+                                </DialogTitle>
+                                <p className="text-xs font-bold text-slate-400 tracking-widest uppercase">
+                                    Invoice #{header.invoice_no}
+                                </p>
+                            </div>
+                        </div>
+                        <Button
+                            variant="outline"
+                            size="icon"
+                            onClick={() => setIsReceiptModalOpen(false)}
+                            className="rounded-xl border-slate-200 hover:bg-slate-50 text-slate-400 hover:text-slate-600 transition-colors"
+                        >
+                            <X className="w-5 h-5" />
+                        </Button>
+                    </div>
+
+                    {/* PDF Viewer / Empty State */}
+                    <div className="flex-1 bg-slate-200/50 p-6 flex justify-center items-center">
+                        {isLoadingPdf ? (
+                            <div className="flex flex-col items-center justify-center p-8 bg-white shadow-xl rounded-2xl border border-slate-200 w-full max-w-md text-center">
+                                <div className="h-8 w-8 animate-spin rounded-full border-4 border-indigo-600 border-t-transparent mb-4" />
+                                <h3 className="text-lg font-black text-slate-900 tracking-tight uppercase">Loading PDF Info</h3>
+                            </div>
+                        ) : pdfFileId ? (
+                            <div className="w-full h-full bg-white shadow-2xl rounded-2xl overflow-hidden border border-slate-200">
+                                <iframe
+                                    src={`/api/crm/site-sales-management/dealer-sales-invoice?type=asset&id=${pdfFileId}#toolbar=0&navpanes=0&scrollbar=0`}
+                                    className="w-full h-full border-none"
+                                    title="View Receipt PDF"
+                                />
+                            </div>
+                        ) : (
+                            <div className="flex flex-col items-center justify-center p-8 bg-white shadow-xl rounded-2xl border border-slate-200 w-full max-w-md text-center">
+                                <div className="p-4 bg-rose-50 rounded-full text-rose-500 mb-4">
+                                    <FileText className="w-8 h-8" />
+                                </div>
+                                <h3 className="text-lg font-black text-slate-900 tracking-tight uppercase">No Receipt PDF Available</h3>
+                                <p className="text-xs font-medium text-slate-500 mt-2">
+                                    This invoice does not have an archived PDF receipt file yet. Please print it to generate the archive.
+                                </p>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Footer */}
+                    <div className="px-6 py-4 bg-white border-t flex items-center justify-end gap-2 shadow-[0_-4px_20px_rgba(0,0,0,0.03)]">
+                        {pdfFileId && (
+                            <Button
+                                onClick={handlePrintReceipt}
+                                className="rounded-2xl h-11 px-6 bg-indigo-600 hover:bg-indigo-700 text-white font-black tracking-tighter active:scale-95 transition-all flex items-center gap-2"
+                            >
+                                <Printer className="w-4 h-4" />
+                                PRINT
+                            </Button>
+                        )}
+                        <Button
+                            onClick={() => setIsReceiptModalOpen(false)}
+                            variant="outline"
+                            className="rounded-2xl h-11 px-6 border-slate-200 text-slate-600 hover:bg-slate-50 font-black tracking-tighter active:scale-95 transition-all"
+                        >
+                            CLOSE
+                        </Button>
+                    </div>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 };
