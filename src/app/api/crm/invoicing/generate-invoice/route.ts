@@ -199,6 +199,9 @@ export async function POST(req: NextRequest) {
                 }
             }
 
+            let expectedOrderUpdatesCount = 0;
+            let expectedConsolidatorUpdatesCount = 0;
+
             // Iterate through each receipt generated
             for (const receipt of receipts) {
                 const existingItemsMap = new Map<number, SalesInvoiceDetailRow>();
@@ -318,6 +321,15 @@ export async function POST(req: NextRequest) {
                     }
                 }
                 
+                const isRecycledInvoice = targetId && !isVoidReplacement;
+
+                if (!isVoidReplacement) {
+                    expectedConsolidatorUpdatesCount += receipt.items.length;
+                }
+                if (!isRecycledInvoice) {
+                    expectedOrderUpdatesCount += receipt.items.length;
+                }
+
                 if (!targetInvoiceId) {
                     // ── Create new invoice (Normal or VOID Replacement) ──
                     invoicePayload.created_by = createdBy;
@@ -348,29 +360,31 @@ export async function POST(req: NextRequest) {
 
                 // 3. Process items for this receipt
                 for (const item of receipt.items) {
-                    // 3a. Update sales_order_details (served_quantity)
-                    const podRes = await fetch(`${DIRECTUS_BASE}/items/sales_order_details?filter[order_id][_eq]=${order.order_id}&filter[product_id][_eq]=${item.product_id}`, {
-                        headers: directusHeaders()
-                    });
-                    if (!podRes.ok) throw new Error(`Failed to fetch sales order details for product ${item.product_id}`);
-                    const podData = await podRes.json();
-                    if (!podData.data || podData.data.length === 0) {
-                        throw new Error(`Missing sales_order_details row for order ${order.order_id}, product ${item.product_id}`);
+                    if (!isRecycledInvoice) {
+                        // 3a. Update sales_order_details (served_quantity)
+                        const podRes = await fetch(`${DIRECTUS_BASE}/items/sales_order_details?filter[order_id][_eq]=${order.order_id}&filter[product_id][_eq]=${item.product_id}`, {
+                            headers: directusHeaders()
+                        });
+                        if (!podRes.ok) throw new Error(`Failed to fetch sales order details for product ${item.product_id}`);
+                        const podData = await podRes.json();
+                        if (!podData.data || podData.data.length === 0) {
+                            throw new Error(`Missing sales_order_details row for order ${order.order_id}, product ${item.product_id}`);
+                        }
+                        const detailId = podData.data[0].detail_id;
+                        const currentServed = podData.data[0].served_quantity || 0;
+                        const newServedQty = currentServed + item.qty;
+
+                        // Track original served quantity for rollback
+                        updatedSalesOrderDetails.push({ detailId, originalQty: currentServed });
+
+                        const updatePodRes = await fetch(`${DIRECTUS_BASE}/items/sales_order_details/${detailId}`, {
+                            method: 'PATCH',
+                            headers: directusHeaders(),
+                            body: JSON.stringify({ served_quantity: newServedQty })
+                        });
+                        if (!updatePodRes.ok) throw new Error(`Failed to update served quantity for detail ${detailId}: ${await updatePodRes.text()}`);
+                        results.orderDetailsUpdated++;
                     }
-                    const detailId = podData.data[0].detail_id;
-                    const currentServed = podData.data[0].served_quantity || 0;
-                    const newServedQty = currentServed + item.qty;
-
-                    // Track original served quantity for rollback
-                    updatedSalesOrderDetails.push({ detailId, originalQty: currentServed });
-
-                    const updatePodRes = await fetch(`${DIRECTUS_BASE}/items/sales_order_details/${detailId}`, {
-                        method: 'PATCH',
-                        headers: directusHeaders(),
-                        body: JSON.stringify({ served_quantity: newServedQty })
-                    });
-                    if (!updatePodRes.ok) throw new Error(`Failed to update served quantity for detail ${detailId}: ${await updatePodRes.text()}`);
-                    results.orderDetailsUpdated++;
 
                     // 3b. Create sales_invoice_details
                     if (targetInvoiceId) {
@@ -454,34 +468,36 @@ export async function POST(req: NextRequest) {
                     }
                 }
 
-                // 4. Update consolidator_details.applied_quantity (accumulate) — re-enter item loop for consolidator only
-                for (const item of receipt.items) {
-                    if (consolidatorId) {
-                        // Find the consolidator_details record by consolidator_id + product_id
-                        const cdRes = await fetch(
-                            `${DIRECTUS_BASE}/items/consolidator_details?filter[consolidator_id][_eq]=${consolidatorId}&filter[product_id][_eq]=${item.product_id}&limit=1`,
-                            { headers: directusHeaders() }
-                        );
-                        if (!cdRes.ok) throw new Error(`Failed to fetch consolidator details for product ${item.product_id}`);
-                        const cdData = await cdRes.json();
-                        if (!cdData.data || cdData.data.length === 0) {
-                            throw new Error(`Missing consolidator_details row for consolidator ${consolidatorId}, product ${item.product_id}`);
+                // 4. Update consolidator_details.applied_quantity (accumulate) — re-enter item loop for consolidator only - Skip if Void Replacement
+                if (!isVoidReplacement) {
+                    for (const item of receipt.items) {
+                        if (consolidatorId) {
+                            // Find the consolidator_details record by consolidator_id + product_id
+                            const cdRes = await fetch(
+                                `${DIRECTUS_BASE}/items/consolidator_details?filter[consolidator_id][_eq]=${consolidatorId}&filter[product_id][_eq]=${item.product_id}&limit=1`,
+                                { headers: directusHeaders() }
+                            );
+                            if (!cdRes.ok) throw new Error(`Failed to fetch consolidator details for product ${item.product_id}`);
+                            const cdData = await cdRes.json();
+                            if (!cdData.data || cdData.data.length === 0) {
+                                throw new Error(`Missing consolidator_details row for consolidator ${consolidatorId}, product ${item.product_id}`);
+                            }
+
+                            const cdRecord = cdData.data[0];
+                            const currentApplied = cdRecord.applied_quantity || 0;
+                            const newApplied = currentApplied + item.qty;
+
+                            // Track original applied quantity for rollback
+                            updatedConsolidatorDetails.push({ cdRecordId: cdRecord.id, originalQty: currentApplied });
+
+                            const updateCdRes = await fetch(`${DIRECTUS_BASE}/items/consolidator_details/${cdRecord.id}`, {
+                                method: 'PATCH',
+                                headers: directusHeaders(),
+                                body: JSON.stringify({ applied_quantity: newApplied })
+                            });
+                            if (!updateCdRes.ok) throw new Error(`Failed to update consolidator detail ${cdRecord.id}: ${await updateCdRes.text()}`);
+                            results.consolidatorDetailsUpdated++;
                         }
-
-                        const cdRecord = cdData.data[0];
-                        const currentApplied = cdRecord.applied_quantity || 0;
-                        const newApplied = currentApplied + item.qty;
-
-                        // Track original applied quantity for rollback
-                        updatedConsolidatorDetails.push({ cdRecordId: cdRecord.id, originalQty: currentApplied });
-
-                        const updateCdRes = await fetch(`${DIRECTUS_BASE}/items/consolidator_details/${cdRecord.id}`, {
-                            method: 'PATCH',
-                            headers: directusHeaders(),
-                            body: JSON.stringify({ applied_quantity: newApplied })
-                        });
-                        if (!updateCdRes.ok) throw new Error(`Failed to update consolidator detail ${cdRecord.id}: ${await updateCdRes.text()}`);
-                        results.consolidatorDetailsUpdated++;
                     }
                 }
             }
@@ -495,11 +511,11 @@ export async function POST(req: NextRequest) {
             if (results.invoiceDetailsCreated !== expectedItemCount) {
                 throw new Error(`Invoice detail count mismatch. Expected ${expectedItemCount}, wrote ${results.invoiceDetailsCreated}.`);
             }
-            if (results.orderDetailsUpdated !== expectedItemCount) {
-                throw new Error(`Sales order detail update count mismatch. Expected ${expectedItemCount}, updated ${results.orderDetailsUpdated}.`);
+            if (results.orderDetailsUpdated !== expectedOrderUpdatesCount) {
+                throw new Error(`Sales order detail update count mismatch. Expected ${expectedOrderUpdatesCount}, updated ${results.orderDetailsUpdated}.`);
             }
-            if (results.consolidatorDetailsUpdated !== expectedItemCount) {
-                throw new Error(`Consolidator detail update count mismatch. Expected ${expectedItemCount}, updated ${results.consolidatorDetailsUpdated}.`);
+            if (results.consolidatorDetailsUpdated !== expectedConsolidatorUpdatesCount) {
+                throw new Error(`Consolidator detail update count mismatch. Expected ${expectedConsolidatorUpdatesCount}, updated ${results.consolidatorDetailsUpdated}.`);
             }
 
             // ==========================================

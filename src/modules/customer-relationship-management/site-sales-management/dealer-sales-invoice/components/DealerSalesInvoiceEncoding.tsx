@@ -19,7 +19,8 @@ import {
     Trash2,
     Loader2,
     ShoppingCart,
-    Package
+    Package,
+    Printer
 } from "lucide-react";
 import { formatCurrency, calculateChainNetPrice } from "../utils";
 import { SearchProduct, CartItem } from "../types";
@@ -28,12 +29,12 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 interface DealerSalesInvoiceEncodingProps {
     catalogProducts: SearchProduct[];
     isSearching: boolean;
-    
+
     cart: CartItem[];
     addToCart: (product: SearchProduct) => void;
     removeFromCart: (productId: number) => void;
     updateCartQuantity: (productId: number, qty: number) => void;
-    
+
     summary: {
         totalGross: number;
         totalDiscount: number;
@@ -42,10 +43,10 @@ interface DealerSalesInvoiceEncodingProps {
         totalVat?: number;
     };
     isVatApplicable?: boolean;
-    
+
     isHeaderComplete: boolean;
-    onSave: () => void;
-    isSaving?: boolean;
+    /** Opens the Print Preview modal — replaces the old Create Invoice direct-save button */
+    onPrintPreview: () => void;
 
     maxLength?: number;
     isLimitReached?: boolean;
@@ -61,8 +62,7 @@ export function DealerSalesInvoiceEncoding({
     summary,
     isVatApplicable = true,
     isHeaderComplete,
-    onSave,
-    isSaving = false,
+    onPrintPreview,
     maxLength = Infinity,
     isLimitReached = false
 }: DealerSalesInvoiceEncodingProps) {
@@ -382,11 +382,12 @@ export function DealerSalesInvoiceEncoding({
                                     <span className="text-2xl font-black tabular-nums tracking-tighter">{formatCurrency(summary.totalNet)}</span>
                                 </div>
                                 <Button
-                                    disabled={cart.length === 0 || isSaving}
-                                    className="h-16 px-10 rounded-2xl bg-rose-500 text-white font-black text-sm uppercase tracking-widest shadow-2xl shadow-rose-500/30 hover:bg-rose-600 transition-all active:scale-95 disabled:opacity-30 w-full md:w-auto"
-                                    onClick={onSave}
+                                    disabled={cart.length === 0}
+                                    className="h-16 px-10 rounded-2xl bg-indigo-600 text-white font-black text-sm uppercase tracking-widest shadow-2xl shadow-indigo-500/30 hover:bg-indigo-700 transition-all active:scale-95 disabled:opacity-30 w-full md:w-auto flex items-center gap-3"
+                                    onClick={onPrintPreview}
                                 >
-                                    {isSaving ? <Loader2 className="animate-spin h-5 w-5" /> : "Create Invoice"}
+                                    <Printer className="h-5 w-5" />
+                                    Print Preview
                                 </Button>
                             </div>
                         </div>

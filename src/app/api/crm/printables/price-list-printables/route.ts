@@ -68,7 +68,7 @@ export async function GET(req: NextRequest) {
             return NextResponse.json({ error: "SPRING_API_BASE_URL is not configured" }, { status: 500 });
         }
 
-        const url = `${springBaseUrl}/api/product-price-type?salesmanId=${salesmanId}&supplierId=${supplierId}`;
+        const url = `${springBaseUrl}/api/product-pricing?salesmanId=${salesmanId}&supplierId=${supplierId}`;
         
         const cookieStore = await cookies();
         const token = cookieStore.get("vos_access_token")?.value;
