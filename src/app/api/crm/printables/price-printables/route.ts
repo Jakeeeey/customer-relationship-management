@@ -15,9 +15,7 @@ export async function GET(req: NextRequest) {
         const directusUrl = (process.env.NEXT_PUBLIC_API_BASE_URL || "").replace(/\/+$/, "");
         const directusToken = process.env.DIRECTUS_STATIC_TOKEN || "";
         
-        // We use port 8088 for the new endpoint. Ideally this would be a separate env var or we replace the port,
-        // but for now we construct the base URL explicitly using the server IP and port 8088 as requested.
-        const springBaseUrl = "http://100.68.114.32:8088";
+        const springBaseUrl = (process.env.SPRING_API_BASE_URL || "").replace(/\/+$/, "");
 
         const headers = {
             "Content-Type": "application/json",
@@ -89,7 +87,13 @@ export async function GET(req: NextRequest) {
             return NextResponse.json({ error: "salesmanId is required" }, { status: 400 });
         }
 
-        const url = `${springBaseUrl}/api/v2/price-list?salesmanId=${salesmanId}&supplierInput=${encodeURIComponent(supplierInput)}&segmentInput=${encodeURIComponent(segmentInput)}&categoryInput=${encodeURIComponent(categoryInput)}`;
+        const urlObj = new URL(`${springBaseUrl}/api/v2/price-list`);
+        urlObj.searchParams.append("salesmanId", salesmanId);
+        urlObj.searchParams.append("supplier", supplierInput);
+        urlObj.searchParams.append("segment", segmentInput);
+        urlObj.searchParams.append("category", categoryInput);
+
+        const url = urlObj.toString();
         
         const cookieStore = await cookies();
         const token = cookieStore.get("vos_access_token")?.value;
