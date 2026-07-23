@@ -326,7 +326,7 @@ export async function POST(req: NextRequest) {
                 if (!isVoidReplacement) {
                     expectedConsolidatorUpdatesCount += receipt.items.length;
                 }
-                if (!isRecycledInvoice) {
+                if (!isRecycledInvoice && !isVoidReplacement) {
                     expectedOrderUpdatesCount += receipt.items.length;
                 }
 
@@ -360,7 +360,7 @@ export async function POST(req: NextRequest) {
 
                 // 3. Process items for this receipt
                 for (const item of receipt.items) {
-                    if (!isRecycledInvoice) {
+                    if (!isRecycledInvoice && !isVoidReplacement) {
                         // 3a. Update sales_order_details (served_quantity)
                         const podRes = await fetch(`${DIRECTUS_BASE}/items/sales_order_details?filter[order_id][_eq]=${order.order_id}&filter[product_id][_eq]=${item.product_id}`, {
                             headers: directusHeaders()
