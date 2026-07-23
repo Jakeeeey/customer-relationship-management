@@ -41,7 +41,7 @@ export const useInventoryReport = () => {
 
     // 1. Group data based on product (Only re-runs when raw data changes)
     const groupedData = useMemo(() => {
-        const groupedMap = new Map<string, GroupedInventoryItem & { targetUnitCount?: number }>();
+        const groupedMap = new Map<string, GroupedInventoryItem>();
 
         for (let i = 0; i < data.length; i++) {
             const item = data[i];
@@ -115,9 +115,23 @@ export const useInventoryReport = () => {
 
         // Apply Stock Status Filter
         if (stockFilter === "positive") {
-            filtered = filtered.filter(item => item.piece > 0);
+            filtered = filtered.reduce((acc, item) => {
+                const positiveUnits = item.units.filter(u => u.runningInventory > 0);
+                if (positiveUnits.length > 0) {
+                    const newPiece = positiveUnits.reduce((sum, u) => sum + (u.runningInventory * (u.unitCount || 1)), 0);
+                    acc.push({ ...item, units: positiveUnits, piece: newPiece, box: newPiece / (item.targetUnitCount || 1) });
+                }
+                return acc;
+            }, [] as typeof filtered);
         } else if (stockFilter === "negative") {
-            filtered = filtered.filter(item => item.piece < 0);
+            filtered = filtered.reduce((acc, item) => {
+                const negativeUnits = item.units.filter(u => u.runningInventory < 0);
+                if (negativeUnits.length > 0) {
+                    const newPiece = negativeUnits.reduce((sum, u) => sum + (u.runningInventory * (u.unitCount || 1)), 0);
+                    acc.push({ ...item, units: negativeUnits, piece: newPiece, box: newPiece / (item.targetUnitCount || 1) });
+                }
+                return acc;
+            }, [] as typeof filtered);
         }
 
         // Apply Search Filter

@@ -33,4 +33,5 @@ export interface GroupedInventoryItem {
     box: number;
     piece: number;
     price: number;
+    targetUnitCount?: number;
 }
