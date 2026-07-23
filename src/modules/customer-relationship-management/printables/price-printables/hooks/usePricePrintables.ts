@@ -17,7 +17,7 @@ export function usePricePrintables() {
     // Selection state
     const [selectedSalesmanId, setSelectedSalesmanId] = useState<string>("");
     const [selectedSupplierInput, setSelectedSupplierInput] = useState<string>("All");
-    const [selectedSegmentName, setSelectedSegmentName] = useState<string>("All");
+    const [selectedSegmentInput, setSelectedSegmentInput] = useState<string>("All");
     const [selectedCategoryId, setSelectedCategoryId] = useState<string>("All");
     const [selectedTemplateName, setSelectedTemplateName] = useState<string>("");
     
@@ -95,7 +95,7 @@ export function usePricePrintables() {
             const data = await fetchProvider.getPriceList(
                 Number(selectedSalesmanId), 
                 selectedSupplierInput,
-                selectedSegmentName,
+                selectedSegmentInput,
                 selectedCategoryId === "All" ? "All" : Number(selectedCategoryId)
             );
             
@@ -106,6 +106,7 @@ export function usePricePrintables() {
 
             const salesman = salesmen.find(s => s.id === Number(selectedSalesmanId));
             const supplier = selectedSupplierInput !== "All" ? suppliers.find(s => String(s.id) === selectedSupplierInput) : null;
+            const segment = selectedSegmentInput !== "All" ? segments.find(s => String(s.id) === selectedSegmentInput) : null;
             const category = selectedCategoryId !== "All" ? categories.find(c => c.id === Number(selectedCategoryId)) : null;
 
             const doc = await generatePricePrintablesPDF({
@@ -114,7 +115,7 @@ export function usePricePrintables() {
                 salesmanName: salesman?.salesman_name || "",
                 salesmanCode: salesman?.salesman_code || "",
                 supplierName: supplier?.supplier_name || "All",
-                segmentName: selectedSegmentName,
+                segmentName: segment?.segment_name || "All",
                 categoryName: category?.category_name || "All",
                 showBarcode
             });
@@ -162,8 +163,8 @@ export function usePricePrintables() {
         setSelectedSalesmanId,
         selectedSupplierInput,
         setSelectedSupplierInput,
-        selectedSegmentName,
-        setSelectedSegmentName,
+        selectedSegmentInput,
+        setSelectedSegmentInput,
         selectedCategoryId,
         setSelectedCategoryId,
         selectedTemplateName,
