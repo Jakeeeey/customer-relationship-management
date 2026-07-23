@@ -55,7 +55,7 @@ export async function GET() {
     // 2. Fetch only the sales invoices that are linked in the requests
     const invoiceIds = Array.from(new Set(rawReports.map((r) => Number(r.invoice_id)).filter(Boolean)));
     const invoiceMap = new Map<number, DirectusInvoice>();
-    let customerCodes: string[] = [];
+    const customerCodes: string[] = [];
 
     if (invoiceIds.length > 0) {
       const invoiceRes = await fetch(`${DIRECTUS_BASE}/items/sales_invoice?filter[invoice_id][_in]=${invoiceIds.join(",")}&fields=invoice_id,invoice_no,total_amount,customer_code&limit=1000`, {
