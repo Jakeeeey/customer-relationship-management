@@ -42,8 +42,8 @@ export function PricePrintablesModule() {
         setSelectedSalesmanId,
         selectedSupplierInput,
         setSelectedSupplierInput,
-        selectedSegmentName,
-        setSelectedSegmentName,
+        selectedSegmentInput,
+        setSelectedSegmentInput,
         selectedCategoryId,
         setSelectedCategoryId,
         selectedTemplateName,
@@ -77,7 +77,7 @@ export function PricePrintablesModule() {
     const segmentOptions = [
         { value: "All", label: "All" },
         ...segments.map(s => ({
-            value: s.segment_name,
+            value: String(s.id),
             label: s.segment_name
         }))
     ];
@@ -159,8 +159,8 @@ export function PricePrintablesModule() {
                             </Label>
                             <LocalSearchableSelect
                                 options={segmentOptions}
-                                value={selectedSegmentName}
-                                onValueChange={setSelectedSegmentName}
+                                value={selectedSegmentInput}
+                                onValueChange={setSelectedSegmentInput}
                                 placeholder={isLoading ? "Loading segments..." : "Select Segment"}
                                 disabled={isLoading || isGenerating}
                                 className="h-14 bg-slate-50/50 border-slate-200 rounded-2xl focus:ring-blue-500/20 px-6 font-bold text-slate-700 transition-all hover:bg-white hover:border-blue-200 shadow-sm"

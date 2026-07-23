@@ -1,10 +1,5 @@
-import React from "react";
-import { EmployeeStockPurchaseModule, EmployeeStockPurchaseProvider } from "@/modules/customer-relationship-management/employee-stock-purchase";
+import { redirect } from "next/navigation";
 
-export default function EmployeeStockPurchasePage() {
-    return (
-        <EmployeeStockPurchaseProvider>
-            <EmployeeStockPurchaseModule />
-        </EmployeeStockPurchaseProvider>
-    );
+export default function EmployeeStockPurchaseIndexPage() {
+    redirect("/crm/employee-stock-purchase/creation");
 }

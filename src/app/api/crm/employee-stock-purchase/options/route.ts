@@ -39,8 +39,8 @@ export async function GET(req: NextRequest) {
             
             const params = new URLSearchParams();
             params.append("limit", "-1");
-            params.append("filter[is_employee][_eq]", "1");
             params.append("filter[is_deleted][_neq]", "1");
+            params.append("filter[isDeleted][_neq]", "1");
             params.append("filter[is_blocked][_neq]", "1");
             
             const companyHeaders = { Authorization: `Bearer ${company.directus_token}` };
