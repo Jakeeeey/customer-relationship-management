@@ -94,7 +94,7 @@ export async function GET(
                 const pdpNo = linkedPdpData.data?.[0]?.post_dispatch_plan_id?.doc_no || "N/A";
 
                 // Get Consolidation No
-                const linkedConsolidatorRes = await fetch(`${DIRECTUS_BASE}/items/consolidator_dispatches?filter[dispatch_no][_eq]=${dispatchNo}&fields=consolidator_id.consolidator_no`, {
+                const linkedConsolidatorRes = await fetch(`${DIRECTUS_BASE}/items/consolidator_dispatches?filter[dispatch_no][_eq]=${dispatchNo}&fields=consolidator_id.consolidator_no&sort=-id&limit=1`, {
                     headers: directusHeaders()
                 });
                 if (!linkedConsolidatorRes.ok) throw new Error(`Consolidator fetch failed (${linkedConsolidatorRes.status})`);
