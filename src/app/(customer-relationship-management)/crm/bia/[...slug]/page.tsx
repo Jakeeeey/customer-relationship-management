@@ -1,23 +1,19 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React from "react";
 import { useParams } from "next/navigation";
 
 export default function BiaModuleWrapper() {
     const params = useParams();
     const slugArray = params.slug as string[];
-    const [iframeUrl, setIframeUrl] = useState<string>("");
-
-    useEffect(() => {
-        // Build the target route string from the slug array
-        const routePath = slugArray ? slugArray.join("/") : "";
-        
-        // Use an environment variable for the BIA URL, falling back to localhost:3001
-        // Usually, if CRM runs on 3000, the next app (BIA) will default to 3001
-        const baseUrl = process.env.NEXT_PUBLIC_BIA_URL || "http://localhost:3001";
-        
-        setIframeUrl(`${baseUrl}/bia/${routePath}`);
-    }, [slugArray]);
+    
+    // Build the target route string from the slug array
+    const routePath = slugArray ? slugArray.join("/") : "";
+    
+    // Use an environment variable for the BIA URL, falling back to localhost:3001
+    // Usually, if CRM runs on 3000, the next app (BIA) will default to 3001
+    const baseUrl = process.env.NEXT_PUBLIC_BIA_URL || "http://localhost:3001";
+    const iframeUrl = `${baseUrl}/bia/${routePath}`;
 
     return (
         <div className="flex flex-col h-[calc(100vh-64px)] w-full overflow-hidden bg-background">

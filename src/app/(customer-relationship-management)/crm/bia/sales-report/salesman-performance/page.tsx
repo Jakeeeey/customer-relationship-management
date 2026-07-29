@@ -85,7 +85,7 @@ export default async function Page() {
         const moduleFile = "SalesmanPerformanceModule";
         const mod = await import(`${moduleBase}/${moduleFile}`);
         DynamicModule = mod.default || mod.SalesmanPerformanceModule;
-    } catch (err) {
+    } catch {
         // Fallback gracefully if the module is missing
         DynamicModule = null;
     }
