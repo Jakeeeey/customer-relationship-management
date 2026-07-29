@@ -13,6 +13,19 @@ const fetchHeaders = {
     "Content-Type": "application/json",
 };
 
+function decodeJwt(token: string): Record<string, unknown> | null {
+    try {
+        const parts = token.split(".");
+        if (parts.length < 2) return null;
+        let s = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+        while (s.length % 4) s += "=";
+        const json = Buffer.from(s, "base64").toString("utf8");
+        return JSON.parse(json);
+    } catch {
+        return null;
+    }
+}
+
 interface RawDetailRow {
     detail_id?: number | string;
     order_detail_id?: number | string;
@@ -608,6 +621,20 @@ export async function POST(req: NextRequest) {
         } else if (action === "hold") {
             status = "On Hold";
             updateObj.on_hold_at = now;
+
+            try {
+                const cookieStore = await cookies();
+                const token = cookieStore.get(COOKIE_NAME)?.value;
+                if (token) {
+                    const jwtPayload = decodeJwt(token);
+                    const rawUserId = jwtPayload?.id || jwtPayload?.user_id || jwtPayload?.sub;
+                    if (rawUserId !== undefined && rawUserId !== null) {
+                        updateObj.on_hold_by = (typeof rawUserId === "number" || typeof rawUserId === "string") ? rawUserId : String(rawUserId);
+                    }
+                }
+            } catch (err) {
+                console.error("Failed to extract session user for on_hold_by:", err);
+            }
         } else if (action === "cancel") {
             status = "Cancelled";
             updateObj.isCancelled = true;
