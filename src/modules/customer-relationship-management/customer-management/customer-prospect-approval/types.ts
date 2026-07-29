@@ -64,6 +64,7 @@ export interface CustomerProspect {
     otherDetails?: string | null;
     classification?: number | null;
     location?: unknown | null;
+    percentage?: number | null;
     prospect_status: 'Pending' | 'Approved' | 'Rejected';
     // Joined data
     salesman_name?: string;
