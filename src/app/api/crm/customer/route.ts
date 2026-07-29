@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { cookies } from "next/headers";
 import { fetchWithRetry } from "@/modules/customer-relationship-management/customer-management/customer/fetch-with-retry";
 
 // ============================================================================
@@ -61,6 +62,30 @@ function parseGeometry(locationStr?: string | null) {
     return null; // Return null if format is invalid to prevent DB crash
 }
 
+function decodeUserIdFromJwt(token: string): number | null {
+	try {
+		const parts = token.split(".");
+		if (parts.length < 2) return null;
+
+		const payloadPart = parts[1];
+		const pad = "=".repeat((4 - (payloadPart.length % 4)) % 4);
+		const b64 = (payloadPart + pad).replace(/-/g, "+").replace(/_/g, "/");
+		const jsonStr = Buffer.from(b64, "base64").toString("utf8");
+		const payload = JSON.parse(jsonStr);
+		const userId = Number(payload.sub);
+		return Number.isFinite(userId) ? userId : null;
+	} catch {
+		return null;
+	}
+}
+
+async function getCurrentUserId(): Promise<number | null> {
+	const cookieStore = await cookies();
+	const token = cookieStore.get("vos_access_token")?.value;
+	if (!token) return null;
+	return decodeUserIdFromJwt(token);
+}
+
 // ============================================================================
 // GET - List All Customers & Related Data
 // ============================================================================
@@ -109,7 +134,46 @@ export async function GET(req: NextRequest) {
         params.append("offset", offset.toString());
         params.append("meta", "*");
 
-        if (searchQuery) params.append("search", searchQuery);
+        if (searchQuery) {
+            let matchingCustomerIds: number[] = [];
+
+            try {
+                // 1. Search Salesman by Name or Code
+                const salesmanUrl = `${DIRECTUS_URL}/items/${COLLECTIONS.SALESMAN}?search=${encodeURIComponent(searchQuery)}&fields=id`;
+                const salesmanRes = await fetchWithRetry(salesmanUrl, {
+                    headers: token ? { Authorization: `Bearer ${token}` } : {}
+                });
+                
+                if (salesmanRes.ok) {
+                    const salesmanJson = await salesmanRes.json();
+                    const salesmanIds = (salesmanJson.data || []).map((s: { id: number }) => s.id);
+                    
+                    if (salesmanIds.length > 0) {
+                        // 2. Find Customer IDs linked to these salesmen
+                        const csUrl = `${DIRECTUS_URL}/items/${COLLECTIONS.CUSTOMER_SALESMEN}?filter[salesman_id][_in]=${salesmanIds.join(',')}&fields=customer_id`;
+                        const csRes = await fetchWithRetry(csUrl, {
+                            headers: token ? { Authorization: `Bearer ${token}` } : {}
+                        });
+                        
+                        if (csRes.ok) {
+                            const csJson = await csRes.json();
+                            matchingCustomerIds = (csJson.data || []).map((cs: { customer_id: number }) => cs.customer_id);
+                        }
+                    }
+                }
+            } catch (err) {
+                console.error("Error fetching relational search data:", err);
+            }
+
+            if (matchingCustomerIds.length > 0) {
+                params.append("filter[_or][0][customer_name][_icontains]", searchQuery);
+                params.append("filter[_or][1][store_name][_icontains]", searchQuery);
+                params.append("filter[_or][2][customer_code][_icontains]", searchQuery);
+                params.append("filter[_or][3][id][_in]", matchingCustomerIds.join(","));
+            } else {
+                params.append("search", searchQuery);
+            }
+        }
 
         if (statusFilter !== "all") {
             const isActive = statusFilter === "active" ? 1 : 0;
@@ -117,6 +181,17 @@ export async function GET(req: NextRequest) {
         }
         if (storeTypeFilter !== "all") params.append("filter[store_type][_eq]", storeTypeFilter);
         if (classificationFilter !== "all") params.append("filter[classification][_eq]", classificationFilter);
+        
+        // 🚀 Filter for customers with no group
+        const noGroup = searchParams.get("noGroup") === "true";
+        if (noGroup) {
+            params.append("filter[customer_group_id][_null]", "true");
+        }
+
+        const groupId = searchParams.get("groupId");
+        if (groupId) {
+            params.append("filter[customer_group_id][_eq]", groupId);
+        }
 
         const customersUrl = `${DIRECTUS_URL}/items/${COLLECTIONS.CUSTOMER}?${params.toString()}`;
         const customersRes = await fetchWithRetry(customersUrl, {
@@ -126,14 +201,33 @@ export async function GET(req: NextRequest) {
 
         if (!customersRes.ok) throw new Error(`Directus error fetching customers: ${customersRes.statusText}`);
         const customersJson = await customersRes.json();
+        const currentCustomers = customersJson.data || [];
+        const customerIds = currentCustomers.map((c: { id: number }) => c.id);
 
-        const [bankAccounts, customerSalesmen, salesmen] = await Promise.all([
-            fetchAll<Record<string, unknown>>(COLLECTIONS.BANK_ACCOUNTS),
-            fetchAll<Record<string, unknown>>(COLLECTIONS.CUSTOMER_SALESMEN),
-            fetchAll<Record<string, unknown>>(COLLECTIONS.SALESMAN)
-        ]);
+        let bankAccounts: Record<string, unknown>[] = [];
+        let customerSalesmen: Record<string, unknown>[] = [];
+        let salesmen: Record<string, unknown>[] = [];
 
-        const enrichedCustomers = (customersJson.data || []).map((customer: Record<string, unknown>) => {
+        if (customerIds.length > 0) {
+            const idList = customerIds.join(",");
+            const [bankRes, csRes, sRes] = await Promise.all([
+                fetchWithRetry(`${DIRECTUS_URL}/items/${COLLECTIONS.BANK_ACCOUNTS}?filter[customer_id][_in]=${idList}&limit=1000`, {
+                    cache: "no-store",
+                    headers: token ? { Authorization: `Bearer ${token}` } : {}
+                }),
+                fetchWithRetry(`${DIRECTUS_URL}/items/${COLLECTIONS.CUSTOMER_SALESMEN}?filter[customer_id][_in]=${idList}&limit=1000`, {
+                    cache: "no-store",
+                    headers: token ? { Authorization: `Bearer ${token}` } : {}
+                }),
+                fetchAll<Record<string, unknown>>(COLLECTIONS.SALESMAN)
+            ]);
+
+            if (bankRes.ok) bankAccounts = (await bankRes.json()).data || [];
+            if (csRes.ok) customerSalesmen = (await csRes.json()).data || [];
+            if (sRes) salesmen = sRes;
+        }
+
+        const enrichedCustomers = currentCustomers.map((customer: Record<string, unknown>) => {
             const myBanks = bankAccounts.filter((acc: Record<string, unknown>) => String(acc.customer_id) === String(customer.id));
 
             const mySalesmenLinks = customerSalesmen.filter((cs: Record<string, unknown>) => String(cs.customer_id) === String(customer.id));
@@ -195,9 +289,64 @@ export async function POST(req: NextRequest) {
 
     try {
         const body = await req.json();
+        const userId = await getCurrentUserId();
 
-        const newCustomerData = { ...body };
+        const newCustomerData = { 
+            ...body, 
+            encoder_id: userId || null,
+            created_by: userId || null,
+            updated_by: userId || null
+        };
         delete newCustomerData.bank_accounts;
+        if (newCustomerData.customer_email === undefined || newCustomerData.customer_email === null || String(newCustomerData.customer_email).trim() === "") {
+            newCustomerData.customer_email = null;
+        }
+
+        if (!newCustomerData.otherDetails || newCustomerData.otherDetails.trim() === "") {
+            delete newCustomerData.otherDetails;
+        }
+
+        // Clean relation fields to avoid foreign key violations (coerce falsy/0 values to null)
+        const relationFields = [
+            "store_type",
+            "classification",
+            "price_type_id",
+            "discount_type",
+            "customer_group_id",
+            "user_id",
+            "payment_term"
+        ];
+        relationFields.forEach(field => {
+            if (field in newCustomerData) {
+                const val = newCustomerData[field];
+                if (val === "" || val === 0 || val === "0" || val === null || val === undefined) {
+                    newCustomerData[field] = null;
+                } else {
+                    const parsed = Number(val);
+                    if (!isNaN(parsed)) {
+                        newCustomerData[field] = parsed;
+                    }
+                }
+            }
+        });
+
+        // 🚀 CRITICAL FIX: Handle Geometry formatting on Creation
+        if (newCustomerData.location !== undefined) {
+            const geoJson = parseGeometry(newCustomerData.location);
+            if (geoJson) {
+                newCustomerData.location = geoJson;
+                // Also set separate lat/long fields if they exist in schema
+                const coords = body.location.split(',').map((c: string) => parseFloat(c.trim()));
+                if (coords.length === 2) {
+                    newCustomerData.latitude = coords[0];
+                    newCustomerData.longitude = coords[1];
+                }
+            } else {
+                newCustomerData.location = null; // Send null to clear or omit empty geometry
+                newCustomerData.latitude = null;
+                newCustomerData.longitude = null;
+            }
+        }
 
         const createRes = await fetchWithRetry(`${DIRECTUS_URL}/items/${COLLECTIONS.CUSTOMER}`, {
             method: "POST",
@@ -262,13 +411,53 @@ export async function PATCH(req: NextRequest) {
             delete updateData.customer_code;
         }
 
+        if (updateData.customer_email !== undefined && updateData.customer_email.trim() === "") {
+            updateData.customer_email = null;
+        }
+
+        if (updateData.otherDetails !== undefined && (updateData.otherDetails === null || updateData.otherDetails.trim() === "")) {
+            updateData.otherDetails = null;
+        }
+
+        // Clean relation fields to avoid foreign key violations (coerce falsy/0 values to null)
+        const relationFields = [
+            "store_type",
+            "classification",
+            "price_type_id",
+            "discount_type",
+            "customer_group_id",
+            "user_id",
+            "payment_term"
+        ];
+        relationFields.forEach(field => {
+            if (field in updateData) {
+                const val = updateData[field];
+                if (val === "" || val === 0 || val === "0" || val === null || val === undefined) {
+                    updateData[field] = null;
+                } else {
+                    const parsed = Number(val);
+                    if (!isNaN(parsed)) {
+                        updateData[field] = parsed;
+                    }
+                }
+            }
+        });
+
         // 🚀 CRITICAL FIX: Handle Geometry formatting on Updates
         if (updateData.location !== undefined) {
             const geoJson = parseGeometry(updateData.location);
             if (geoJson) {
                 updateData.location = geoJson;
+                // Also set separate lat/long fields if they exist in schema
+                const coords = body.location.split(',').map((c: string) => parseFloat(c.trim()));
+                if (coords.length === 2) {
+                    updateData.latitude = coords[0];
+                    updateData.longitude = coords[1];
+                }
             } else {
                 updateData.location = null; // Clears the database location if user deletes it
+                updateData.latitude = null;
+                updateData.longitude = null;
             }
         }
 

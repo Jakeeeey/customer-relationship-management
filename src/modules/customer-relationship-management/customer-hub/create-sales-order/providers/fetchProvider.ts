@@ -51,8 +51,56 @@ export const salesOrderProvider = {
         if (salesmanId) url += `&salesman_id=${salesmanId}`;
         if (branchId) url += `&branch_id=${branchId}`;
 
+        const cacheKey = `crm_products_${url}`;
+        const cachedStr = typeof window !== "undefined" ? localStorage.getItem(cacheKey) : null;
+
+        if (cachedStr) {
+            try {
+                const cachedData = JSON.parse(cachedStr);
+                const now = new Date().getTime();
+                if (cachedData.expiry && now < cachedData.expiry) {
+                    console.log("[fetchProvider] Using 30-min cached products for", url);
+                    return cachedData.data;
+                } else {
+                    localStorage.removeItem(cacheKey); // Remove expired
+                }
+            } catch (e) {
+                console.warn("[fetchProvider] Failed to parse product cache", e);
+                localStorage.removeItem(cacheKey);
+            }
+        }
+
         const res = await fetch(url);
-        return res.json();
+        const data = await res.json();
+
+        // Save to cache for 30 minutes (30 * 60 * 1000 = 1800000 ms)
+        try {
+            if (typeof window !== "undefined") {
+                const expiry = new Date().getTime() + 1800000;
+                localStorage.setItem(cacheKey, JSON.stringify({ expiry, data }));
+
+                // Optional: Cleanup old expired cache to prevent bloat
+                Object.keys(localStorage).forEach((key) => {
+                    if (key.startsWith("crm_products_")) {
+                        try {
+                            const item = localStorage.getItem(key);
+                            if (item) {
+                                const parsed = JSON.parse(item);
+                                if (parsed.expiry && new Date().getTime() > parsed.expiry) {
+                                    localStorage.removeItem(key);
+                                }
+                            }
+                        } catch {
+                            localStorage.removeItem(key);
+                        }
+                    }
+                });
+            }
+        } catch {
+            console.warn("[fetchProvider] Failed to set product cache");
+        }
+
+        return data;
     },
 
     // Pag-save ng bagong Sales Order sa database

@@ -22,12 +22,26 @@ interface DealerInvoiceStore {
     reset: () => void;
 }
 
+const getLocalDateStr = (d: Date) => {
+    const offset = d.getTimezoneOffset();
+    const localDate = new Date(d.getTime() - (offset * 60 * 1000));
+    return localDate.toISOString().split('T')[0];
+};
+
+const getTodayStr = () => getLocalDateStr(new Date());
+
+const getThirtyDaysAgoStr = () => {
+    const d = new Date();
+    d.setDate(d.getDate() - 30);
+    return getLocalDateStr(d);
+};
+
 export const useDealerInvoiceStore = create<DealerInvoiceStore>((set) => ({
     search: "",
     customer: "all",
     salesman: "all",
-    dateFrom: "",
-    dateTo: "",
+    dateFrom: getThirtyDaysAgoStr(),
+    dateTo: getTodayStr(),
     isDispatched: false,
     isPaid: false,
     
@@ -43,8 +57,8 @@ export const useDealerInvoiceStore = create<DealerInvoiceStore>((set) => ({
         search: "",
         customer: "all",
         salesman: "all",
-        dateFrom: "",
-        dateTo: "",
+        dateFrom: getThirtyDaysAgoStr(),
+        dateTo: getTodayStr(),
         isDispatched: false,
         isPaid: false,
     })

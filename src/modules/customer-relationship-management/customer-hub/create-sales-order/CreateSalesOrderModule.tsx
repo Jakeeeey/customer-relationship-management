@@ -23,6 +23,7 @@ export default function CreateSalesOrderModule({ documentViewerUrl }: { document
         poNo, setPoNo,
         priceTypeId, priceTypeModels,
         supplierProducts, loadingProducts,
+        productSearch, setProductSearch,
         lineItems, addProduct, removeLineItem, updateLineItemQty,
         summary,
         isCheckout, setIsCheckout, orderNo, previewOrderNo, enterCheckout, allocatedQuantities, updateAllocatedQty,
@@ -171,6 +172,8 @@ export default function CreateSalesOrderModule({ documentViewerUrl }: { document
                         <SalesOrderEncoding
                             products={supplierProducts}
                             loadingProducts={loadingProducts}
+                            productSearch={productSearch}
+                            setProductSearch={setProductSearch}
                             lineItems={lineItems}
                             addProduct={addProduct}
                             removeLineItem={removeLineItem}

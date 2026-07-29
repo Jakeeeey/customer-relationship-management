@@ -56,7 +56,26 @@ export async function GET(
         }
 
         const maxLength = order.receipt_type?.max_length || 15;
-        const paymentName = order.payment_terms?.payment_name || "N/A";
+        
+        let paymentName = "N/A";
+        const ptValue = order.payment_terms;
+        if (ptValue) {
+            if (typeof ptValue === "object" && ptValue !== null) {
+                paymentName = (ptValue as { payment_name?: string }).payment_name || "N/A";
+            } else {
+                try {
+                    const ptRes = await fetch(`${DIRECTUS_BASE}/items/payment_terms/${ptValue}?fields=payment_name`, {
+                        headers: directusHeaders()
+                    });
+                    if (ptRes.ok) {
+                        const ptData = await ptRes.json();
+                        paymentName = ptData.data?.payment_name || "N/A";
+                    }
+                } catch (e) {
+                    console.error("Failed to fetch payment terms detail:", e);
+                }
+            }
+        }
         const customerCode = order.customer_code;
 
         // 1.1 Fetch Customer Details
@@ -82,19 +101,20 @@ export async function GET(
         const productIds = Array.from(new Set(items.map((it: { product_id: unknown }) => normalizeId(it.product_id)).filter(Boolean)));
         console.log(`[Conversion API] Unique Product IDs to lookup:`, productIds);
 
-        const productMap: Record<string, { name: string; unit: string }> = {};
+        const productMap: Record<string, { name: string; unit: string; barcode: string }> = {};
 
         if (productIds.length > 0) {
             // Fetch product_name and unit_shortcut
-            const prodUrl = `${DIRECTUS_BASE}/items/products?filter[product_id][_in]=${productIds.join(",")}&fields=product_id,product_name,unit_of_measurement.unit_shortcut`;
+            const prodUrl = `${DIRECTUS_BASE}/items/products?filter[product_id][_in]=${productIds.join(",")}&fields=product_id,product_name,barcode,unit_of_measurement.unit_shortcut`;
             const prodRes = await fetch(prodUrl, { headers: directusHeaders() });
             const prodData = await prodRes.json();
             
-            (prodData.data || []).forEach((p: { product_id: number; product_name: string; unit_of_measurement?: { unit_shortcut: string } }) => {
+            (prodData.data || []).forEach((p: { product_id: number; product_name: string; barcode?: string; unit_of_measurement?: { unit_shortcut: string } }) => {
                 if (p.product_id) {
                     productMap[String(p.product_id)] = {
                         name: p.product_name,
-                        unit: p.unit_of_measurement?.unit_shortcut || "PCS"
+                        unit: p.unit_of_measurement?.unit_shortcut || "PCS",
+                        barcode: p.barcode || ""
                     };
                 }
             });
@@ -113,7 +133,7 @@ export async function GET(
         let consolidatorId = null;
 
         if (dispatchNo) {
-            const lcRes = await fetch(`${DIRECTUS_BASE}/items/consolidator_dispatches?filter[dispatch_no][_eq]=${dispatchNo}&fields=consolidator_id.id,consolidator_id.consolidator_no`, {
+            const lcRes = await fetch(`${DIRECTUS_BASE}/items/consolidator_dispatches?filter[dispatch_no][_eq]=${dispatchNo}&fields=consolidator_id.id,consolidator_id.consolidator_no&sort=-id&limit=1`, {
                 headers: directusHeaders()
             });
             const lcData = await lcRes.json();
@@ -149,7 +169,7 @@ export async function GET(
             const pid = normalizeId(sod.product_id);
             const pidStr = pid ? String(pid) : "";
             
-            const pInfo = productMap[pidStr] || { name: "N/A", unit: "PCS" };
+            const pInfo = productMap[pidStr] || { name: "N/A", unit: "PCS", barcode: "" };
             const pname = pInfo.name;
             const ushortcut = pInfo.unit;
             const cd = conDetailsMap[pidStr] || {};
@@ -175,11 +195,12 @@ export async function GET(
                 discount_type: sod.discount_type,
                 discount_amount: sod.discount_amount,
                 net_amount: sod.net_amount,
-                unit_shortcut: ushortcut
+                unit_shortcut: ushortcut,
+                barcode: pInfo.barcode
             };
         });
 
-        const dtRes = await fetch(`${DIRECTUS_BASE}/items/discount_type?fields=*`, { headers: directusHeaders() });
+        const dtRes = await fetch(`${DIRECTUS_BASE}/items/discount_type?limit=-1&fields=*`, { headers: directusHeaders() });
         const dtData = await dtRes.json();
 
         return NextResponse.json({

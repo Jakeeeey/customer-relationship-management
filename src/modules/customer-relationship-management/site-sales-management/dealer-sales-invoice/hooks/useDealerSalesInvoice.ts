@@ -69,6 +69,7 @@ interface UseDealerSalesInvoiceReturn {
         customerCode?: string | null
     }) => Promise<SearchProduct[]>;
     createInvoice: (payload: Record<string, unknown>) => Promise<{ success: boolean; invoiceId: number }>;
+    checkOrderIdExists: (orderId: string) => Promise<boolean>;
 }
 
 export const useDealerSalesInvoice = (): UseDealerSalesInvoiceReturn => {
@@ -233,6 +234,15 @@ export const useDealerSalesInvoice = (): UseDealerSalesInvoiceReturn => {
         }
     }, []);
 
+    const checkOrderIdExists = useCallback(async (orderId: string) => {
+        try {
+            return await dealerInvoiceProvider.checkOrderIdExists(orderId);
+        } catch (err) {
+            console.error("Check order id error:", err);
+            throw err;
+        }
+    }, []);
+
     return {
         worklist,
         salesmen,
@@ -251,6 +261,7 @@ export const useDealerSalesInvoice = (): UseDealerSalesInvoiceReturn => {
         getSalesmanByCustomer,
         getAccounts,
         searchProducts,
-        createInvoice
+        createInvoice,
+        checkOrderIdExists
     };
 };
