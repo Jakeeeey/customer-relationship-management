@@ -357,6 +357,7 @@ export function CustomerProspectTable({
                             <TableHead className="w-[250px] text-xs font-bold uppercase tracking-wider">Prospect Details</TableHead>
                             <TableHead className="w-[200px] text-xs font-bold uppercase tracking-wider">Store Info</TableHead>
                             <TableHead className="w-[180px] text-xs font-bold uppercase tracking-wider">Location</TableHead>
+                            <TableHead className="w-[120px] text-xs font-bold uppercase tracking-wider text-center">Probability</TableHead>
                             <TableHead className="w-[150px] text-xs font-bold uppercase tracking-wider">Salesman</TableHead>
                             <TableHead className="w-[120px] text-xs font-bold uppercase tracking-wider text-center">Status</TableHead>
                             <TableHead className="w-[140px] text-right text-xs font-bold uppercase tracking-wider">Actions</TableHead>
@@ -370,13 +371,15 @@ export function CustomerProspectTable({
                                     <TableCell><Skeleton className="h-12 w-full rounded-md" /></TableCell>
                                     <TableCell><Skeleton className="h-12 w-full rounded-md" /></TableCell>
                                     <TableCell><Skeleton className="h-12 w-full rounded-md" /></TableCell>
+                                    <TableCell><Skeleton className="h-8 w-16 mx-auto rounded-md" /></TableCell>
+                                    <TableCell><Skeleton className="h-12 w-full rounded-md" /></TableCell>
                                     <TableCell><Skeleton className="h-8 w-20 rounded-full mx-auto" /></TableCell>
                                     <TableCell><Skeleton className="h-8 w-24 rounded-md ml-auto" /></TableCell>
                                 </TableRow>
                             ))
                         ) : data.length === 0 ? (
                             <TableRow>
-                                <TableCell colSpan={6} className="h-32 text-center text-muted-foreground">
+                                <TableCell colSpan={7} className="h-32 text-center text-muted-foreground">
                                     No prospects found for this filter.
                                 </TableCell>
                             </TableRow>
@@ -420,6 +423,13 @@ export function CustomerProspectTable({
                                             </span>
                                             <span className="text-[10px] text-muted-foreground ml-5">
                                                 {prospect.province}
+                                            </span>
+                                        </div>
+                                    </TableCell>
+                                    <TableCell className="text-center">
+                                        <div className="flex flex-col items-center">
+                                            <span className="text-sm font-semibold text-primary">
+                                                {prospect.percentage != null ? `${prospect.percentage}%` : "-"}
                                             </span>
                                         </div>
                                     </TableCell>
@@ -588,6 +598,22 @@ export function CustomerProspectTable({
                                                 </span>
                                             </div>
                                         )}
+                                        <div className="flex flex-col">
+                                            <Label className="text-[10px] font-bold text-muted-foreground uppercase mb-1">Probability (%)</Label>
+                                            {isEditing ? (
+                                                <Input 
+                                                    type="number"
+                                                    value={editForm.percentage || ""} 
+                                                    onChange={(e) => setEditForm({...editForm, percentage: e.target.value ? parseFloat(e.target.value) : null})}
+                                                    className="h-8 text-sm"
+                                                    min="0"
+                                                    max="100"
+                                                    step="0.01"
+                                                />
+                                            ) : (
+                                                <span className="font-semibold">{selectedProspect.percentage != null ? `${selectedProspect.percentage}%` : "None"}</span>
+                                            )}
+                                        </div>
                                         <div className="flex flex-col col-span-2 pt-2 border-t mt-1 border-dashed">
                                             <span className="text-[10px] font-bold text-muted-foreground uppercase">Current Status</span>
                                             <div className="flex items-center gap-2 mt-1.5">
