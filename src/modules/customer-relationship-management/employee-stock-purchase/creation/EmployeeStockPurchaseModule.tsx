@@ -1,9 +1,10 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { Plus, Search, PackageOpen } from "lucide-react";
+import { Plus, Search, PackageOpen, Activity, CreditCard } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import { useEmployeeStockPurchaseContext } from "./providers/EmployeeStockPurchaseProvider";
 import { EmployeeStockPurchaseFormModal } from "./components/EmployeeStockPurchaseFormModal";
 import { EmployeeStockPurchaseFormValues, EmployeeStockPurchase } from "./types";
@@ -11,24 +12,76 @@ import { EmployeeStockPurchaseFormValues, EmployeeStockPurchase } from "./types"
 export function EmployeeStockPurchaseModule() {
     const { data, metadata, isLoading, fetchPurchases, createPurchase } = useEmployeeStockPurchaseContext();
     const [searchQuery, setSearchQuery] = useState("");
+    const [companyFilterId, setCompanyFilterId] = useState<string>("");
+    const [employeeFilterName, setEmployeeFilterName] = useState<string>("");
+    const [dateFilter, setDateFilter] = useState("");
+
+    const [companies, setCompanies] = useState<{ value: string; label: string }[]>([]);
+    const [users, setUsers] = useState<{ value: string; label: string }[]>([]);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [currentPage, setCurrentPage] = useState(1);
     const pageSize = 10;
 
+    // Fetch companies for the filter
     useEffect(() => {
-        fetchPurchases(currentPage, pageSize, searchQuery);
+        const fetchCompanies = async () => {
+            try {
+                const res = await fetch("/api/crm/employee-stock-purchase/options?type=companies");
+                if (res.ok) {
+                    const data = await res.json();
+                    setCompanies(data.map((c: { company_id: string | number; company_name: string }) => ({ value: c.company_id.toString(), label: c.company_name })));
+                }
+            } catch (error) {
+                console.error(error);
+            }
+        };
+        fetchCompanies();
+    }, []);
+
+    // Fetch users for the filter when company changes
+    useEffect(() => {
+        const fetchUsers = async () => {
+            if (!companyFilterId || companyFilterId === "all") {
+                setUsers([]);
+                setEmployeeFilterName("");
+                return;
+            }
+            try {
+                const res = await fetch(`/api/crm/employee-stock-purchase/options?type=users&companyId=${companyFilterId}`);
+                if (res.ok) {
+                    const data = await res.json();
+                    setUsers(data.map((u: { user_fname: string; user_lname: string }) => ({
+                        value: `${u.user_fname} ${u.user_lname}`,
+                        label: `${u.user_fname} ${u.user_lname}`
+                    })));
+                }
+            } catch (error) {
+                console.error(error);
+            }
+        };
+        fetchUsers();
+    }, [companyFilterId]);
+
+    const companyFilterName = companies.find(c => c.value === companyFilterId)?.label || "";
+
+    useEffect(() => {
+        fetchPurchases(currentPage, pageSize, searchQuery, companyFilterName, employeeFilterName, dateFilter);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [fetchPurchases, currentPage]);
 
     const handleSearch = (e: React.FormEvent) => {
         e.preventDefault();
         setCurrentPage(1);
-        fetchPurchases(1, pageSize, searchQuery);
+        fetchPurchases(1, pageSize, searchQuery, companyFilterName, employeeFilterName, dateFilter);
     };
 
     const handleCreate = async (values: EmployeeStockPurchaseFormValues) => {
         return await createPurchase(values);
     };
+
+    const totalPurchases = metadata?.total_count || 0;
+    const pageTotalAmount = data.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+    const pendingCount = data.filter(item => item.status === "PENDING").length;
 
     return (
         <div className="flex-1 flex flex-col h-full bg-background/50">
@@ -49,15 +102,43 @@ export function EmployeeStockPurchaseModule() {
                     </p>
                 </div>
                 
-                <div className="relative w-full sm:w-auto flex items-center gap-4">
-                    <form onSubmit={handleSearch} className="relative flex-1 sm:w-[300px]">
-                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <div className="relative w-full flex flex-wrap lg:flex-nowrap items-center gap-4 mt-4 sm:mt-0">
+                    <form onSubmit={handleSearch} className="relative flex flex-1 items-center gap-3 w-full">
+                        <div className="relative flex-1 min-w-[200px]">
+                            <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                            <Input 
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                placeholder="Search..." 
+                                className="h-12 w-full pl-11 pr-4 bg-muted/40 border-border/40 rounded-2xl focus-visible:ring-blue-500/20 text-sm font-bold shadow-sm transition-all placeholder:text-muted-foreground/50"
+                            />
+                        </div>
+                        <div className="w-[180px] shrink-0">
+                            <SearchableSelect
+                                options={companies}
+                                value={companyFilterId}
+                                onValueChange={(val) => setCompanyFilterId(val)}
+                                placeholder="Company..."
+                                className="h-12 bg-muted/40 border-border/40 rounded-2xl focus-visible:ring-blue-500/20 text-sm font-bold shadow-sm w-full"
+                            />
+                        </div>
+                        <div className="w-[180px] shrink-0">
+                            <SearchableSelect
+                                options={users}
+                                value={employeeFilterName}
+                                onValueChange={(val) => setEmployeeFilterName(val === "all" ? "" : val)}
+                                placeholder="Employee..."
+                                className="h-12 bg-muted/40 border-border/40 rounded-2xl focus-visible:ring-blue-500/20 text-sm font-bold shadow-sm w-full"
+                                disabled={!companyFilterId || companyFilterId === "all"}
+                            />
+                        </div>
                         <Input 
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            placeholder="Search purchases..." 
-                            className="h-12 w-full pl-11 pr-4 bg-muted/40 border-border/40 rounded-2xl focus-visible:ring-blue-500/20 text-sm font-bold shadow-sm transition-all placeholder:text-muted-foreground/50"
+                            type="date"
+                            value={dateFilter}
+                            onChange={(e) => setDateFilter(e.target.value)}
+                            className="h-12 w-36 bg-muted/40 border-border/40 rounded-2xl focus-visible:ring-blue-500/20 text-sm font-bold shadow-sm"
                         />
+                        <Button type="submit" className="h-12 rounded-2xl px-6 font-bold">Filter</Button>
                     </form>
                     <Button 
                         onClick={() => setIsModalOpen(true)}
@@ -66,6 +147,37 @@ export function EmployeeStockPurchaseModule() {
                         <Plus className="h-4 w-4 mr-2" />
                         New Purchase
                     </Button>
+                </div>
+            </div>
+
+            {/* Dashboard Cards Section */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 px-8 pt-8">
+                <div className="bg-background rounded-3xl border border-border/40 p-6 shadow-sm flex items-center gap-4 hover:shadow-md transition-shadow">
+                    <div className="h-12 w-12 rounded-2xl bg-blue-100 flex items-center justify-center text-blue-600 shrink-0">
+                        <PackageOpen className="h-6 w-6" />
+                    </div>
+                    <div>
+                        <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Total Purchases</p>
+                        <h3 className="text-2xl font-black">{totalPurchases}</h3>
+                    </div>
+                </div>
+                <div className="bg-background rounded-3xl border border-border/40 p-6 shadow-sm flex items-center gap-4 hover:shadow-md transition-shadow">
+                    <div className="h-12 w-12 rounded-2xl bg-orange-100 flex items-center justify-center text-orange-600 shrink-0">
+                        <Activity className="h-6 w-6" />
+                    </div>
+                    <div>
+                        <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Pending (This Page)</p>
+                        <h3 className="text-2xl font-black">{pendingCount}</h3>
+                    </div>
+                </div>
+                <div className="bg-background rounded-3xl border border-border/40 p-6 shadow-sm flex items-center gap-4 hover:shadow-md transition-shadow">
+                    <div className="h-12 w-12 rounded-2xl bg-green-100 flex items-center justify-center text-green-600 shrink-0">
+                        <CreditCard className="h-6 w-6" />
+                    </div>
+                    <div>
+                        <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Amount (This Page)</p>
+                        <h3 className="text-2xl font-black">₱{pageTotalAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</h3>
+                    </div>
                 </div>
             </div>
 

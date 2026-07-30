@@ -34,8 +34,11 @@ export async function GET(req: NextRequest) {
         const page = parseInt(searchParams.get("page") || "1");
         const pageSize = parseInt(searchParams.get("pageSize") || "10");
         const searchQuery = searchParams.get("q") || "";
+        const company = searchParams.get("company") || "";
+        const employee = searchParams.get("employee") || "";
+        const date = searchParams.get("date") || "";
 
-        const result = await fetchAllEmployeeStockPurchases(page, pageSize, searchQuery);
+        const result = await fetchAllEmployeeStockPurchases(page, pageSize, searchQuery, company, employee, date);
         
         return NextResponse.json({
             purchases: result.data,
