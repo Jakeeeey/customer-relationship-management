@@ -16,7 +16,10 @@ const getToken = () => {
 export async function fetchAllEmployeeStockPurchases(
     page: number = 1,
     pageSize: number = 10,
-    searchQuery: string = ""
+    searchQuery: string = "",
+    company: string = "",
+    employee: string = "",
+    date: string = ""
 ): Promise<{ data: EmployeeStockPurchase[]; meta: Record<string, unknown> }> {
     const token = getToken();
     const offset = (page - 1) * pageSize;
@@ -31,6 +34,16 @@ export async function fetchAllEmployeeStockPurchases(
         params.append("filter[_or][0][employee_name][_icontains]", searchQuery);
         params.append("filter[_or][1][company_name][_icontains]", searchQuery);
         params.append("filter[_or][2][manual_invoice_no][_icontains]", searchQuery);
+    }
+    
+    if (company) {
+        params.append("filter[company_name][_icontains]", company);
+    }
+    if (employee) {
+        params.append("filter[employee_name][_icontains]", employee);
+    }
+    if (date) {
+        params.append("filter[created_at][_starts_with]", date);
     }
     
     const url = `${DIRECTUS_URL}/items/${COLLECTIONS.EMPLOYEE_STOCK_PURCHASE}?${params.toString()}`;
