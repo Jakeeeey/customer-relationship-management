@@ -25,6 +25,7 @@ export async function fetchAllEmployeeStockPurchases(
     params.append("limit", pageSize.toString());
     params.append("offset", offset.toString());
     params.append("meta", "*");
+    params.append("sort", "-purchase_id");
     
     if (searchQuery) {
         params.append("filter[_or][0][employee_name][_icontains]", searchQuery);

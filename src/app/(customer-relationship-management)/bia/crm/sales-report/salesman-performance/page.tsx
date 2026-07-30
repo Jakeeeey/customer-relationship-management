@@ -9,9 +9,13 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { NavUser } from "@/components/shared/app-sidebar/nav-user";
-import { PremiumNotFound } from "@/components/shared/PremiumNotFound";
+import dynamicImport from "next/dynamic";
 
 import { cookies } from "next/headers";
+
+const SalesmanPerformanceModule = dynamicImport(
+    () => import("@/modules/business-intelligence-analytics/crm/sales-report/salesman-performance/SalesmanPerformanceModule")
+);
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -77,18 +81,7 @@ export default async function Page() {
 
     const headerUser = buildHeaderUserFromToken(token);
 
-    let DynamicModule: React.ComponentType | null = null;
-    try {
-        // Build the path dynamically to bypass aggressive build-time static resolution in Turbopack
-        // when the module is not locally present. When merged into the monorepo, it will resolve successfully.
-        const moduleBase = "@/modules/business-intelligence-analytics/crm/sales-report/salesman-performance";
-        const moduleFile = "SalesmanPerformanceModule";
-        const mod = await import(`${moduleBase}/${moduleFile}`);
-        DynamicModule = mod.default || mod.SalesmanPerformanceModule;
-    } catch {
-        // Fallback gracefully if the module is missing
-        DynamicModule = null;
-    }
+
 
     return (
         // ✅ This fills the RIGHT column provided by SidebarInset (which is now fixed-height).
@@ -131,7 +124,7 @@ export default async function Page() {
 
             {/* ✅ Only content scrolls inside RIGHT column */}
             <main className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden p-2 sm:p-4">
-                {DynamicModule ? <DynamicModule /> : <PremiumNotFound />}
+                <SalesmanPerformanceModule />
             </main>
         </div>
     );
