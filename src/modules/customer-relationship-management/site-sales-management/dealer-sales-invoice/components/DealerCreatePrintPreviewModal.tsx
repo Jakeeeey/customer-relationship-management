@@ -32,10 +32,11 @@ import { mapDealerInvoiceToReceiptData } from '../utils/mapping';
 import { generateDealerPrintPDF } from '../utils/dealerPrintPDF';
 import { DealerPrintService } from '../services/DealerPrintService';
 import { dealerInvoiceProvider } from '../providers/fetchProvider';
-import { calculateChainNetPrice } from '../utils';
+import { calculateChainNetPrice, getPHTDate } from '../utils';
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { DealerTemplateDesigner } from "./DealerTemplateDesigner";
+
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Props
@@ -254,7 +255,7 @@ export const DealerCreatePrintPreviewModal: React.FC<DealerCreatePrintPreviewMod
     const handlePrintAndSave = async () => {
         setIsSaving(true);
         try {
-            const now = new Date();
+            const now = getPHTDate(new Date());
             const priceTypeName = priceTypes.find(p => p.price_type_id.toString() === selectedPriceType)?.price_type_name ?? '';
 
             // Build the same payload as the old handleSave in NewRecordPage
