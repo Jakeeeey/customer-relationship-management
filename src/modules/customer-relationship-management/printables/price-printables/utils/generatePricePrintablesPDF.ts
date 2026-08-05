@@ -12,6 +12,7 @@ interface GenerateParams {
     segmentName: string;
     categoryName: string;
     showBarcode?: boolean;
+    isSerializedLayout?: boolean;
 }
 
 export async function generatePricePrintablesPDF({
@@ -22,7 +23,8 @@ export async function generatePricePrintablesPDF({
     supplierName,
     segmentName,
     categoryName,
-    showBarcode = false
+    showBarcode = false,
+    isSerializedLayout = false
 }: GenerateParams): Promise<jsPDF> {
     // 1. Fetch Company Data
     let companyData = null;
@@ -101,13 +103,14 @@ export async function generatePricePrintablesPDF({
         doc.setFontSize(8);
         doc.setTextColor(0, 0, 0);
 
-        // Left side: Salesman, Salesman Code, Supplier, Segment, Category
-        doc.text(`Salesman: ${salesmanName} (${salesmanCode})`, margins.left, metaY);
-        doc.text(`Supplier: ${supplierName}`, margins.left, metaY + 4);
+        // Left side: Supplier, Salesman, Salesman Code
+        doc.text(`Supplier: ${supplierName}`, margins.left, metaY);
+        doc.text(`Salesman: ${salesmanName}`, margins.left, metaY + 4);
+        doc.text(`Salesman Code: ${salesmanCode}`, margins.left, metaY + 8);
         
         // Right side: Category, Segment, and Date
-        doc.text(`Category: ${categoryName}`, pageWidth - margins.right - 60, metaY);
-        doc.text(`Segment: ${segmentName}`, pageWidth - margins.right - 60, metaY + 4);
+        doc.text(`Category: ${categoryName}`, pageWidth - margins.right, metaY, { align: 'right' });
+        doc.text(`Segment: ${segmentName}`, pageWidth - margins.right, metaY + 4, { align: 'right' });
         
         const now = new Date();
         const formattedDate = now.toLocaleString('en-US', {
@@ -123,10 +126,18 @@ export async function generatePricePrintablesPDF({
         interface GroupedItem {
             categoryCode: string;
             productName: string;
+            brand: string;
             pckg: number;
             casePrice: number | null;
             bagPrice: number | null;
             piecePrice: number | null;
+            emptyPrice: number | null;
+            depositPrice: number | null;
+            pcsPrice: number | null;
+            fullPrice: number | null;
+            outrightPrice: number | null;
+            refillPrice: number | null;
+            swapPrice: number | null;
             barcode: string;
         }
 
@@ -138,104 +149,182 @@ export async function generatePricePrintablesPDF({
                 groupedItemsMap.set(key, {
                     categoryCode: item.categoryCode,
                     productName: item.productName,
+                    brand: item.brand || "",
                     pckg: item.pckg || 1,
                     casePrice: null,
                     bagPrice: null,
                     piecePrice: null,
+                    emptyPrice: null,
+                    depositPrice: null,
+                    pcsPrice: null,
+                    fullPrice: null,
+                    outrightPrice: null,
+                    refillPrice: null,
+                    swapPrice: null,
                     barcode: item.barcode || item.barcodeNo || "",
                 });
             }
 
             const grouped = groupedItemsMap.get(key)!;
-            const unit = (item.unit || "").toLowerCase();
 
-            if (unit === 'box' || unit === 'case' || unit === 'cases') {
-                grouped.casePrice = item.price;
-            } else if (unit === 'piece' || unit === 'pcs' || unit === 'pieces' || unit === 'pc') {
-                grouped.piecePrice = item.price;
+            if (isSerializedLayout) {
+                const unit = (item.unit || "").toLowerCase();
+                if (unit === 'empty') {
+                    grouped.emptyPrice = item.price;
+                } else if (unit === 'deposit') {
+                    grouped.depositPrice = item.price;
+                } else if (unit === 'piece' || unit === 'pcs' || unit === 'pieces' || unit === 'pc') {
+                    grouped.pcsPrice = item.price;
+                } else if (unit === 'full') {
+                    grouped.fullPrice = item.price;
+                } else if (unit === 'outright') {
+                    grouped.outrightPrice = item.price;
+                } else if (unit === 'refill') {
+                    grouped.refillPrice = item.price;
+                } else if (unit === 'swap') {
+                    grouped.swapPrice = item.price;
+                }
             } else {
-                grouped.bagPrice = item.price;
+                const unitOrder = item.unitOrder;
+                if (unitOrder === 3) {
+                    grouped.casePrice = item.price;
+                } else if (unitOrder === 1) {
+                    grouped.piecePrice = item.price;
+                } else if (unitOrder === 2) {
+                    grouped.bagPrice = item.price;
+                } else {
+                    const unit = (item.unit || "").toLowerCase();
+                    if (unit === 'box' || unit === 'boxes' || unit === 'case' || unit === 'cases') {
+                        grouped.casePrice = item.price;
+                    } else if (unit === 'piece' || unit === 'pcs' || unit === 'pieces' || unit === 'pc') {
+                        grouped.piecePrice = item.price;
+                    } else {
+                        grouped.bagPrice = item.price;
+                    }
+                }
             }
         });
 
         const groupedItems = Array.from(groupedItemsMap.values());
+
+        const formatCurrency = (val: number | null) => {
+            if (val === null || val === undefined) return "-";
+            return val.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        };
 
         const tableBody = groupedItems.map(item => {
             const isFirstInGroup = item.categoryCode !== lastCategory;
             lastCategory = item.categoryCode;
             const catName = categoryMap.get(item.categoryCode) || item.categoryCode;
 
-            const formatCurrency = (val: number | null) => {
-                if (val === null || val === undefined) return "-";
-                return val.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-            };
-
             const row = [];
             
-            if (showBarcode) {
-                row.push(item.barcode || ""); // the barcode string
+            if (isSerializedLayout) {
+                // Serialized Columns: Brand, Category, Product Name, EMPTY, DEPOSIT, PCS, FULL, OUTRIGHT, REFILL, SWAP
+                row.push(
+                    item.brand,
+                    isFirstInGroup ? catName : "",
+                    item.productName,
+                    formatCurrency(item.emptyPrice),
+                    formatCurrency(item.depositPrice),
+                    formatCurrency(item.pcsPrice),
+                    formatCurrency(item.fullPrice),
+                    formatCurrency(item.outrightPrice),
+                    formatCurrency(item.refillPrice),
+                    formatCurrency(item.swapPrice)
+                );
+            } else {
+                // Standard Columns
+                if (showBarcode) {
+                    row.push(item.barcode || "");
+                }
+
+                row.push(
+                    isFirstInGroup ? catName : "",
+                    item.productName,
+                    item.pckg,
+                    formatCurrency(item.casePrice),
+                    formatCurrency(item.bagPrice),
+                    formatCurrency(item.piecePrice)
+                );
             }
-
-            row.push(
-                isFirstInGroup ? catName : "", // Only show for first in group
-                item.productName,
-            );
-
-            row.push(
-                item.pckg,
-                formatCurrency(item.casePrice),
-                formatCurrency(item.bagPrice),
-                formatCurrency(item.piecePrice)
-            );
 
             return row;
         });
 
         // --- SECTION: AUTO-TABLE WITH COMPLEX HEADERS ---
         const head1: Record<string, unknown>[] = [];
-        
-        if (showBarcode) {
-            head1.push({ content: 'BARCODE', rowSpan: 2, styles: { valign: 'middle', halign: 'center' } });
-        }
-
-        head1.push(
-            { content: 'CATEGORY', rowSpan: 2, styles: { valign: 'middle' } },
-            { content: 'PRODUCT DESCRIPTION', rowSpan: 2, styles: { valign: 'middle', halign: 'center' } },
-        );
-
-        head1.push(
-            { content: 'PCKG', rowSpan: 2, styles: { valign: 'middle' } },
-            { content: 'PRICE', colSpan: 3, styles: { halign: 'center' } }
-        );
-
-        const head2 = [
-            { content: 'Cases', styles: { halign: 'center' as const } },
-            { content: 'Bag', styles: { halign: 'center' as const } },
-            { content: 'Piece', styles: { halign: 'center' as const } }
-        ];
-
+        let head2: Record<string, unknown>[] = [];
         const colStyles: Record<number, Record<string, unknown>> = {};
-        
-        if (showBarcode) {
-            colStyles[0] = { cellWidth: 18, halign: 'center', fontSize: 7 }; // Barcode
-            colStyles[1] = { cellWidth: 35, fontSize: 6 }; // Category
-            colStyles[2] = { fontSize: 7 };                 // Description
-            colStyles[3] = { cellWidth: 15, halign: 'center', fontSize: 7 }; // PCKG
-            colStyles[4] = { cellWidth: 20, halign: 'right', fontSize: 7 };  // Case
-            colStyles[5] = { cellWidth: 20, halign: 'right', fontSize: 7 };  // Bag
-            colStyles[6] = { cellWidth: 20, halign: 'right', fontSize: 7 };  // Piece
+
+        if (isSerializedLayout) {
+            const dealerLabel = items[0]?.priceType ? `${items[0].priceType} - Dealer` : "A - Dealer";
+            head1.push(
+                { content: 'Brand', rowSpan: 2, styles: { valign: 'middle' } },
+                { content: 'Category', rowSpan: 2, styles: { valign: 'middle' } },
+                { content: 'Product Name', rowSpan: 2, styles: { valign: 'middle', halign: 'center' } },
+                { content: dealerLabel, colSpan: 7, styles: { halign: 'center' } }
+            );
+
+            head2 = [
+                { content: 'EMPTY', styles: { halign: 'center' as const } },
+                { content: 'DEPOSIT', styles: { halign: 'center' as const } },
+                { content: 'PCS', styles: { halign: 'center' as const } },
+                { content: 'FULL', styles: { halign: 'center' as const } },
+                { content: 'OUTRIGHT', styles: { halign: 'center' as const } },
+                { content: 'REFILL', styles: { halign: 'center' as const } },
+                { content: 'SWAP', styles: { halign: 'center' as const } }
+            ];
+
+            colStyles[0] = { cellWidth: 25, fontSize: 7 }; // Brand
+            colStyles[1] = { cellWidth: 25, fontSize: 7 }; // Category
+            colStyles[2] = { fontSize: 7 };                 // Product Name
+            colStyles[3] = { cellWidth: 20, halign: 'right', fontSize: 7 }; // EMPTY
+            colStyles[4] = { cellWidth: 20, halign: 'right', fontSize: 7 }; // DEPOSIT
+            colStyles[5] = { cellWidth: 20, halign: 'right', fontSize: 7 }; // PCS
+            colStyles[6] = { cellWidth: 20, halign: 'right', fontSize: 7 }; // FULL
+            colStyles[7] = { cellWidth: 20, halign: 'right', fontSize: 7 }; // OUTRIGHT
+            colStyles[8] = { cellWidth: 20, halign: 'right', fontSize: 7 }; // REFILL
+            colStyles[9] = { cellWidth: 20, halign: 'right', fontSize: 7 }; // SWAP
         } else {
-            colStyles[0] = { cellWidth: 35, fontSize: 6 }; // Category
-            colStyles[1] = { fontSize: 7 };                 // Description
-            colStyles[2] = { cellWidth: 15, halign: 'center', fontSize: 7 }; // PCKG
-            colStyles[3] = { cellWidth: 24, halign: 'right', fontSize: 7 };  // Case
-            colStyles[4] = { cellWidth: 24, halign: 'right', fontSize: 7 };  // Bag
-            colStyles[5] = { cellWidth: 24, halign: 'right', fontSize: 7 };  // Piece
+            if (showBarcode) {
+                head1.push({ content: 'BARCODE', rowSpan: 2, styles: { valign: 'middle', halign: 'center' } });
+            }
+
+            head1.push(
+                { content: 'CATEGORY', rowSpan: 2, styles: { valign: 'middle' } },
+                { content: 'PRODUCT DESCRIPTION', rowSpan: 2, styles: { valign: 'middle', halign: 'center' } },
+                { content: 'PCKG', rowSpan: 2, styles: { valign: 'middle' } },
+                { content: 'PRICE', colSpan: 3, styles: { halign: 'center' } }
+            );
+
+            head2 = [
+                { content: 'Cases', styles: { halign: 'center' as const } },
+                { content: 'Bag', styles: { halign: 'center' as const } },
+                { content: 'Piece', styles: { halign: 'center' as const } }
+            ];
+
+            if (showBarcode) {
+                colStyles[0] = { cellWidth: 18, halign: 'center', fontSize: 7 }; // Barcode
+                colStyles[1] = { cellWidth: 35, fontSize: 6 }; // Category
+                colStyles[2] = { fontSize: 7 };                 // Description
+                colStyles[3] = { cellWidth: 15, halign: 'center', fontSize: 7 }; // PCKG
+                colStyles[4] = { cellWidth: 20, halign: 'right', fontSize: 7 };  // Case
+                colStyles[5] = { cellWidth: 20, halign: 'right', fontSize: 7 };  // Bag
+                colStyles[6] = { cellWidth: 20, halign: 'right', fontSize: 7 };  // Piece
+            } else {
+                colStyles[0] = { cellWidth: 35, fontSize: 6 }; // Category
+                colStyles[1] = { fontSize: 7 };                 // Description
+                colStyles[2] = { cellWidth: 15, halign: 'center', fontSize: 7 }; // PCKG
+                colStyles[3] = { cellWidth: 24, halign: 'right', fontSize: 7 };  // Case
+                colStyles[4] = { cellWidth: 24, halign: 'right', fontSize: 7 };  // Bag
+                colStyles[5] = { cellWidth: 24, halign: 'right', fontSize: 7 };  // Piece
+            }
         }
 
-        const priceColStartIndex = showBarcode ? 4 : 3;
+        const priceColStartIndex = isSerializedLayout ? 3 : (showBarcode ? 4 : 3);
         autoTable(doc, {
-            startY: metaY + 15,
+            startY: metaY + 16,
             margin: { ...margins, top: 10, bottom: 25 }, // Explicit bottom margin for safety
 
             // Nested Headers

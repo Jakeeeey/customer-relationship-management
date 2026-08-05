@@ -10,7 +10,7 @@ export const fetchProvider = {
     },
 
     async getSuppliers(): Promise<Supplier[]> {
-        const res = await fetch(`${BASE_URL}?action=suppliers`);
+        const res = await fetch(`${BASE_URL}?action=suppliers&_t=${Date.now()}`);
         if (!res.ok) throw new Error("Failed to fetch suppliers");
         return await res.json();
     },
@@ -31,7 +31,7 @@ export const fetchProvider = {
         salesmanId: number, 
         supplierInput: string, 
         segmentInput: string, 
-        categoryInput: number | "All"
+        categoryInput: string
     ): Promise<PriceListItem[]> {
         const params = new URLSearchParams({
             salesmanId: String(salesmanId),

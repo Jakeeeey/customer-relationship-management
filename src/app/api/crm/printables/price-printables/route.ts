@@ -35,7 +35,7 @@ export async function GET(req: NextRequest) {
 
         // 2. Handle Suppliers List
         if (action === "suppliers") {
-            const res = await fetch(`${directusUrl}/items/suppliers?filter[supplier_type][_in]=TRADE,Trade&limit=-1&fields=id,supplier_name,supplier_shortcut`, {
+            const res = await fetch(`${directusUrl}/items/suppliers?filter[supplier_type][_in]=TRADE,Trade&limit=-1&fields=id,supplier_name,supplier_shortcut,division_id`, {
                 headers,
                 cache: "no-store"
             });
@@ -87,32 +87,88 @@ export async function GET(req: NextRequest) {
             return NextResponse.json({ error: "salesmanId is required" }, { status: 400 });
         }
 
-        const urlObj = new URL(`${springBaseUrl}/api/v2/price-list`);
-        urlObj.searchParams.append("salesmanId", salesmanId);
-        urlObj.searchParams.append("supplier", supplierInput);
-        urlObj.searchParams.append("segment", segmentInput);
-        urlObj.searchParams.append("category", categoryInput);
+        const suppliers = supplierInput ? supplierInput.split(",") : ["All"];
+        const segments = segmentInput ? segmentInput.split(",") : ["All"];
+        const categories = categoryInput ? categoryInput.split(",") : ["All"];
 
-        const url = urlObj.toString();
-        
         const cookieStore = await cookies();
         const token = cookieStore.get("vos_access_token")?.value;
 
-        const response = await fetch(url, {
-            cache: "no-store",
-            headers: {
-                "Content-Type": "application/json",
-                ...(token ? { "Authorization": `Bearer ${token}` } : {})
-            },
-        });
+        const fetchHeaders = {
+            "Content-Type": "application/json",
+            ...(token ? { "Authorization": `Bearer ${token}` } : {})
+        };
 
-        if (!response.ok) {
-            const errorText = await response.text();
-            return NextResponse.json({ error: "Failed to fetch from Spring Boot", details: errorText }, { status: response.status });
+        const queryPromises = [];
+
+        for (const supp of suppliers) {
+            for (const seg of segments) {
+                for (const cat of categories) {
+                    const urlObj = new URL(`${springBaseUrl}/api/v2/price-list`);
+                    urlObj.searchParams.append("salesmanId", salesmanId);
+                    urlObj.searchParams.append("supplier", supp);
+                    urlObj.searchParams.append("segment", seg);
+                    urlObj.searchParams.append("category", cat);
+                    
+                    const promise = fetch(urlObj.toString(), {
+                        cache: "no-store",
+                        headers: fetchHeaders
+                    }).then(async (res) => {
+                        if (!res.ok) {
+                            const errText = await res.text();
+                            console.error(`Failed fetching combination ${urlObj.toString()}:`, errText);
+                            return [];
+                        }
+                        return res.json();
+                    });
+                    queryPromises.push(promise);
+                }
+            }
         }
 
-        const data = await response.json();
-        return NextResponse.json(data);
+        const results = await Promise.all(queryPromises);
+
+        interface PriceItem {
+            categoryCode: string;
+            productName: string;
+            pckg: number;
+            unit: string;
+            price: number | null;
+            priceType: string;
+            barcode?: string;
+            barcodeNo?: string;
+            unitOrder?: number;
+            brand?: string;
+            is_serialized?: number | boolean | null;
+            isSerialized?: number | boolean | null;
+        }
+
+        const mergedItems: PriceItem[] = [];
+        const seenKeys = new Set<string>();
+
+        results.forEach((list: PriceItem[]) => {
+            if (!Array.isArray(list)) return;
+            list.forEach((item) => {
+                const uniqueKey = `${item.productName}-${item.unit}-${item.price}`;
+                if (!seenKeys.has(uniqueKey)) {
+                    seenKeys.add(uniqueKey);
+                    mergedItems.push(item);
+                } else {
+                    const existingIndex = mergedItems.findIndex(x => `${x.productName}-${x.unit}-${x.price}` === uniqueKey);
+                    if (existingIndex !== -1) {
+                        const existing = mergedItems[existingIndex];
+                        if (!existing.barcode && item.barcode) {
+                            existing.barcode = item.barcode;
+                        }
+                        if (!existing.barcodeNo && item.barcodeNo) {
+                            existing.barcodeNo = item.barcodeNo;
+                        }
+                    }
+                }
+            });
+        });
+
+        return NextResponse.json(mergedItems);
     } catch (err: unknown) {
         return NextResponse.json({ 
             error: "Internal Server Error", 

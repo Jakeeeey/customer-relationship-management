@@ -9,6 +9,7 @@ export interface Supplier {
     id: number;
     supplier_name: string;
     supplier_shortcut?: string;
+    division_id?: number | null;
 }
 
 export interface Category {
@@ -30,6 +31,9 @@ export interface PriceListItem {
     priceType: string;
     barcode?: string;
     barcodeNo?: string;
+    unitOrder?: number;
+    brand?: string;
+    is_serialized?: number | boolean | null;
 }
 
 export interface PricePrintablesState {

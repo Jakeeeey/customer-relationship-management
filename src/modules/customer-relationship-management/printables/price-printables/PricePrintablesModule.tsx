@@ -28,6 +28,7 @@ import {
 import { usePricePrintables } from "./hooks/usePricePrintables";
 import { Badge } from "@/components/ui/badge";
 import { LocalSearchableSelect } from "./components/LocalSearchableSelect";
+import { LocalMultiSearchableSelect } from "./components/LocalMultiSearchableSelect";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 
@@ -66,13 +67,10 @@ export function PricePrintablesModule() {
         label: `${s.salesman_name} (${s.salesman_code})`
     }));
 
-    const supplierOptions = [
-        { value: "All", label: "All" },
-        ...suppliers.map(s => ({
-            value: String(s.id),
-            label: s.supplier_name
-        }))
-    ];
+    const supplierOptions = suppliers.map(s => ({
+        value: String(s.id),
+        label: s.supplier_name
+    }));
 
     const segmentOptions = [
         { value: "All", label: "All" },
@@ -137,13 +135,13 @@ export function PricePrintablesModule() {
                         <div className="space-y-3">
                             <Label className="text-xs font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 flex items-center gap-2">
                                 <Truck size={14} className="text-blue-400" />
-                                Supplier
+                                Suppliers <span className="text-red-500">*</span>
                             </Label>
-                            <LocalSearchableSelect
+                            <LocalMultiSearchableSelect
                                 options={supplierOptions}
                                 value={selectedSupplierInput}
                                 onValueChange={setSelectedSupplierInput}
-                                placeholder={isLoading ? "Loading suppliers..." : "Select Supplier"}
+                                placeholder={isLoading ? "Loading suppliers..." : "Select Suppliers"}
                                 disabled={isLoading || isGenerating}
                                 className="h-14 bg-slate-50/50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-800 rounded-2xl focus:ring-blue-500/20 px-6 font-bold text-slate-700 dark:text-slate-300 transition-all hover:bg-white dark:hover:bg-slate-800 hover:border-blue-200 dark:hover:border-slate-700 shadow-sm"
                             />
@@ -155,13 +153,13 @@ export function PricePrintablesModule() {
                         <div className="space-y-3">
                             <Label className="text-xs font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 flex items-center gap-2">
                                 <Briefcase size={14} className="text-blue-400" />
-                                Segment
+                                Segments <span className="text-red-500">*</span>
                             </Label>
-                            <LocalSearchableSelect
+                            <LocalMultiSearchableSelect
                                 options={segmentOptions}
                                 value={selectedSegmentInput}
                                 onValueChange={setSelectedSegmentInput}
-                                placeholder={isLoading ? "Loading segments..." : "Select Segment"}
+                                placeholder={isLoading ? "Loading segments..." : "Select Segments"}
                                 disabled={isLoading || isGenerating}
                                 className="h-14 bg-slate-50/50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-800 rounded-2xl focus:ring-blue-500/20 px-6 font-bold text-slate-700 dark:text-slate-300 transition-all hover:bg-white dark:hover:bg-slate-800 hover:border-blue-200 dark:hover:border-slate-700 shadow-sm"
                             />
@@ -170,13 +168,13 @@ export function PricePrintablesModule() {
                         <div className="space-y-3">
                             <Label className="text-xs font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 flex items-center gap-2">
                                 <Tags size={14} className="text-blue-400" />
-                                Category
+                                Categories <span className="text-red-500">*</span>
                             </Label>
-                            <LocalSearchableSelect
+                            <LocalMultiSearchableSelect
                                 options={categoryOptions}
                                 value={selectedCategoryId}
                                 onValueChange={setSelectedCategoryId}
-                                placeholder={isLoading ? "Loading categories..." : "Select Category"}
+                                placeholder={isLoading ? "Loading categories..." : "Select Categories"}
                                 disabled={isLoading || isGenerating}
                                 className="h-14 bg-slate-50/50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-800 rounded-2xl focus:ring-blue-500/20 px-6 font-bold text-slate-700 dark:text-slate-300 transition-all hover:bg-white dark:hover:bg-slate-800 hover:border-blue-200 dark:hover:border-slate-700 shadow-sm"
                             />
@@ -251,7 +249,7 @@ export function PricePrintablesModule() {
                 <CardFooter className="p-8 bg-slate-50/50 dark:bg-slate-900/50 border-t border-slate-100/50 dark:border-slate-800/50 flex justify-end">
                     <Button 
                         onClick={() => handleGenerate({ download: false })}
-                        disabled={isGenerating || !selectedSalesmanId || !selectedTemplateName}
+                        disabled={isGenerating || !selectedSalesmanId || !selectedTemplateName || selectedSupplierInput.length === 0 || selectedSegmentInput.length === 0 || selectedCategoryId.length === 0}
                         className="h-14 px-12 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-black text-lg shadow-xl shadow-blue-200 dark:shadow-none transition-all active:scale-95 disabled:bg-slate-200 disabled:shadow-none dark:disabled:bg-slate-800"
                     >
                         {isGenerating ? (

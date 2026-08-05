@@ -16,9 +16,9 @@ export function usePricePrintables() {
     
     // Selection state
     const [selectedSalesmanId, setSelectedSalesmanId] = useState<string>("");
-    const [selectedSupplierInput, setSelectedSupplierInput] = useState<string>("All");
-    const [selectedSegmentInput, setSelectedSegmentInput] = useState<string>("All");
-    const [selectedCategoryId, setSelectedCategoryId] = useState<string>("All");
+    const [selectedSupplierInput, setSelectedSupplierInput] = useState<string[]>([]);
+    const [selectedSegmentInput, setSelectedSegmentInput] = useState<string[]>(["All"]);
+    const [selectedCategoryId, setSelectedCategoryId] = useState<string[]>(["All"]);
     const [selectedTemplateName, setSelectedTemplateName] = useState<string>("");
     
     // Modal/Preview state
@@ -38,9 +38,11 @@ export function usePricePrintables() {
     // Update default filename when supplier changes
     useEffect(() => {
         if (!isFilenameEdited) {
-            if (selectedSupplierInput !== "All") {
-                const supplier = suppliers.find(s => String(s.id) === selectedSupplierInput);
-                const name = supplier?.supplier_name || "Supplier";
+            if (selectedSupplierInput.length > 0) {
+                const names = selectedSupplierInput
+                    .map(id => suppliers.find(s => String(s.id) === id)?.supplier_name)
+                    .filter(Boolean);
+                const name = names.length > 0 ? names.join(", ") : "Supplier";
                 setCustomFilename(`${name} Pricelist Booking`);
             } else {
                 setCustomFilename("Price List Booking");
@@ -90,13 +92,18 @@ export function usePricePrintables() {
             return;
         }
 
+        if (selectedSupplierInput.length === 0 || selectedSegmentInput.length === 0 || selectedCategoryId.length === 0) {
+            toast.warning("Please select at least one supplier, segment, and category");
+            return;
+        }
+
         setIsGenerating(true);
         try {
             const data = await fetchProvider.getPriceList(
                 Number(selectedSalesmanId), 
-                selectedSupplierInput,
-                selectedSegmentInput,
-                selectedCategoryId === "All" ? "All" : Number(selectedCategoryId)
+                selectedSupplierInput.join(","),
+                selectedSegmentInput.join(","),
+                selectedCategoryId.join(",")
             );
             
             if (!data || data.length === 0) {
@@ -105,19 +112,71 @@ export function usePricePrintables() {
             }
 
             const salesman = salesmen.find(s => s.id === Number(selectedSalesmanId));
-            const supplier = selectedSupplierInput !== "All" ? suppliers.find(s => String(s.id) === selectedSupplierInput) : null;
-            const segment = selectedSegmentInput !== "All" ? segments.find(s => String(s.id) === selectedSegmentInput) : null;
-            const category = selectedCategoryId !== "All" ? categories.find(c => c.id === Number(selectedCategoryId)) : null;
+            const supplierNames = selectedSupplierInput
+                .map(id => suppliers.find(s => String(s.id) === id)?.supplier_name)
+                .filter(Boolean)
+                .join(", ");
+            const segmentNames = selectedSegmentInput.includes("All")
+                ? "All"
+                : selectedSegmentInput
+                    .map(id => segments.find(s => String(s.id) === id)?.segment_name)
+                    .filter(Boolean)
+                    .join(", ");
+            const categoryNames = selectedCategoryId.includes("All")
+                ? "All"
+                : selectedCategoryId
+                    .map(id => categories.find(c => String(c.id) === id)?.category_name)
+                    .filter(Boolean)
+                    .join(", ");
+
+            console.log("Suppliers list data loaded:", suppliers);
+            console.log("Price list products data returned:", data);
+
+            // Check if division_id is 1 and any fetched product is serialized
+            const hasDivision1Supplier = selectedSupplierInput.some(id => {
+                const s = suppliers.find(sup => String(sup.id) === id);
+                const divId = s && typeof s.division_id === 'object' && s.division_id !== null
+                    ? ((s.division_id as any).id ?? (s.division_id as any).division_id)
+                    : s?.division_id;
+                return Number(divId) === 1;
+            });
+
+            const isSerialized = (val: any) => {
+                if (val === null || val === undefined) return false;
+                if (val === 0 || val === '0' || val === false || val === 'false') return false;
+                return true;
+            };
+            const hasSerializedProduct = data.some(item => 
+                isSerialized(item.is_serialized) || 
+                isSerialized((item as any).isSerialized) ||
+                isSerialized((item as any).serialized)
+            );
+            const isSerializedLayout = hasDivision1Supplier && hasSerializedProduct;
+
+            console.log("Layout switch evaluations - hasDivision1Supplier:", hasDivision1Supplier, "hasSerializedProduct:", hasSerializedProduct, "isSerializedLayout:", isSerializedLayout);
+
+            let finalTemplateName = selectedTemplateName;
+            if (isSerializedLayout) {
+                // Look for an existing landscape template
+                const landscapeTpl = templates.find(t => 
+                    t.name.toLowerCase().includes("landscape") || 
+                    t.config?.orientation === "landscape"
+                );
+                if (landscapeTpl) {
+                    finalTemplateName = landscapeTpl.name;
+                }
+            }
 
             const doc = await generatePricePrintablesPDF({
                 items: data,
-                templateName: selectedTemplateName,
+                templateName: finalTemplateName,
                 salesmanName: salesman?.salesman_name || "",
                 salesmanCode: salesman?.salesman_code || "",
-                supplierName: supplier?.supplier_name || "All",
-                segmentName: segment?.segment_name || "All",
-                categoryName: category?.category_name || "All",
-                showBarcode
+                supplierName: supplierNames || "None",
+                segmentName: segmentNames || "None",
+                categoryName: categoryNames || "None",
+                showBarcode,
+                isSerializedLayout
             });
 
             // Handle Download if requested
