@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Salesman, Supplier, Category, Segment } from "../types";
 import { fetchProvider } from "../providers/fetchProvider";
 import { toast } from "sonner";
@@ -55,6 +55,28 @@ export function usePricePrintables() {
         setIsFilenameEdited(true);
     };
 
+    const hasDivision1Supplier = useMemo(() => {
+        return selectedSupplierInput.some(id => {
+            const s = suppliers.find(sup => String(sup.id) === id);
+            const divId = s && typeof s.division_id === 'object' && s.division_id !== null
+                ? ((s.division_id as Record<string, unknown>).id ?? (s.division_id as Record<string, unknown>).division_id)
+                : s?.division_id;
+            return Number(divId) === 1;
+        });
+    }, [selectedSupplierInput, suppliers]);
+
+    useEffect(() => {
+        if (hasDivision1Supplier && templates.length > 0) {
+            const legalTemplate = templates.find(t => t.name.toLowerCase().includes("legal"));
+            const a4Template = templates.find(t => t.name.toLowerCase().includes("a4"));
+            const targetTemplate = legalTemplate || a4Template;
+            
+            if (targetTemplate) {
+                setSelectedTemplateName((prev) => prev !== targetTemplate.name ? targetTemplate.name : prev);
+            }
+        }
+    }, [hasDivision1Supplier, templates]);
+
     useEffect(() => {
         const init = async () => {
             setIsLoading(true);
@@ -97,6 +119,19 @@ export function usePricePrintables() {
             return;
         }
 
+        const hasNonDivision1Supplier = selectedSupplierInput.some(id => {
+            const s = suppliers.find(sup => String(sup.id) === id);
+            const divId = s && typeof s.division_id === 'object' && s.division_id !== null
+                ? ((s.division_id as Record<string, unknown>).id ?? (s.division_id as Record<string, unknown>).division_id)
+                : s?.division_id;
+            return Number(divId) !== 1;
+        });
+
+        if (hasDivision1Supplier && hasNonDivision1Supplier) {
+            toast.error("Cannot combine these suppliers. The selected suppliers require completely different printable layouts.");
+            return;
+        }
+
         setIsGenerating(true);
         try {
             const data = await fetchProvider.getPriceList(
@@ -132,40 +167,12 @@ export function usePricePrintables() {
             console.log("Suppliers list data loaded:", suppliers);
             console.log("Price list products data returned:", data);
 
-            // Check if division_id is 1 and any fetched product is serialized
-            const hasDivision1Supplier = selectedSupplierInput.some(id => {
-                const s = suppliers.find(sup => String(sup.id) === id);
-                const divId = s && typeof s.division_id === 'object' && s.division_id !== null
-                    ? ((s.division_id as any).id ?? (s.division_id as any).division_id)
-                    : s?.division_id;
-                return Number(divId) === 1;
-            });
 
-            const isSerialized = (val: any) => {
-                if (val === null || val === undefined) return false;
-                if (val === 0 || val === '0' || val === false || val === 'false') return false;
-                return true;
-            };
-            const hasSerializedProduct = data.some(item => 
-                isSerialized(item.is_serialized) || 
-                isSerialized((item as any).isSerialized) ||
-                isSerialized((item as any).serialized)
-            );
-            const isSerializedLayout = hasDivision1Supplier && hasSerializedProduct;
+            const isSerializedLayout = hasDivision1Supplier;
 
-            console.log("Layout switch evaluations - hasDivision1Supplier:", hasDivision1Supplier, "hasSerializedProduct:", hasSerializedProduct, "isSerializedLayout:", isSerializedLayout);
+            console.log("Layout switch evaluations - isSerializedLayout:", isSerializedLayout);
 
-            let finalTemplateName = selectedTemplateName;
-            if (isSerializedLayout) {
-                // Look for an existing landscape template
-                const landscapeTpl = templates.find(t => 
-                    t.name.toLowerCase().includes("landscape") || 
-                    t.config?.orientation === "landscape"
-                );
-                if (landscapeTpl) {
-                    finalTemplateName = landscapeTpl.name;
-                }
-            }
+            const finalTemplateName = selectedTemplateName;
 
             const doc = await generatePricePrintablesPDF({
                 items: data,
@@ -237,6 +244,7 @@ export function usePricePrintables() {
         handleFilenameChange,
         handleGenerate,
         showBarcode,
-        setShowBarcode
+        setShowBarcode,
+        hasDivision1Supplier
     };
 }

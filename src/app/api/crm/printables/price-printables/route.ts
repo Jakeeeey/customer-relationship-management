@@ -87,9 +87,20 @@ export async function GET(req: NextRequest) {
             return NextResponse.json({ error: "salesmanId is required" }, { status: 400 });
         }
 
-        const suppliers = supplierInput ? supplierInput.split(",") : ["All"];
-        const segments = segmentInput ? segmentInput.split(",") : ["All"];
-        const categories = categoryInput ? categoryInput.split(",") : ["All"];
+        const urlObj = new URL(`${springBaseUrl}/api/v2/price-list`);
+        urlObj.searchParams.append("salesmanId", salesmanId);
+
+        const appendParam = (key: string, input: string | null) => {
+            if (input && input !== "All") {
+                input.split(",").forEach(val => urlObj.searchParams.append(key, val.trim()));
+            } else {
+                urlObj.searchParams.append(key, "All");
+            }
+        };
+
+        appendParam("supplier", supplierInput);
+        appendParam("segment", segmentInput);
+        appendParam("category", categoryInput);
 
         const cookieStore = await cookies();
         const token = cookieStore.get("vos_access_token")?.value;
@@ -99,35 +110,19 @@ export async function GET(req: NextRequest) {
             ...(token ? { "Authorization": `Bearer ${token}` } : {})
         };
 
-        const queryPromises = [];
+        const res = await fetch(urlObj.toString(), {
+            cache: "no-store",
+            headers: fetchHeaders
+        });
 
-        for (const supp of suppliers) {
-            for (const seg of segments) {
-                for (const cat of categories) {
-                    const urlObj = new URL(`${springBaseUrl}/api/v2/price-list`);
-                    urlObj.searchParams.append("salesmanId", salesmanId);
-                    urlObj.searchParams.append("supplier", supp);
-                    urlObj.searchParams.append("segment", seg);
-                    urlObj.searchParams.append("category", cat);
-                    
-                    const promise = fetch(urlObj.toString(), {
-                        cache: "no-store",
-                        headers: fetchHeaders
-                    }).then(async (res) => {
-                        if (!res.ok) {
-                            const errText = await res.text();
-                            console.error(`Failed fetching combination ${urlObj.toString()}:`, errText);
-                            return [];
-                        }
-                        return res.json();
-                    });
-                    queryPromises.push(promise);
-                }
-            }
+        if (!res.ok) {
+            const errText = await res.text();
+            console.error(`Failed fetching ${urlObj.toString()}:`, errText);
+            throw new Error(`Backend error: ${res.status}`);
         }
 
-        const results = await Promise.all(queryPromises);
-
+        const rawData = await res.json();
+        
         interface PriceItem {
             categoryCode: string;
             productName: string;
@@ -141,31 +136,33 @@ export async function GET(req: NextRequest) {
             brand?: string;
             is_serialized?: number | boolean | null;
             isSerialized?: number | boolean | null;
+            divisionId?: number | null;
+            division_id?: number | null;
         }
 
+        const items: PriceItem[] = Array.isArray(rawData) ? rawData : (rawData.data || []);
+        
+        // Merge duplicates if any (though backend should handle it)
         const mergedItems: PriceItem[] = [];
         const seenKeys = new Set<string>();
 
-        results.forEach((list: PriceItem[]) => {
-            if (!Array.isArray(list)) return;
-            list.forEach((item) => {
-                const uniqueKey = `${item.productName}-${item.unit}-${item.price}`;
-                if (!seenKeys.has(uniqueKey)) {
-                    seenKeys.add(uniqueKey);
-                    mergedItems.push(item);
-                } else {
-                    const existingIndex = mergedItems.findIndex(x => `${x.productName}-${x.unit}-${x.price}` === uniqueKey);
-                    if (existingIndex !== -1) {
-                        const existing = mergedItems[existingIndex];
-                        if (!existing.barcode && item.barcode) {
-                            existing.barcode = item.barcode;
-                        }
-                        if (!existing.barcodeNo && item.barcodeNo) {
-                            existing.barcodeNo = item.barcodeNo;
-                        }
+        items.forEach((item) => {
+            const uniqueKey = `${item.productName}-${item.unit}-${item.price}`;
+            if (!seenKeys.has(uniqueKey)) {
+                seenKeys.add(uniqueKey);
+                mergedItems.push(item);
+            } else {
+                const existingIndex = mergedItems.findIndex(x => `${x.productName}-${x.unit}-${x.price}` === uniqueKey);
+                if (existingIndex !== -1) {
+                    const existing = mergedItems[existingIndex];
+                    if (!existing.barcode && item.barcode) {
+                        existing.barcode = item.barcode;
+                    }
+                    if (!existing.barcodeNo && item.barcodeNo) {
+                        existing.barcodeNo = item.barcodeNo;
                     }
                 }
-            });
+            }
         });
 
         return NextResponse.json(mergedItems);

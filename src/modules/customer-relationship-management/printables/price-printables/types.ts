@@ -34,6 +34,9 @@ export interface PriceListItem {
     unitOrder?: number;
     brand?: string;
     is_serialized?: number | boolean | null;
+    isSerialized?: number | boolean | null;
+    divisionId?: number | null;
+    division_id?: number | null;
 }
 
 export interface PricePrintablesState {

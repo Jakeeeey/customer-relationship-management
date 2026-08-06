@@ -58,7 +58,8 @@ export function PricePrintablesModule() {
         handleFilenameChange,
         handleGenerate,
         showBarcode,
-        setShowBarcode
+        setShowBarcode,
+        hasDivision1Supplier
     } = usePricePrintables();
 
     // Mapping for SearchableSelect
@@ -88,10 +89,18 @@ export function PricePrintablesModule() {
         }))
     ];
 
-    const layoutOptions = templates.map(t => ({
-        value: t.name,
-        label: t.name
-    }));
+    const layoutOptions = templates
+        .filter(t => {
+            if (hasDivision1Supplier) {
+                const name = t.name.toLowerCase();
+                return name.includes("legal") || name.includes("a4");
+            }
+            return true;
+        })
+        .map(t => ({
+            value: t.name,
+            label: t.name
+        }));
 
     return (
         <div className="p-8 max-w-4xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
