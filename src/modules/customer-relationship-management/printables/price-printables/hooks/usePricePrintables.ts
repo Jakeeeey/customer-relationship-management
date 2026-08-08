@@ -65,6 +65,32 @@ export function usePricePrintables() {
         });
     }, [selectedSupplierInput, suppliers]);
 
+    const hasNonDivision1Supplier = useMemo(() => {
+        return selectedSupplierInput.some(id => {
+            const s = suppliers.find(sup => String(sup.id) === id);
+            const divId = s && typeof s.division_id === 'object' && s.division_id !== null
+                ? ((s.division_id as Record<string, unknown>).id ?? (s.division_id as Record<string, unknown>).division_id)
+                : s?.division_id;
+            return Number(divId) !== 1;
+        });
+    }, [selectedSupplierInput, suppliers]);
+
+    const hasSupplierConflict = useMemo(() => {
+        return hasDivision1Supplier && hasNonDivision1Supplier;
+    }, [hasDivision1Supplier, hasNonDivision1Supplier]);
+
+    useEffect(() => {
+        if (hasSupplierConflict) {
+            toast.error("Cannot combine these suppliers. They require completely different printable layouts.");
+        }
+    }, [hasSupplierConflict]);
+
+    useEffect(() => {
+        if (hasDivision1Supplier && showBarcode) {
+            setShowBarcode(false);
+        }
+    }, [hasDivision1Supplier, showBarcode]);
+
     useEffect(() => {
         if (hasDivision1Supplier && templates.length > 0) {
             const legalTemplate = templates.find(t => t.name.toLowerCase().includes("legal"));
@@ -119,38 +145,14 @@ export function usePricePrintables() {
             return;
         }
 
-        const hasNonDivision1Supplier = selectedSupplierInput.some(id => {
-            const s = suppliers.find(sup => String(sup.id) === id);
-            const divId = s && typeof s.division_id === 'object' && s.division_id !== null
-                ? ((s.division_id as Record<string, unknown>).id ?? (s.division_id as Record<string, unknown>).division_id)
-                : s?.division_id;
-            return Number(divId) !== 1;
-        });
-
-        if (hasDivision1Supplier && hasNonDivision1Supplier) {
+        if (hasSupplierConflict) {
             toast.error("Cannot combine these suppliers. The selected suppliers require completely different printable layouts.");
             return;
         }
 
         setIsGenerating(true);
         try {
-            const data = await fetchProvider.getPriceList(
-                Number(selectedSalesmanId), 
-                selectedSupplierInput.join(","),
-                selectedSegmentInput.join(","),
-                selectedCategoryId.join(",")
-            );
-            
-            if (!data || data.length === 0) {
-                toast.info("No price data found for the selected criteria");
-                return;
-            }
-
             const salesman = salesmen.find(s => s.id === Number(selectedSalesmanId));
-            const supplierNames = selectedSupplierInput
-                .map(id => suppliers.find(s => String(s.id) === id)?.supplier_name)
-                .filter(Boolean)
-                .join(", ");
             const segmentNames = selectedSegmentInput.includes("All")
                 ? "All"
                 : selectedSegmentInput
@@ -164,22 +166,40 @@ export function usePricePrintables() {
                     .filter(Boolean)
                     .join(", ");
 
-            console.log("Suppliers list data loaded:", suppliers);
-            console.log("Price list products data returned:", data);
+            const supplierDataList = [];
+            
+            for (const supplierId of selectedSupplierInput) {
+                const supplier = suppliers.find(s => String(s.id) === supplierId);
+                if (!supplier) continue;
 
+                const data = await fetchProvider.getPriceList(
+                    Number(selectedSalesmanId), 
+                    supplierId,
+                    selectedSegmentInput.join(","),
+                    selectedCategoryId.join(",")
+                );
+
+                if (data && data.length > 0) {
+                    supplierDataList.push({
+                        supplierName: supplier.supplier_name,
+                        items: data
+                    });
+                }
+            }
+            
+            if (supplierDataList.length === 0) {
+                toast.info("No price data found for the selected criteria");
+                return;
+            }
 
             const isSerializedLayout = hasDivision1Supplier;
-
-            console.log("Layout switch evaluations - isSerializedLayout:", isSerializedLayout);
-
             const finalTemplateName = selectedTemplateName;
 
             const doc = await generatePricePrintablesPDF({
-                items: data,
+                supplierDataList,
                 templateName: finalTemplateName,
                 salesmanName: salesman?.salesman_name || "",
                 salesmanCode: salesman?.salesman_code || "",
-                supplierName: supplierNames || "None",
                 segmentName: segmentNames || "None",
                 categoryName: categoryNames || "None",
                 showBarcode,
@@ -245,6 +265,7 @@ export function usePricePrintables() {
         handleGenerate,
         showBarcode,
         setShowBarcode,
-        hasDivision1Supplier
+        hasDivision1Supplier,
+        hasSupplierConflict
     };
 }

@@ -59,7 +59,8 @@ export function PricePrintablesModule() {
         handleGenerate,
         showBarcode,
         setShowBarcode,
-        hasDivision1Supplier
+        hasDivision1Supplier,
+        hasSupplierConflict
     } = usePricePrintables();
 
     // Mapping for SearchableSelect
@@ -235,7 +236,7 @@ export function PricePrintablesModule() {
                             <Switch
                                 checked={showBarcode}
                                 onCheckedChange={setShowBarcode}
-                                disabled={isLoading || isGenerating}
+                                disabled={isLoading || isGenerating || hasDivision1Supplier}
                                 className="data-[state=checked]:bg-blue-600"
                             />
                         </div>
@@ -258,7 +259,7 @@ export function PricePrintablesModule() {
                 <CardFooter className="p-8 bg-slate-50/50 dark:bg-slate-900/50 border-t border-slate-100/50 dark:border-slate-800/50 flex justify-end">
                     <Button 
                         onClick={() => handleGenerate({ download: false })}
-                        disabled={isGenerating || !selectedSalesmanId || !selectedTemplateName || selectedSupplierInput.length === 0 || selectedSegmentInput.length === 0 || selectedCategoryId.length === 0}
+                        disabled={isGenerating || hasSupplierConflict || !selectedSalesmanId || !selectedTemplateName || selectedSupplierInput.length === 0 || selectedSegmentInput.length === 0 || selectedCategoryId.length === 0}
                         className="h-14 px-12 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-black text-lg shadow-xl shadow-blue-200 dark:shadow-none transition-all active:scale-95 disabled:bg-slate-200 disabled:shadow-none dark:disabled:bg-slate-800"
                     >
                         {isGenerating ? (
