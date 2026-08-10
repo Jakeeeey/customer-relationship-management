@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { Plus, Search, PackageOpen, Activity, CreditCard } from "lucide-react";
+import { Plus, Search, PackageOpen, Activity, CreditCard, RefreshCw } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { SearchableSelect } from "@/components/ui/searchable-select";
@@ -21,6 +21,7 @@ export function EmployeeStockPurchaseModule() {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [currentPage, setCurrentPage] = useState(1);
     const pageSize = 10;
+    const [isSyncing, setIsSyncing] = useState(false);
 
     // Fetch companies for the filter
     useEffect(() => {
@@ -73,6 +74,20 @@ export function EmployeeStockPurchaseModule() {
         e.preventDefault();
         setCurrentPage(1);
         fetchPurchases(1, pageSize, searchQuery, companyFilterName, employeeFilterName, dateFilter);
+    };
+
+    const handleSync = async () => {
+        setIsSyncing(true);
+        try {
+            const res = await fetch("/api/crm/employee-stock-purchase/sync", { method: "POST" });
+            if (res.ok) {
+                await fetchPurchases(currentPage, pageSize, searchQuery, companyFilterName, employeeFilterName, dateFilter);
+            }
+        } catch (error) {
+            console.error("Failed to sync", error);
+        } finally {
+            setIsSyncing(false);
+        }
     };
 
     const handleCreate = async (values: EmployeeStockPurchaseFormValues) => {
@@ -140,6 +155,15 @@ export function EmployeeStockPurchaseModule() {
                         />
                         <Button type="submit" className="h-12 rounded-2xl px-6 font-bold">Filter</Button>
                     </form>
+                    <Button 
+                        onClick={handleSync}
+                        disabled={isSyncing || isLoading}
+                        variant="outline"
+                        className="h-12 px-6 rounded-2xl border-blue-600/20 text-blue-600 hover:bg-blue-50 shadow-sm text-xs font-black uppercase tracking-widest transition-all hover:scale-[1.02] active:scale-[0.98] shrink-0"
+                    >
+                        <RefreshCw className={`h-4 w-4 mr-2 ${isSyncing ? "animate-spin" : ""}`} />
+                        {isSyncing ? "Syncing..." : "Sync Status"}
+                    </Button>
                     <Button 
                         onClick={() => setIsModalOpen(true)}
                         className="h-12 px-6 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-600/20 text-xs font-black uppercase tracking-widest transition-all hover:scale-[1.02] active:scale-[0.98] shrink-0"
