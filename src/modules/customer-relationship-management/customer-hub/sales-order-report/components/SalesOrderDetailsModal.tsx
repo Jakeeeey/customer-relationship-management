@@ -32,10 +32,11 @@ import {
     Paperclip,
     FileText,
     ExternalLink,
+    PauseCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { salesOrderProvider } from "../providers/fetchProvider";
-import { SalesOrder, Customer, Salesman, Branch, Supplier, Invoice, SalesOrderDetail, InvoiceDetail, PdfData, SalesOrderAttachment } from "../types";
+import { SalesOrder, Customer, Salesman, Branch, Supplier, Invoice, SalesOrderDetail, InvoiceDetail, PdfData, SalesOrderAttachment, User } from "../types";
 
 interface SalesOrderDetailsModalProps {
     isOpen: boolean;
@@ -45,6 +46,7 @@ interface SalesOrderDetailsModalProps {
     salesmen: Salesman[];
     branches: Branch[];
     suppliers: Supplier[];
+    users?: User[];
 }
 
 export function SalesOrderDetailsModal({
@@ -55,6 +57,7 @@ export function SalesOrderDetailsModal({
     salesmen,
     branches,
     suppliers,
+    users = [],
 }: SalesOrderDetailsModalProps) {
     const [details, setDetails] = useState<SalesOrderDetail[]>([]);
     const [invoices, setInvoices] = useState<Invoice[]>([]);
@@ -166,6 +169,39 @@ export function SalesOrderDetailsModal({
 
     const lineCount = isInvoiceMode ? totalInvoicesItems : (details.length || 0);
 
+    const isHoldStatus = normalizedStatus === "on hold" || Boolean(order.on_hold_at) || Boolean(order.on_hold_by);
+
+    const onHoldUser = users?.find(u =>
+        (u.id !== undefined && String(u.id) === String(order.on_hold_by)) ||
+        (u.user_id !== undefined && String(u.user_id) === String(order.on_hold_by))
+    );
+
+    const onHoldUserName = onHoldUser
+        ? (onHoldUser.user_fname || onHoldUser.first_name)
+            ? `${onHoldUser.user_fname || onHoldUser.first_name || ""} ${onHoldUser.user_lname || onHoldUser.last_name || ""}`.trim()
+            : (onHoldUser.username || onHoldUser.user_email || onHoldUser.email || `User #${order.on_hold_by}`)
+        : (order.on_hold_by ? `User #${order.on_hold_by}` : null);
+
+    const formatOnHoldDate = (dateStr: string | null | undefined) => {
+        if (!dateStr) return null;
+        try {
+            const d = new Date(dateStr);
+            if (isNaN(d.getTime())) return dateStr;
+            return d.toLocaleString("en-US", {
+                month: "short",
+                day: "numeric",
+                year: "numeric",
+                hour: "2-digit",
+                minute: "2-digit",
+                hour12: true
+            });
+        } catch {
+            return dateStr;
+        }
+    };
+
+    const formattedOnHoldDate = formatOnHoldDate(order.on_hold_at);
+
     return (
         <>
             <Dialog open={isOpen} onOpenChange={(val) => !val && onClose()}>
@@ -207,7 +243,18 @@ export function SalesOrderDetailsModal({
                                 <div className="min-w-0">
                                     <DialogTitle className="text-base sm:text-xl font-black flex flex-wrap items-center gap-1.5 text-slate-900 leading-tight">
                                         <span className="shrink-0">SO: {order.order_no}</span>
-
+                                        {isHoldStatus && (
+                                            <Badge variant="outline" className="bg-amber-50 text-amber-900 border-amber-300 font-medium px-2 py-0.5 text-[11px] flex items-center gap-1.5 shadow-xs">
+                                                <PauseCircle className="h-3.5 w-3.5 text-amber-600 shrink-0" />
+                                                <span>On-Hold</span>
+                                                {(onHoldUserName || formattedOnHoldDate) && (
+                                                    <span className="text-[10px] text-amber-800 font-normal border-l border-amber-300/80 pl-1.5 ml-0.5">
+                                                        {onHoldUserName && <span>by <strong className="font-semibold text-amber-950">{onHoldUserName}</strong></span>}
+                                                        {formattedOnHoldDate && <span> on {formattedOnHoldDate}</span>}
+                                                    </span>
+                                                )}
+                                            </Badge>
+                                        )}
                                     </DialogTitle>
 
                                     <DialogDescription asChild>

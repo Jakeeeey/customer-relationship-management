@@ -109,6 +109,25 @@ export async function GET(req: NextRequest) {
                     order.price_type_name = "Standard";
                 }
             }
+
+            // Enrich with On-Hold User Name
+            if (order && order.on_hold_by) {
+                try {
+                    const uRes = await fetch(`${DIRECTUS_URL}/items/user?filter[user_id][_eq]=${encodeURIComponent(String(order.on_hold_by))}&fields=user_id,user_fname,user_lname,user_email&limit=1`, {
+                        headers: fetchHeaders,
+                    });
+                    if (uRes.ok) {
+                        const uJson = await uRes.json();
+                        const u = uJson.data?.[0];
+                        if (u) {
+                            const name = `${u.user_fname || ""} ${u.user_lname || ""}`.trim() || u.user_email || "";
+                            if (name) order.on_hold_by_user_name = name;
+                        }
+                    }
+                } catch (e) {
+                    console.error("Failed to fetch on_hold_by user name for header:", e);
+                }
+            }
             
             return NextResponse.json({ data: order });
         }
@@ -240,7 +259,7 @@ export async function GET(req: NextRequest) {
             const ordersJson = await ordersRes.json();
             const orders = ordersJson.data || [];
 
-            // 4. Enrich with Customer Names
+            // 4. Enrich with Customer Names & On-Hold User Names
             if (orders.length > 0) {
                 const customerCodes = Array.from(new Set(orders.map((o: { customer_code: string }) => o.customer_code))).filter(Boolean);
                 const customersDict: Record<string, string> = {};
@@ -254,8 +273,32 @@ export async function GET(req: NextRequest) {
                         customersDict[c.customer_code] = c.customer_name;
                     });
                 }
-                orders.forEach((o: { customer_code: string, customer_name?: string }) => {
+
+                // Collect user IDs for on_hold_by
+                const onHoldUserIds = Array.from(new Set(orders.map((o: { on_hold_by?: number | string | null }) => o.on_hold_by).filter(Boolean)));
+                const usersDict: Record<string, string> = {};
+                if (onHoldUserIds.length > 0) {
+                    try {
+                        const uRes = await fetch(`${DIRECTUS_URL}/items/user?filter[user_id][_in]=${encodeURIComponent(onHoldUserIds.join(','))}&fields=user_id,user_fname,user_lname,user_email&limit=-1`, {
+                            headers: fetchHeaders,
+                        });
+                        if (uRes.ok) {
+                            const uJson = await uRes.json();
+                            (uJson.data || []).forEach((u: { user_id: number | string; user_fname?: string; user_lname?: string; user_email?: string }) => {
+                                const name = `${u.user_fname || ""} ${u.user_lname || ""}`.trim() || u.user_email || "";
+                                usersDict[String(u.user_id)] = name;
+                            });
+                        }
+                    } catch (err) {
+                        console.error("Failed to fetch on-hold users list:", err);
+                    }
+                }
+
+                orders.forEach((o: { customer_code: string; customer_name?: string; on_hold_by?: number | string | null; on_hold_by_user_name?: string }) => {
                     o.customer_name = customersDict[o.customer_code] || "Unknown Customer";
+                    if (o.on_hold_by && usersDict[String(o.on_hold_by)]) {
+                        o.on_hold_by_user_name = usersDict[String(o.on_hold_by)];
+                    }
                 });
             }
 

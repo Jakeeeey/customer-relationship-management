@@ -540,7 +540,8 @@ export async function GET(req: NextRequest) {
             "order_id", "order_no", "customer_code", "salesman_id",
             "supplier_id", "branch_id", "order_date", "delivery_date",
             "due_date", "order_status", "total_amount", "allocated_amount",
-            "discount_amount", "net_amount", "remarks", "created_date", "po_no"
+            "discount_amount", "net_amount", "remarks", "created_date", "po_no",
+            "on_hold_at", "on_hold_by"
         ].join(",");
 
         // Construct filter object
@@ -657,7 +658,8 @@ export async function GET(req: NextRequest) {
             salesmenRes,
             branchesRes,
             suppliersRes,
-            aggregatesRes
+            aggregatesRes,
+            usersRes
         ] = await Promise.all([
             fetch(`${BASE_URL}/sales_order?limit=${pageSize}&offset=${offset}&sort=-order_date,-created_date&meta=*&fields=${salesOrderFields}${filterParam}`, { headers }),
             safeFetch(`${BASE_URL}/customer?limit=-1&fields=id,customer_code,customer_name,store_name,city,province`, "customer"),
@@ -665,6 +667,7 @@ export async function GET(req: NextRequest) {
             safeFetch(`${BASE_URL}/branches?limit=-1&fields=id,branch_code,branch_name`, "branches"),
             safeFetch(`${BASE_URL}/suppliers?filter[supplier_type][_in]=TRADE,Trade&limit=-1&fields=id,supplier_shortcut,supplier_name`, "suppliers"),
             safeFetch(`${BASE_URL}/sales_order?aggregate[sum]=total_amount,allocated_amount${filterParam}`, "aggregates"),
+            safeFetch(`${BASE_URL}/user?limit=-1`, "user"),
         ]);
 
         if (!salesOrdersRes.ok) {
@@ -682,6 +685,7 @@ export async function GET(req: NextRequest) {
             salesmen: salesmenRes.data,
             branches: branchesRes.data,
             suppliers: suppliersRes.data,
+            users: usersRes.data,
             meta: {
                 total_count: salesOrdersData.meta?.filter_count ?? salesOrdersData.meta?.total_count ?? 0,
                 aggregates: aggregatesRes.data?.[0]?.sum || { total_amount: 0, allocated_amount: 0 }
