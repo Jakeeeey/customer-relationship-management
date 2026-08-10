@@ -115,6 +115,7 @@ export async function POST(req: NextRequest) {
                 salesman_name: _pSalesmanName,
                 user_id,
                 classification: prospectClassification,
+                percentage: _pPercentage,
                 ...customerData
             } = prospect;
             /* eslint-enable @typescript-eslint/no-unused-vars */
