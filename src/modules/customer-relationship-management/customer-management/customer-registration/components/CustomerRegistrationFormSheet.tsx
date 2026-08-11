@@ -41,10 +41,14 @@ interface SearchableComboboxProps {
     placeholder: string;
     disabled?: boolean;
     isLoading?: boolean;
+    allowCustomValue?: boolean;
 }
 
-function SearchableCombobox({ items, value, onChange, placeholder, disabled, isLoading }: SearchableComboboxProps) {
+function SearchableCombobox({ items, value, onChange, placeholder, disabled, isLoading, allowCustomValue }: SearchableComboboxProps) {
     const [open, setOpen] = useState(false);
+    const [inputValue, setInputValue] = useState("");
+    
+    const showCustomOption = allowCustomValue && inputValue && !items.some(item => item.name.toLowerCase() === inputValue.toLowerCase());
 
     return (
         <Popover open={open} onOpenChange={setOpen} modal={true}>
@@ -66,7 +70,7 @@ function SearchableCombobox({ items, value, onChange, placeholder, disabled, isL
             </PopoverTrigger>
             <PopoverContent className="w-[300px] p-0 shadow-xl rounded-xl border-border/50">
                 <Command className="bg-transparent rounded-xl">
-                    <CommandInput placeholder="Search..." className="h-11" />
+                    <CommandInput placeholder="Search..." className="h-11" value={inputValue} onValueChange={setInputValue} />
                     <CommandList 
                         className="custom-scrollbar"
                         style={{ maxHeight: "min(250px, calc(var(--radix-popover-content-available-height) - 45px))" }}
@@ -80,6 +84,7 @@ function SearchableCombobox({ items, value, onChange, placeholder, disabled, isL
                                     onSelect={() => {
                                         onChange(item.name);
                                         setOpen(false);
+                                        setInputValue("");
                                     }}
                                 >
                                     <Check
@@ -88,6 +93,21 @@ function SearchableCombobox({ items, value, onChange, placeholder, disabled, isL
                                 </CommandItem>
                             ))}
                         </CommandGroup>
+                        {showCustomOption && (
+                            <CommandGroup heading="Custom">
+                                <CommandItem
+                                    value={inputValue}
+                                    onSelect={() => {
+                                        onChange(inputValue);
+                                        setOpen(false);
+                                        setInputValue("");
+                                    }}
+                                >
+                                    <Check className="mr-2 h-4 w-4 text-primary shrink-0 opacity-0" />
+                                    Use "{inputValue}"
+                                </CommandItem>
+                            </CommandGroup>
+                        )}
                     </CommandList>
                 </Command>
             </PopoverContent>
@@ -664,6 +684,7 @@ export function CustomerRegistrationFormSheet({ open, onOpenChange, customer, on
                                                                     placeholder="Brgy"
                                                                     isLoading={isLoadingBarangays}
                                                                     disabled={!selectedCity}
+                                                                    allowCustomValue={true}
                                                                 />
                                                                 <FormMessage />
                                                             </FormItem>
