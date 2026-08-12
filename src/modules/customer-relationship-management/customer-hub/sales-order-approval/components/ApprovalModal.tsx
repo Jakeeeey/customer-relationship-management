@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { format } from "date-fns";
-import { Loader2, AlertCircle, Store, X, FileText, Package } from "lucide-react";
+import { Loader2, AlertCircle, Store, X, FileText, Package, PauseCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 import {
@@ -272,6 +272,28 @@ export function ApprovalModal({
     };
 
 
+    const formatOnHoldDate = (dateStr: string | null | undefined) => {
+        if (!dateStr) return null;
+        try {
+            const d = new Date(dateStr);
+            if (isNaN(d.getTime())) return dateStr;
+            return d.toLocaleString("en-US", {
+                month: "short",
+                day: "numeric",
+                year: "numeric",
+                hour: "2-digit",
+                minute: "2-digit",
+                hour12: true
+            });
+        } catch {
+            return dateStr;
+        }
+    };
+
+    const isHoldStatus = activeOrder?.order_status?.toLowerCase().trim() === "on hold" || Boolean(activeOrder?.on_hold_at) || Boolean(activeOrder?.on_hold_by);
+    const onHoldUserName = activeOrder?.on_hold_by_user_name || null;
+    const formattedOnHoldDate = formatOnHoldDate(activeOrder?.on_hold_at);
+
     return (
         <>
             <Dialog open={open} onOpenChange={(val) => !val && onClose()}>
@@ -298,6 +320,18 @@ export function ApprovalModal({
                                 <div className="min-w-0">
                                     <DialogTitle className="text-base sm:text-xl font-black flex flex-wrap items-center gap-1.5 text-foreground leading-tight">
                                         <span className="shrink-0">SO: {activeOrder.order_no}</span>
+                                        {isHoldStatus && (
+                                            <Badge variant="outline" className="bg-amber-50 text-amber-900 border-amber-300 font-medium px-2 py-0.5 text-[11px] flex items-center gap-1.5 shadow-xs">
+                                                <PauseCircle className="h-3.5 w-3.5 text-amber-600 shrink-0" />
+                                                <span>On-Hold</span>
+                                                {(onHoldUserName || formattedOnHoldDate) && (
+                                                    <span className="text-[10px] text-amber-800 font-normal border-l border-amber-300/80 pl-1.5 ml-0.5">
+                                                        {onHoldUserName && <span>by <strong className="font-semibold text-amber-950">{onHoldUserName}</strong></span>}
+                                                        {formattedOnHoldDate && <span> on {formattedOnHoldDate}</span>}
+                                                    </span>
+                                                )}
+                                            </Badge>
+                                        )}
                                         {isInvoiceStatus && invoiceData?.invoice?.invoice_no && (
                                             <>
                                                 <span className="text-slate-300 font-light shrink-0">/</span>
