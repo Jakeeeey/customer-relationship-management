@@ -609,7 +609,7 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
                                 <Input
                                     type="date"
                                     className="h-6 w-28 p-0 border-none bg-transparent font-bold text-slate-700 dark:text-slate-300 text-[11px] focus-visible:ring-0"
-                                    value={header.invoice_date ? format(parseISO(header.invoice_date), 'yyyy-MM-dd') : ''}
+                                    value={header.invoice_date ? format(parseISO(header.invoice_date.replace('T', ' ').replace(/Z$/, '').split('.')[0]), 'yyyy-MM-dd') : ''}
                                     onChange={(e) => {
                                         if (header) {
                                             setHeader({ ...header, invoice_date: e.target.value });
@@ -625,7 +625,7 @@ export const SiteSalesDetails: React.FC<SiteSalesDetailsProps> = ({ id }) => {
                                 <Input
                                     type="date"
                                     className="h-6 w-28 p-0 border-none bg-transparent font-bold text-slate-700 dark:text-slate-300 text-[11px] focus-visible:ring-0"
-                                    value={header.due_date ? format(parseISO(header.due_date), 'yyyy-MM-dd') : ''}
+                                    value={header.due_date ? format(parseISO(header.due_date.replace('T', ' ').replace(/Z$/, '').split('.')[0]), 'yyyy-MM-dd') : ''}
                                     onChange={(e) => {
                                         if (header) {
                                             setHeader({ ...header, due_date: e.target.value });
