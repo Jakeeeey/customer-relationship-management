@@ -215,7 +215,7 @@ function SearchableCombobox({items, value, onChange, placeholder, disabled, isLo
                                     }}
                                 >
                                     <Check className="mr-2 h-4 w-4 text-primary shrink-0 opacity-0" />
-                                    Use "{inputValue}"
+                                    Use &quot;{inputValue}&quot;
                                 </CommandItem>
                             </CommandGroup>
                         )}
