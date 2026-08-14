@@ -440,7 +440,7 @@ export function SalesmanDetailSheet({ salesman, open, onOpenChange, onSuccess }:
                         </TabsContent>
 
                         <TabsContent value="customers" className="m-0 space-y-6 pb-6">
-                            <Command className="rounded-xl border border-border shadow-sm overflow-visible bg-card">
+                            <Command shouldFilter={false} className="rounded-xl border border-border shadow-sm overflow-visible bg-card">
                                 <CommandInput
                                     placeholder={`Search valid Price ${salesman.price_type || 'A'} customers...`}
                                     value={searchQuery}
@@ -463,7 +463,7 @@ export function SalesmanDetailSheet({ salesman, open, onOpenChange, onSuccess }:
                                                     {searchResults.map(c => (
                                                         <CommandItem
                                                             key={c.id}
-                                                            value={c.store_name || c.customer_name}
+                                                            value={`${c.store_name || ""} ${c.customer_name || ""} ${c.customer_code || ""}`.trim()}
                                                             className="flex items-start justify-between p-4 border-b last:border-0 hover:bg-muted/50"
                                                             onSelect={() => handleAssignCustomer(c.id)}
                                                         >

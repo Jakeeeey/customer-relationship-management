@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState, useCallback, useRef } from "react";
-import { SalesOrder, Customer, Salesman, Branch, Supplier } from "./types";
+import { SalesOrder, Customer, Salesman, Branch, Supplier, User } from "./types";
 import { fetchSalesOrderData } from "./providers/fetchProvider";
 import { SalesOrderFormFields } from "./components/SalesOrderFormFields";
 import { SalesOrderTable } from "./components/SalesOrderTable";
@@ -31,6 +31,7 @@ export default function SalesOrderReportModule() {
     const [salesmen, setSalesmen] = useState<Salesman[]>([]);
     const [branches, setBranches] = useState<Branch[]>([]);
     const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+    const [users, setUsers] = useState<User[]>([]);
     const pageSize = 50;
     const [totalOrders, setTotalOrders] = useState(0);
     const [aggregates, setAggregates] = useState({ total_amount: 0, allocated_amount: 0 });
@@ -87,6 +88,7 @@ export default function SalesOrderReportModule() {
                 setSalesmen(data.salesmen);
                 setBranches(data.branches);
                 setSuppliers(data.suppliers);
+                if (data.users) setUsers(data.users);
             }
         } catch (err: unknown) {
             const e = err as Error;
@@ -228,6 +230,7 @@ export default function SalesOrderReportModule() {
                 salesmen={salesmen}
                 branches={branches}
                 suppliers={suppliers}
+                users={users}
             />
 
             <div className="h-8" /> {/* Spacer */}

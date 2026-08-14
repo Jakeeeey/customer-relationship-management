@@ -29,6 +29,7 @@ import { CustomerComparisonModal } from "./CustomerComparisonModal";
 import { findPotentialMatches, SimilarityGroup, Customer } from "../utils/similarity";
 import { parseApiError } from "../utils/error-parser";
 
+const isPending = (status?: string | null) => status !== 'Approved' && status !== 'Rejected';
 
 interface CustomerProspectTableProps {
     data: CustomerProspect[];
@@ -454,7 +455,7 @@ export function CustomerProspectTable({
                                         <StatusBadge status={prospect.prospect_status} />
                                     </TableCell>
                                     <TableCell className="text-right">
-                                        {prospect.prospect_status === 'Pending' ? (
+                                        {isPending(prospect.prospect_status) ? (
                                             <div className="flex items-center justify-end gap-2">
                                                 <Button
                                                     size="sm"
@@ -930,7 +931,7 @@ export function CustomerProspectTable({
                                     Save Changes
                                 </Button>
                             </>
-                        ) : selectedProspect?.prospect_status === 'Pending' ? (
+                        ) : (selectedProspect && isPending(selectedProspect.prospect_status)) ? (
                             <>
                                 <Button
                                     variant="outline"
@@ -940,7 +941,7 @@ export function CustomerProspectTable({
                                     <Edit2 className="h-3.5 w-3.5 mr-2" />
                                     Edit
                                 </Button>
-                                {selectedProspect.prospect_status === 'Pending' && (
+                                {selectedProspect && isPending(selectedProspect.prospect_status) && (
                                     <>
                                         <Button
                                             variant="outline"

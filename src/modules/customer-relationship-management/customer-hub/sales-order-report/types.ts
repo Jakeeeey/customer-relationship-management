@@ -34,6 +34,7 @@ export interface SalesOrder {
     for_shipping_at: string | null;
     delivered_at: string | null;
     on_hold_at: string | null;
+    on_hold_by: number | string | null;
     cancelled_at: string | null;
 }
 
@@ -140,6 +141,18 @@ export interface Invoice {
     pdf?: PdfData | null;
 }
 
+export interface User {
+    id: number | string;
+    user_id?: number | string;
+    first_name?: string | null;
+    last_name?: string | null;
+    user_fname?: string | null;
+    user_lname?: string | null;
+    email?: string | null;
+    user_email?: string | null;
+    username?: string | null;
+}
+
 export interface SalesOrderDataResponse {
     salesOrders: SalesOrder[];
     salesOrderDetails: SalesOrderDetail[];
@@ -147,6 +160,7 @@ export interface SalesOrderDataResponse {
     salesmen: Salesman[];
     branches: Branch[];
     suppliers: Supplier[];
+    users?: User[];
     meta: {
         total_count: number;
         aggregates?: {
