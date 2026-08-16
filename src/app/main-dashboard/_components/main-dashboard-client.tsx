@@ -194,6 +194,7 @@ export default function MainDashboardClient({
 }) {
     const [showAnnouncement, setShowAnnouncement] = React.useState(!!announcement);
     const [hasScrolledToBottom, setHasScrolledToBottom] = React.useState(false);
+    const [showInlinePreview, setShowInlinePreview] = React.useState(false);
     const scrollContainerRef = React.useRef<HTMLDivElement>(null);
 
     // Get the first attachment URL and check format
@@ -226,7 +227,7 @@ export default function MainDashboardClient({
         }
     };
 
-    // Check if scrolling is needed on mount or when URL changes
+    // Check if scrolling is needed on mount or when URL/preview state changes
     React.useEffect(() => {
         if (showAnnouncement) {
             const timer = setTimeout(() => {
@@ -242,7 +243,14 @@ export default function MainDashboardClient({
             }, 100);
             return () => clearTimeout(timer);
         }
-    }, [showAnnouncement, attachmentUrl]);
+    }, [showAnnouncement, attachmentUrl, showInlinePreview]);
+
+    // Reset inline preview state when modal closes
+    React.useEffect(() => {
+        if (!showAnnouncement) {
+            setShowInlinePreview(false);
+        }
+    }, [showAnnouncement]);
 
     // Turn off global Lenis smooth scrolling when modal is open to restore native modal scrolling
     React.useEffect(() => {
@@ -440,43 +448,95 @@ export default function MainDashboardClient({
                         data-lenis-prevent
                         className="flex-1 min-h-0 overflow-y-auto pr-2 space-y-4"
                     >
-                        {attachmentUrl ? (
-                            <div className="relative w-full rounded-xl overflow-hidden border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-slate-950">
-                                {isImage ? (
-                                    <img
-                                        src={attachmentUrl}
-                                        className="w-full h-auto max-h-[78vh] object-contain mx-auto"
-                                        alt={fileName}
-                                    />
-                                ) : isWord ? (
-                                    <div className="relative w-full h-[78vh]">
-                                        <iframe
-                                            src={`https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(attachmentUrl)}`}
-                                            className="w-full h-full border-none"
-                                            title="Word Document Attachment"
-                                        />
-                                        {!hasScrolledToBottom && (
-                                            <div className="absolute inset-0 bg-transparent pointer-events-auto" />
-                                        )}
-                                    </div>
-                                ) : (
-                                    <div className="relative w-full h-[78vh]">
-                                        <iframe
-                                            src={attachmentUrl}
-                                            className="w-full h-full border-none"
-                                            title="PDF Document Attachment"
-                                        />
-                                        {!hasScrolledToBottom && (
-                                            <div className="absolute inset-0 bg-transparent pointer-events-auto" />
+                        {/* Memo Details Cards (Always Shown) */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/10">
+                            <div>
+                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Memo ID</span>
+                                <span className="text-sm font-bold text-slate-800 dark:text-slate-200">{announcement?.memo?.memo_id || "N/A"}</span>
+                            </div>
+                            <div>
+                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Date Range</span>
+                                <span className="text-sm font-bold text-slate-800 dark:text-slate-200">{announcement?.memo?.start_date} to {announcement?.memo?.end_date}</span>
+                            </div>
+                        </div>
+
+                        {/* Description Box (Always Shown) */}
+                        <div className="p-6 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/10">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-2">Announcement Details</span>
+                            <p className="text-sm text-slate-700 dark:text-slate-300 whitespace-pre-wrap font-medium leading-relaxed">
+                                {announcement?.memo?.description || "No description provided."}
+                            </p>
+                        </div>
+
+                        {attachmentUrl && (
+                            <div className="space-y-4">
+                                {/* Attachment Actions */}
+                                <div className="flex flex-wrap gap-3 items-center">
+                                    <a
+                                        href={attachmentUrl}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="inline-flex items-center gap-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-white/5 dark:hover:bg-white/10 px-4 py-2.5 text-xs font-black text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-white/10 transition-all uppercase tracking-widest"
+                                    >
+                                        <Icons.ExternalLink className="h-4 w-4 text-cyan-500" />
+                                        <span>Open in New Tab</span>
+                                    </a>
+                                    {!showInlinePreview ? (
+                                        <Button
+                                            onClick={() => {
+                                                setShowInlinePreview(true);
+                                                setHasScrolledToBottom(false);
+                                            }}
+                                            className="bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-600 dark:text-cyan-400 font-black uppercase tracking-widest text-xs h-10 px-5 rounded-xl border border-cyan-500/20 transition-all"
+                                        >
+                                            <Icons.Eye className="h-4 w-4 mr-2" />
+                                            Preview Document Inline
+                                        </Button>
+                                    ) : (
+                                        <Button
+                                            onClick={() => setShowInlinePreview(false)}
+                                            className="bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 font-black uppercase tracking-widest text-xs h-10 px-5 rounded-xl border border-rose-500/20 transition-all"
+                                        >
+                                            <Icons.EyeOff className="h-4 w-4 mr-2" />
+                                            Hide Document Preview
+                                        </Button>
+                                    )}
+                                </div>
+
+                                {/* Inline Preview Content */}
+                                {showInlinePreview && (
+                                    <div className="relative w-full rounded-xl overflow-hidden border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-slate-950 mt-4">
+                                        {isImage ? (
+                                            <img
+                                                src={attachmentUrl}
+                                                className="w-full h-auto max-h-[78vh] object-contain mx-auto"
+                                                alt={fileName}
+                                            />
+                                        ) : isWord ? (
+                                            <div className="relative w-full h-[78vh]">
+                                                <iframe
+                                                    src={`https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(attachmentUrl)}`}
+                                                    className="w-full h-full border-none"
+                                                    title="Word Document Attachment"
+                                                />
+                                                {!hasScrolledToBottom && (
+                                                    <div className="absolute inset-0 bg-transparent pointer-events-auto" />
+                                                )}
+                                            </div>
+                                        ) : (
+                                            <div className="relative w-full h-[78vh]">
+                                                <iframe
+                                                    src={attachmentUrl}
+                                                    className="w-full h-full border-none"
+                                                    title="PDF Document Attachment"
+                                                />
+                                                {!hasScrolledToBottom && (
+                                                    <div className="absolute inset-0 bg-transparent pointer-events-auto" />
+                                                )}
+                                            </div>
                                         )}
                                     </div>
                                 )}
-                            </div>
-                        ) : (
-                            <div className="p-6 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/10">
-                                <p className="text-sm text-slate-700 dark:text-slate-300 whitespace-pre-wrap">
-                                    {announcement?.memo?.description || "Please review the announcement details above."}
-                                </p>
                             </div>
                         )}
                         <div className="h-2" />
