@@ -11,6 +11,7 @@ import {
     Key,
     Activity,
     ChevronDown,
+    Megaphone,
 } from "lucide-react";
 import { useThemeTransition } from "@/components/theme/ThemeTransitionOverlay";
 
@@ -139,6 +140,19 @@ export function UserMenu({ fullName, email }: UserMenuProps) {
                             onCheckedChange={(checked) => triggerTransition(checked ? "dark" : "light")}
                             className="scale-[0.6] data-[state=checked]:bg-cyan-500"
                         />
+                    </DropdownMenuItem>
+                    
+                    <DropdownMenuItem 
+                        onClick={() => window.dispatchEvent(new CustomEvent("open-announcements"))}
+                        className="group flex items-center gap-2.5 rounded-xl px-2.5 py-1.5 cursor-pointer transition-all hover:bg-slate-900/5 dark:hover:bg-white/5 mt-0.5 focus:bg-slate-900/5 dark:focus:bg-white/5"
+                    >
+                        <div className="p-1 rounded-lg bg-slate-100 dark:bg-white/5 border border-slate-900/5 dark:border-white/10 group-hover:border-cyan-500/30 transition-colors">
+                            <Megaphone className="h-3 w-3 text-slate-500 dark:text-slate-400" />
+                        </div>
+                        <div className="flex flex-col leading-none">
+                            <span className="text-[10px] font-bold uppercase tracking-wide">Announcements</span>
+                            <span className="text-[8px] font-bold text-slate-400 opacity-70 mt-0.5 uppercase tracking-[0.05em]">Memos</span>
+                        </div>
                     </DropdownMenuItem>
                     
                     {[

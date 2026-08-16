@@ -12,6 +12,7 @@ import {
     ShieldCheck,
     Moon,
     Sun,
+    Megaphone,
 } from "lucide-react"
 import { useTheme } from "next-themes"
 
@@ -170,6 +171,14 @@ export function NavUser({ user, onLogout, subsystemSlug }: NavUserProps) {
                                     <Settings className="mr-2 size-4" />
                                     Settings
                                 </Link>
+                            </DropdownMenuItem>
+
+                            <DropdownMenuItem
+                                className="cursor-pointer"
+                                onClick={() => window.dispatchEvent(new CustomEvent("open-announcements"))}
+                            >
+                                <Megaphone className="mr-2 size-4" />
+                                Announcements
                             </DropdownMenuItem>
                         </DropdownMenuGroup>
 
