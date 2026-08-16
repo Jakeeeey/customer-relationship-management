@@ -52,6 +52,19 @@ export function NavUser({ user, onLogout, subsystemSlug }: NavUserProps) {
     const pathname = usePathname()
     const [loggingOut, setLoggingOut] = React.useState(false)
 
+    const [announcementsCount, setAnnouncementsCount] = React.useState<number>(0);
+
+    React.useEffect(() => {
+        fetch("/api/crm/announcements")
+            .then((res) => res.json())
+            .then((data) => {
+                if (data.announcements) {
+                    setAnnouncementsCount(data.announcements.length);
+                }
+            })
+            .catch((err) => console.error("Error fetching announcements count:", err));
+    }, []);
+
     const currentSlug = subsystemSlug || pathname.split("/")[1] || "hrm"
 
     // ✅ theme toggle support
@@ -174,11 +187,18 @@ export function NavUser({ user, onLogout, subsystemSlug }: NavUserProps) {
                             </DropdownMenuItem>
 
                             <DropdownMenuItem
-                                className="cursor-pointer"
+                                className="cursor-pointer flex items-center justify-between"
                                 onClick={() => window.dispatchEvent(new CustomEvent("open-announcements"))}
                             >
-                                <Megaphone className="mr-2 size-4" />
-                                Announcements
+                                <span className="flex items-center">
+                                    <Megaphone className="mr-2 size-4" />
+                                    Announcements
+                                </span>
+                                {announcementsCount > 0 && (
+                                    <span className="flex h-4 min-w-[16px] px-1.5 items-center justify-center rounded-full bg-rose-500 text-[9px] font-black text-white shadow-sm leading-none animate-pulse">
+                                        {announcementsCount}
+                                    </span>
+                                )}
                             </DropdownMenuItem>
                         </DropdownMenuGroup>
 

@@ -40,6 +40,19 @@ export function UserMenu({ fullName, email }: UserMenuProps) {
     const { theme } = useTheme();
     const { triggerTransition } = useThemeTransition();
 
+    const [announcementsCount, setAnnouncementsCount] = React.useState<number>(0);
+
+    React.useEffect(() => {
+        fetch("/api/crm/announcements")
+            .then((res) => res.json())
+            .then((data) => {
+                if (data.announcements) {
+                    setAnnouncementsCount(data.announcements.length);
+                }
+            })
+            .catch((err) => console.error("Error fetching announcements count:", err));
+    }, []);
+
     const initials = fullName
         .split(" ")
         .map((n) => n[0])
@@ -144,15 +157,22 @@ export function UserMenu({ fullName, email }: UserMenuProps) {
                     
                     <DropdownMenuItem 
                         onClick={() => window.dispatchEvent(new CustomEvent("open-announcements"))}
-                        className="group flex items-center gap-2.5 rounded-xl px-2.5 py-1.5 cursor-pointer transition-all hover:bg-slate-900/5 dark:hover:bg-white/5 mt-0.5 focus:bg-slate-900/5 dark:focus:bg-white/5"
+                        className="group flex items-center justify-between rounded-xl px-2.5 py-1.5 cursor-pointer transition-all hover:bg-slate-900/5 dark:hover:bg-white/5 mt-0.5 focus:bg-slate-900/5 dark:focus:bg-white/5"
                     >
-                        <div className="p-1 rounded-lg bg-slate-100 dark:bg-white/5 border border-slate-900/5 dark:border-white/10 group-hover:border-cyan-500/30 transition-colors">
-                            <Megaphone className="h-3 w-3 text-slate-500 dark:text-slate-400" />
+                        <div className="flex items-center gap-2.5">
+                            <div className="p-1 rounded-lg bg-slate-100 dark:bg-white/5 border border-slate-900/5 dark:border-white/10 group-hover:border-cyan-500/30 transition-colors">
+                                <Megaphone className="h-3 w-3 text-slate-500 dark:text-slate-400" />
+                            </div>
+                            <div className="flex flex-col leading-none">
+                                <span className="text-[10px] font-bold uppercase tracking-wide">Announcements</span>
+                                <span className="text-[8px] font-bold text-slate-400 opacity-70 mt-0.5 uppercase tracking-[0.05em]">Memos</span>
+                            </div>
                         </div>
-                        <div className="flex flex-col leading-none">
-                            <span className="text-[10px] font-bold uppercase tracking-wide">Announcements</span>
-                            <span className="text-[8px] font-bold text-slate-400 opacity-70 mt-0.5 uppercase tracking-[0.05em]">Memos</span>
-                        </div>
+                        {announcementsCount > 0 && (
+                            <span className="flex h-4 min-w-[16px] px-1.5 items-center justify-center rounded-full bg-rose-500 text-[9px] font-black text-white shadow-sm leading-none animate-pulse">
+                                {announcementsCount}
+                            </span>
+                        )}
                     </DropdownMenuItem>
                     
                     {[
