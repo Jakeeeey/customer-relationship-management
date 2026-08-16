@@ -193,6 +193,7 @@ export default function MainDashboardClient({
     announcement?: any;
 }) {
     const [showAnnouncement, setShowAnnouncement] = React.useState(!!announcement);
+    const [isChecked, setIsChecked] = React.useState(false);
 
     // Get the first attachment URL and check format
     const attachment = announcement?.attachments?.[0];
@@ -433,10 +434,23 @@ export default function MainDashboardClient({
                         )}
                     </div>
 
-                    <DialogFooter className="shrink-0 border-t border-slate-100 dark:border-white/5 pt-2 flex items-center justify-end">
+                    <DialogFooter className="shrink-0 border-t border-slate-100 dark:border-white/5 pt-2 flex flex-col sm:flex-row items-center justify-between gap-4">
+                        <label className="flex items-center gap-2 text-xs font-bold text-slate-700 dark:text-slate-300 cursor-pointer select-none">
+                            <input
+                                type="checkbox"
+                                checked={isChecked}
+                                onChange={(e) => setIsChecked(e.target.checked)}
+                                className="h-4 w-4 rounded border-slate-300 dark:border-white/10 text-cyan-600 focus:ring-cyan-500/20 focus:ring-2 focus:ring-offset-2 dark:bg-slate-800"
+                            />
+                            <span>I have read and understood this announcement</span>
+                        </label>
                         <Button
-                            onClick={() => setShowAnnouncement(false)}
-                            className="bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black uppercase tracking-widest text-xs h-10 px-6 rounded-xl transition-all"
+                            onClick={() => {
+                                setShowAnnouncement(false);
+                                setIsChecked(false);
+                            }}
+                            disabled={!isChecked}
+                            className="bg-cyan-500 hover:bg-cyan-400 text-slate-950 disabled:bg-slate-200 disabled:text-slate-400 dark:disabled:bg-slate-800 dark:disabled:text-slate-600 font-black uppercase tracking-widest text-xs h-10 px-6 rounded-xl transition-all w-full sm:w-auto"
                         >
                             Acknowledge & Close
                         </Button>
