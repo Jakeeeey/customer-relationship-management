@@ -136,6 +136,120 @@ export default async function ERPMainDashboardPage() {
         console.error("[Dashboard Server] Fetch Error:", err);
     }
 
+    let announcementData = null;
+    try {
+        console.log("[Announcement Debug] Starting fetch process from directusBase:", directusBase);
+        const companyListRes = await fetch(`${directusBase?.replace(/\/+$/, "")}/items/company_list?limit=-1`, {
+            headers: { "Authorization": `Bearer ${process.env.DIRECTUS_STATIC_TOKEN}` },
+            next: { revalidate: 0 }
+        });
+
+        if (companyListRes.ok) {
+            const companyListJson = await companyListRes.json();
+            const companies = companyListJson.data || [];
+            console.log(`[Announcement Debug] Successfully fetched ${companies.length} companies`);
+            
+            const defaultCompany = companies.find((c: any) => c.is_default === true || c.is_default === 1 || c.is_default === "1");
+            console.log("[Announcement Debug] Default Company found:", defaultCompany ? { company_id: defaultCompany.company_id, company_name: defaultCompany.company_name } : "None");
+
+            if (defaultCompany) {
+                const defaultCompanyId = defaultCompany.company_id;
+                const company1 = companies.find((c: any) => c.company_id === 1);
+                console.log("[Announcement Debug] Company ID 1 found:", company1 ? { company_id: company1.company_id, directus: company1.directus } : "None");
+                
+                if (company1 && company1.directus && company1.directus_token) {
+                    const targetDirectus = company1.directus.replace(/\/+$/, "");
+                    const targetToken = company1.directus_token;
+
+                    const memoFilter = JSON.stringify({
+                        _and: [
+                            {
+                                _or: [
+                                    { company_id: { _eq: defaultCompanyId } },
+                                    { company_id: { _eq: 7 } }
+                                ]
+                            },
+                            {
+                                status: { _in: ["Active", "Approved"] }
+                            }
+                        ]
+                    });
+
+                    const memoUrl = `${targetDirectus}/items/company_memo?filter=${encodeURIComponent(memoFilter)}&sort=-id,-created_at`;
+                    console.log(`[Announcement Debug] Fetching memos from URL: ${memoUrl}`);
+                    const memoRes = await fetch(memoUrl, {
+                        headers: { "Authorization": `Bearer ${targetToken}` },
+                        next: { revalidate: 0 }
+                    });
+
+                    if (memoRes.ok) {
+                        const memoJson = await memoRes.json();
+                        const memos = memoJson.data || [];
+                        console.log(`[Announcement Debug] Fetched ${memos.length} memos`);
+
+                        const parts = new Intl.DateTimeFormat("en-US", {
+                            timeZone: "Asia/Manila",
+                            year: "numeric",
+                            month: "2-digit",
+                            day: "2-digit"
+                        }).formatToParts(new Date());
+
+                        const year = parts.find(p => p.type === 'year')?.value;
+                        const month = parts.find(p => p.type === 'month')?.value;
+                        const day = parts.find(p => p.type === 'day')?.value;
+                        const currentDateStr = `${year}-${month}-${day}`;
+                        console.log(`[Announcement Debug] Current PHT Date: ${currentDateStr}`);
+
+                        const matchingMemo = memos.find((memo: any) => {
+                            const start = memo.start_date?.split("T")[0];
+                            const end = memo.end_date?.split("T")[0];
+                            const isMatch = !!(start && end && currentDateStr >= start && currentDateStr <= end);
+                            console.log(`[Announcement Debug] Comparing memo ID ${memo.id} (Subject: ${memo.subject}): start=${start}, end=${end}, match=${isMatch}`);
+                            return isMatch;
+                        });
+
+                        if (matchingMemo) {
+                            console.log("[Announcement Debug] Matching memo found:", matchingMemo.subject);
+                            const attachmentFilter = JSON.stringify({
+                                company_memo_id: { _eq: matchingMemo.id }
+                            });
+                            const attachmentUrl = `${targetDirectus}/items/company_memo_attachments?filter=${encodeURIComponent(attachmentFilter)}`;
+                            const attachmentRes = await fetch(attachmentUrl, {
+                                headers: { "Authorization": `Bearer ${targetToken}` },
+                                next: { revalidate: 0 }
+                            });
+
+                            let attachments = [];
+                            if (attachmentRes.ok) {
+                                const attachmentJson = await attachmentRes.json();
+                                attachments = attachmentJson.data || [];
+                            }
+                            console.log(`[Announcement Debug] Fetched ${attachments.length} attachments`);
+
+                            announcementData = {
+                                memo: matchingMemo,
+                                attachments: attachments,
+                                directusBaseUrl: targetDirectus
+                            };
+                        } else {
+                            console.log("[Announcement Debug] No matching memo for current date range");
+                        }
+                    } else {
+                        console.error("[Announcement Debug] Memo fetch failed with status:", memoRes.status, await memoRes.text().catch(() => ""));
+                    }
+                } else {
+                    console.log("[Announcement Debug] Company ID 1 is missing directus or directus_token");
+                }
+            } else {
+                console.log("[Announcement Debug] No default company found");
+            }
+        } else {
+            console.error("[Announcement Debug] Company list fetch failed with status:", companyListRes.status, await companyListRes.text().catch(() => ""));
+        }
+    } catch (err) {
+        console.error("[Announcement Debug] Caught exception in fetch process:", err);
+    }
+
     const userFullName = [payload.FirstName, payload.LastName].filter(Boolean).join(" ") || "User";
     const userEmail = payload.email || "";
 
@@ -144,6 +258,7 @@ export default async function ERPMainDashboardPage() {
             initialSubsystems={subsystems} 
             userFullName={userFullName}
             userEmail={userEmail}
+            announcement={announcementData}
         />
     );
 }
