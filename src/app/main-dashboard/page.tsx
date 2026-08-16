@@ -136,7 +136,7 @@ export default async function ERPMainDashboardPage() {
         console.error("[Dashboard Server] Fetch Error:", err);
     }
 
-    let announcementData = null;
+    let announcementsData: any[] = [];
     try {
         console.log("[Announcement Debug] Starting fetch process from directusBase:", directusBase);
         const companyListRes = await fetch(`${directusBase?.replace(/\/+$/, "")}/items/company_list?limit=-1`, {
@@ -200,7 +200,7 @@ export default async function ERPMainDashboardPage() {
                         const currentDateStr = `${year}-${month}-${day}`;
                         console.log(`[Announcement Debug] Current PHT Date: ${currentDateStr}`);
 
-                        const matchingMemo = memos.find((memo: any) => {
+                        const matchingMemos = memos.filter((memo: any) => {
                             const start = memo.start_date?.split("T")[0];
                             const end = memo.end_date?.split("T")[0];
                             const isMatch = !!(start && end && currentDateStr >= start && currentDateStr <= end);
@@ -208,10 +208,12 @@ export default async function ERPMainDashboardPage() {
                             return isMatch;
                         });
 
-                        if (matchingMemo) {
-                            console.log("[Announcement Debug] Matching memo found:", matchingMemo.subject);
+                        if (matchingMemos.length > 0) {
+                            console.log(`[Announcement Debug] Matching memos found count: ${matchingMemos.length}`);
+                            
+                            const matchingMemoIds = matchingMemos.map((m: any) => m.id);
                             const attachmentFilter = JSON.stringify({
-                                company_memo_id: { _eq: matchingMemo.id }
+                                company_memo_id: { _in: matchingMemoIds }
                             });
                             const attachmentUrl = `${targetDirectus}/items/company_memo_attachments?filter=${encodeURIComponent(attachmentFilter)}`;
                             const attachmentRes = await fetch(attachmentUrl, {
@@ -224,15 +226,15 @@ export default async function ERPMainDashboardPage() {
                                 const attachmentJson = await attachmentRes.json();
                                 attachments = attachmentJson.data || [];
                             }
-                            console.log(`[Announcement Debug] Fetched ${attachments.length} attachments`);
+                            console.log(`[Announcement Debug] Fetched ${attachments.length} total attachments for matching memos`);
 
-                            announcementData = {
-                                memo: matchingMemo,
-                                attachments: attachments,
+                            announcementsData = matchingMemos.map((memo: any) => ({
+                                memo,
+                                attachments: attachments.filter((att: any) => att.company_memo_id === memo.id),
                                 directusBaseUrl: targetDirectus
-                            };
+                            }));
                         } else {
-                            console.log("[Announcement Debug] No matching memo for current date range");
+                            console.log("[Announcement Debug] No matching memos for current date range");
                         }
                     } else {
                         console.error("[Announcement Debug] Memo fetch failed with status:", memoRes.status, await memoRes.text().catch(() => ""));
@@ -258,7 +260,7 @@ export default async function ERPMainDashboardPage() {
             initialSubsystems={subsystems} 
             userFullName={userFullName}
             userEmail={userEmail}
-            announcement={announcementData}
+            announcements={announcementsData}
         />
     );
 }
