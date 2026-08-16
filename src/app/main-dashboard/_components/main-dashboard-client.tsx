@@ -421,7 +421,7 @@ export default function MainDashboardClient({
             <Dialog open={showAnnouncement} onOpenChange={setShowAnnouncement}>
                 <DialogContent 
                     showCloseButton={false} 
-                    className="w-[96vw] sm:max-w-[96vw] h-[96vh] flex flex-col p-6 gap-4 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border border-slate-200 dark:border-white/10 shadow-2xl"
+                    className="w-[96vw] sm:max-w-[96vw] h-[96vh] flex flex-col p-6 gap-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 shadow-2xl"
                 >
                     <DialogHeader className="border-b border-slate-100 dark:border-white/5 pb-4 shrink-0">
                         <div className="flex items-center gap-2 text-cyan-600 dark:text-cyan-400 mb-1">
