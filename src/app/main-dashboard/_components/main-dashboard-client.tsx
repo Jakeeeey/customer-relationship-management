@@ -193,9 +193,6 @@ export default function MainDashboardClient({
     announcement?: any;
 }) {
     const [showAnnouncement, setShowAnnouncement] = React.useState(!!announcement);
-    const [hasScrolledToBottom, setHasScrolledToBottom] = React.useState(false);
-    const [showInlinePreview, setShowInlinePreview] = React.useState(false);
-    const scrollContainerRef = React.useRef<HTMLDivElement>(null);
 
     // Get the first attachment URL and check format
     const attachment = announcement?.attachments?.[0];
@@ -207,50 +204,18 @@ export default function MainDashboardClient({
     if (attachment) {
         const fileUrl = attachment.file_url;
         if (fileUrl) {
-            if (fileUrl.startsWith("http")) {
-                attachmentUrl = fileUrl;
+            const base = fileUrl.startsWith("http") ? fileUrl : `${announcement.directusBaseUrl}/assets/${fileUrl}`;
+            
+            // Append #toolbar=0 to PDF and &wdToolbar=0 to Word viewer URLs to hide toolbar
+            if (/\.pdf$/i.test(fileName)) {
+                attachmentUrl = `${base}#toolbar=0`;
+            } else if (isWord) {
+                attachmentUrl = `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(base)}&wdToolbar=0`;
             } else {
-                attachmentUrl = `${announcement.directusBaseUrl}/assets/${fileUrl}`;
+                attachmentUrl = base;
             }
         }
     }
-
-    // Scroll listener to detect when reaching the bottom
-    const handleScroll = () => {
-        const container = scrollContainerRef.current;
-        if (!container) return;
-
-        const { scrollTop, scrollHeight, clientHeight } = container;
-        // 10px tolerance to handle fractional scroll heights
-        if (scrollHeight - scrollTop - clientHeight <= 10) {
-            setHasScrolledToBottom(true);
-        }
-    };
-
-    // Check if scrolling is needed on mount or when URL/preview state changes
-    React.useEffect(() => {
-        if (showAnnouncement) {
-            const timer = setTimeout(() => {
-                const container = scrollContainerRef.current;
-                if (container) {
-                    const { scrollHeight, clientHeight } = container;
-                    if (scrollHeight <= clientHeight) {
-                        setHasScrolledToBottom(true);
-                    } else {
-                        setHasScrolledToBottom(false);
-                    }
-                }
-            }, 100);
-            return () => clearTimeout(timer);
-        }
-    }, [showAnnouncement, attachmentUrl, showInlinePreview]);
-
-    // Reset inline preview state when modal closes
-    React.useEffect(() => {
-        if (!showAnnouncement) {
-            setShowInlinePreview(false);
-        }
-    }, [showAnnouncement]);
 
     // Turn off global Lenis smooth scrolling when modal is open to restore native modal scrolling
     React.useEffect(() => {
@@ -429,137 +394,49 @@ export default function MainDashboardClient({
             <Dialog open={showAnnouncement} onOpenChange={setShowAnnouncement}>
                 <DialogContent 
                     showCloseButton={false} 
-                    className="w-[96vw] sm:max-w-[96vw] h-[96vh] flex flex-col p-6 gap-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 shadow-2xl"
+                    className="w-[96vw] sm:max-w-[96vw] h-[96vh] flex flex-col p-4 gap-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 shadow-2xl"
                 >
-                    <DialogHeader className="border-b border-slate-100 dark:border-white/5 pb-4 shrink-0">
-                        <div className="flex items-center gap-2 text-cyan-600 dark:text-cyan-400 mb-1">
-                            <Icons.Megaphone className="h-5 w-5 animate-bounce" />
-                            <span className="text-[10px] font-black tracking-[0.35em] uppercase">OFFICIAL ANNOUNCEMENT</span>
+                    <DialogHeader className="border-b border-slate-100 dark:border-white/5 pb-2 shrink-0">
+                        <div className="flex items-center gap-1.5 text-cyan-600 dark:text-cyan-400 mb-0.5">
+                            <Icons.Megaphone className="h-4 w-4 animate-bounce" />
+                            <span className="text-[9px] font-black tracking-[0.35em] uppercase">OFFICIAL ANNOUNCEMENT</span>
                         </div>
-                        <DialogTitle className="text-2xl font-black italic tracking-tighter uppercase text-slate-900 dark:text-white leading-none">
+                        <DialogTitle className="text-xl font-black italic tracking-tighter uppercase text-slate-900 dark:text-white leading-none">
                             {announcement?.memo?.subject || "New Announcement"}
                         </DialogTitle>
                     </DialogHeader>
 
-                    {/* Scrollable Modal Content Wrapper */}
-                    <div 
-                        ref={scrollContainerRef}
-                        onScroll={handleScroll}
-                        data-lenis-prevent
-                        className="flex-1 min-h-0 overflow-y-auto pr-2 space-y-4"
-                    >
-                        {/* Memo Details Cards (Always Shown) */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/10">
-                            <div>
-                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Memo ID</span>
-                                <span className="text-sm font-bold text-slate-800 dark:text-slate-200">{announcement?.memo?.memo_id || "N/A"}</span>
-                            </div>
-                            <div>
-                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Date Range</span>
-                                <span className="text-sm font-bold text-slate-800 dark:text-slate-200">{announcement?.memo?.start_date} to {announcement?.memo?.end_date}</span>
-                            </div>
-                        </div>
-
-                        {/* Description Box (Always Shown) */}
-                        <div className="p-6 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/10">
-                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-2">Announcement Details</span>
-                            <p className="text-sm text-slate-700 dark:text-slate-300 whitespace-pre-wrap font-medium leading-relaxed">
-                                {announcement?.memo?.description || "No description provided."}
-                            </p>
-                        </div>
-
-                        {attachmentUrl && (
-                            <div className="space-y-4">
-                                {/* Attachment Actions */}
-                                <div className="flex flex-wrap gap-3 items-center">
-                                    <a
-                                        href={attachmentUrl}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="inline-flex items-center gap-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-white/5 dark:hover:bg-white/10 px-4 py-2.5 text-xs font-black text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-white/10 transition-all uppercase tracking-widest"
-                                    >
-                                        <Icons.ExternalLink className="h-4 w-4 text-cyan-500" />
-                                        <span>Open in New Tab</span>
-                                    </a>
-                                    {!showInlinePreview ? (
-                                        <Button
-                                            onClick={() => {
-                                                setShowInlinePreview(true);
-                                                setHasScrolledToBottom(false);
-                                            }}
-                                            className="bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-600 dark:text-cyan-400 font-black uppercase tracking-widest text-xs h-10 px-5 rounded-xl border border-cyan-500/20 transition-all"
-                                        >
-                                            <Icons.Eye className="h-4 w-4 mr-2" />
-                                            Preview Document Inline
-                                        </Button>
-                                    ) : (
-                                        <Button
-                                            onClick={() => setShowInlinePreview(false)}
-                                            className="bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 font-black uppercase tracking-widest text-xs h-10 px-5 rounded-xl border border-rose-500/20 transition-all"
-                                        >
-                                            <Icons.EyeOff className="h-4 w-4 mr-2" />
-                                            Hide Document Preview
-                                        </Button>
-                                    )}
-                                </div>
-
-                                {/* Inline Preview Content */}
-                                {showInlinePreview && (
-                                    <div className="relative w-full rounded-xl overflow-hidden border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-slate-950 mt-4">
-                                        {isImage ? (
-                                            <img
-                                                src={attachmentUrl}
-                                                className="w-full h-auto max-h-[78vh] object-contain mx-auto"
-                                                alt={fileName}
-                                            />
-                                        ) : isWord ? (
-                                            <div className="relative w-full h-[78vh]">
-                                                <iframe
-                                                    src={`https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(attachmentUrl)}`}
-                                                    className="w-full h-full border-none"
-                                                    title="Word Document Attachment"
-                                                />
-                                                {!hasScrolledToBottom && (
-                                                    <div className="absolute inset-0 bg-transparent pointer-events-auto" />
-                                                )}
-                                            </div>
-                                        ) : (
-                                            <div className="relative w-full h-[78vh]">
-                                                <iframe
-                                                    src={attachmentUrl}
-                                                    className="w-full h-full border-none"
-                                                    title="PDF Document Attachment"
-                                                />
-                                                {!hasScrolledToBottom && (
-                                                    <div className="absolute inset-0 bg-transparent pointer-events-auto" />
-                                                )}
-                                            </div>
-                                        )}
-                                    </div>
+                    {/* Non-Scrollable Full Height Content Container */}
+                    <div className="flex-1 min-h-0 w-full">
+                        {attachmentUrl ? (
+                            <div className="w-full h-full rounded-xl overflow-hidden border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-slate-950">
+                                {isImage ? (
+                                    <img
+                                        src={attachmentUrl}
+                                        className="w-full h-full object-contain mx-auto"
+                                        alt={fileName}
+                                    />
+                                ) : (
+                                    <iframe
+                                        src={attachmentUrl}
+                                        className="w-full h-full border-none"
+                                        title="Announcement Attachment"
+                                    />
                                 )}
                             </div>
+                        ) : (
+                            <div className="h-full p-6 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/10 overflow-y-auto">
+                                <p className="text-sm text-slate-700 dark:text-slate-300 whitespace-pre-wrap">
+                                    {announcement?.memo?.description || "Please review the announcement details above."}
+                                </p>
+                            </div>
                         )}
-                        <div className="h-2" />
                     </div>
 
-                    <DialogFooter className="shrink-0 border-t border-slate-100 dark:border-white/5 pt-4 flex flex-col sm:flex-row items-center justify-between gap-4">
-                        <div className="text-xs font-bold text-slate-500 uppercase tracking-widest leading-none">
-                            {!hasScrolledToBottom ? (
-                                <span className="text-amber-500 animate-pulse flex items-center gap-1.5">
-                                    <Icons.ArrowDown className="h-3.5 w-3.5" />
-                                    Please scroll down to read the announcement
-                                </span>
-                            ) : (
-                                <span className="text-emerald-500 flex items-center gap-1.5">
-                                    <Icons.Check className="h-3.5 w-3.5" />
-                                    Announcement read and verified
-                                </span>
-                            )}
-                        </div>
+                    <DialogFooter className="shrink-0 border-t border-slate-100 dark:border-white/5 pt-2 flex items-center justify-end">
                         <Button
                             onClick={() => setShowAnnouncement(false)}
-                            disabled={!hasScrolledToBottom}
-                            className="bg-cyan-500 hover:bg-cyan-400 text-slate-950 disabled:bg-slate-200 disabled:text-slate-400 dark:disabled:bg-slate-800 dark:disabled:text-slate-600 font-black uppercase tracking-widest text-xs h-10 px-6 rounded-xl transition-all"
+                            className="bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black uppercase tracking-widest text-xs h-10 px-6 rounded-xl transition-all"
                         >
                             Acknowledge & Close
                         </Button>
