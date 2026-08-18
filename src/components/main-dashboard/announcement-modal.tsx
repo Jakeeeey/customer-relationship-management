@@ -149,8 +149,10 @@ export function AnnouncementModal({
                         {/* 1. Memo Rich Text Body or Text Description */}
                         {activeAnnouncement?.memo?.body ? (
                             <div 
-                                className="mb-4 p-5 rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-slate-950/50 text-sm text-slate-800 dark:text-slate-200 leading-relaxed overflow-x-auto [&_p]:mb-4 [&_p:last-child]:mb-0 [&_ul]:list-disc [&_ul]:pl-5 [&_ul]:mb-4 [&_ol]:list-decimal [&_ol]:pl-5 [&_ol]:mb-4 [&_li]:mb-1 [&_h1]:text-2xl [&_h1]:font-black [&_h1]:mb-3 [&_h2]:text-xl [&_h2]:font-bold [&_h2]:mb-2"
-                                dangerouslySetInnerHTML={{ __html: activeAnnouncement.memo.body }}
+                                className="mb-4 p-5 rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-slate-950/50 text-sm text-slate-800 dark:text-slate-200 leading-relaxed break-words [&_p]:mb-4 [&_p:last-child]:mb-0 [&_ul]:list-disc [&_ul]:pl-5 [&_ul]:mb-4 [&_ol]:list-decimal [&_ol]:pl-5 [&_ol]:mb-4 [&_li]:mb-1 [&_h1]:text-2xl [&_h1]:font-black [&_h1]:mb-3 [&_h2]:text-xl [&_h2]:font-bold [&_h2]:mb-2"
+                                dangerouslySetInnerHTML={{ 
+                                    __html: activeAnnouncement.memo.body.replace(/&nbsp;/g, " ") 
+                                }}
                             />
                         ) : activeAnnouncement?.memo?.description ? (
                             <div className="mb-4 p-5 rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-slate-950/50 text-sm text-slate-800 dark:text-slate-200 leading-relaxed whitespace-pre-wrap">
