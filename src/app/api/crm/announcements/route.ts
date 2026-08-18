@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { z } from "zod";
+import { Company, CompanyMemo, CompanyMemoAttachment, Announcement } from "@/types/announcement";
 
 const COOKIE_NAME = "vos_access_token";
 
@@ -45,7 +46,7 @@ export async function GET() {
         }
 
         const directusBase = process.env.NEXT_PUBLIC_API_BASE_URL;
-        let announcementsData: any[] = [];
+        let announcementsData: Announcement[] = [];
 
         console.log("[Announcement API Debug] Starting fetch process from directusBase:", directusBase);
         const companyListRes = await fetch(`${directusBase?.replace(/\/+$/, "")}/items/company_list?limit=-1`, {
@@ -58,12 +59,12 @@ export async function GET() {
             const companies = companyListJson.data || [];
             console.log(`[Announcement API Debug] Successfully fetched ${companies.length} companies`);
             
-            const defaultCompany = companies.find((c: any) => c.is_default === true || c.is_default === 1 || c.is_default === "1");
+            const defaultCompany = companies.find((c: Company) => c.is_default === true || c.is_default === 1 || c.is_default === "1");
             console.log("[Announcement API Debug] Default Company found:", defaultCompany ? { company_id: defaultCompany.company_id, company_name: defaultCompany.company_name } : "None");
 
             if (defaultCompany) {
                 const defaultCompanyId = defaultCompany.company_id;
-                const company1 = companies.find((c: any) => c.company_id === 1);
+                const company1 = companies.find((c: Company) => c.company_id === 1);
                 console.log("[Announcement API Debug] Company ID 1 found:", company1 ? { company_id: company1.company_id, directus: company1.directus } : "None");
                 
                 if (company1 && company1.directus && company1.directus_token) {
@@ -79,7 +80,7 @@ export async function GET() {
                                 ]
                             },
                             {
-                                status: { _in: ["Active", "Approved"] }
+                                status: { _eq: "Released" }
                             }
                         ]
                     });
@@ -109,7 +110,7 @@ export async function GET() {
                         const currentDateStr = `${year}-${month}-${day}`;
                         console.log(`[Announcement API Debug] Current PHT Date: ${currentDateStr}`);
 
-                        const matchingMemos = memos.filter((memo: any) => {
+                        const matchingMemos = memos.filter((memo: CompanyMemo) => {
                             const start = memo.start_date?.split("T")[0];
                             const end = memo.end_date?.split("T")[0];
                             const isMatch = !!(start && end && currentDateStr >= start && currentDateStr <= end);
@@ -120,7 +121,7 @@ export async function GET() {
                         if (matchingMemos.length > 0) {
                             console.log(`[Announcement API Debug] Matching memos found count: ${matchingMemos.length}`);
                             
-                            const matchingMemoIds = matchingMemos.map((m: any) => m.id);
+                            const matchingMemoIds = matchingMemos.map((m: CompanyMemo) => m.id);
                             const attachmentFilter = JSON.stringify({
                                 company_memo_id: { _in: matchingMemoIds }
                             });
@@ -137,9 +138,9 @@ export async function GET() {
                             }
                             console.log(`[Announcement API Debug] Fetched ${attachments.length} total attachments for matching memos`);
 
-                            announcementsData = matchingMemos.map((memo: any) => ({
+                            announcementsData = matchingMemos.map((memo: CompanyMemo) => ({
                                 memo,
-                                attachments: attachments.filter((att: any) => att.company_memo_id === memo.id),
+                                attachments: attachments.filter((att: CompanyMemoAttachment) => att.company_memo_id === memo.id),
                                 directusBaseUrl: targetDirectus
                             }));
                         } else {
