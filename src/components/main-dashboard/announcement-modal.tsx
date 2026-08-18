@@ -145,29 +145,42 @@ export function AnnouncementModal({
                     )}
 
                     {/* Content Right Column */}
-                    <div className="flex-1 min-h-0 h-full">
-                        {attachmentUrl ? (
-                            <div className="w-full h-full rounded-xl overflow-hidden border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-slate-950">
+                    <div className="flex-1 min-h-0 h-full overflow-y-auto pr-1">
+                        {/* 1. Memo Rich Text Body or Text Description */}
+                        {activeAnnouncement?.memo?.body ? (
+                            <div 
+                                className="mb-4 p-5 rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-slate-950/50 text-sm text-slate-800 dark:text-slate-200 leading-relaxed overflow-x-auto"
+                                dangerouslySetInnerHTML={{ __html: activeAnnouncement.memo.body }}
+                            />
+                        ) : activeAnnouncement?.memo?.description ? (
+                            <div className="mb-4 p-5 rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-slate-950/50 text-sm text-slate-800 dark:text-slate-200 leading-relaxed whitespace-pre-wrap">
+                                {activeAnnouncement.memo.description}
+                            </div>
+                        ) : null}
+
+                        {/* 2. Memo Attachment Preview */}
+                        {attachmentUrl && (
+                            <div className="w-full rounded-xl overflow-hidden border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-slate-950">
                                 {isImage ? (
                                     /* eslint-disable-next-line @next/next/no-img-element */
                                     <img
                                         src={attachmentUrl}
-                                        className="w-full h-full object-contain mx-auto"
+                                        className="w-full h-auto max-h-[650px] object-contain mx-auto"
                                         alt={fileName}
                                     />
                                 ) : (
                                     <iframe
                                         src={attachmentUrl}
-                                        className="w-full h-full border-none"
+                                        className="w-full h-[650px] border-none"
                                         title="Announcement Attachment"
                                     />
                                 )}
                             </div>
-                        ) : (
-                            <div className="h-full p-6 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/10 overflow-y-auto">
-                                <p className="text-sm text-slate-700 dark:text-slate-300 whitespace-pre-wrap">
-                                    {activeAnnouncement?.memo?.description || "Please review the announcement details above."}
-                                </p>
+                        )}
+
+                        {!activeAnnouncement?.memo?.body && !activeAnnouncement?.memo?.description && !attachmentUrl && (
+                            <div className="h-full flex items-center justify-center p-6 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/10">
+                                <p className="text-sm text-slate-400">No content available for this announcement.</p>
                             </div>
                         )}
                     </div>

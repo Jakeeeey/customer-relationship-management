@@ -15,6 +15,7 @@ export interface CompanyMemo {
     end_date?: string;
     memo_id?: string;
     description?: string;
+    body?: string;
 }
 
 export interface CompanyMemoAttachment {
