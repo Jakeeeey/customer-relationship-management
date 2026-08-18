@@ -11,11 +11,12 @@ import {
     DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Announcement } from "@/types/announcement";
 
 export interface AnnouncementModalProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
-    announcements: any[];
+    announcements: Announcement[];
     mode?: "popup" | "view-only";
 }
 
@@ -56,7 +57,7 @@ export function AnnouncementModal({
 
     // Turn off global Lenis smooth scrolling when modal is open to restore native modal scrolling
     React.useEffect(() => {
-        const globalWindow = typeof window !== "undefined" ? (window as any) : null;
+        const globalWindow = typeof window !== "undefined" ? (window as unknown as { lenis?: { stop: () => void; start: () => void } }) : null;
         if (open && globalWindow && globalWindow.lenis) {
             globalWindow.lenis.stop();
             return () => {
@@ -83,7 +84,10 @@ export function AnnouncementModal({
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent 
                 showCloseButton={mode === "view-only"} 
-                className="w-[96vw] sm:max-w-[96vw] h-[96vh] flex flex-col p-4 gap-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 shadow-2xl"
+                className={cn(
+                    "w-[96vw] h-[96vh] flex flex-col p-4 gap-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 shadow-2xl mx-auto",
+                    announcementsList.length >= 2 ? "sm:max-w-[96vw]" : "sm:max-w-[850px]"
+                )}
             >
                 <DialogHeader className="border-b border-slate-100 dark:border-white/5 pb-2 shrink-0">
                     <div className="flex items-center gap-1.5 text-cyan-600 dark:text-cyan-400 mb-0.5">
@@ -103,7 +107,7 @@ export function AnnouncementModal({
                             <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1 px-1">
                                 Announcements ({announcementsList.length})
                             </h4>
-                            {announcementsList.map((ann: any, index: number) => {
+                            {announcementsList.map((ann: Announcement, index: number) => {
                                 const isCurrent = index === activeTabIndex;
                                 const isChecked = mode === "view-only" || !!acknowledgedMemoIds[ann.memo.id];
                                 return (
@@ -145,6 +149,7 @@ export function AnnouncementModal({
                         {attachmentUrl ? (
                             <div className="w-full h-full rounded-xl overflow-hidden border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-slate-950">
                                 {isImage ? (
+                                    /* eslint-disable-next-line @next/next/no-img-element */
                                     <img
                                         src={attachmentUrl}
                                         className="w-full h-full object-contain mx-auto"
