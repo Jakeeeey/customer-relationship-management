@@ -115,6 +115,10 @@ function SearchableCombobox({ items, value, onChange, placeholder, disabled, isL
     );
 }
 
+const RequiredMark = () => (
+    <span className="text-destructive ml-0.5" aria-hidden="true">*</span>
+);
+
 interface CustomerRegistrationFormSheetProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
@@ -514,7 +518,7 @@ export function CustomerRegistrationFormSheet({ open, onOpenChange, customer, on
                                                 name="customer_name"
                                                 render={({ field }) => (
                                                     <FormItem>
-                                                        <FormLabel className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground px-1">Client Full Name</FormLabel>
+                                                        <FormLabel className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground px-1">Client Full Name <RequiredMark /></FormLabel>
                                                         <FormControl>
                                                             <Input {...field} className="h-16 bg-muted/20 border-border/40 rounded-3xl focus-visible:ring-blue-500/20 text-sm font-bold shadow-sm px-6" placeholder="Ex. John Doe" />
                                                         </FormControl>
@@ -529,7 +533,7 @@ export function CustomerRegistrationFormSheet({ open, onOpenChange, customer, on
                                                     name="store_type"
                                                     render={({ field }) => (
                                                         <FormItem>
-                                                            <FormLabel className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground px-1">Store Type</FormLabel>
+                                                            <FormLabel className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground px-1">Store Type <RequiredMark /></FormLabel>
                                                             <SearchableSelect
                                                                 options={storeTypes.map(st => ({ value: st.id.toString(), label: st.store_type }))}
                                                                 value={field.value?.toString()}
@@ -546,7 +550,7 @@ export function CustomerRegistrationFormSheet({ open, onOpenChange, customer, on
                                                     name="classification"
                                                     render={({ field }) => (
                                                         <FormItem>
-                                                            <FormLabel className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground px-1">Classification</FormLabel>
+                                                            <FormLabel className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground px-1">Classification (Optional)</FormLabel>
                                                             <SearchableSelect
                                                                 options={classifications.map(cl => ({ value: cl.id.toString(), label: cl.classification_name }))}
                                                                 value={field.value?.toString()}
@@ -566,7 +570,7 @@ export function CustomerRegistrationFormSheet({ open, onOpenChange, customer, on
                                                     name="store_name"
                                                     render={({ field }) => (
                                                         <FormItem>
-                                                            <FormLabel className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground px-1">Business Store Name</FormLabel>
+                                                            <FormLabel className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground px-1">Business Store Name <RequiredMark /></FormLabel>
                                                             <FormControl>
                                                                 <Input {...field} className="h-16 bg-muted/20 border-border/40 rounded-3xl focus-visible:ring-blue-500/20 text-sm font-bold shadow-sm px-6" placeholder="Ex. Costsaver's Supermarket" />
                                                             </FormControl>
@@ -579,7 +583,7 @@ export function CustomerRegistrationFormSheet({ open, onOpenChange, customer, on
                                                     name="store_signage"
                                                     render={({ field }) => (
                                                         <FormItem>
-                                                            <FormLabel className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground px-1">Signage / Landmarks</FormLabel>
+                                                            <FormLabel className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground px-1">Signage / Landmarks (Optional)</FormLabel>
                                                             <FormControl>
                                                                 <Input {...field} value={field.value || ""} className="h-16 bg-muted/20 border-border/40 rounded-3xl focus-visible:ring-blue-500/20 text-sm font-bold shadow-sm px-6" placeholder="e.g. Beside main gate" />
                                                             </FormControl>
@@ -594,7 +598,7 @@ export function CustomerRegistrationFormSheet({ open, onOpenChange, customer, on
                                                 name="otherDetails"
                                                 render={({ field }) => (
                                                     <FormItem>
-                                                        <FormLabel className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground px-1">Remarks</FormLabel>
+                                                        <FormLabel className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground px-1">Remarks (Optional)</FormLabel>
                                                         <FormControl>
                                                             <textarea
                                                                 {...field}
@@ -640,7 +644,7 @@ export function CustomerRegistrationFormSheet({ open, onOpenChange, customer, on
                                                     name="province"
                                                     render={({ field }) => (
                                                         <FormItem>
-                                                            <FormLabel className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground px-1">Province</FormLabel>
+                                                            <FormLabel className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground px-1">Province <RequiredMark /></FormLabel>
                                                             <SearchableCombobox
                                                                 items={provincesList}
                                                                 value={field.value}
@@ -658,7 +662,7 @@ export function CustomerRegistrationFormSheet({ open, onOpenChange, customer, on
                                                         name="city"
                                                         render={({ field }) => (
                                                             <FormItem className="flex flex-col min-w-0">
-                                                                <FormLabel className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground px-1 truncate">City / Mun.</FormLabel>
+                                                                <FormLabel className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground px-1 truncate">City / Mun. <RequiredMark /></FormLabel>
                                                                 <SearchableCombobox
                                                                     items={citiesList}
                                                                     value={field.value}
@@ -676,7 +680,7 @@ export function CustomerRegistrationFormSheet({ open, onOpenChange, customer, on
                                                         name="brgy"
                                                         render={({ field }) => (
                                                             <FormItem className="flex flex-col min-w-0">
-                                                                <FormLabel className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground px-1 truncate">Barangay</FormLabel>
+                                                                <FormLabel className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground px-1 truncate">Barangay <RequiredMark /></FormLabel>
                                                                 <SearchableCombobox
                                                                     items={barangaysList}
                                                                     value={field.value}
@@ -736,7 +740,7 @@ export function CustomerRegistrationFormSheet({ open, onOpenChange, customer, on
                                                     name="contact_number"
                                                     render={({ field }) => (
                                                         <FormItem>
-                                                            <FormLabel className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground px-1">Mobile Number</FormLabel>
+                                                            <FormLabel className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground px-1">Mobile Number <RequiredMark /></FormLabel>
                                                             <FormControl>
                                                                 <Input 
                                                                     {...field} 
@@ -756,7 +760,7 @@ export function CustomerRegistrationFormSheet({ open, onOpenChange, customer, on
                                                     name="tel_number"
                                                     render={({ field }) => (
                                                         <FormItem>
-                                                            <FormLabel className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground px-1">Telephone Number</FormLabel>
+                                                            <FormLabel className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground px-1">Telephone Number (Optional)</FormLabel>
                                                             <FormControl>
                                                                 <Input 
                                                                     {...field} 
@@ -778,7 +782,7 @@ export function CustomerRegistrationFormSheet({ open, onOpenChange, customer, on
                                                 name="customer_email"
                                                 render={({ field }) => (
                                                     <FormItem>
-                                                        <FormLabel className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground px-1">Email Address</FormLabel>
+                                                        <FormLabel className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground px-1">Email Address (Optional)</FormLabel>
                                                         <FormControl>
                                                             <Input {...field} value={field.value || ""} className="h-16 bg-muted/20 border-border/40 rounded-3xl focus-visible:ring-blue-500/20 text-sm font-bold shadow-sm px-6" placeholder="customer@example.com" />
                                                         </FormControl>

@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import { z } from "zod";
 import MainDashboardClient from "./_components/main-dashboard-client";
+import { CompanyMemo, CompanyMemoAttachment, Announcement } from "@/types/announcement";
 
 const COOKIE_NAME = "vos_access_token";
 
@@ -136,6 +137,105 @@ export default async function ERPMainDashboardPage() {
         console.error("[Dashboard Server] Fetch Error:", err);
     }
 
+    let announcementsData: Announcement[] = [];
+    try {
+        const directusUrl = directusBase?.replace(/\/+$/, "") || "";
+        const targetToken = process.env.DIRECTUS_STATIC_TOKEN || "";
+        const user_id = payload?.id || payload?.user_id || payload?.sub;
+
+        let acknowledgedMemoIds: number[] = [];
+        if (user_id) {
+            const userIdNum = Number(user_id);
+            const ackFilter = JSON.stringify({
+                user_id: { _eq: userIdNum }
+            });
+            const ackRes = await fetch(`${directusUrl}/items/company_memo_user_acknowledge?filter=${encodeURIComponent(ackFilter)}`, {
+                headers: { "Authorization": `Bearer ${targetToken}` },
+                next: { revalidate: 0 }
+            });
+            if (ackRes.ok) {
+                const ackJson = await ackRes.json();
+                acknowledgedMemoIds = (ackJson.data || []).map((item: { company_memo_id: number }) => item.company_memo_id);
+            }
+        }
+
+        console.log("[Announcement Debug] Starting direct fetch process from directusBase:", directusUrl);
+
+        const memoFilter = JSON.stringify({
+            _and: [
+                { status: { _eq: "Released" } },
+                acknowledgedMemoIds.length > 0 ? { id: { _nin: acknowledgedMemoIds } } : {}
+            ]
+        });
+
+        const memoUrl = `${directusUrl}/items/company_memo?filter=${encodeURIComponent(memoFilter)}&sort=-id,-created_at`;
+        console.log(`[Announcement Debug] Fetching memos from URL: ${memoUrl}`);
+        const memoRes = await fetch(memoUrl, {
+            headers: { "Authorization": `Bearer ${targetToken}` },
+            next: { revalidate: 0 }
+        });
+
+        if (memoRes.ok) {
+            const memoJson = await memoRes.json();
+            const memos = memoJson.data || [];
+            console.log(`[Announcement Debug] Fetched ${memos.length} memos`);
+
+            const parts = new Intl.DateTimeFormat("en-US", {
+                timeZone: "Asia/Manila",
+                year: "numeric",
+                month: "2-digit",
+                day: "2-digit"
+            }).formatToParts(new Date());
+
+            const year = parts.find(p => p.type === 'year')?.value;
+            const month = parts.find(p => p.type === 'month')?.value;
+            const day = parts.find(p => p.type === 'day')?.value;
+            const currentDateStr = `${year}-${month}-${day}`;
+            console.log(`[Announcement Debug] Current PHT Date: ${currentDateStr}`);
+
+            const matchingMemos = memos.filter((memo: CompanyMemo) => {
+                const start = memo.start_date?.split("T")[0];
+                const end = memo.end_date?.split("T")[0];
+                const isMatch = !!(start && end && currentDateStr >= start && currentDateStr <= end);
+                console.log(`[Announcement Debug] Comparing memo ID ${memo.id} (Subject: ${memo.subject}): start=${start}, end=${end}, match=${isMatch}`);
+                return isMatch;
+            });
+
+            if (matchingMemos.length > 0) {
+                console.log(`[Announcement Debug] Matching memos found count: ${matchingMemos.length}`);
+                
+                const matchingMemoIds = matchingMemos.map((m: CompanyMemo) => m.id);
+                const attachmentFilter = JSON.stringify({
+                    company_memo_id: { _in: matchingMemoIds }
+                });
+                const attachmentUrl = `${directusUrl}/items/company_memo_attachments?filter=${encodeURIComponent(attachmentFilter)}`;
+                const attachmentRes = await fetch(attachmentUrl, {
+                    headers: { "Authorization": `Bearer ${targetToken}` },
+                    next: { revalidate: 0 }
+                });
+
+                let attachments = [];
+                if (attachmentRes.ok) {
+                    const attachmentJson = await attachmentRes.json();
+                    attachments = attachmentJson.data || [];
+                }
+                console.log(`[Announcement Debug] Fetched ${attachments.length} total attachments for matching memos`);
+
+                announcementsData = matchingMemos.map((memo: CompanyMemo) => ({
+                    memo,
+                    attachments: attachments.filter((att: CompanyMemoAttachment) => att.company_memo_id === memo.id),
+                    directusBaseUrl: directusUrl
+                }));
+            } else {
+                console.log("[Announcement Debug] No matching memos for current date range");
+            }
+        } else {
+            console.error("[Announcement Debug] Memo fetch failed with status:", memoRes.status, await memoRes.text().catch(() => ""));
+        }
+    } catch (err) {
+        console.error("[Announcement Debug] Caught exception in fetch process:", err);
+    }
+
     const userFullName = [payload.FirstName, payload.LastName].filter(Boolean).join(" ") || "User";
     const userEmail = payload.email || "";
 
@@ -144,6 +244,7 @@ export default async function ERPMainDashboardPage() {
             initialSubsystems={subsystems} 
             userFullName={userFullName}
             userEmail={userEmail}
+            announcements={announcementsData}
         />
     );
 }
