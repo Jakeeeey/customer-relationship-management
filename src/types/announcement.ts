@@ -14,6 +14,7 @@ export interface CompanyMemo {
     start_date?: string;
     end_date?: string;
     memo_id?: string;
+    memo_no?: string;
     description?: string;
     body?: string;
 }
@@ -29,4 +30,5 @@ export interface Announcement {
     memo: CompanyMemo;
     attachments: CompanyMemoAttachment[];
     directusBaseUrl: string;
+    acknowledged_at?: string;
 }
