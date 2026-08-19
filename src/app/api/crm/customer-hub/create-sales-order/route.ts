@@ -34,10 +34,18 @@ export const dynamic = "force-dynamic";
 
 const DIRECTUS_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
 const DIRECTUS_TOKEN = process.env.DIRECTUS_STATIC_TOKEN;
+const SPRING_API_BASE_URL = process.env.SPRING_API_BASE_URL;
+
 const fetchHeaders = {
     Authorization: `Bearer ${DIRECTUS_TOKEN}`,
     "Content-Type": "application/json",
 };
+
+// --- INVENTORY CACHE ---
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const globalCachedInventory: Record<string, any[]> = {};
+const globalCachedInventoryTime: Record<string, number> = {};
+// -----------------------
 
 
 interface ProductMetadata {
@@ -363,12 +371,177 @@ export async function GET(req: NextRequest) {
                 }
 
 
-                // --- Start Inventory Fetch from Spring Boot ---
-                const inventoryMap: Record<string | number, { available: number; unitCount: number }> = {};
-                
-                // Inventory checking removed as per user request to optimize product fetching
-                
-                // --- End Inventory Fetch ---
+                // --- Start Inventory Fetch Promise from Spring Boot ---
+                const inventoryFetchPromise = (async () => {
+                    const inventoryMap: Record<string | number, { available: number; unitCount: number }> = {};
+                    const queryBranchId = req.nextUrl.searchParams.get("branch_id") || req.nextUrl.searchParams.get("branchId");
+
+                if (salesmanId || queryBranchId) {
+                    try {
+                        let branchId: string | number | null = queryBranchId;
+
+                        // If no branchId was passed but we have salesmanId, try to look it up (fallback)
+                        if (!branchId && salesmanId) {
+                            const smUrl = `${DIRECTUS_URL}/items/salesman?filter[id][_eq]=${salesmanId}&fields=id,branch_id,branch_code&limit=1`;
+                            const smRes = await fetch(smUrl, { headers: fetchHeaders });
+                            if (smRes.ok) {
+                                const smResJson = await smRes.json();
+                                const smData = Array.isArray(smResJson.data) ? smResJson.data[0] : null;
+                                if (smData) {
+                                    branchId = smData.branch_code || smData.branch_id;
+                                    if (branchId && typeof branchId === 'object') {
+                                        const obj = branchId as { id?: number | string; branch_code?: number | string; branch_id?: number | string };
+                                        branchId = obj.branch_code || obj.id || obj.branch_id || null;
+                                    }
+                                }
+                            }
+                        }
+
+                        let supplierShortcutStr: string | null = null;
+                        let branchCodeStr: string | null = null;
+                        let branchNameStr: string | null = null;
+                        
+                        // Concurrent resolution of supplier shortcut and branch code/name
+                        await Promise.all([
+                            (async () => {
+                                if (supplierId) {
+                                    try {
+                                        const supRes = await fetch(`${DIRECTUS_URL}/items/suppliers/${supplierId}?fields=supplier_shortcut`, { headers: fetchHeaders });
+                                        if (supRes.ok) {
+                                            const supData = (await supRes.json()).data;
+                                            supplierShortcutStr = supData?.supplier_shortcut || null;
+                                        }
+                                    } catch (e) {
+                                        console.error("[InventoryDebug] Supplier resolution error:", e);
+                                    }
+                                }
+                            })(),
+                            (async () => {
+                                if (branchId) {
+                                    if (isNaN(Number(branchId))) {
+                                        branchCodeStr = String(branchId);
+                                        try {
+                                            const bRes = await fetch(`${DIRECTUS_URL}/items/branches?filter[branch_code][_eq]=${branchCodeStr}&fields=branch_name`, { headers: fetchHeaders });
+                                            if (bRes.ok) {
+                                                const bData = (await bRes.json()).data;
+                                                if (bData && bData.length > 0) branchNameStr = bData[0].branch_name;
+                                            }
+                                        } catch {}
+                                    } else {
+                                        try {
+                                            const bRes = await fetch(`${DIRECTUS_URL}/items/branches/${branchId}?fields=branch_code,branch_name`, { headers: fetchHeaders });
+                                            if (bRes.ok) {
+                                                const bData = (await bRes.json()).data;
+                                                branchCodeStr = bData?.branch_code || null;
+                                                branchNameStr = bData?.branch_name || null;
+                                            }
+                                        } catch (e) {
+                                            console.error("[InventoryDebug] Branch resolution error:", e);
+                                        }
+                                    }
+                                }
+                            })()
+                        ]);
+
+                        console.log(`[InventoryDebug] Final Branch Target: ID=${branchId}, Code=${branchCodeStr}, Name=${branchNameStr}, SupplierShortcut=${supplierShortcutStr}`);
+
+                        if (branchId && SPRING_API_BASE_URL) {
+                            const cookieStore = await cookies();
+                            const token = cookieStore.get(COOKIE_NAME)?.value;
+
+                            const currentYear = new Date().getFullYear();
+                            const invStartDate = searchParams.get("startDate") || `${currentYear}-01-01`;
+                            const todayStr = new Date().toISOString().split('T')[0];
+                            const invEndDate = searchParams.get("endDate") || todayStr;
+
+                            let invUrl = `${SPRING_API_BASE_URL.replace(/\/$/, "")}/api/view-running-inventory-by-unit/all?startDate=${invStartDate}&endDate=${invEndDate}`;
+                            if (branchNameStr) {
+                                invUrl += `&branchName=${encodeURIComponent(branchNameStr)}`;
+                            }
+                            if (supplierShortcutStr) {
+                                invUrl += `&supplierShortcut=${encodeURIComponent(supplierShortcutStr)}`;
+                            }
+                            
+                            const nowTime = Date.now();
+                            let invDataToProcess: Record<string, unknown>[] = [];
+                            let inventoryIsOk = true;
+
+                            if (globalCachedInventory[invUrl] && (nowTime - (globalCachedInventoryTime[invUrl] || 0) < 5 * 60 * 1000)) {
+                                invDataToProcess = globalCachedInventory[invUrl];
+                                console.log(`[InventoryDebug] Using cached inventory. Records: ${invDataToProcess.length}`);
+                            } else {
+                                console.log(`[InventoryDebug] Fetching fresh inventory: ${invUrl}`);
+                                const inventoryRes = await fetch(invUrl, {
+                                    headers: {
+                                        "Accept": "application/json",
+                                        ...(token ? { "Authorization": `Bearer ${token}` } : {})
+                                    },
+                                    cache: 'no-store',
+                                });
+
+                                if (inventoryRes.ok) {
+                                    const invJson = await inventoryRes.json();
+                                    invDataToProcess = Array.isArray(invJson) ? invJson : (invJson.data || []);
+                                    globalCachedInventory[invUrl] = invDataToProcess;
+                                    globalCachedInventoryTime[invUrl] = nowTime;
+                                    console.log(`[InventoryDebug] Fetched fresh inventory. Records: ${invDataToProcess.length}`);
+                                } else {
+                                    inventoryIsOk = false;
+                                }
+                            }
+
+                            if (inventoryIsOk) {
+                                const invData = invDataToProcess;
+                                console.log(`[InventoryDebug] Processing Records: ${invData.length}`);
+
+                                if (Array.isArray(invData) && invData.length > 0) {
+                                    const branchesInStock = new Set<string>();
+                                    // 🎓 Smart Matching: Handles both numeric IDs and string Codes, and accumulates available quantities
+                                    invData.forEach((item: Record<string, unknown>) => {
+                                        const itemBId = item.branchId ?? item.branch_id ?? item.BranchId ?? item.Branch_Id;
+                                        const itemSId = item.supplierId ?? item.supplier_id ?? item.SupplierId ?? item.Supplier_Id;
+                                        
+                                        if (itemBId) branchesInStock.add(itemBId.toString());
+
+                                        const matchId = (itemBId && !isNaN(Number(itemBId)) && Number(itemBId) === Number(branchId));
+                                        const matchCode = (branchCodeStr && itemBId && String(itemBId).toUpperCase() === String(branchCodeStr).toUpperCase());
+                                        const matchSupplier = !supplierId || (itemSId && String(itemSId) === String(supplierId));
+
+                                        if ((matchId || matchCode) && matchSupplier) {
+                                            const pid = item.productId ?? item.product_id ?? item.ProductId ?? item.Product_Id ?? item.id;
+                                            if (pid) {
+                                                const available = Number(
+                                                    item.availableStock ??
+                                                    item.available_stock ??
+                                                    item.runningInventoryUnit ??
+                                                    item.running_inventory_unit ??
+                                                    item.runningInventory ??
+                                                    item.running_inventory ??
+                                                    0
+                                                );
+                                                const unitCount = Number(item.unitCount ?? item.unit_count ?? 1);
+
+                                                // Accumulate quantities 💎
+                                                const existingNum = inventoryMap[Number(pid)] || { available: 0, unitCount };
+                                                const newAvailable = existingNum.available + available;
+
+                                                if (!isNaN(Number(pid))) inventoryMap[Number(pid)] = { available: newAvailable, unitCount };
+                                                inventoryMap[String(pid)] = { available: newAvailable, unitCount };
+                                            }
+                                        }
+                                    });
+                                    console.log(`[InventoryDebug] Branches found in API: ${Array.from(branchesInStock).slice(0, 10).join(", ")}`);
+                                    console.log(`[InventoryDebug] Map populated with ${Object.keys(inventoryMap).length} items for branch ${branchId}`);
+                                }
+                            }
+                        }
+                    } catch (e) {
+                        console.error("[InventoryDebug] Inventory Fetch Exception:", e);
+                    }
+                }
+                return inventoryMap;
+            })();
+            // --- End Inventory Fetch Promise ---
 
                 const initialProducts = await fetchInChunks<ProductItem>(`${DIRECTUS_URL}/items/products?filter[isActive][_eq]=1&fields=*,product_category.category_id,product_category.category_name,product_brand.brand_id,product_brand.brand_name`, linkedProductIds, "product_id");
 
@@ -450,6 +623,9 @@ export async function GET(req: NextRequest) {
                     const hasOverride = Object.prototype.hasOwnProperty.call(priceOverrides, Number(p.product_id));
                     return isActive && hasOverride;
                 });
+
+                // Wait for the inventory fetch to complete before generating final products
+                const inventoryMap = await inventoryFetchPromise;
 
                 const finalProducts = sellableItems.map((p) => {
                     let winId = null;
