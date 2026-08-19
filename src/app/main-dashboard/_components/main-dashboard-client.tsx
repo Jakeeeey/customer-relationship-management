@@ -191,7 +191,7 @@ export default function MainDashboardClient({
 
     const handleAcknowledge = async (memoIds: number[]) => {
         try {
-            const res = await fetch("/api/crm/announcements", {
+            const res = await fetch("/api/announcements", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ memoIds })

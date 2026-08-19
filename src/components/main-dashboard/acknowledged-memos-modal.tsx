@@ -30,7 +30,7 @@ export function AcknowledgedMemosModal({
     React.useEffect(() => {
         if (open) {
             setIsLoading(true);
-            fetch("/api/crm/announcements/acknowledged")
+            fetch("/api/announcements/acknowledged")
                 .then((res) => {
                     if (res.ok) return res.json();
                     throw new Error("Failed to fetch history");
