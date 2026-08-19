@@ -78,10 +78,15 @@ export async function GET() {
             return NextResponse.json({ announcements: [] });
         }
 
+        interface AckItem {
+            company_memo_id: CompanyMemo | null;
+            acknowledged_at?: string;
+        }
+
         // Gather all company_memo data and memo IDs
         const memoList: CompanyMemo[] = ackList
-            .map((item: any) => item.company_memo_id)
-            .filter((memo: any): memo is CompanyMemo => memo !== null && typeof memo === "object");
+            .map((item: AckItem) => item.company_memo_id)
+            .filter((memo: CompanyMemo | null): memo is CompanyMemo => memo !== null && typeof memo === "object");
 
         const memoIds = memoList.map((m) => m.id);
 
@@ -107,8 +112,8 @@ export async function GET() {
 
         // Construct structured Announcements list mapped to historical records
         const announcementsData: Announcement[] = ackList
-            .map((item: any) => {
-                const memo = item.company_memo_id as CompanyMemo | null;
+            .map((item: AckItem) => {
+                const memo = item.company_memo_id;
                 if (!memo) return null;
 
                 return {
@@ -118,7 +123,7 @@ export async function GET() {
                     acknowledged_at: item.acknowledged_at
                 };
             })
-            .filter((ann: any): ann is Announcement => ann !== null);
+            .filter((ann: Announcement | null): ann is Announcement => ann !== null);
 
         return NextResponse.json({ announcements: announcementsData });
     } catch (err) {

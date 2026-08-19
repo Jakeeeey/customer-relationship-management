@@ -34,7 +34,7 @@ export const dynamic = "force-dynamic";
 
 const DIRECTUS_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
 const DIRECTUS_TOKEN = process.env.DIRECTUS_STATIC_TOKEN;
-const SPRING_API_BASE_URL = process.env.SPRING_API_BASE_URL;
+// const SPRING_API_BASE_URL = process.env.SPRING_API_BASE_URL;
 
 const fetchHeaders = {
     Authorization: `Bearer ${DIRECTUS_TOKEN}`,
@@ -42,9 +42,9 @@ const fetchHeaders = {
 };
 
 // --- INVENTORY CACHE ---
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const globalCachedInventory: Record<string, any[]> = {};
-const globalCachedInventoryTime: Record<string, number> = {};
+// // eslint-disable-next-line @typescript-eslint/no-explicit-any
+// const globalCachedInventory: Record<string, any[]> = {};
+// const globalCachedInventoryTime: Record<string, number> = {};
 // -----------------------
 
 interface ProductMetadata {
@@ -377,8 +377,8 @@ export async function GET(req: NextRequest) {
 
                 let _branchId: string | number | null = queryBranchId;
                 let _branchCodeStr: string | null = null;
-                let _branchNameStr: string | null = null;
-                let _supplierShortcutStr: string | null = null;
+                // let _branchNameStr: string | null = null;
+                // let _supplierShortcutStr: string | null = null;
 
                 if (salesmanId || queryBranchId) {
                     try {
@@ -404,8 +404,8 @@ export async function GET(req: NextRequest) {
                             try {
                                 const supRes = await fetch(`${DIRECTUS_URL}/items/suppliers/${supplierId}?fields=supplier_shortcut`, { headers: fetchHeaders });
                                 if (supRes.ok) {
-                                    const supData = (await supRes.json()).data;
-                                    _supplierShortcutStr = supData?.supplier_shortcut || null;
+                                    // const supData = (await supRes.json()).data;
+                                    // _supplierShortcutStr = supData?.supplier_shortcut || null;
                                 }
                             } catch (e) {
                                 console.error("[BranchResolution] Supplier resolution error:", e);
@@ -419,8 +419,8 @@ export async function GET(req: NextRequest) {
                                 try {
                                     const bRes = await fetch(`${DIRECTUS_URL}/items/branches?filter[branch_code][_eq]=${_branchCodeStr}&fields=branch_name`, { headers: fetchHeaders });
                                     if (bRes.ok) {
-                                        const bData = (await bRes.json()).data;
-                                        if (bData && bData.length > 0) _branchNameStr = bData[0].branch_name;
+                                        // const bData = (await bRes.json()).data;
+                                        // if (bData && bData.length > 0) _branchNameStr = bData[0].branch_name;
                                     }
                                 } catch {}
                             } else {
@@ -429,7 +429,7 @@ export async function GET(req: NextRequest) {
                                     if (bRes.ok) {
                                         const bData = (await bRes.json()).data;
                                         _branchCodeStr = bData?.branch_code || null;
-                                        _branchNameStr = bData?.branch_name || null;
+                                        // _branchNameStr = bData?.branch_name || null;
                                     }
                                 } catch (e) {
                                     console.error("[BranchResolution] Branch resolution error:", e);

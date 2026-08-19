@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { z } from "zod";
-import { Company, CompanyMemo, CompanyMemoAttachment, Announcement } from "@/types/announcement";
+import { CompanyMemo, CompanyMemoAttachment, Announcement } from "@/types/announcement";
 
 const COOKIE_NAME = "vos_access_token";
 
@@ -69,7 +69,7 @@ export async function GET(req: Request) {
             });
             if (ackRes.ok) {
                 const ackJson = await ackRes.json();
-                acknowledgedMemoIds = (ackJson.data || []).map((item: any) => item.company_memo_id);
+                acknowledgedMemoIds = (ackJson.data || []).map((item: { company_memo_id: number }) => item.company_memo_id);
             }
         }
 
