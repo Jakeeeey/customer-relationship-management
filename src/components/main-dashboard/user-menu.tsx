@@ -44,7 +44,7 @@ export function UserMenu({ fullName, email }: UserMenuProps) {
 
     React.useEffect(() => {
         const fetchCount = () => {
-            fetch("/api/crm/announcements")
+            fetch("/api/announcements")
                 .then((res) => res.json())
                 .then((data) => {
                     if (data.announcements) {
