@@ -370,9 +370,10 @@ export async function GET(req: NextRequest) {
                 }
 
 
-                // --- Start Inventory Fetch from Spring Boot ---
-                const inventoryMap: Record<string | number, { available: number; unitCount: number }> = {};
-                const queryBranchId = req.nextUrl.searchParams.get("branch_id") || req.nextUrl.searchParams.get("branchId");
+                // --- Start Inventory Fetch Promise from Spring Boot ---
+                const inventoryFetchPromise = (async () => {
+                    const inventoryMap: Record<string | number, { available: number; unitCount: number }> = {};
+                    const queryBranchId = req.nextUrl.searchParams.get("branch_id") || req.nextUrl.searchParams.get("branchId");
 
                 if (salesmanId || queryBranchId) {
                     try {
@@ -396,44 +397,50 @@ export async function GET(req: NextRequest) {
                         }
 
                         let supplierShortcutStr: string | null = null;
-                        if (supplierId) {
-                            try {
-                                const supRes = await fetch(`${DIRECTUS_URL}/items/suppliers/${supplierId}?fields=supplier_shortcut`, { headers: fetchHeaders });
-                                if (supRes.ok) {
-                                    const supData = (await supRes.json()).data;
-                                    supplierShortcutStr = supData?.supplier_shortcut || null;
-                                }
-                            } catch (e) {
-                                console.error("[InventoryDebug] Supplier resolution error:", e);
-                            }
-                        }
-
-                        // Resolve numeric ID vs string code
                         let branchCodeStr: string | null = null;
                         let branchNameStr: string | null = null;
-                        if (branchId) {
-                            if (isNaN(Number(branchId))) {
-                                branchCodeStr = String(branchId);
-                                try {
-                                    const bRes = await fetch(`${DIRECTUS_URL}/items/branches?filter[branch_code][_eq]=${branchCodeStr}&fields=branch_name`, { headers: fetchHeaders });
-                                    if (bRes.ok) {
-                                        const bData = (await bRes.json()).data;
-                                        if (bData && bData.length > 0) branchNameStr = bData[0].branch_name;
+                        
+                        // Concurrent resolution of supplier shortcut and branch code/name
+                        await Promise.all([
+                            (async () => {
+                                if (supplierId) {
+                                    try {
+                                        const supRes = await fetch(`${DIRECTUS_URL}/items/suppliers/${supplierId}?fields=supplier_shortcut`, { headers: fetchHeaders });
+                                        if (supRes.ok) {
+                                            const supData = (await supRes.json()).data;
+                                            supplierShortcutStr = supData?.supplier_shortcut || null;
+                                        }
+                                    } catch (e) {
+                                        console.error("[InventoryDebug] Supplier resolution error:", e);
                                     }
-                                } catch {}
-                            } else {
-                                try {
-                                    const bRes = await fetch(`${DIRECTUS_URL}/items/branches/${branchId}?fields=branch_code,branch_name`, { headers: fetchHeaders });
-                                    if (bRes.ok) {
-                                        const bData = (await bRes.json()).data;
-                                        branchCodeStr = bData?.branch_code || null;
-                                        branchNameStr = bData?.branch_name || null;
-                                    }
-                                } catch (e) {
-                                    console.error("[InventoryDebug] Branch resolution error:", e);
                                 }
-                            }
-                        }
+                            })(),
+                            (async () => {
+                                if (branchId) {
+                                    if (isNaN(Number(branchId))) {
+                                        branchCodeStr = String(branchId);
+                                        try {
+                                            const bRes = await fetch(`${DIRECTUS_URL}/items/branches?filter[branch_code][_eq]=${branchCodeStr}&fields=branch_name`, { headers: fetchHeaders });
+                                            if (bRes.ok) {
+                                                const bData = (await bRes.json()).data;
+                                                if (bData && bData.length > 0) branchNameStr = bData[0].branch_name;
+                                            }
+                                        } catch {}
+                                    } else {
+                                        try {
+                                            const bRes = await fetch(`${DIRECTUS_URL}/items/branches/${branchId}?fields=branch_code,branch_name`, { headers: fetchHeaders });
+                                            if (bRes.ok) {
+                                                const bData = (await bRes.json()).data;
+                                                branchCodeStr = bData?.branch_code || null;
+                                                branchNameStr = bData?.branch_name || null;
+                                            }
+                                        } catch (e) {
+                                            console.error("[InventoryDebug] Branch resolution error:", e);
+                                        }
+                                    }
+                                }
+                            })()
+                        ]);
 
                         console.log(`[InventoryDebug] Final Branch Target: ID=${branchId}, Code=${branchCodeStr}, Name=${branchNameStr}, SupplierShortcut=${supplierShortcutStr}`);
 
@@ -531,7 +538,9 @@ export async function GET(req: NextRequest) {
                         console.error("[InventoryDebug] Inventory Fetch Exception:", e);
                     }
                 }
-                // --- End Inventory Fetch ---
+                return inventoryMap;
+            })();
+            // --- End Inventory Fetch Promise ---
 
                 const initialProducts = await fetchInChunks<ProductItem>(`${DIRECTUS_URL}/items/products?filter[isActive][_eq]=1&fields=*,product_category.category_id,product_category.category_name,product_brand.brand_id,product_brand.brand_name`, linkedProductIds, "product_id");
 
@@ -613,6 +622,9 @@ export async function GET(req: NextRequest) {
                     const hasOverride = Object.prototype.hasOwnProperty.call(priceOverrides, Number(p.product_id));
                     return isActive && hasOverride;
                 });
+
+                // Wait for the inventory fetch to complete before generating final products
+                const inventoryMap = await inventoryFetchPromise;
 
                 const finalProducts = sellableItems.map((p) => {
                     let winId = null;
