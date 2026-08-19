@@ -56,7 +56,7 @@ export function NavUser({ user, onLogout, subsystemSlug }: NavUserProps) {
 
     React.useEffect(() => {
         const fetchCount = () => {
-            fetch("/api/crm/announcements")
+            fetch("/api/announcements")
                 .then((res) => res.json())
                 .then((data) => {
                     if (data.announcements) {
