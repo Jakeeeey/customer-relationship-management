@@ -141,10 +141,30 @@ export default async function ERPMainDashboardPage() {
     try {
         const directusUrl = directusBase?.replace(/\/+$/, "") || "";
         const targetToken = process.env.DIRECTUS_STATIC_TOKEN || "";
+        const user_id = payload?.id || payload?.user_id || payload?.sub;
+
+        let acknowledgedMemoIds: number[] = [];
+        if (user_id) {
+            const ackFilter = JSON.stringify({
+                user_id: { _eq: user_id }
+            });
+            const ackRes = await fetch(`${directusUrl}/items/company_memo_user_acknowledge?filter=${encodeURIComponent(ackFilter)}`, {
+                headers: { "Authorization": `Bearer ${targetToken}` },
+                next: { revalidate: 0 }
+            });
+            if (ackRes.ok) {
+                const ackJson = await ackRes.json();
+                acknowledgedMemoIds = (ackJson.data || []).map((item: any) => item.company_memo_id);
+            }
+        }
+
         console.log("[Announcement Debug] Starting direct fetch process from directusBase:", directusUrl);
 
         const memoFilter = JSON.stringify({
-            status: { _eq: "Released" }
+            _and: [
+                { status: { _eq: "Released" } },
+                acknowledgedMemoIds.length > 0 ? { id: { _nin: acknowledgedMemoIds } } : {}
+            ]
         });
 
         const memoUrl = `${directusUrl}/items/company_memo?filter=${encodeURIComponent(memoFilter)}&sort=-id,-created_at`;

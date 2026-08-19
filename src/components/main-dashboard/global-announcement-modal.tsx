@@ -2,17 +2,16 @@
 
 import * as React from "react";
 import { AnnouncementModal } from "./announcement-modal";
+import { Announcement } from "@/types/announcement";
 
 export function GlobalAnnouncementModal() {
     const [isOpen, setIsOpen] = React.useState(false);
-    const [announcements, setAnnouncements] = React.useState<any[]>([]);
-    const [isLoading, setIsLoading] = React.useState(false);
+    const [announcements, setAnnouncements] = React.useState<Announcement[]>([]);
 
     React.useEffect(() => {
         const handleOpen = () => {
             setIsOpen(true);
-            setIsLoading(true);
-            fetch("/api/crm/announcements")
+            fetch("/api/crm/announcements?includeAcknowledged=true")
                 .then(res => {
                     if (res.ok) return res.json();
                     throw new Error("Failed to fetch announcements");
@@ -22,9 +21,6 @@ export function GlobalAnnouncementModal() {
                 })
                 .catch(err => {
                     console.error("Failed to load global announcements:", err);
-                })
-                .finally(() => {
-                    setIsLoading(false);
                 });
         };
 

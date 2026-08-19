@@ -55,14 +55,20 @@ export function NavUser({ user, onLogout, subsystemSlug }: NavUserProps) {
     const [announcementsCount, setAnnouncementsCount] = React.useState<number>(0);
 
     React.useEffect(() => {
-        fetch("/api/crm/announcements")
-            .then((res) => res.json())
-            .then((data) => {
-                if (data.announcements) {
-                    setAnnouncementsCount(data.announcements.length);
-                }
-            })
-            .catch((err) => console.error("Error fetching announcements count:", err));
+        const fetchCount = () => {
+            fetch("/api/crm/announcements")
+                .then((res) => res.json())
+                .then((data) => {
+                    if (data.announcements) {
+                        setAnnouncementsCount(data.announcements.length);
+                    }
+                })
+                .catch((err) => console.error("Error fetching announcements count:", err));
+        };
+
+        fetchCount();
+        window.addEventListener("announcements-updated", fetchCount);
+        return () => window.removeEventListener("announcements-updated", fetchCount);
     }, []);
 
     const currentSlug = subsystemSlug || pathname.split("/")[1] || "hrm"

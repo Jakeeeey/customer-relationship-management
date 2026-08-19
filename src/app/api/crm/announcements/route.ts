@@ -31,8 +31,11 @@ function decodeJwt(token: string): JwtPayload | null {
     }
 }
 
-export async function GET() {
+export async function GET(req: Request) {
     try {
+        const { searchParams } = new URL(req.url);
+        const includeAcknowledged = searchParams.get("includeAcknowledged") === "true";
+
         const cookieStore = await cookies();
         const token = cookieStore.get(COOKIE_NAME)?.value;
 
@@ -45,14 +48,38 @@ export async function GET() {
             return NextResponse.json({ announcements: [] }, { status: 401 });
         }
 
+        const user_id = payload.id || payload.user_id || payload.sub;
+        if (!user_id) {
+            return NextResponse.json({ announcements: [] }, { status: 400 });
+        }
+
         const directusBase = process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/+$/, "") || "";
         const targetToken = process.env.DIRECTUS_STATIC_TOKEN || "";
         let announcementsData: Announcement[] = [];
 
+        // Fetch user's acknowledged memo IDs if we want to exclude them
+        let acknowledgedMemoIds: number[] = [];
+        if (!includeAcknowledged) {
+            const ackFilter = JSON.stringify({
+                user_id: { _eq: user_id }
+            });
+            const ackRes = await fetch(`${directusBase}/items/company_memo_user_acknowledge?filter=${encodeURIComponent(ackFilter)}`, {
+                headers: { "Authorization": `Bearer ${targetToken}` },
+                next: { revalidate: 0 }
+            });
+            if (ackRes.ok) {
+                const ackJson = await ackRes.json();
+                acknowledgedMemoIds = (ackJson.data || []).map((item: any) => item.company_memo_id);
+            }
+        }
+
         console.log("[Announcement API Debug] Starting direct fetch process from directusBase:", directusBase);
 
         const memoFilter = JSON.stringify({
-            status: { _eq: "Released" }
+            _and: [
+                { status: { _eq: "Released" } },
+                acknowledgedMemoIds.length > 0 ? { id: { _nin: acknowledgedMemoIds } } : {}
+            ]
         });
 
         const memoUrl = `${directusBase}/items/company_memo?filter=${encodeURIComponent(memoFilter)}&sort=-id,-created_at`;
@@ -124,5 +151,77 @@ export async function GET() {
     } catch (err) {
         console.error("[Announcement API Debug] Caught exception in fetch process:", err);
         return NextResponse.json({ announcements: [], error: String(err) }, { status: 500 });
+    }
+}
+
+export async function POST(req: Request) {
+    try {
+        const cookieStore = await cookies();
+        const token = cookieStore.get(COOKIE_NAME)?.value;
+
+        if (!token) {
+            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+        }
+
+        const payload = decodeJwt(token);
+        if (!payload) {
+            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+        }
+
+        const user_id = payload.id || payload.user_id || payload.sub;
+        if (!user_id) {
+            return NextResponse.json({ error: "User ID not found in token" }, { status: 400 });
+        }
+
+        const body = await req.json();
+        const { memoIds } = body;
+
+        if (!Array.isArray(memoIds) || memoIds.length === 0) {
+            return NextResponse.json({ error: "Invalid memo IDs" }, { status: 400 });
+        }
+
+        const directusBase = process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/+$/, "") || "";
+        const targetToken = process.env.DIRECTUS_STATIC_TOKEN || "";
+
+        const promises = memoIds.map(async (memoId: number) => {
+            // First check if already exists to avoid unique constraint violations
+            const checkUrl = `${directusBase}/items/company_memo_user_acknowledge?filter=${encodeURIComponent(
+                JSON.stringify({
+                    _and: [
+                        { company_memo_id: { _eq: memoId } },
+                        { user_id: { _eq: user_id } }
+                    ]
+                })
+            )}`;
+            const checkRes = await fetch(checkUrl, {
+                headers: { "Authorization": `Bearer ${targetToken}` },
+                next: { revalidate: 0 }
+            });
+            if (checkRes.ok) {
+                const checkJson = await checkRes.json();
+                if (checkJson.data && checkJson.data.length > 0) {
+                    return; // Already acknowledged
+                }
+            }
+
+            await fetch(`${directusBase}/items/company_memo_user_acknowledge`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${targetToken}`
+                },
+                body: JSON.stringify({
+                    company_memo_id: memoId,
+                    user_id: user_id
+                })
+            });
+        });
+
+        await Promise.all(promises);
+
+        return NextResponse.json({ success: true });
+    } catch (err) {
+        console.error("[Announcement API POST Error]:", err);
+        return NextResponse.json({ error: String(err) }, { status: 500 });
     }
 }

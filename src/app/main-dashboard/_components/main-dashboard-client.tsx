@@ -18,14 +18,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { GlassCard } from "@/components/command-center/GlassCard";
 import { AnimatedBackground } from "@/components/command-center/AnimatedBackground";
-import {
-    Dialog,
-    DialogContent,
-    DialogHeader,
-    DialogTitle,
-    DialogFooter,
-} from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
+import { Announcement } from "@/types/announcement";
 
 export type Status = "active" | "comingSoon";
 
@@ -191,10 +184,27 @@ export default function MainDashboardClient({
     initialSubsystems: DashboardRegistryItem[];
     userFullName: string;
     userEmail: string;
-    announcements?: any[];
+    announcements?: Announcement[];
 }) {
     const announcementsList = announcements || [];
     const [showAnnouncement, setShowAnnouncement] = React.useState(announcementsList.length > 0);
+
+    const handleAcknowledge = async (memoIds: number[]) => {
+        try {
+            const res = await fetch("/api/crm/announcements", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ memoIds })
+            });
+            if (res.ok) {
+                window.dispatchEvent(new CustomEvent("announcements-updated"));
+            } else {
+                console.error("Failed to acknowledge memos:", await res.text());
+            }
+        } catch (err) {
+            console.error("Error acknowledging memos:", err);
+        }
+    };
 
     const q = ""; // State setter removed as search is managed by CommandPalette component logic
     const [isCompactHeader, setIsCompactHeader] = React.useState(false);
@@ -363,6 +373,7 @@ export default function MainDashboardClient({
                 onOpenChange={setShowAnnouncement}
                 announcements={announcementsList}
                 mode="popup"
+                onAcknowledge={handleAcknowledge}
             />
         </div>
     );

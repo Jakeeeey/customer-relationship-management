@@ -18,17 +18,20 @@ export interface AnnouncementModalProps {
     onOpenChange: (open: boolean) => void;
     announcements: Announcement[];
     mode?: "popup" | "view-only";
+    onAcknowledge?: (memoIds: number[]) => Promise<void>;
 }
 
 export function AnnouncementModal({
     open,
     onOpenChange,
     announcements,
-    mode = "popup"
+    mode = "popup",
+    onAcknowledge
 }: AnnouncementModalProps) {
     const announcementsList = announcements || [];
     const [activeTabIndex, setActiveTabIndex] = React.useState(0);
     const [acknowledgedMemoIds, setAcknowledgedMemoIds] = React.useState<Record<number, boolean>>({});
+    const [isAcknowledging, setIsAcknowledging] = React.useState(false);
 
     const activeAnnouncement = announcementsList[activeTabIndex];
 
@@ -72,6 +75,7 @@ export function AnnouncementModal({
     React.useEffect(() => {
         if (!open) {
             setActiveTabIndex(0);
+            setIsAcknowledging(false);
             if (mode === "popup") {
                 setAcknowledgedMemoIds({});
             }
@@ -214,15 +218,26 @@ export function AnnouncementModal({
                                     </div>
                                 )}
                                 <Button
-                                    onClick={() => {
-                                        onOpenChange(false);
+                                    onClick={async () => {
+                                        setIsAcknowledging(true);
+                                        try {
+                                            if (onAcknowledge) {
+                                                const memoIds = announcementsList.map(ann => ann.memo.id);
+                                                await onAcknowledge(memoIds);
+                                            }
+                                            onOpenChange(false);
+                                        } catch (err) {
+                                            console.error("Failed to acknowledge announcements:", err);
+                                        } finally {
+                                            setIsAcknowledging(false);
+                                        }
                                     }}
                                     disabled={
-                                        !announcementsList.every(ann => !!acknowledgedMemoIds[ann.memo.id])
+                                        isAcknowledging || !announcementsList.every(ann => !!acknowledgedMemoIds[ann.memo.id])
                                     }
                                     className="bg-cyan-500 hover:bg-cyan-400 text-slate-950 disabled:bg-slate-200 disabled:text-slate-400 dark:disabled:bg-slate-800 dark:disabled:text-slate-600 font-black uppercase tracking-widest text-xs h-10 px-6 rounded-xl transition-all w-full sm:w-auto"
                                 >
-                                    Acknowledge & Close
+                                    {isAcknowledging ? "Acknowledging..." : "Acknowledge & Close"}
                                 </Button>
                             </div>
                         </>
