@@ -99,8 +99,8 @@ export function AcknowledgedMemosModal({
     return (
         <>
             <Dialog open={open} onOpenChange={onOpenChange}>
-                <DialogContent className="sm:max-w-[850px] max-h-[85vh] flex flex-col p-6 overflow-hidden bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 text-slate-950 dark:text-white shadow-2xl">
-                    <DialogHeader className="shrink-0 flex flex-row items-center justify-between border-b border-slate-100 dark:border-white/5 pb-4">
+                <DialogContent className="sm:max-w-[850px] max-h-[85vh] flex flex-col p-4 overflow-hidden bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 text-slate-950 dark:text-white shadow-2xl">
+                    <DialogHeader className="shrink-0 flex flex-row items-center justify-between border-b border-slate-100 dark:border-white/5 pb-1">
                         <div className="flex items-center gap-3">
                             <div className="h-10 w-10 rounded-xl bg-cyan-5/10 dark:bg-cyan-500/10 flex items-center justify-center border border-cyan-200 dark:border-cyan-500/20">
                                 <Icons.Megaphone className="h-5 w-5 text-cyan-600 dark:text-cyan-400" />
@@ -117,19 +117,19 @@ export function AcknowledgedMemosModal({
                     </DialogHeader>
 
                     {/* Search and Filters */}
-                    <div className="shrink-0 mt-4 relative">
-                        <Icons.Search className="absolute left-4 top-3.5 h-4 w-4 text-slate-400 dark:text-slate-500" />
+                    <div className="shrink-0 mt-1 relative">
+                        <Icons.Search className="absolute left-4 top-2.5 h-4 w-4 text-slate-400 dark:text-slate-500" />
                         <input
                             type="text"
                             placeholder="Search by Memo No. or Subject..."
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
-                            className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/10 rounded-xl pl-11 pr-4 py-3 text-sm text-slate-900 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-cyan-500/20 dark:focus:ring-cyan-500/40 focus:border-cyan-500 dark:focus:border-cyan-500/40 transition-all font-medium"
+                            className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/10 rounded-xl pl-11 pr-4 py-2 text-sm text-slate-900 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-cyan-500/20 dark:focus:ring-cyan-500/40 focus:border-cyan-500 dark:focus:border-cyan-500/40 transition-all font-medium"
                         />
                     </div>
 
                     {/* Table Viewport */}
-                    <div className="flex-1 overflow-y-auto mt-4 min-h-[300px] border border-slate-200 dark:border-white/10 rounded-xl bg-slate-50/50 dark:bg-slate-950/50">
+                    <div className="flex-1 overflow-y-auto mt-1.5 min-h-[300px] border border-slate-200 dark:border-white/10 rounded-xl bg-slate-50/50 dark:bg-slate-950/50">
                         {isLoading ? (
                             <div className="flex flex-col items-center justify-center h-full py-16 gap-3">
                                 <Icons.Loader2 className="h-8 w-8 text-cyan-600 dark:text-cyan-400 animate-spin" />
@@ -141,13 +141,13 @@ export function AcknowledgedMemosModal({
                             <table className="w-full text-left border-collapse">
                                 <thead>
                                     <tr className="border-b border-slate-200 dark:border-white/5 bg-slate-100 dark:bg-slate-900/30">
-                                        <th className="px-6 py-2.5 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 w-[25%]">
+                                        <th className="px-6 py-1.5 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 w-[25%]">
                                             Memo No.
                                         </th>
-                                        <th className="px-6 py-2.5 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 w-[45%]">
+                                        <th className="px-6 py-1.5 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 w-[45%]">
                                             Subject
                                         </th>
-                                        <th className="px-6 py-2.5 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 w-[30%] text-right whitespace-nowrap">
+                                        <th className="px-6 py-1.5 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 w-[30%] text-right whitespace-nowrap">
                                             Date Acknowledged
                                         </th>
                                     </tr>
@@ -162,13 +162,13 @@ export function AcknowledgedMemosModal({
                                             }}
                                             className="border-b border-slate-100 dark:border-white/5 last:border-0 hover:bg-slate-100/30 dark:hover:bg-white/[0.02] active:bg-slate-100/50 dark:active:bg-white/[0.04] transition-all cursor-pointer group"
                                         >
-                                            <td className="px-6 py-2.5 text-sm font-bold text-cyan-600 dark:text-cyan-400 group-hover:text-cyan-500 dark:group-hover:text-cyan-300">
+                                            <td className="px-6 py-1.5 text-sm font-bold text-cyan-600 dark:text-cyan-400 group-hover:text-cyan-500 dark:group-hover:text-cyan-300">
                                                 {ann.memo.memo_no || "N/A"}
                                             </td>
-                                            <td className="px-6 py-2.5 text-sm font-medium text-slate-800 dark:text-slate-200">
+                                            <td className="px-6 py-1.5 text-sm font-medium text-slate-800 dark:text-slate-200">
                                                 {ann.memo.subject}
                                             </td>
-                                            <td className="px-6 py-2.5 text-sm font-bold text-slate-500 dark:text-slate-400 text-right whitespace-nowrap">
+                                            <td className="px-6 py-1.5 text-sm font-bold text-slate-500 dark:text-slate-400 text-right whitespace-nowrap">
                                                 {formatDate(ann.acknowledged_at)}
                                             </td>
                                         </tr>
