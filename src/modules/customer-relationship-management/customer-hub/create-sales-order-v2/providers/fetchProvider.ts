@@ -2,7 +2,7 @@
 
 import { Salesman, Customer, Supplier, Product, Branch, PriceTypeModel } from "../types";
 
-const API_BASE = "/api/crm/customer-hub/create-sales-order";
+const API_BASE = "/api/crm/customer-hub/create-sales-order-v2";
 
 export const salesOrderProvider = {
     getSalesmen: async (): Promise<Salesman[]> => {
@@ -125,10 +125,4 @@ export const salesOrderProvider = {
         return res.json();
     },
 
-    getCartInventory: async (branchId: string | number, supplierId: string | number, salesmanId?: string | number): Promise<Record<string | number, { available: number; unitCount: number }>> => {
-        let url = `${API_BASE}?action=cart_inventory&branch_id=${branchId}&supplier_id=${supplierId}`;
-        if (salesmanId) url += `&salesman_id=${salesmanId}`;
-        const res = await fetch(url);
-        return res.json();
-    }
 };

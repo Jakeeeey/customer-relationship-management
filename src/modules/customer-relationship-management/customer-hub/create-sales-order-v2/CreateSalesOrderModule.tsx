@@ -26,7 +26,7 @@ export default function CreateSalesOrderModule({ documentViewerUrl }: { document
         productSearch, setProductSearch,
         lineItems, addProduct, removeLineItem, updateLineItemQty,
         summary,
-        isCheckout, setIsCheckout, isCheckoutLoading, orderNo, previewOrderNo, enterCheckout, allocatedQuantities, updateAllocatedQty,
+        isCheckout, setIsCheckout, orderNo, previewOrderNo, enterCheckout, allocatedQuantities, updateAllocatedQty,
         orderRemarks, setOrderRemarks,
         paymentTerms, paymentTermsList,
         handlePriceTypeIdChange,
@@ -181,7 +181,6 @@ export default function CreateSalesOrderModule({ documentViewerUrl }: { document
                             summary={summary}
                             onSubmit={enterCheckout}
                             submitting={submitting}
-                            isCheckoutLoading={isCheckoutLoading}
                         />
                     ) : (
                         <div className="flex flex-col items-center justify-center py-32 border-2 border-dashed rounded-xl bg-muted/10 opacity-60">
