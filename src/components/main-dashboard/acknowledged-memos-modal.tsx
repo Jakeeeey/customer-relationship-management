@@ -141,13 +141,13 @@ export function AcknowledgedMemosModal({
                             <table className="w-full text-left border-collapse">
                                 <thead>
                                     <tr className="border-b border-slate-200 dark:border-white/5 bg-slate-100 dark:bg-slate-900/30">
-                                        <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 w-[25%]">
+                                        <th className="px-6 py-2.5 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 w-[25%]">
                                             Memo No.
                                         </th>
-                                        <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 w-[50%]">
+                                        <th className="px-6 py-2.5 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 w-[45%]">
                                             Subject
                                         </th>
-                                        <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 w-[25%] text-right">
+                                        <th className="px-6 py-2.5 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 w-[30%] text-right whitespace-nowrap">
                                             Date Acknowledged
                                         </th>
                                     </tr>
@@ -162,13 +162,13 @@ export function AcknowledgedMemosModal({
                                             }}
                                             className="border-b border-slate-100 dark:border-white/5 last:border-0 hover:bg-slate-100/30 dark:hover:bg-white/[0.02] active:bg-slate-100/50 dark:active:bg-white/[0.04] transition-all cursor-pointer group"
                                         >
-                                            <td className="px-6 py-4 text-sm font-bold text-cyan-600 dark:text-cyan-400 group-hover:text-cyan-500 dark:group-hover:text-cyan-300">
+                                            <td className="px-6 py-2.5 text-sm font-bold text-cyan-600 dark:text-cyan-400 group-hover:text-cyan-500 dark:group-hover:text-cyan-300">
                                                 {ann.memo.memo_no || "N/A"}
                                             </td>
-                                            <td className="px-6 py-4 text-sm font-medium text-slate-800 dark:text-slate-200">
+                                            <td className="px-6 py-2.5 text-sm font-medium text-slate-800 dark:text-slate-200">
                                                 {ann.memo.subject}
                                             </td>
-                                            <td className="px-6 py-4 text-sm font-bold text-slate-500 dark:text-slate-400 text-right">
+                                            <td className="px-6 py-2.5 text-sm font-bold text-slate-500 dark:text-slate-400 text-right whitespace-nowrap">
                                                 {formatDate(ann.acknowledged_at)}
                                             </td>
                                         </tr>
