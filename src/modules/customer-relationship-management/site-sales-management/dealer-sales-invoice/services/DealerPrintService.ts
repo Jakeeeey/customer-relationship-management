@@ -16,9 +16,10 @@ export const DealerPrintService = {
 
     async getTemplate(typeId: number): Promise<ORTemplate | null> {
         const response = await fetch(`/api/crm/site-sales-management/dealer-sales-invoice?type=template&id=${typeId}`);
+        if (response.status === 404) return null;
         if (!response.ok) throw new Error("Failed to fetch template");
         const data = await response.json();
-        return data.template_config;
+        return data.template_config ?? null;
     },
 
     async saveTemplate(typeId: number, templateConfig: ORTemplate): Promise<{ success: boolean; data: unknown }> {
