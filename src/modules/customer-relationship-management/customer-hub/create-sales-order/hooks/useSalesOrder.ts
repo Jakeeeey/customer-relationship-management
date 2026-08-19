@@ -57,6 +57,14 @@ export function useSalesOrder() {
     const [supplierProducts, setSupplierProducts] = useState<Product[]>([]);
     const [loadingProducts, setLoadingProducts] = useState(false);
     const [productSearch, setProductSearch] = useState("");
+    const [debouncedProductSearch, setDebouncedProductSearch] = useState("");
+
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            setDebouncedProductSearch(productSearch);
+        }, 400);
+        return () => clearTimeout(timer);
+    }, [productSearch]);
 
 
     // Cart
@@ -65,7 +73,6 @@ export function useSalesOrder() {
 
     // Checkout State
     const [isCheckout, setIsCheckout] = useState(false);
-    const [isCheckoutLoading, setIsCheckoutLoading] = useState(false);
     const [orderNo, setOrderNo] = useState("");
     const [existingOrderNo, setExistingOrderNo] = useState("");
     const [allocatedQuantities, setAllocatedQuantities] = useState<Record<string, number>>({});
@@ -333,17 +340,6 @@ export function useSalesOrder() {
                                     console.error("[useSalesOrder] Product enrichment failed:", e);
                                 }
 
-                                let invData: Record<number, { available: number, unitCount: number }> = {};
-                                try {
-                                    if (header.branch_id && header.supplier_id) {
-                                        const smId = header.salesman_id ? header.salesman_id.toString() : undefined;
-                                        invData = await salesOrderProvider.getCartInventory(header.branch_id.toString(), header.supplier_id.toString(), smId);
-                                        console.log("[useSalesOrder] Fetched Draft Cart Inventory:", Object.keys(invData).length, "items");
-                                    }
-                                } catch (e) {
-                                    console.error("[useSalesOrder] Draft inventory fetch failed:", e);
-                                }
-
                                 const allocMap: Record<string, number> = {};
                                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                                 const mappedItems = items.map((it: any) => {
@@ -392,7 +388,7 @@ export function useSalesOrder() {
                                     return {
                                         id: tempId,
                                         detail_id: originalPK, // Bida to! 🚀
-                                        uom: it.uom || it.unit_of_measurement || p?.uom || p?.uom_shortcut || p?.uom_name || enrichedP?.uom || enrichedP?.uom_shortcut || enrichedP?.uom_name || "PCS",
+                                        uom: it.uom || enrichedP?.uom || enrichedP?.uom_shortcut || enrichedP?.uom_name || "PCS",
                                         unitPrice: uPrice,
                                         quantity: qty,
                                         discountType: p.discount_level || (typeof it.discount_type === 'number' && it.discount_type !== 0 ? String(it.discount_type) : (it.discount_type || "none")),
@@ -404,7 +400,7 @@ export function useSalesOrder() {
                                             display_name: p.display_name || p.description || p.product_name || `Unknown Product ${pid}`,
                                             product_name: p.product_name,
                                             description: p.description,
-                                            available_qty: invData[Number(pid)]?.available ?? p.available_qty ?? 0,
+                                            available_qty: p.available_qty ?? 0,
                                             unit_count: p.unit_count || p.unit_of_measurement_count || 1
                                         },
                                         discounts: discounts,
@@ -638,7 +634,7 @@ export function useSalesOrder() {
                 setLoadingProducts(true);
 
                 // Concurrent fetch for products
-                salesOrderProvider.searchProducts("", customerCode, Number(supplierId), priceType, Number(customerId), priceTypeId || undefined, sSalesmanId, sBranchId)
+                salesOrderProvider.searchProducts(debouncedProductSearch, customerCode, Number(supplierId), priceType, Number(customerId), priceTypeId || undefined, sSalesmanId, sBranchId)
                     .then((productsData) => {
                         setSupplierProducts(Array.isArray(productsData) ? productsData : []);
                     }).finally(() => setLoadingProducts(false));
@@ -646,7 +642,7 @@ export function useSalesOrder() {
         } else {
             setSupplierProducts([]);
         }
-    }, [selectedCustomerId, selectedSupplierId, priceType, priceTypeId, selectedAccountId, selectedBranchId, customers]);
+    }, [debouncedProductSearch, selectedCustomerId, selectedSupplierId, priceType, priceTypeId, selectedAccountId, selectedBranchId, customers]);
 
     // Sync cart items with freshly fetched products (especially 'available' stock info)
     useEffect(() => {
@@ -858,7 +854,7 @@ export function useSalesOrder() {
         });
     }, [lineItems, allocatedQuantities]);
 
-    const enterCheckout = async () => {
+    const enterCheckout = () => {
         if (lineItems.length === 0) {
             toast.error("No items in order");
             return;
@@ -885,59 +881,14 @@ export function useSalesOrder() {
             setOrderNo(generatedNo);
         }
 
-        setIsCheckoutLoading(true);
-        try {
-            if (selectedBranchId && selectedSupplierId) {
-                const invData = await salesOrderProvider.getCartInventory(selectedBranchId, selectedSupplierId, selectedSalesmanId || undefined);
-                
-                // Update lineItems with fresh inventory
-                setLineItems(prev => prev.map(item => {
-                    const pid = item.product.product_id || (item.product as unknown as { id: string | number }).id;
-                    if (pid && invData[Number(pid)]) {
-                        return {
-                            ...item,
-                            product: {
-                                ...item.product,
-                                available_qty: invData[Number(pid)].available,
-                                unit_count: invData[Number(pid)].unitCount
-                            }
-                        };
-                    }
-                    return item;
-                }));
-                
-                // Ensure all line items have an entry in allocatedQuantities - with Stock Guard
-                setAllocatedQuantities(prev => {
-                    const newAlloc = { ...prev };
-                    lineItems.forEach(item => {
-                        const pid = item.product.product_id || (item.product as unknown as { id: string | number }).id;
-                        const available = (pid && invData[Number(pid)]) ? invData[Number(pid)].available : (Number(item.product.available_qty) || 0);
-                        if (newAlloc[item.id] === undefined) {
-                            newAlloc[item.id] = Math.max(0, Math.min(item.quantity, available));
-                        } else {
-                            // Re-clamp if inventory changed
-                            newAlloc[item.id] = Math.max(0, Math.min(newAlloc[item.id], item.quantity, available));
-                        }
-                    });
-                    return newAlloc;
-                });
-            } else {
-                // Fallback if no branch/supplier
-                lineItems.forEach(item => {
-                    if (allocatedQuantities[item.id] === undefined) {
-                        const initialAlloc = Math.max(0, Math.min(item.quantity, Number(item.product.available_qty) || 0));
-                        setAllocatedQuantities(prev => ({ ...prev, [item.id]: initialAlloc }));
-                    }
-                });
+        // Ensure all line items have an entry in allocatedQuantities - with Stock Guard 🛡️
+        lineItems.forEach(item => {
+            if (allocatedQuantities[item.id] === undefined) {
+                const initialAlloc = Math.max(0, Math.min(item.quantity, Number(item.product.available_qty) || 0));
+                setAllocatedQuantities(prev => ({ ...prev, [item.id]: initialAlloc }));
             }
-            setIsCheckout(true);
-        } catch (e) {
-            console.error("Failed to fetch cart inventory", e);
-            toast.error("Failed to verify inventory. Proceeding with known stock.");
-            setIsCheckout(true);
-        } finally {
-            setIsCheckoutLoading(false);
-        }
+        });
+        setIsCheckout(true);
     };
 
     const updateAllocatedQty = (id: string, qty: number) => {
@@ -1071,7 +1022,7 @@ export function useSalesOrder() {
         lineItems,
         addProduct, removeLineItem, updateLineItemQty,
         summary, isValidAllocation,
-        isCheckout, setIsCheckout, isCheckoutLoading, orderNo, previewOrderNo, enterCheckout, allocatedQuantities, updateAllocatedQty,
+        isCheckout, setIsCheckout, orderNo, previewOrderNo, enterCheckout, allocatedQuantities, updateAllocatedQty,
         orderRemarks, setOrderRemarks,
         paymentTerms, setPaymentTerms, paymentTermsList,
         handlePriceTypeIdChange,
