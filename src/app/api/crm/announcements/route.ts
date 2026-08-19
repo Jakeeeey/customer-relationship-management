@@ -183,13 +183,37 @@ export async function POST(req: Request) {
         const directusBase = process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/+$/, "") || "";
         const targetToken = process.env.DIRECTUS_STATIC_TOKEN || "";
 
+        // Calculate direct PHT local time (YYYY-MM-DD HH:mm:ss) with no Z or offset suffixes
+        const parts = new Intl.DateTimeFormat("en-US", {
+            timeZone: "Asia/Manila",
+            year: "numeric",
+            month: "2-digit",
+            day: "2-digit",
+            hour: "2-digit",
+            minute: "2-digit",
+            second: "2-digit",
+            hour12: false
+        }).formatToParts(new Date());
+
+        const year = parts.find(p => p.type === 'year')?.value;
+        const month = parts.find(p => p.type === 'month')?.value;
+        const day = parts.find(p => p.type === 'day')?.value;
+        const hour = parts.find(p => p.type === 'hour')?.value;
+        const minute = parts.find(p => p.type === 'minute')?.value;
+        const second = parts.find(p => p.type === 'second')?.value;
+
+        const phtDateTimeStr = `${year}-${month}-${day} ${hour}:${minute}:${second}`;
+        const userIdNum = Number(user_id);
+
         const promises = memoIds.map(async (memoId: number) => {
+            const memoIdNum = Number(memoId);
+
             // First check if already exists to avoid unique constraint violations
             const checkUrl = `${directusBase}/items/company_memo_user_acknowledge?filter=${encodeURIComponent(
                 JSON.stringify({
                     _and: [
-                        { company_memo_id: { _eq: memoId } },
-                        { user_id: { _eq: user_id } }
+                        { company_memo_id: { _eq: memoIdNum } },
+                        { user_id: { _eq: userIdNum } }
                     ]
                 })
             )}`;
@@ -211,8 +235,9 @@ export async function POST(req: Request) {
                     "Authorization": `Bearer ${targetToken}`
                 },
                 body: JSON.stringify({
-                    company_memo_id: memoId,
-                    user_id: user_id
+                    company_memo_id: memoIdNum,
+                    user_id: userIdNum,
+                    acknowledged_at: phtDateTimeStr
                 })
             });
         });

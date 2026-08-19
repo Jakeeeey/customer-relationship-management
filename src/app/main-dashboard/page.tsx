@@ -145,8 +145,9 @@ export default async function ERPMainDashboardPage() {
 
         let acknowledgedMemoIds: number[] = [];
         if (user_id) {
+            const userIdNum = Number(user_id);
             const ackFilter = JSON.stringify({
-                user_id: { _eq: user_id }
+                user_id: { _eq: userIdNum }
             });
             const ackRes = await fetch(`${directusUrl}/items/company_memo_user_acknowledge?filter=${encodeURIComponent(ackFilter)}`, {
                 headers: { "Authorization": `Bearer ${targetToken}` },
