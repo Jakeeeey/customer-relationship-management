@@ -6,7 +6,6 @@ export const dynamic = "force-dynamic";
 const COOKIE_NAME = "vos_access_token";
 const DIRECTUS_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
 const DIRECTUS_TOKEN = process.env.DIRECTUS_STATIC_TOKEN;
-const SPRING_API_BASE_URL = process.env.SPRING_API_BASE_URL || "";
 
 const fetchHeaders = {
     Authorization: `Bearer ${DIRECTUS_TOKEN}`,
@@ -315,7 +314,6 @@ export async function GET(req: NextRequest) {
 
         if (type === "order-details") {
             const orderId = req.nextUrl.searchParams.get("orderId");
-            const branchId = req.nextUrl.searchParams.get("branchId");
             if (!orderId) return NextResponse.json({ error: "orderId required" }, { status: 400 });
 
             const detUrl = `${DIRECTUS_URL}/items/sales_order_details?filter[order_id][_eq]=${orderId}&fields=*&limit=-1`;
@@ -353,30 +351,28 @@ export async function GET(req: NextRequest) {
                 };
             });
 
-            // Fetch all units for mapping uom
-            const unitsRes = await fetch(`${DIRECTUS_URL}/items/units?limit=-1`, { headers: fetchHeaders });
-            const unitsData = (await unitsRes.json()).data || [];
+            // Fetch auxiliary data in parallel
+            const unitsPromise = fetch(`${DIRECTUS_URL}/items/units?limit=-1`, { headers: fetchHeaders }).then(res => res.json());
+            const dtPromise = fetch(`${DIRECTUS_URL}/items/discount_type?fields=id,discount_type&limit=-1`, { headers: fetchHeaders }).then(res => res.json());
+
+            const [unitsJson, dtJson] = await Promise.all([unitsPromise, dtPromise]);
+
             const unitMap: Record<number, { uom_name: string; uom_shortcut: string }> = {};
-            unitsData.forEach((u: { unit_id: number | string; unit_name?: string; unit_shortcut?: string }) => {
+            (unitsJson.data || []).forEach((u: { unit_id: number | string; unit_name?: string; unit_shortcut?: string }) => {
                 unitMap[Number(u.unit_id)] = {
                     uom_name: u.unit_name || "",
                     uom_shortcut: u.unit_shortcut || ""
                 };
             });
 
-            // Fetch Discount Types for mapping
-            const dtUrl = `${DIRECTUS_URL}/items/discount_type?fields=id,discount_type&limit=-1`;
-            const dtRes = await fetch(dtUrl, { headers: fetchHeaders });
             const dtMap = new Map<number, string>();
-            if (dtRes.ok) {
-                const dtJson = await dtRes.ok ? await dtRes.json() : { data: [] };
-                (dtJson.data || []).forEach((dt: { id: number; discount_type: string }) => {
-                    dtMap.set(Number(dt.id), dt.discount_type);
-                });
-            }
+            (dtJson.data || []).forEach((dt: { id: number; discount_type: string }) => {
+                dtMap.set(Number(dt.id), dt.discount_type);
+            });
 
             // Fetch products for descriptions
             let productIds: number[] = [];
+            let pMap = new Map();
             if (details.length > 0) {
                 productIds = Array.from(new Set(details.map((d: { product_id: number | string }) => Number(d.product_id)))).filter(Boolean) as number[];
                 const pRes = await fetch(`${DIRECTUS_URL}/items/products?filter[product_id][_in]=${productIds.join(',')}&fields=product_id,product_name,product_code,description,unit_of_measurement&limit=-1`, {
@@ -384,72 +380,32 @@ export async function GET(req: NextRequest) {
                 });
                 if (pRes.ok) {
                     const pJson = await pRes.json();
-                    const pMap = new Map((pJson.data || []).map((p: { product_id: number | string; product_name: string; product_code: string; description: string; unit_of_measurement: number | string }) => {
+                    pMap = new Map((pJson.data || []).map((p: { product_id: number | string; product_name: string; product_code: string; description: string; unit_of_measurement: number | string }) => {
                         const pid = Number(p.product_id);
                         const uomId = Number(p.unit_of_measurement);
                         const uomInfo = uomId && unitMap[uomId] ? unitMap[uomId] : { uom_name: "", uom_shortcut: "" };
                         return [pid, { ...p, uom: uomInfo }];
                     }));
-                    details.forEach((d: { product_id: number | string | Record<string, unknown>, discount_type?: number | string | null }) => {
-                        const pid = Number(d.product_id);
-                        if (pMap.has(pid)) {
-                            d.product_id = pMap.get(pid) as Record<string, unknown>;
-                        }
-
-                        // Map discount type ID to name
-                        if (d.discount_type && dtMap.has(Number(d.discount_type))) {
-                            d.discount_type = dtMap.get(Number(d.discount_type));
-                        }
-                    });
                 }
             }
 
-            // --- SPRING BOOT INVENTORY SYNC ---
-            if (branchId && SPRING_API_BASE_URL && productIds.length > 0) {
-                try {
-                    const cookieStore = await cookies();
-                    const token = (await cookieStore).get(COOKIE_NAME)?.value;
-                    const invUrl = `${SPRING_API_BASE_URL.replace(/\/$/, "")}/api/view-running-inventory-by-unit/all?startDate=2025-01-01&endDate=2026-12-30`;
-
-                    const invRes = await fetch(invUrl, {
-                        headers: {
-                            "Accept": "application/json",
-                            ...(token ? { "Authorization": `Bearer ${token}` } : {})
-                        },
-                        cache: 'no-store',
-                    });
-
-                    if (invRes.ok) {
-                        const invJson = await invRes.json();
-                        const invData = Array.isArray(invJson) ? invJson : (invJson.data || []);
-
-                        // Map inventory for this specific branch
-                        const inventoryMap: Record<number, number> = {};
-                        invData.forEach((item: { branchId?: string | number, branch_id?: string | number, productId?: string | number, product_id?: string | number, runningInventoryUnit?: number | string }) => {
-                            const itemBId = item.branchId ?? item.branch_id;
-                            if (itemBId && Number(itemBId) === Number(branchId)) {
-                                const pid = item.productId ?? item.product_id;
-                                if (pid) {
-                                    inventoryMap[Number(pid)] = Number(item.runningInventoryUnit || 0);
-                                }
-                            }
-                        });
-
-                        // Enrich details with inventory
-                        details.forEach((d: { product_id?: { product_id?: number }, available_qty?: number }) => {
-                            const pid = Number(d.product_id?.product_id);
-                            if (pid && inventoryMap[pid] !== undefined) {
-                                d.available_qty = inventoryMap[pid];
-                            } else {
-                                d.available_qty = 0;
-                            }
-                        });
-                    }
-                } catch (e) {
-                    console.error("[InventorySyncError]", e);
+            // Enrich details with product info and discount types
+            details.forEach((d: { product_id: number | string | Record<string, unknown>, discount_type?: number | string | null, available_qty?: number }) => {
+                const pid = typeof d.product_id === 'object' && d.product_id !== null && 'product_id' in d.product_id 
+                    ? Number(d.product_id.product_id) 
+                    : Number(d.product_id);
+                
+                if (pMap.has(pid)) {
+                    d.product_id = pMap.get(pid) as Record<string, unknown>;
                 }
-            }
-            // --- END SYNC ---
+
+                if (d.discount_type && dtMap.has(Number(d.discount_type))) {
+                    d.discount_type = dtMap.get(Number(d.discount_type));
+                }
+                
+                // Inventory check removed for performance on approval page
+                d.available_qty = 0; 
+            });
 
             return NextResponse.json({ data: details }, {
                 headers: {

@@ -522,7 +522,6 @@ export function ApprovalModal({
                                                 <TableHead className="text-center h-10 uppercase text-[9px] font-black text-muted-foreground tracking-widest">Unit</TableHead>
                                                 <TableHead className="text-right h-10 uppercase text-[9px] font-black text-muted-foreground tracking-widest whitespace-nowrap">Unit Price</TableHead>
                                                 <TableHead className="text-center h-10 uppercase text-[9px] font-black text-muted-foreground tracking-widest whitespace-nowrap">Ordered Qty</TableHead>
-                                                <TableHead className="text-center h-10 uppercase text-[9px] font-black text-muted-foreground tracking-widest whitespace-nowrap bg-sky-50/50">Available</TableHead>
                                                 <TableHead className="text-center h-10 uppercase text-[9px] font-black text-muted-foreground tracking-widest w-[120px] whitespace-nowrap">Alloc Qty</TableHead>
                                                 <TableHead className="text-right h-10 uppercase text-[9px] font-black text-muted-foreground tracking-widest">Discount</TableHead>
                                                 <TableHead className="text-center h-10 uppercase text-[9px] font-black text-muted-foreground tracking-widest whitespace-nowrap">Discount Type</TableHead>
@@ -551,7 +550,7 @@ export function ApprovalModal({
                                                     const productName = li.product_id?.product_name || li.product_id?.description || "Unknown";
                                                     const productCode = li.product_id?.product_code || "N/A";
                                                     const lineAllocated = getLineAllocated(li);
-                                                    const isExceeding = (li.allocated_quantity > li.ordered_quantity) || (li.available_qty !== undefined && li.allocated_quantity > li.available_qty);
+                                                    const isExceeding = (li.allocated_quantity > li.ordered_quantity);
 
                                                     return (
                                                         <TableRow key={li.detail_id || li.order_detail_id || idx} className={cn("hover:bg-slate-50/50 transition-colors border-slate-50 group", isExceeding && "bg-destructive/5 hover:bg-destructive/10")}>
@@ -570,18 +569,8 @@ export function ApprovalModal({
                                                             <TableCell className="text-center font-bold text-muted-foreground text-[12px] sm:text-sm tabular-nums">{li.ordered_quantity}</TableCell>
                                                             <TableCell className="text-center">
                                                                 <span className={cn(
-                                                                    "inline-flex items-center justify-center min-w-[28px] h-6 px-2 rounded-lg font-black text-[11px] border tabular-nums",
-                                                                    (li.available_qty ?? 0) > 0
-                                                                        ? "bg-sky-50 text-sky-600 border-sky-100"
-                                                                        : "bg-slate-100 text-slate-400 border-slate-200"
-                                                                )}>
-                                                                    {li.available_qty ?? 0}
-                                                                </span>
-                                                            </TableCell>
-                                                            <TableCell className="text-center">
-                                                                <span className={cn(
                                                                     "inline-flex items-center justify-center min-w-[28px] h-6 px-1.5 rounded-lg font-black text-[10px] border tabular-nums",
-                                                                    (li.available_qty !== undefined && li.allocated_quantity > li.available_qty)
+                                                                    isExceeding
                                                                         ? "bg-destructive/10 text-destructive border-destructive/20"
                                                                         : "bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 border-emerald-100 dark:border-emerald-900/50"
                                                                 )}>
