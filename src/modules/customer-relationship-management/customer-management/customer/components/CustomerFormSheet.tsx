@@ -896,6 +896,12 @@ export function CustomerFormSheet({ open, onOpenChange, customer, onSubmit, defa
                                                                                        placeholder="Doe's General Store" {...field} /></FormControl><FormMessage/></FormItem>
                                         )}/>
 
+                                        <FormField control={form.control} name="customer_tin" render={({field}) => (
+                                            <FormItem className="md:col-span-2"><FormLabel
+                                                className="font-bold uppercase text-xs text-muted-foreground">Customer TIN</FormLabel><FormControl><Input className="h-11 bg-muted/30"
+                                                                                       placeholder="000-000-000-00000" {...field} value={field.value || ""} /></FormControl><FormMessage/></FormItem>
+                                        )}/>
+
                                         {/* 🚀 FIXED: Interactive Image Upload & Preview */}
                                         <FormField control={form.control} name="customer_image" render={({field}) => (
                                             <FormItem className="md:col-span-2">
