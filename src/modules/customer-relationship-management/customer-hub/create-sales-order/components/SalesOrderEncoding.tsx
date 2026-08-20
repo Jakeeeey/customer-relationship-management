@@ -143,8 +143,10 @@ export function SalesOrderEncoding({
                                                             {p.uom || ''}
                                                         </span>
                                                     </div>
-                                                    <div className="flex gap-1 items-center">
-                                                        {/* Discount badge removed */}
+                                                    <div className="flex flex-col items-end gap-1">
+                                                        <Badge variant="outline" className={`text-[9px] font-black uppercase px-1 py-0 leading-none ${Number(p.available_qty) > 0 ? "border-emerald-200 bg-emerald-50 text-emerald-600" : "border-red-200 bg-red-50 text-red-600"}`}>
+                                                            {Number(p.available_qty) || 0} IN STOCK
+                                                        </Badge>
                                                     </div>
                                                 </div>
                                             </div>
