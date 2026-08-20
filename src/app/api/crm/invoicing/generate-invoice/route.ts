@@ -130,7 +130,7 @@ export async function POST(req: NextRequest) {
                 if (dispatchIds.length > 0) {
                     // Step 2: Fetch dispatch details to find the NEWEST one based on dispatch_date
                     const dispatches = await Promise.all(dispatchIds.map(async (dId) => {
-                        const dpRes = await fetch(`${DIRECTUS_BASE}/items/dispatch_plan/${dId}?fields=dispatch_no,dispatch_date`, {
+                        const dpRes = await fetch(`${DIRECTUS_BASE}/items/dispatch_plan/${dId}?fields=dispatch_no,dispatch_date,created_at`, {
                             headers: directusHeaders()
                         });
                         if (dpRes.ok) {
@@ -145,14 +145,19 @@ export async function POST(req: NextRequest) {
                     validDispatches.sort((a, b) => {
                         const dateA = a.dispatch_date ? new Date(a.dispatch_date).getTime() : 0;
                         const dateB = b.dispatch_date ? new Date(b.dispatch_date).getTime() : 0;
-                        return dateB - dateA; // Descending (Newest first)
+                        if (dateA !== dateB) {
+                            return dateB - dateA; // Descending (Newest first)
+                        }
+                        const createdA = a.created_at ? new Date(a.created_at).getTime() : 0;
+                        const createdB = b.created_at ? new Date(b.created_at).getTime() : 0;
+                        return createdB - createdA; // Tie-breaker: Newest created_at first
                     });
 
                     if (validDispatches.length > 0) {
                         const newestDispatchNo = validDispatches[0].dispatch_no;
 
                         // Step 3: Get consolidator_id from consolidator_dispatches using the newest dispatch
-                        const cdpRes = await fetch(`${DIRECTUS_BASE}/items/consolidator_dispatches?filter[dispatch_no][_eq]=${newestDispatchNo}&limit=1`, {
+                        const cdpRes = await fetch(`${DIRECTUS_BASE}/items/consolidator_dispatches?filter[dispatch_no][_eq]=${newestDispatchNo}&sort=-id&limit=1`, {
                             headers: directusHeaders()
                         });
                         if (cdpRes.ok) {
@@ -326,7 +331,7 @@ export async function POST(req: NextRequest) {
                 if (!isVoidReplacement) {
                     expectedConsolidatorUpdatesCount += receipt.items.length;
                 }
-                if (!isRecycledInvoice) {
+                if (!isRecycledInvoice && !isVoidReplacement) {
                     expectedOrderUpdatesCount += receipt.items.length;
                 }
 
@@ -360,7 +365,7 @@ export async function POST(req: NextRequest) {
 
                 // 3. Process items for this receipt
                 for (const item of receipt.items) {
-                    if (!isRecycledInvoice) {
+                    if (!isRecycledInvoice && !isVoidReplacement) {
                         // 3a. Update sales_order_details (served_quantity)
                         const podRes = await fetch(`${DIRECTUS_BASE}/items/sales_order_details?filter[order_id][_eq]=${order.order_id}&filter[product_id][_eq]=${item.product_id}`, {
                             headers: directusHeaders()

@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { format } from "date-fns";
-import { Loader2, AlertCircle, Store, X, FileText, Package } from "lucide-react";
+import { Loader2, AlertCircle, Store, X, FileText, Package, PauseCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 import {
@@ -11,6 +11,7 @@ import {
     DialogDescription,
     DialogTitle,
 } from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import {
     Table,
@@ -34,6 +35,42 @@ interface ApprovalModalProps {
     onCancel: (orderIds: (string | number)[]) => Promise<boolean>;
     onSubmitForApproval?: (orderIds: (string | number)[]) => Promise<boolean>;
     onSaveDetails: (orderId: number, header: Record<string, number | string | null | undefined>, items: { detail_id: number, order_detail_id: number, allocated_quantity: number, net_amount: number, discount_amount: number, gross_amount: number }[]) => Promise<boolean>;
+}
+
+function CustomerReceivableTable({ data, loading, error }: { data: Record<string, unknown>[], loading: boolean, error: string | null }) {
+    if (loading) return <div className="p-8 text-center text-[11px] font-black tracking-widest uppercase text-muted-foreground animate-pulse">Fetching Receivables...</div>;
+    if (error) return <div className="p-8 text-center text-[12px] font-bold text-destructive">Error: {error}</div>;
+    if (data.length === 0) return <div className="p-8 text-center text-[12px] font-bold text-muted-foreground">No receivable data found.</div>;
+
+    // Extract primitive keys for columns
+    const keys = Object.keys(data[0]).filter(k => typeof data[0][k] !== 'object' && data[0][k] !== null);
+
+    return (
+        <div className="w-full min-w-[600px]">
+            <Table>
+                <TableHeader className="bg-slate-50 border-b">
+                    <TableRow className="hover:bg-transparent border-none">
+                        {keys.map(k => (
+                            <TableHead key={k} className="h-10 px-4 uppercase text-[9px] font-black text-slate-500 tracking-widest whitespace-nowrap">
+                                {k.replace(/([A-Z])/g, ' $1').trim()}
+                            </TableHead>
+                        ))}
+                    </TableRow>
+                </TableHeader>
+                <TableBody>
+                    {data.map((item, idx) => (
+                        <TableRow key={idx} className="border-slate-50 hover:bg-slate-50/50">
+                            {keys.map(k => (
+                                <TableCell key={k} className="px-4 py-3 text-[12px] font-medium text-slate-700 whitespace-nowrap">
+                                    {String(item[k] ?? '')}
+                                </TableCell>
+                            ))}
+                        </TableRow>
+                    ))}
+                </TableBody>
+            </Table>
+        </div>
+    );
 }
 
 export function ApprovalModal({
@@ -77,6 +114,10 @@ export function ApprovalModal({
     const [loadingInvoice, setLoadingInvoice] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [discountTypes, setDiscountTypes] = useState<Record<number, string>>({});
+
+    const [arData, setArData] = useState<Record<string, unknown>[]>([]);
+    const [arLoading, setArLoading] = useState(false);
+    const [arError, setArError] = useState<string | null>(null);
 
     const activeOrder = freshOrder ? { ...order, ...freshOrder } : order;
     const isInvoiceStatus = ["For Loading", "For Shipping", "En Route", "Delivered"].includes(activeOrder?.order_status || "");
@@ -162,6 +203,27 @@ export function ApprovalModal({
                 }
 
                 await Promise.all(promises);
+
+                // Fetch Accounts Receivable separately so it doesn't block main modal load
+                if (order.customer_code) {
+                    if (isMounted) setArLoading(true);
+                    fetch(`/api/crm/customer-hub/accounts-receivable?customerCode=${encodeURIComponent(order.customer_code)}`)
+                        .then(res => res.json())
+                        .then(resData => {
+                            if (resData.error) throw new Error(resData.error);
+                            const items = Array.isArray(resData) ? resData : (resData.data || [resData]);
+                            if (isMounted) {
+                                setArData(items);
+                                setArError(null);
+                            }
+                        })
+                        .catch(e => {
+                            if (isMounted) setArError(e.message);
+                        })
+                        .finally(() => {
+                            if (isMounted) setArLoading(false);
+                        });
+                }
             };
 
             loadData();
@@ -170,6 +232,8 @@ export function ApprovalModal({
             setFreshOrder(null);
             setInvoiceData(null);
             setAttachments([]);
+            setArData([]);
+            setArError(null);
         }
 
         return () => {
@@ -271,6 +335,38 @@ export function ApprovalModal({
         }).format(amount);
     };
 
+    const getArAmount = () => {
+        if (arLoading) return "Loading...";
+        if (arError || !arData || arData.length === 0) return "N/A";
+        const item = arData[0];
+        const amountKey = Object.keys(item).find(k => k.toLowerCase().includes("amount") || k.toLowerCase().includes("balance") || k.toLowerCase().includes("total"));
+        if (amountKey && !isNaN(Number(item[amountKey]))) {
+            return formatCurrency(Number(item[amountKey]));
+        }
+        return "N/A";
+    };
+
+    const formatOnHoldDate = (dateStr: string | null | undefined) => {
+        if (!dateStr) return null;
+        try {
+            const d = new Date(dateStr);
+            if (isNaN(d.getTime())) return dateStr;
+            return d.toLocaleString("en-US", {
+                month: "short",
+                day: "numeric",
+                year: "numeric",
+                hour: "2-digit",
+                minute: "2-digit",
+                hour12: true
+            });
+        } catch {
+            return dateStr;
+        }
+    };
+
+    const isHoldStatus = activeOrder?.order_status?.toLowerCase().trim() === "on hold" || Boolean(activeOrder?.on_hold_at) || Boolean(activeOrder?.on_hold_by);
+    const onHoldUserName = activeOrder?.on_hold_by_user_name || null;
+    const formattedOnHoldDate = formatOnHoldDate(activeOrder?.on_hold_at);
 
     return (
         <>
@@ -298,6 +394,18 @@ export function ApprovalModal({
                                 <div className="min-w-0">
                                     <DialogTitle className="text-base sm:text-xl font-black flex flex-wrap items-center gap-1.5 text-foreground leading-tight">
                                         <span className="shrink-0">SO: {activeOrder.order_no}</span>
+                                        {isHoldStatus && (
+                                            <Badge variant="outline" className="bg-amber-50 text-amber-900 border-amber-300 font-medium px-2 py-0.5 text-[11px] flex items-center gap-1.5 shadow-xs">
+                                                <PauseCircle className="h-3.5 w-3.5 text-amber-600 shrink-0" />
+                                                <span>On-Hold</span>
+                                                {(onHoldUserName || formattedOnHoldDate) && (
+                                                    <span className="text-[10px] text-amber-800 font-normal border-l border-amber-300/80 pl-1.5 ml-0.5">
+                                                        {onHoldUserName && <span>by <strong className="font-semibold text-amber-950">{onHoldUserName}</strong></span>}
+                                                        {formattedOnHoldDate && <span> on {formattedOnHoldDate}</span>}
+                                                    </span>
+                                                )}
+                                            </Badge>
+                                        )}
                                         {isInvoiceStatus && invoiceData?.invoice?.invoice_no && (
                                             <>
                                                 <span className="text-slate-300 font-light shrink-0">/</span>
@@ -357,7 +465,7 @@ export function ApprovalModal({
                         </div>
 
                         {/* Summary Row - Compact Micro Cards */}
-                        <div className="grid grid-cols-2 md:grid-cols-6 gap-3 mt-5 mb-1">
+                        <div className="grid grid-cols-2 md:grid-cols-7 gap-3 mt-5 mb-1">
                             <div className="bg-white dark:bg-slate-900/50 border border-slate-100 dark:border-slate-800 rounded-xl p-3 shadow-sm flex flex-col gap-1 transition-all hover:border-slate-200">
                                 <p className="text-[9px] text-slate-500 uppercase font-black tracking-widest leading-none">Order Date</p>
                                 <p className="font-bold text-[13px] text-slate-900 dark:text-slate-100 leading-none mt-0.5">
@@ -396,6 +504,12 @@ export function ApprovalModal({
                                     {formatCurrency(isInvoiceStatus ? (invoiceData?.invoice?.net_amount || 0) : (activeOrder.allocated_amount || calculatedAllocatedTotal))}
                                 </p>
                             </div>
+                            <div className="bg-orange-50 dark:bg-orange-950/30 border border-orange-100 dark:border-orange-900/50 rounded-xl p-3 shadow-sm flex flex-col gap-1 transition-all hover:border-orange-200">
+                                <p className="text-[9px] text-orange-600 dark:text-orange-400 uppercase font-black tracking-widest leading-none">Receivables</p>
+                                <p className="font-bold text-[13px] text-orange-700 dark:text-orange-300 leading-none mt-0.5 tabular-nums">
+                                    {getArAmount()}
+                                </p>
+                            </div>
                         </div>
                     </div>
 
@@ -420,9 +534,27 @@ export function ApprovalModal({
                         </div>
                     )}
 
-                    {/* ── TABLE AREA ────────────────────────────────────────── */}
-                    <div className="flex-1 overflow-y-auto overflow-x-auto min-h-0 scrollbar-thin scrollbar-thumb-slate-200">
-                        {isInvoiceStatus ? (
+                    {/* ── TABS AREA ────────────────────────────────────────── */}
+                    <Tabs defaultValue="order-details" className="flex-1 flex flex-col overflow-hidden">
+                        <div className="px-4 sm:px-6 pt-2 border-b border-border bg-muted/10 shrink-0">
+                            <TabsList className="bg-transparent h-9 p-0 space-x-6 border-b-0">
+                                <TabsTrigger 
+                                    value="order-details" 
+                                    className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-1 pb-2 pt-1 h-auto text-[11px] sm:text-xs font-black uppercase tracking-wider text-muted-foreground data-[state=active]:text-primary transition-all"
+                                >
+                                    Order Details
+                                </TabsTrigger>
+                                <TabsTrigger 
+                                    value="receivables" 
+                                    className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-1 pb-2 pt-1 h-auto text-[11px] sm:text-xs font-black uppercase tracking-wider text-muted-foreground data-[state=active]:text-primary transition-all"
+                                >
+                                    Customer Receivables
+                                </TabsTrigger>
+                            </TabsList>
+                        </div>
+
+                        <TabsContent value="order-details" className="flex-1 overflow-y-auto overflow-x-auto min-h-0 scrollbar-thin scrollbar-thumb-slate-200 mt-0 data-[state=inactive]:hidden outline-none">
+                            {isInvoiceStatus ? (
                             loadingInvoice ? (
                                 <div className="flex flex-col items-center justify-center h-64 gap-4">
                                     <div className="w-10 h-10 rounded-full border-4 border-primary/20 border-t-primary animate-spin" />
@@ -488,7 +620,6 @@ export function ApprovalModal({
                                                 <TableHead className="text-center h-10 uppercase text-[9px] font-black text-muted-foreground tracking-widest">Unit</TableHead>
                                                 <TableHead className="text-right h-10 uppercase text-[9px] font-black text-muted-foreground tracking-widest whitespace-nowrap">Unit Price</TableHead>
                                                 <TableHead className="text-center h-10 uppercase text-[9px] font-black text-muted-foreground tracking-widest whitespace-nowrap">Ordered Qty</TableHead>
-                                                <TableHead className="text-center h-10 uppercase text-[9px] font-black text-muted-foreground tracking-widest whitespace-nowrap bg-sky-50/50">Available</TableHead>
                                                 <TableHead className="text-center h-10 uppercase text-[9px] font-black text-muted-foreground tracking-widest w-[120px] whitespace-nowrap">Alloc Qty</TableHead>
                                                 <TableHead className="text-right h-10 uppercase text-[9px] font-black text-muted-foreground tracking-widest">Discount</TableHead>
                                                 <TableHead className="text-center h-10 uppercase text-[9px] font-black text-muted-foreground tracking-widest whitespace-nowrap">Discount Type</TableHead>
@@ -517,7 +648,7 @@ export function ApprovalModal({
                                                     const productName = li.product_id?.product_name || li.product_id?.description || "Unknown";
                                                     const productCode = li.product_id?.product_code || "N/A";
                                                     const lineAllocated = getLineAllocated(li);
-                                                    const isExceeding = (li.allocated_quantity > li.ordered_quantity) || (li.available_qty !== undefined && li.allocated_quantity > li.available_qty);
+                                                    const isExceeding = (li.allocated_quantity > li.ordered_quantity);
 
                                                     return (
                                                         <TableRow key={li.detail_id || li.order_detail_id || idx} className={cn("hover:bg-slate-50/50 transition-colors border-slate-50 group", isExceeding && "bg-destructive/5 hover:bg-destructive/10")}>
@@ -536,18 +667,8 @@ export function ApprovalModal({
                                                             <TableCell className="text-center font-bold text-muted-foreground text-[12px] sm:text-sm tabular-nums">{li.ordered_quantity}</TableCell>
                                                             <TableCell className="text-center">
                                                                 <span className={cn(
-                                                                    "inline-flex items-center justify-center min-w-[28px] h-6 px-2 rounded-lg font-black text-[11px] border tabular-nums",
-                                                                    (li.available_qty ?? 0) > 0
-                                                                        ? "bg-sky-50 text-sky-600 border-sky-100"
-                                                                        : "bg-slate-100 text-slate-400 border-slate-200"
-                                                                )}>
-                                                                    {li.available_qty ?? 0}
-                                                                </span>
-                                                            </TableCell>
-                                                            <TableCell className="text-center">
-                                                                <span className={cn(
                                                                     "inline-flex items-center justify-center min-w-[28px] h-6 px-1.5 rounded-lg font-black text-[10px] border tabular-nums",
-                                                                    (li.available_qty !== undefined && li.allocated_quantity > li.available_qty)
+                                                                    isExceeding
                                                                         ? "bg-destructive/10 text-destructive border-destructive/20"
                                                                         : "bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 border-emerald-100 dark:border-emerald-900/50"
                                                                 )}>
@@ -582,7 +703,16 @@ export function ApprovalModal({
                                 </div>
                             </div>
                         )}
-                    </div>
+                        </TabsContent>
+
+                        <TabsContent value="receivables" className="flex-1 overflow-y-auto overflow-x-auto min-h-0 scrollbar-thin scrollbar-thumb-slate-200 mt-0 data-[state=inactive]:hidden outline-none bg-slate-50/30">
+                            {activeOrder.customer_code ? (
+                                <CustomerReceivableTable data={arData} loading={arLoading} error={arError} />
+                            ) : (
+                                <div className="p-8 text-center text-muted-foreground text-sm font-bold">No Customer Code available</div>
+                            )}
+                        </TabsContent>
+                    </Tabs>
 
                     {/* ── FOOTER ──────────────────────────────────────────── */}
                     <div className="px-4 sm:px-8 py-4 sm:py-6 border-t bg-muted/30 backdrop-blur-md flex flex-row items-center justify-between gap-4 shrink-0 mt-auto">

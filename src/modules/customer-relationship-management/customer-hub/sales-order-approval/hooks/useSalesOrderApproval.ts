@@ -49,6 +49,9 @@ export interface SalesOrder {
     order_status: string;
     payment_terms?: number | null;
     price_type_name?: string;
+    on_hold_at?: string | null;
+    on_hold_by?: number | string | null;
+    on_hold_by_user_name?: string | null;
 }
 
 

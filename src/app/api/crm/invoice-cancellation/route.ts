@@ -3,34 +3,33 @@ import { cookies } from "next/headers";
 
 export const runtime = "nodejs";
 
-// Define a more specific type for the raw invoice data from the backend
-interface RawInvoice {
-  invoiceId?: string;
-  invoice_id?: string;
-  invoiceNo?: string;
-  invoice_no?: string;
-  customer?: { customerCode?: string; customerName?: string };
-  customerCode?: string;
-  customer_code?: string;
-  customerName?: string;
-  customer_name?: string;
-  totalAmount?: number;
-  total_amount?: number;
-  transactionStatus?: string;
-  transaction_status?: string;
-  salesOrder?: { orderNo?: string };
-  orderId?: string;
-  order_id?: string;
-  orderNo?: string;
-  order_no?: string;
+const DIRECTUS_BASE = (process.env.NEXT_PUBLIC_API_BASE_URL || "").replace(/\/+$/, "");
+const DIRECTUS_TOKEN = process.env.DIRECTUS_STATIC_TOKEN || "";
+
+function directusHeaders() {
+  const h: Record<string, string> = { "Content-Type": "application/json" };
+  if (DIRECTUS_TOKEN) h.Authorization = `Bearer ${DIRECTUS_TOKEN}`;
+  return h;
 }
-const getSpringBaseUrl = () => {
-  const url = process.env.SPRING_API_BASE_URL;
-  if (!url) {
-    console.warn("⚠️ WARNING: SPRING_API_BASE_URL is undefined in .env.local!");
-  }
-  return (url || "http://localhost:8080").replace(/\/$/, "");
-};
+
+interface DirectusInvoice {
+  invoice_id: number;
+  invoice_no: string;
+  customer_code: string;
+  total_amount: number;
+  transaction_status: string;
+  order_id: string;
+}
+
+interface DirectusCustomer {
+  customer_code: string;
+  customer_name: string;
+}
+
+interface DirectusRequest {
+  invoice_id: number;
+  status: string;
+}
 
 export async function GET() {
   const cookieStore = await cookies();
@@ -40,41 +39,55 @@ export async function GET() {
     return NextResponse.json({ ok: false, message: "Unauthorized" }, { status: 401 });
   }
 
-  const targetUrl = `${getSpringBaseUrl()}/api/defective-invoicing/eligible?page=0&size=1000`;
-
   try {
-    const springRes = await fetch(targetUrl, {
-      method: "GET",
-      headers: {
-        "Authorization": `Bearer ${token}`,
-        "Content-Type": "application/json"
-      },
+    // 1. Fetch all pending cancellation requests
+    const requestRes = await fetch(`${DIRECTUS_BASE}/items/invoice_cancellation_requests?filter[status][_eq]=PENDING&fields=invoice_id&limit=1000`, {
+      headers: directusHeaders(),
       cache: "no-store",
     });
+    if (!requestRes.ok) throw new Error(`Cancellation requests fetch failed: ${await requestRes.text()}`);
+    const requestData = await requestRes.json();
+    const pendingInvoiceIds = new Set<number>(
+      (requestData.data || []).map((r: DirectusRequest) => Number(r.invoice_id))
+    );
 
-    if (!springRes.ok) {
-      const errText = await springRes.text();
-      console.error("🔥 Spring Boot Error (Eligible):", errText);
-      return NextResponse.json(
-          { ok: false, message: "Failed to fetch eligible invoices from server", detail: errText },
-          { status: springRes.status }
-      );
+    // 2. Fetch active invoices (transaction_status is Prepared)
+    const invoiceRes = await fetch(`${DIRECTUS_BASE}/items/sales_invoice?filter[transaction_status][_eq]=Prepared&fields=invoice_id,invoice_no,total_amount,transaction_status,order_id,customer_code&limit=1000`, {
+      headers: directusHeaders(),
+      cache: "no-store",
+    });
+    if (!invoiceRes.ok) throw new Error(`Sales invoice fetch failed: ${await invoiceRes.text()}`);
+    const invoiceData = await invoiceRes.json();
+    const rawInvoices: DirectusInvoice[] = invoiceData.data || [];
+
+    // 3. Filter in-memory: exclude invoices with pending cancellation requests
+    const eligibleInvoices = rawInvoices.filter((inv) => !pendingInvoiceIds.has(Number(inv.invoice_id)));
+
+    // 4. Fetch customer details only for the eligible invoices
+    const customerMap = new Map<string, string>();
+    const customerCodes = Array.from(new Set(eligibleInvoices.map((inv) => inv.customer_code).filter(Boolean)));
+
+    if (customerCodes.length > 0) {
+      const customerRes = await fetch(`${DIRECTUS_BASE}/items/customer?filter[customer_code][_in]=${customerCodes.join(",")}&fields=customer_code,customer_name&limit=1000`, {
+        headers: directusHeaders(),
+        cache: "no-store",
+      });
+      if (!customerRes.ok) throw new Error(`Customer fetch failed: ${await customerRes.text()}`);
+      const customerData = await customerRes.json();
+      (customerData.data || []).forEach((c: DirectusCustomer) => {
+        customerMap.set(c.customer_code, c.customer_name);
+      });
     }
 
-    const data = await springRes.json();
-
-    // Spring Boot Page wraps lists in 'content'. Fallback to 'data' if it's a raw list.
-    const rawInvoices = data.content || data || [];
-
-    // 🚀 THE FIX: Map the Spring Boot payload to perfectly match the Next.js Data Table
-    const formattedInvoices = rawInvoices.map((inv: RawInvoice) => ({
-      invoice_id: inv.invoiceId || inv.invoice_id,
-      invoice_no: inv.invoiceNo || inv.invoice_no || "N/A",
-      customer_code: inv.customer?.customerCode || inv.customerCode || inv.customer_code || "N/A",
-      customer_name: inv.customer?.customerName || inv.customerName || inv.customer_name || "Unknown Customer",
-      total_amount: inv.totalAmount || inv.total_amount || 0,
-      transaction_status: inv.transactionStatus || inv.transaction_status || "Unknown",
-      order_id: inv.salesOrder?.orderNo || inv.orderId || inv.order_id || inv.orderNo || inv.order_no || "N/A",
+    // 5. Map fields for Data Table
+    const formattedInvoices = eligibleInvoices.map((inv) => ({
+      invoice_id: inv.invoice_id,
+      invoice_no: inv.invoice_no || "N/A",
+      customer_code: inv.customer_code || "N/A",
+      customer_name: customerMap.get(inv.customer_code) || "Unknown Customer",
+      total_amount: inv.total_amount || 0,
+      transaction_status: inv.transaction_status || "Prepared",
+      order_id: inv.order_id || "N/A",
     }));
 
     return NextResponse.json(formattedInvoices);
@@ -96,39 +109,52 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json();
-    const targetUrl = `${getSpringBaseUrl()}/api/defective-invoicing/request`;
 
-    // 🚀 THE FIX: Map the Next.js snake_case payload to Spring Boot's camelCase DTO
-    const springPayload = {
-      invoiceId: body.invoice_id || body.invoiceId,
-      salesOrderId: body.sales_order_id || body.salesOrderId || body.order_id,
-      reasonCode: body.reason_code || body.reasonCode,
-      remarks: body.remarks || ""
+    // Decode requested_by ID from JWT token
+    let requested_by = 1; // Default fallback
+    if (token) {
+      try {
+        const payload = token.split('.')[1];
+        const decoded = JSON.parse(Buffer.from(payload, 'base64').toString('utf-8')) as { sub: string };
+        if (decoded && decoded.sub) {
+          requested_by = parseInt(decoded.sub) || 1;
+        }
+      } catch (e) {
+        console.warn("Failed to decode token for requested_by mapping:", e);
+      }
+    }
+
+    const payload = {
+      invoice_id: Number(body.invoice_id || body.invoiceId),
+      sales_order_id: String(body.sales_order_id || body.salesOrderId || body.order_id),
+      reason_code: String(body.reason_code || body.reasonCode),
+      remarks: String(body.remarks || ""),
+      status: "PENDING",
+      requested_by: requested_by,
+      created_at: new Date().toISOString()
     };
 
-    const springRes = await fetch(targetUrl, {
+    const directusRes = await fetch(`${DIRECTUS_BASE}/items/invoice_cancellation_requests`, {
       method: "POST",
-      headers: {
-        "Authorization": `Bearer ${token}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify(springPayload),
+      headers: directusHeaders(),
+      body: JSON.stringify(payload),
     });
 
-    if (!springRes.ok) {
-      const errText = await springRes.text();
-      console.error("🔥 Spring Boot Error (Request):", errText);
+    if (!directusRes.ok) {
+      const errText = await directusRes.text();
+      console.error("🔥 Directus Error (Create Request):", errText);
       return NextResponse.json(
-          { ok: false, message: "Failed to create request", detail: errText },
-          { status: springRes.status }
+        { ok: false, message: "Failed to create cancellation request", detail: errText },
+        { status: directusRes.status }
       );
     }
 
-    const data = await springRes.json();
-    return NextResponse.json(data);
+    const data = await directusRes.json();
+    return NextResponse.json({ ok: true, data: data.data });
+
   } catch (err: unknown) {
     const errorMessage = err instanceof Error ? err.message : String(err);
-    console.error("🔥 BFF Network Error (Request):", errorMessage);
+    console.error("🔥 BFF Network Error (Create Request):", errorMessage);
     return NextResponse.json({ ok: false, message: "BFF Network Error", detail: errorMessage }, { status: 502 });
   }
 }

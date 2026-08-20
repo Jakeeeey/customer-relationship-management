@@ -35,20 +35,27 @@ interface SalesOrderEncodingProps {
     };
     onSubmit: () => void;
     submitting: boolean;
+    isCheckoutLoading?: boolean;
 }
 
 export function SalesOrderEncoding({
     products, loadingProducts, productSearch, setProductSearch, lineItems,
     addProduct, removeLineItem, updateLineItemQty,
-    summary, onSubmit, submitting
+    summary, onSubmit, submitting, isCheckoutLoading
 }: SalesOrderEncodingProps) {
     const [showOnlyAvailable, setShowOnlyAvailable] = useState(false);
 
     const displayProducts = Array.isArray(products)
         ? products.filter(p => {
-            // Availability Filter Only (Text search is now handled server-side)
+            const searchLower = productSearch.toLowerCase();
+            const matchesSearch = !productSearch || 
+                p.display_name?.toLowerCase().includes(searchLower) ||
+                p.product_name?.toLowerCase().includes(searchLower) ||
+                p.description?.toLowerCase().includes(searchLower);
+                
+            // Availability Filter
             const matchesAvailability = !showOnlyAvailable || (Number(p.available_qty) || 0) > 0;
-            return matchesAvailability;
+            return matchesSearch && matchesAvailability;
         })
         : [];
 
@@ -134,11 +141,12 @@ export function SalesOrderEncoding({
                                                         </div>
                                                         <span className="text-[9px] text-muted-foreground font-black tracking-tighter">
                                                             {p.uom || ''}
-                                                            <span className="ml-2 text-indigo-500">• Avail: {Number(p.available_qty) || 0}</span>
                                                         </span>
                                                     </div>
-                                                    <div className="flex gap-1 items-center">
-                                                        {/* Discount badge removed */}
+                                                    <div className="flex flex-col items-end gap-1">
+                                                        <Badge variant="outline" className={`text-[9px] font-black uppercase px-1 py-0 leading-none ${Number(p.available_qty) > 0 ? "border-emerald-200 bg-emerald-50 text-emerald-600" : "border-red-200 bg-red-50 text-red-600"}`}>
+                                                            {Number(p.available_qty) || 0} IN STOCK
+                                                        </Badge>
                                                     </div>
                                                 </div>
                                             </div>
@@ -275,11 +283,11 @@ export function SalesOrderEncoding({
                         <Button
                             className="h-14 text-lg font-black shadow-xl"
                             size="lg"
-                            disabled={lineItems.length === 0 || submitting}
+                            disabled={lineItems.length === 0 || submitting || isCheckoutLoading}
                             onClick={onSubmit}
                         >
-                            {submitting ? <Loader2 className="animate-spin mr-2" /> : null}
-                            {submitting ? "Processing..." : "SUBMIT ORDER"}
+                            {(submitting || isCheckoutLoading) ? <Loader2 className="animate-spin mr-2" /> : null}
+                            {submitting ? "Processing..." : isCheckoutLoading ? "Verifying..." : "PROCEED TO CHECKOUT"}
                         </Button>
                     </div>
                 </Card>

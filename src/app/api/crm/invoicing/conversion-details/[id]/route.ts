@@ -133,7 +133,7 @@ export async function GET(
         let consolidatorId = null;
 
         if (dispatchNo) {
-            const lcRes = await fetch(`${DIRECTUS_BASE}/items/consolidator_dispatches?filter[dispatch_no][_eq]=${dispatchNo}&fields=consolidator_id.id,consolidator_id.consolidator_no`, {
+            const lcRes = await fetch(`${DIRECTUS_BASE}/items/consolidator_dispatches?filter[dispatch_no][_eq]=${dispatchNo}&fields=consolidator_id.id,consolidator_id.consolidator_no&sort=-id&limit=1`, {
                 headers: directusHeaders()
             });
             const lcData = await lcRes.json();
