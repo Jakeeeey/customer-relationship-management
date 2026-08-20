@@ -93,9 +93,11 @@ export function AnnouncementModal({
     if (queue.length === 0) return null;
 
     return (
-        <Dialog open={open} onOpenChange={onOpenChange}>
+        <Dialog open={open} onOpenChange={mode === "popup" ? () => {} : onOpenChange}>
             <DialogContent 
                 showCloseButton={mode === "view-only"} 
+                onInteractOutside={mode === "popup" ? (e) => e.preventDefault() : undefined}
+                onEscapeKeyDown={mode === "popup" ? (e) => e.preventDefault() : undefined}
                 className={cn(
                     "w-[96vw] h-[96vh] flex flex-col p-4 gap-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 shadow-2xl mx-auto",
                     (mode === "view-only" && queue.length >= 2) ? "sm:max-w-[96vw]" : "sm:max-w-[850px]"
@@ -151,16 +153,61 @@ export function AnnouncementModal({
 
                     {/* Content Right Column */}
                     <div className="flex-1 min-h-0 h-full overflow-y-auto pr-1">
+                        {activeAnnouncement?.memo?.issued_by_code && (
+                            <div className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2 flex items-center gap-1">
+                                <Icons.UserCircle className="h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />
+                                <span>Issued By: {activeAnnouncement.memo.issued_by_code}</span>
+                            </div>
+                        )}
+
                         {/* 1. Memo Rich Text Body or Text Description */}
                         {activeAnnouncement?.memo?.body ? (
                             <div 
-                                className="mb-4 p-5 rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-slate-950/50 text-sm text-slate-800 dark:text-slate-200 leading-relaxed break-words [&_p]:mb-4 [&_p:last-child]:mb-0 [&_ul]:list-disc [&_ul]:pl-5 [&_ul]:mb-4 [&_ol]:list-decimal [&_ol]:pl-5 [&_ol]:mb-4 [&_li]:mb-1 [&_h1]:text-2xl [&_h1]:font-black [&_h1]:mb-3 [&_h2]:text-xl [&_h2]:font-bold [&_h2]:mb-2"
+                                className={[
+                                    "mb-4 p-5 rounded-xl border border-slate-200",
+                                    "bg-white",
+                                    "text-sm text-slate-800 leading-relaxed break-words",
+                                    // Paragraphs
+                                    "[&_p]:mb-4 [&_p:last-child]:mb-0",
+                                    // Lists
+                                    "[&_ul]:list-disc [&_ul]:pl-5 [&_ul]:mb-4",
+                                    "[&_ol]:list-decimal [&_ol]:pl-5 [&_ol]:mb-4",
+                                    "[&_li]:mb-1",
+                                    // Headings
+                                    "[&_h1]:text-2xl [&_h1]:font-black [&_h1]:mb-3 [&_h1]:text-slate-900 dark:[&_h1]:text-white",
+                                    "[&_h2]:text-xl [&_h2]:font-bold [&_h2]:mb-2 [&_h2]:text-slate-900 dark:[&_h2]:text-white",
+                                    "[&_h3]:text-lg [&_h3]:font-bold [&_h3]:mb-2 [&_h3]:text-slate-900 dark:[&_h3]:text-slate-100",
+                                    // Strong / bold
+                                    "[&_strong]:font-bold [&_strong]:text-slate-900 dark:[&_strong]:text-white",
+                                    "[&_em]:italic dark:[&_em]:text-slate-300",
+                                    // Horizontal rule
+                                    "[&_hr]:border-slate-200 dark:[&_hr]:border-white/10 [&_hr]:my-4",
+                                    // Blockquote
+                                    "[&_blockquote]:border-l-4 [&_blockquote]:pl-4 [&_blockquote]:italic",
+                                    "[&_blockquote]:border-slate-300 dark:[&_blockquote]:border-cyan-400/50",
+                                    "[&_blockquote]:text-slate-600 dark:[&_blockquote]:text-slate-300",
+                                    // Code
+                                    "[&_code]:px-1.5 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-xs [&_code]:font-mono",
+                                    "[&_code]:bg-slate-200 [&_code]:text-slate-800 dark:[&_code]:bg-slate-700 dark:[&_code]:text-cyan-300",
+                                    "[&_pre]:p-4 [&_pre]:rounded-lg [&_pre]:overflow-x-auto [&_pre]:my-3",
+                                    "[&_pre]:bg-slate-200 dark:[&_pre]:bg-slate-900",
+                                    // Tables
+                                    "[&_table]:w-full [&_table]:border-collapse [&_table]:my-3 [&_table]:text-sm",
+                                    "[&_th]:text-left [&_th]:font-bold [&_th]:px-3 [&_th]:py-2 [&_th]:border",
+                                    "[&_th]:border-slate-300 [&_th]:bg-slate-100 [&_th]:text-slate-700",
+                                    "dark:[&_th]:border-white/10 dark:[&_th]:bg-slate-700 dark:[&_th]:text-slate-200",
+                                    "[&_td]:px-3 [&_td]:py-2 [&_td]:border [&_td]:border-slate-200 [&_td]:align-top",
+                                    "dark:[&_td]:border-white/10 dark:[&_td]:text-slate-300",
+                                    "[&_tr:nth-child(even)]:bg-slate-50 dark:[&_tr:nth-child(even)]:bg-slate-800/40",
+                                    // Links
+                                    "[&_a]:text-cyan-600 dark:[&_a]:text-cyan-400 [&_a]:underline [&_a]:underline-offset-2",
+                                ].join(" ")}
                                 dangerouslySetInnerHTML={{ 
                                     __html: activeAnnouncement.memo.body.replace(/&nbsp;/g, " ") 
                                 }}
                             />
                         ) : activeAnnouncement?.memo?.description ? (
-                            <div className="mb-4 p-5 rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-slate-950/50 text-sm text-slate-800 dark:text-slate-200 leading-relaxed whitespace-pre-wrap">
+                            <div className="mb-4 p-5 rounded-xl border border-slate-200 bg-white text-sm text-slate-800 leading-relaxed whitespace-pre-wrap">
                                 {activeAnnouncement.memo.description}
                             </div>
                         ) : null}

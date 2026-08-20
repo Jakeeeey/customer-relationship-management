@@ -82,7 +82,7 @@ export async function GET(req: Request) {
             ]
         });
 
-        const memoUrl = `${directusBase}/items/company_memo?filter=${encodeURIComponent(memoFilter)}&sort=-id,-created_at`;
+        const memoUrl = `${directusBase}/items/company_memo?filter=${encodeURIComponent(memoFilter)}&sort=-id,-created_at&fields=*,from.company_id,from.company_name,from.company_code`;
         console.log(`[Announcement API Debug] Fetching memos from URL: ${memoUrl}`);
         const memoRes = await fetch(memoUrl, {
             headers: { "Authorization": `Bearer ${targetToken}` },
@@ -135,11 +135,20 @@ export async function GET(req: Request) {
                 }
                 console.log(`[Announcement API Debug] Fetched ${attachments.length} total attachments for matching memos`);
 
-                announcementsData = matchingMemos.map((memo: CompanyMemo) => ({
-                    memo,
-                    attachments: attachments.filter((att: CompanyMemoAttachment) => att.company_memo_id === memo.id),
-                    directusBaseUrl: directusBase
-                }));
+                announcementsData = matchingMemos.map((memo: CompanyMemo & { from?: { company_id: number; company_name?: string; company_code?: string } | number }) => {
+                    // Resolve from (FK to company_list) into a readable company code
+                    let issued_by_code: string | undefined;
+                    if (memo.from && typeof memo.from === "object") {
+                        issued_by_code = memo.from.company_code ?? undefined;
+                    }
+                    const { from: _from, ...memoRest } = memo;
+                    void _from;
+                    return {
+                        memo: { ...memoRest, issued_by_code } as CompanyMemo,
+                        attachments: attachments.filter((att: CompanyMemoAttachment) => att.company_memo_id === memo.id),
+                        directusBaseUrl: directusBase
+                    };
+                });
             } else {
                 console.log("[Announcement API Debug] No matching memos for current date range");
             }

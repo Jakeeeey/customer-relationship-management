@@ -168,7 +168,7 @@ export default async function ERPMainDashboardPage() {
             ]
         });
 
-        const memoUrl = `${directusUrl}/items/company_memo?filter=${encodeURIComponent(memoFilter)}&sort=-id,-created_at`;
+        const memoUrl = `${directusUrl}/items/company_memo?filter=${encodeURIComponent(memoFilter)}&sort=-id,-created_at&fields=*,from.company_id,from.company_name,from.company_code`;
         console.log(`[Announcement Debug] Fetching memos from URL: ${memoUrl}`);
         const memoRes = await fetch(memoUrl, {
             headers: { "Authorization": `Bearer ${targetToken}` },
@@ -221,11 +221,19 @@ export default async function ERPMainDashboardPage() {
                 }
                 console.log(`[Announcement Debug] Fetched ${attachments.length} total attachments for matching memos`);
 
-                announcementsData = matchingMemos.map((memo: CompanyMemo) => ({
-                    memo,
-                    attachments: attachments.filter((att: CompanyMemoAttachment) => att.company_memo_id === memo.id),
-                    directusBaseUrl: directusUrl
-                }));
+                announcementsData = matchingMemos.map((memo: CompanyMemo & { from?: { company_id: number; company_name?: string; company_code?: string } | number }) => {
+                    let issued_by_code: string | undefined;
+                    if (memo.from && typeof memo.from === "object") {
+                        issued_by_code = memo.from.company_code ?? undefined;
+                    }
+                    const { from: _from, ...memoRest } = memo;
+                    void _from;
+                    return {
+                        memo: { ...memoRest, issued_by_code } as CompanyMemo,
+                        attachments: attachments.filter((att: CompanyMemoAttachment) => att.company_memo_id === memo.id),
+                        directusBaseUrl: directusUrl
+                    };
+                });
             } else {
                 console.log("[Announcement Debug] No matching memos for current date range");
             }
