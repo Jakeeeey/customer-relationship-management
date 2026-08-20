@@ -365,10 +365,7 @@ export async function GET(req: NextRequest) {
                     }
                 }
 
-                // Optimization: Limit to 50 to prevent loading thousands of records
-                if (linkedProductIds.length > 50) {
-                    linkedProductIds = linkedProductIds.slice(0, 50);
-                }
+
 
 
                 // --- Start Inventory Fetch Promise from Spring Boot ---
