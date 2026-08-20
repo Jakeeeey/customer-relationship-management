@@ -12,6 +12,7 @@ import {
     ShieldCheck,
     Moon,
     Sun,
+    Megaphone,
 } from "lucide-react"
 import { useTheme } from "next-themes"
 
@@ -50,6 +51,25 @@ export function NavUser({ user, onLogout, subsystemSlug }: NavUserProps) {
     const router = useRouter()
     const pathname = usePathname()
     const [loggingOut, setLoggingOut] = React.useState(false)
+
+    const [announcementsCount, setAnnouncementsCount] = React.useState<number>(0);
+
+    React.useEffect(() => {
+        const fetchCount = () => {
+            fetch("/api/announcements")
+                .then((res) => res.json())
+                .then((data) => {
+                    if (data.announcements) {
+                        setAnnouncementsCount(data.announcements.length);
+                    }
+                })
+                .catch((err) => console.error("Error fetching announcements count:", err));
+        };
+
+        fetchCount();
+        window.addEventListener("announcements-updated", fetchCount);
+        return () => window.removeEventListener("announcements-updated", fetchCount);
+    }, []);
 
     const currentSlug = subsystemSlug || pathname.split("/")[1] || "hrm"
 
@@ -170,6 +190,21 @@ export function NavUser({ user, onLogout, subsystemSlug }: NavUserProps) {
                                     <Settings className="mr-2 size-4" />
                                     Settings
                                 </Link>
+                            </DropdownMenuItem>
+
+                            <DropdownMenuItem
+                                className="cursor-pointer flex items-center justify-between"
+                                onClick={() => window.dispatchEvent(new CustomEvent("open-announcements"))}
+                            >
+                                <span className="flex items-center">
+                                    <Megaphone className="mr-2 size-4" />
+                                    Announcements
+                                </span>
+                                {announcementsCount > 0 && (
+                                    <span className="flex h-4 min-w-[16px] px-1.5 items-center justify-center rounded-full bg-rose-500 text-[9px] font-black text-white shadow-sm leading-none animate-pulse">
+                                        {announcementsCount}
+                                    </span>
+                                )}
                             </DropdownMenuItem>
                         </DropdownMenuGroup>
 
