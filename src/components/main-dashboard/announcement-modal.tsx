@@ -28,12 +28,31 @@ export function AnnouncementModal({
     mode = "popup",
     onAcknowledge
 }: AnnouncementModalProps) {
-    const announcementsList = announcements || [];
+    const [queue, setQueue] = React.useState<Announcement[]>([]);
     const [activeTabIndex, setActiveTabIndex] = React.useState(0);
-    const [acknowledgedMemoIds, setAcknowledgedMemoIds] = React.useState<Record<number, boolean>>({});
+    const [isCurrentChecked, setIsCurrentChecked] = React.useState(false);
     const [isAcknowledging, setIsAcknowledging] = React.useState(false);
 
-    const activeAnnouncement = announcementsList[activeTabIndex];
+    // Initialize/sync queue on open/prop changes
+    React.useEffect(() => {
+        const list = announcements || [];
+        if (open) {
+            if (mode === "popup") {
+                // Sort by memo.id ascending (oldest first)
+                const sorted = [...list].sort((a, b) => (a.memo.id || 0) - (b.memo.id || 0));
+                setQueue(sorted);
+            } else {
+                setQueue(list);
+            }
+            setActiveTabIndex(0);
+            setIsCurrentChecked(false);
+        } else {
+            setQueue([]);
+            setIsCurrentChecked(false);
+        }
+    }, [open, announcements, mode]);
+
+    const activeAnnouncement = mode === "popup" ? queue[0] : queue[activeTabIndex];
 
     // Get format and URL for the active attachment
     const attachment = activeAnnouncement?.attachments?.[0];
@@ -71,18 +90,7 @@ export function AnnouncementModal({
         }
     }, [open]);
 
-    // Reset active index and checked states on state changes
-    React.useEffect(() => {
-        if (!open) {
-            setActiveTabIndex(0);
-            setIsAcknowledging(false);
-            if (mode === "popup") {
-                setAcknowledgedMemoIds({});
-            }
-        }
-    }, [open, mode]);
-
-    if (announcementsList.length === 0) return null;
+    if (queue.length === 0) return null;
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
@@ -90,7 +98,7 @@ export function AnnouncementModal({
                 showCloseButton={mode === "view-only"} 
                 className={cn(
                     "w-[96vw] h-[96vh] flex flex-col p-4 gap-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 shadow-2xl mx-auto",
-                    announcementsList.length >= 2 ? "sm:max-w-[96vw]" : "sm:max-w-[850px]"
+                    (mode === "view-only" && queue.length >= 2) ? "sm:max-w-[96vw]" : "sm:max-w-[850px]"
                 )}
             >
                 <DialogHeader className="border-b border-slate-100 dark:border-white/5 pb-2 shrink-0">
@@ -103,17 +111,16 @@ export function AnnouncementModal({
                     </DialogTitle>
                 </DialogHeader>
 
-                {/* Content Container (Split-Pane Sidebar if 2+ announcements) */}
+                {/* Content Container (Split-Pane Sidebar if 2+ announcements in view-only mode) */}
                 <div className="flex-1 min-h-0 w-full flex flex-col md:flex-row gap-4">
                     {/* Sidebar Left Column */}
-                    {announcementsList.length >= 2 && (
+                    {mode === "view-only" && queue.length >= 2 && (
                         <div className="w-full md:w-1/3 flex flex-col gap-2 overflow-y-auto max-h-[30vh] md:max-h-full md:border-r border-slate-100 dark:border-white/5 md:pr-4 shrink-0">
                             <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1 px-1">
-                                Announcements ({announcementsList.length})
+                                Announcements ({queue.length})
                             </h4>
-                            {announcementsList.map((ann: Announcement, index: number) => {
+                            {queue.map((ann: Announcement, index: number) => {
                                 const isCurrent = index === activeTabIndex;
-                                const isChecked = mode === "view-only" || !!acknowledgedMemoIds[ann.memo.id];
                                 return (
                                     <button
                                         key={ann.memo.id}
@@ -134,13 +141,7 @@ export function AnnouncementModal({
                                             </div>
                                         </div>
                                         <div className="shrink-0 flex items-center justify-center mt-0.5">
-                                            {mode === "view-only" ? (
-                                                <Icons.Eye className="h-4 w-4 text-cyan-500" />
-                                            ) : isChecked ? (
-                                                <Icons.CheckCircle2 className="h-4 w-4 text-emerald-500" />
-                                            ) : (
-                                                <div className="h-3 w-3 rounded-full bg-amber-500 animate-pulse" />
-                                            )}
+                                            <Icons.Eye className="h-4 w-4 text-cyan-500" />
                                         </div>
                                     </button>
                                 );
@@ -198,43 +199,34 @@ export function AnnouncementModal({
                             <label className="flex items-center gap-2 text-xs font-bold text-slate-700 dark:text-slate-300 cursor-pointer select-none">
                                 <input
                                     type="checkbox"
-                                    checked={!!acknowledgedMemoIds[activeAnnouncement.memo.id]}
-                                    onChange={(e) => {
-                                        const checked = e.target.checked;
-                                        setAcknowledgedMemoIds(prev => ({
-                                            ...prev,
-                                            [activeAnnouncement.memo.id]: checked
-                                        }));
-                                    }}
+                                    checked={isCurrentChecked}
+                                    onChange={(e) => setIsCurrentChecked(e.target.checked)}
                                     className="h-4 w-4 rounded border-slate-300 dark:border-white/10 text-cyan-600 focus:ring-cyan-500/20 focus:ring-2 focus:ring-offset-2 dark:bg-slate-800"
                                 />
                                 <span>I have read and understood this announcement</span>
                             </label>
                             
                             <div className="flex items-center gap-4 w-full sm:w-auto justify-between sm:justify-end">
-                                {announcementsList.length >= 2 && (
-                                    <div className="text-xs font-bold text-slate-500 uppercase tracking-widest leading-none">
-                                        Progress: {Object.values(acknowledgedMemoIds).filter(Boolean).length} / {announcementsList.length} Checked
-                                    </div>
-                                )}
                                 <Button
                                     onClick={async () => {
                                         setIsAcknowledging(true);
                                         try {
                                             if (onAcknowledge) {
-                                                const memoIds = announcementsList.map(ann => ann.memo.id);
-                                                await onAcknowledge(memoIds);
+                                                await onAcknowledge([activeAnnouncement.memo.id]);
                                             }
-                                            onOpenChange(false);
+                                            if (queue.length > 1) {
+                                                setQueue((prev) => prev.slice(1));
+                                                setIsCurrentChecked(false);
+                                            } else {
+                                                onOpenChange(false);
+                                            }
                                         } catch (err) {
                                             console.error("Failed to acknowledge announcements:", err);
                                         } finally {
                                             setIsAcknowledging(false);
                                         }
                                     }}
-                                    disabled={
-                                        isAcknowledging || !announcementsList.every(ann => !!acknowledgedMemoIds[ann.memo.id])
-                                    }
+                                    disabled={isAcknowledging || !isCurrentChecked}
                                     className="bg-cyan-500 hover:bg-cyan-400 text-slate-950 disabled:bg-slate-200 disabled:text-slate-400 dark:disabled:bg-slate-800 dark:disabled:text-slate-600 font-black uppercase tracking-widest text-xs h-10 px-6 rounded-xl transition-all w-full sm:w-auto"
                                 >
                                     {isAcknowledging ? "Acknowledging..." : "Acknowledge & Close"}
