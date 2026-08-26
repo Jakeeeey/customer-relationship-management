@@ -161,76 +161,105 @@ export default async function ERPMainDashboardPage() {
 
         console.log("[Announcement Debug] Starting direct fetch process from directusBase:", directusUrl);
 
-        const memoFilter = JSON.stringify({
-            _and: [
-                { status: { _eq: "Released" } },
-                acknowledgedMemoIds.length > 0 ? { id: { _nin: acknowledgedMemoIds } } : {}
-            ]
-        });
+        // Step 1: Resolve the default company (is_default = 1)
+        const defaultCompanyRes = await fetch(
+            `${directusUrl}/items/company_list?filter=${encodeURIComponent(JSON.stringify({ is_default: { _eq: 1 } }))}&fields=company_id&limit=1`,
+            { headers: { "Authorization": `Bearer ${targetToken}` }, next: { revalidate: 0 } }
+        );
+        let defaultCompanyId: number | null = null;
+        if (defaultCompanyRes.ok) {
+            const defaultCompanyJson = await defaultCompanyRes.json();
+            const firstCompany = (defaultCompanyJson.data || [])[0];
+            if (firstCompany?.company_id) {
+                defaultCompanyId = Number(firstCompany.company_id);
+            }
+        }
+        console.log(`[Announcement Debug] Default company_id: ${defaultCompanyId}`);
 
-        const memoUrl = `${directusUrl}/items/company_memo?filter=${encodeURIComponent(memoFilter)}&sort=-id,-created_at`;
-        console.log(`[Announcement Debug] Fetching memos from URL: ${memoUrl}`);
-        const memoRes = await fetch(memoUrl, {
-            headers: { "Authorization": `Bearer ${targetToken}` },
-            next: { revalidate: 0 }
-        });
-
-        if (memoRes.ok) {
-            const memoJson = await memoRes.json();
-            const memos = memoJson.data || [];
-            console.log(`[Announcement Debug] Fetched ${memos.length} memos`);
-
-            const parts = new Intl.DateTimeFormat("en-US", {
-                timeZone: "Asia/Manila",
-                year: "numeric",
-                month: "2-digit",
-                day: "2-digit"
-            }).formatToParts(new Date());
-
-            const year = parts.find(p => p.type === 'year')?.value;
-            const month = parts.find(p => p.type === 'month')?.value;
-            const day = parts.find(p => p.type === 'day')?.value;
-            const currentDateStr = `${year}-${month}-${day}`;
-            console.log(`[Announcement Debug] Current PHT Date: ${currentDateStr}`);
-
-            const matchingMemos = memos.filter((memo: CompanyMemo) => {
-                const start = memo.start_date?.split("T")[0];
-                const end = memo.end_date?.split("T")[0];
-                const isMatch = !!(start && end && currentDateStr >= start && currentDateStr <= end);
-                console.log(`[Announcement Debug] Comparing memo ID ${memo.id} (Subject: ${memo.subject}): start=${start}, end=${end}, match=${isMatch}`);
-                return isMatch;
+        // If no default company is configured, show nothing
+        if (!defaultCompanyId) {
+            console.log("[Announcement Debug] No default company found — skipping memo fetch.");
+        } else {
+            const memoFilter = JSON.stringify({
+                _and: [
+                    { status: { _eq: "Released" } },
+                    { company_memo_per_companies: { company_id: { _eq: defaultCompanyId } } },
+                    acknowledgedMemoIds.length > 0 ? { id: { _nin: acknowledgedMemoIds } } : {}
+                ]
             });
 
-            if (matchingMemos.length > 0) {
-                console.log(`[Announcement Debug] Matching memos found count: ${matchingMemos.length}`);
-                
-                const matchingMemoIds = matchingMemos.map((m: CompanyMemo) => m.id);
-                const attachmentFilter = JSON.stringify({
-                    company_memo_id: { _in: matchingMemoIds }
-                });
-                const attachmentUrl = `${directusUrl}/items/company_memo_attachments?filter=${encodeURIComponent(attachmentFilter)}`;
-                const attachmentRes = await fetch(attachmentUrl, {
-                    headers: { "Authorization": `Bearer ${targetToken}` },
-                    next: { revalidate: 0 }
+            const memoUrl = `${directusUrl}/items/company_memo?filter=${encodeURIComponent(memoFilter)}&sort=-id,-created_at&fields=*,from.company_id,from.company_name,from.company_code`;
+            console.log(`[Announcement Debug] Fetching memos from URL: ${memoUrl}`);
+            const memoRes = await fetch(memoUrl, {
+                headers: { "Authorization": `Bearer ${targetToken}` },
+                next: { revalidate: 0 }
+            });
+
+            if (memoRes.ok) {
+                const memoJson = await memoRes.json();
+                const memos = memoJson.data || [];
+                console.log(`[Announcement Debug] Fetched ${memos.length} memos`);
+
+                const parts = new Intl.DateTimeFormat("en-US", {
+                    timeZone: "Asia/Manila",
+                    year: "numeric",
+                    month: "2-digit",
+                    day: "2-digit"
+                }).formatToParts(new Date());
+
+                const year = parts.find(p => p.type === 'year')?.value;
+                const month = parts.find(p => p.type === 'month')?.value;
+                const day = parts.find(p => p.type === 'day')?.value;
+                const currentDateStr = `${year}-${month}-${day}`;
+                console.log(`[Announcement Debug] Current PHT Date: ${currentDateStr}`);
+
+                const matchingMemos = memos.filter((memo: CompanyMemo) => {
+                    const start = memo.start_date?.split("T")[0];
+                    const end = memo.end_date?.split("T")[0];
+                    const isMatch = !!(start && end && currentDateStr >= start && currentDateStr <= end);
+                    console.log(`[Announcement Debug] Comparing memo ID ${memo.id} (Subject: ${memo.subject}): start=${start}, end=${end}, match=${isMatch}`);
+                    return isMatch;
                 });
 
-                let attachments = [];
-                if (attachmentRes.ok) {
-                    const attachmentJson = await attachmentRes.json();
-                    attachments = attachmentJson.data || [];
+                if (matchingMemos.length > 0) {
+                    console.log(`[Announcement Debug] Matching memos found count: ${matchingMemos.length}`);
+
+                    const matchingMemoIds = matchingMemos.map((m: CompanyMemo) => m.id);
+                    const attachmentFilter = JSON.stringify({
+                        company_memo_id: { _in: matchingMemoIds }
+                    });
+                    const attachmentUrl = `${directusUrl}/items/company_memo_attachments?filter=${encodeURIComponent(attachmentFilter)}`;
+                    const attachmentRes = await fetch(attachmentUrl, {
+                        headers: { "Authorization": `Bearer ${targetToken}` },
+                        next: { revalidate: 0 }
+                    });
+
+                    let attachments = [];
+                    if (attachmentRes.ok) {
+                        const attachmentJson = await attachmentRes.json();
+                        attachments = attachmentJson.data || [];
+                    }
+                    console.log(`[Announcement Debug] Fetched ${attachments.length} total attachments for matching memos`);
+
+                    announcementsData = matchingMemos.map((memo: CompanyMemo & { from?: { company_id: number; company_name?: string; company_code?: string } | number }) => {
+                        let issued_by_code: string | undefined;
+                        if (memo.from && typeof memo.from === "object") {
+                            issued_by_code = memo.from.company_code ?? undefined;
+                        }
+                        const { from: _from, ...memoRest } = memo;
+                        void _from;
+                        return {
+                            memo: { ...memoRest, issued_by_code } as CompanyMemo,
+                            attachments: attachments.filter((att: CompanyMemoAttachment) => att.company_memo_id === memo.id),
+                            directusBaseUrl: directusUrl
+                        };
+                    });
+                } else {
+                    console.log("[Announcement Debug] No matching memos for current date range");
                 }
-                console.log(`[Announcement Debug] Fetched ${attachments.length} total attachments for matching memos`);
-
-                announcementsData = matchingMemos.map((memo: CompanyMemo) => ({
-                    memo,
-                    attachments: attachments.filter((att: CompanyMemoAttachment) => att.company_memo_id === memo.id),
-                    directusBaseUrl: directusUrl
-                }));
             } else {
-                console.log("[Announcement Debug] No matching memos for current date range");
+                console.error("[Announcement Debug] Memo fetch failed with status:", memoRes.status, await memoRes.text().catch(() => ""));
             }
-        } else {
-            console.error("[Announcement Debug] Memo fetch failed with status:", memoRes.status, await memoRes.text().catch(() => ""));
         }
     } catch (err) {
         console.error("[Announcement Debug] Caught exception in fetch process:", err);
