@@ -95,7 +95,19 @@ export const InventoryReportPrintModal = ({
                 
                 doc.text(`Branch: ${filters.branch || 'ALL BRANCHES'}`, margins.left, metadataY);
                 doc.text(`Supplier: ${filters.supplier || 'ALL SUPPLIERS'}`, margins.left, metadataY + 5);
-                doc.text(`Total Products: ${data.length}`, margins.left, metadataY + 10);
+                const activeData = data.filter(item => {
+                    if (filters.mode === 'Box') {
+                        const boxUnit = item.units.find(u => u.unit.toUpperCase().includes('BOX'));
+                        return boxUnit && Number(boxUnit.runningInventory) !== 0;
+                    }
+                    if (filters.mode === 'Piece') {
+                        const pieceUnit = item.units.find(u => u.unit.toUpperCase().includes('PIECE') || u.unit.toUpperCase().includes('PCS') || u.unitCount === 1);
+                        return pieceUnit && Number(pieceUnit.runningInventory) !== 0;
+                    }
+                    return (Number(item.piece) || 0) !== 0;
+                });
+
+                doc.text(`Total Products: ${activeData.length}`, margins.left, metadataY + 10);
                 
                 const generatedBy = userName || (typeof window !== 'undefined' ? localStorage.getItem('fullName') || localStorage.getItem('user_fullname') || 'ADMIN' : 'ADMIN');
                 const generatedAt = new Date().toLocaleString('en-US', { 
@@ -108,67 +120,65 @@ export const InventoryReportPrintModal = ({
 
                 const tableStartY = metadataY + 17;
                 const head: string[][] = [];
-                const body: (string | number)[][] = [];
+                const body: (string | number | Record<string, unknown>)[][] = [];
                 const foot: string[][] = [];
 
-                if (filters.mode === "Breakdown") {
-                    head.push(['BARCODE', 'BRAND', 'CATEGORY', 'PRODUCT', 'UNIT', 'AVAILABLE STOCK', 'AMOUNT']);
-                    let totalAmount = 0;
-                    data.forEach(item => {
-                        item.units.forEach((u: InventoryUnit) => {
-                            // Take the exact price from the unit of measurement
-                            const unitPrice = Number(u.price) || 0;
-                            const lineAmount = (Number(u.runningInventory) || 0) * unitPrice;
-                            totalAmount += lineAmount;
-                            body.push([
-                                u.barcode || '',
-                                item.brand,
-                                item.category,
-                                item.products,
-                                `${u.unit} (x${u.unitCount})`,
-                                Number(u.runningInventory).toLocaleString(undefined, { minimumFractionDigits: 2 }),
-                                Number(lineAmount).toLocaleString(undefined, { minimumFractionDigits: 2 })
-                            ]);
-                        });
+                head.push(['BARCODE', 'BRAND', 'CATEGORY', 'PRODUCT', 'BOX', 'PACK', 'PIECES', 'TOTAL PIECES', 'TOTAL AMOUNT']);
+                let totalAmount = 0;
+                
+                activeData.forEach(item => {
+                    const barcode = item.units.find(u => u.barcode)?.barcode || '';
+                    
+                    const boxUnit = item.units.find(u => u.unit.toUpperCase().includes('BOX'));
+                    let boxStock = boxUnit ? Number(boxUnit.runningInventory) : 0;
+                    
+                    const packUnit = item.units.find(u => u.unit.toUpperCase().includes('PACK'));
+                    let packStock = packUnit ? Number(packUnit.runningInventory) : 0;
+                    
+                    const pieceUnit = item.units.find(u => u.unit.toUpperCase().includes('PIECE') || u.unit.toUpperCase().includes('PCS') || u.unitCount === 1);
+                    let pieceStock = pieceUnit ? Number(pieceUnit.runningInventory) : 0;
+                    
+                    if (filters.mode === 'Box') {
+                        packStock = 0;
+                        pieceStock = 0;
+                    } else if (filters.mode === 'Piece') {
+                        boxStock = 0;
+                        packStock = 0;
+                    }
+                    
+                    const totalPieces = Number(item.piece) || 0;
+                    
+                    let itemTotalAmount = 0;
+                    item.units.forEach((u: InventoryUnit) => {
+                        const unitPrice = Number(u.price) || 0;
+                        const runningInv = Number(u.runningInventory) || 0;
+                        
+                        if (filters.mode === 'Box' && u !== boxUnit) return;
+                        if (filters.mode === 'Piece' && u !== pieceUnit) return;
+                        
+                        itemTotalAmount += runningInv * unitPrice;
                     });
-                    foot.push(['', '', '', '', '', 'TOTAL AMOUNT:', Number(totalAmount).toLocaleString(undefined, { minimumFractionDigits: 2 })]);
-                } else if (filters.mode === "Box") {
-                    head.push(['BRAND', 'CATEGORY', 'PRODUCT', 'AVAILABLE BOX', 'AMOUNT']);
-                    let totalAmount = 0;
-                    data.forEach(item => {
-                        // Try to find the box unit to get its actual exact price
-                        const boxUnit = item.units.find(u => u.unit.toUpperCase().includes('BOX') || u.unitCount === (item as { targetUnitCount?: number }).targetUnitCount);
-                        const unitPrice = boxUnit ? Number(boxUnit.price) : (Number(item.price) || 0) * ((item as { targetUnitCount?: number }).targetUnitCount || 1);
-                        const lineAmount = (Number(item.box) || 0) * unitPrice;
-                        totalAmount += lineAmount;
-                        body.push([
-                            item.brand,
-                            item.category,
-                            item.products,
-                            Number(item.box).toLocaleString(undefined, { minimumFractionDigits: 2 }),
-                            Number(lineAmount).toLocaleString(undefined, { minimumFractionDigits: 2 })
-                        ]);
-                    });
-                    foot.push(['', '', '', 'TOTAL AMOUNT:', Number(totalAmount).toLocaleString(undefined, { minimumFractionDigits: 2 })]);
-                } else {
-                    head.push(['BRAND', 'CATEGORY', 'PRODUCT', 'AVAILABLE PIECE', 'AMOUNT']);
-                    let totalAmount = 0;
-                    data.forEach(item => {
-                        // Try to find the piece unit to get its actual exact price
-                        const pieceUnit = item.units.find(u => u.unitCount === 1 || u.unit.toUpperCase().includes('PIECE') || u.unit.toUpperCase().includes('PCS'));
-                        const unitPrice = pieceUnit ? Number(pieceUnit.price) : (Number(item.price) || 0);
-                        const lineAmount = (Number(item.piece) || 0) * unitPrice;
-                        totalAmount += lineAmount;
-                        body.push([
-                            item.brand,
-                            item.category,
-                            item.products,
-                            Number(item.piece).toLocaleString(),
-                            Number(lineAmount).toLocaleString(undefined, { minimumFractionDigits: 2 })
-                        ]);
-                    });
-                    foot.push(['', '', '', 'TOTAL AMOUNT:', Number(totalAmount).toLocaleString(undefined, { minimumFractionDigits: 2 })]);
-                }
+                    totalAmount += itemTotalAmount;
+
+                    const formatStock = (stock: number, isPiece: boolean = false) => {
+                        const str = stock.toLocaleString(undefined, isPiece ? undefined : { minimumFractionDigits: 2 });
+                        return stock > 0 ? { content: str, styles: { fontStyle: 'bold' } } : str;
+                    };
+
+                    body.push([
+                        barcode,
+                        item.brand,
+                        item.category,
+                        item.products,
+                        formatStock(boxStock),
+                        formatStock(packStock),
+                        formatStock(pieceStock, true),
+                        formatStock(totalPieces, true),
+                        itemTotalAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })
+                    ]);
+                });
+
+                foot.push(['', '', '', '', '', '', '', 'TOTAL AMOUNT:', Number(totalAmount).toLocaleString(undefined, { minimumFractionDigits: 2 })]);
 
                 autoTable(doc, {
                     startY: tableStartY,
@@ -184,20 +194,16 @@ export const InventoryReportPrintModal = ({
                         cellPadding: 1,
                         valign: 'middle'
                     },
-                    columnStyles: filters.mode === "Breakdown" ? {
-                        0: { cellWidth: 30 }, // BARCODE
-                        1: { cellWidth: 20 }, // BRAND
-                        2: { cellWidth: 25 }, // CATEGORY
+                    columnStyles: {
+                        0: { cellWidth: 20 }, // BARCODE
+                        1: { cellWidth: 15 }, // BRAND
+                        2: { cellWidth: 20 }, // CATEGORY
                         3: { cellWidth: 'auto' }, // PRODUCT
-                        4: { cellWidth: 20 }, // UNIT
-                        5: { cellWidth: 25, halign: 'center' }, // AVAILABLE STOCK
-                        6: { cellWidth: 25, halign: 'right' }, // AMOUNT
-                    } : {
-                        0: { cellWidth: 25 }, // BRAND
-                        1: { cellWidth: 30 }, // CATEGORY
-                        2: { cellWidth: 'auto' }, // PRODUCT
-                        3: { cellWidth: 30, halign: 'center' }, // AVAILABLE STOCK
-                        4: { cellWidth: 30, halign: 'right' }, // AMOUNT
+                        4: { cellWidth: 15, halign: 'center' }, // BOX
+                        5: { cellWidth: 15, halign: 'center' }, // PACK
+                        6: { cellWidth: 15, halign: 'center' }, // PIECES
+                        7: { cellWidth: 20, halign: 'center' }, // TOTAL PIECES
+                        8: { cellWidth: 20, halign: 'right' }, // TOTAL AMOUNT
                     }
                 });
 
