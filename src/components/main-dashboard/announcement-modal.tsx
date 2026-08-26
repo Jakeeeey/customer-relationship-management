@@ -13,6 +13,24 @@ import {
 import { Button } from "@/components/ui/button";
 import { Announcement } from "@/types/announcement";
 
+const formatReleasedAt = (dateStr?: string) => {
+    if (!dateStr) return "";
+    try {
+        const date = new Date(dateStr);
+        return new Intl.DateTimeFormat("en-US", {
+            timeZone: "Asia/Manila",
+            month: "short",
+            day: "2-digit",
+            year: "numeric",
+            hour: "2-digit",
+            minute: "2-digit",
+            hour12: true
+        }).format(date);
+    } catch {
+        return dateStr;
+    }
+};
+
 export interface AnnouncementModalProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
@@ -154,9 +172,15 @@ export function AnnouncementModal({
                     {/* Content Right Column */}
                     <div className="flex-1 min-h-0 h-full overflow-y-auto pr-1">
                         {activeAnnouncement?.memo?.issued_by_code && (
-                            <div className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2 flex items-center gap-1">
-                                <Icons.UserCircle className="h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />
+                            <div className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2 flex items-center gap-1.5 flex-wrap">
+                                <Icons.UserCircle className="h-3.5 w-3.5 text-slate-400 dark:text-slate-500 shrink-0" />
                                 <span>Issued By: {activeAnnouncement.memo.issued_by_code}</span>
+                                {activeAnnouncement.memo.released_at && (
+                                    <>
+                                        <span className="text-slate-200 dark:text-white/10 mx-0.5">|</span>
+                                        <span>Issued At: {formatReleasedAt(activeAnnouncement.memo.released_at)}</span>
+                                    </>
+                                )}
                             </div>
                         )}
 
