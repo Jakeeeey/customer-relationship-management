@@ -120,7 +120,7 @@ export const InventoryReportPrintModal = ({
 
                 const tableStartY = metadataY + 17;
                 const head: string[][] = [];
-                const body: any[][] = [];
+                const body: (string | number | Record<string, unknown>)[][] = [];
                 const foot: string[][] = [];
 
                 head.push(['BARCODE', 'BRAND', 'CATEGORY', 'PRODUCT', 'BOX', 'PACK', 'PIECES', 'TOTAL PIECES', 'TOTAL AMOUNT']);
