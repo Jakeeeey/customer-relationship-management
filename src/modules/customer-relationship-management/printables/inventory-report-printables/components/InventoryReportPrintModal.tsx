@@ -97,7 +97,7 @@ export const InventoryReportPrintModal = ({
                 doc.text(`Supplier: ${filters.supplier || 'ALL SUPPLIERS'}`, margins.left, metadataY + 5);
                 const activeData = data.filter(item => {
                     if (filters.mode === 'Box') {
-                        const boxUnit = item.units.find(u => u.unit.toUpperCase().includes('BOX'));
+                        const boxUnit = item.units.find(u => u.unit.toUpperCase().includes('BOX') || u.unit.toUpperCase().includes('CASE'));
                         return boxUnit && Number(boxUnit.runningInventory) !== 0;
                     }
                     if (filters.mode === 'Piece') {
@@ -105,7 +105,7 @@ export const InventoryReportPrintModal = ({
                         return pieceUnit && Number(pieceUnit.runningInventory) !== 0;
                     }
                     return (Number(item.piece) || 0) !== 0;
-                });
+                }).sort((a, b) => a.products.localeCompare(b.products));
 
                 doc.text(`Total Products: ${activeData.length}`, margins.left, metadataY + 10);
                 
@@ -129,13 +129,17 @@ export const InventoryReportPrintModal = ({
                 activeData.forEach(item => {
                     const barcode = item.units.find(u => u.barcode)?.barcode || '';
                     
-                    const boxUnit = item.units.find(u => u.unit.toUpperCase().includes('BOX'));
+                    const isBox = (u: InventoryUnit) => u.unit.toUpperCase().includes('BOX') || u.unit.toUpperCase().includes('CASE');
+                    const isPiece = (u: InventoryUnit) => u.unit.toUpperCase().includes('PIECE') || u.unit.toUpperCase().includes('PCS') || u.unitCount === 1;
+                    const isPack = (u: InventoryUnit) => !isBox(u) && !isPiece(u);
+
+                    const boxUnit = item.units.find(isBox);
                     let boxStock = boxUnit ? Number(boxUnit.runningInventory) : 0;
                     
-                    const packUnit = item.units.find(u => u.unit.toUpperCase().includes('PACK'));
+                    const packUnit = item.units.find(isPack);
                     let packStock = packUnit ? Number(packUnit.runningInventory) : 0;
                     
-                    const pieceUnit = item.units.find(u => u.unit.toUpperCase().includes('PIECE') || u.unit.toUpperCase().includes('PCS') || u.unitCount === 1);
+                    const pieceUnit = item.units.find(isPiece);
                     let pieceStock = pieceUnit ? Number(pieceUnit.runningInventory) : 0;
                     
                     if (filters.mode === 'Box') {
