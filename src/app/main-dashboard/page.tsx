@@ -146,8 +146,13 @@ export default async function ERPMainDashboardPage() {
         let acknowledgedMemoIds: number[] = [];
         if (user_id) {
             const userIdNum = Number(user_id);
+            const thirtyDaysAgo = new Date();
+            thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
             const ackFilter = JSON.stringify({
-                user_id: { _eq: userIdNum }
+                _and: [
+                    { user_id: { _eq: userIdNum } },
+                    { acknowledged_at: { _gte: thirtyDaysAgo.toISOString() } }
+                ]
             });
             const ackRes = await fetch(`${directusUrl}/items/company_memo_user_acknowledge?filter=${encodeURIComponent(ackFilter)}`, {
                 headers: { "Authorization": `Bearer ${targetToken}` },
@@ -180,20 +185,39 @@ export default async function ERPMainDashboardPage() {
         if (!defaultCompanyId) {
             console.log("[Announcement Debug] No default company found — skipping memo fetch.");
         } else {
-            const memoFilter = JSON.stringify({
-                _and: [
-                    { status: { _eq: "Released" } },
-                    { company_memo_per_companies: { company_id: { _eq: defaultCompanyId } } },
-                    acknowledgedMemoIds.length > 0 ? { id: { _nin: acknowledgedMemoIds } } : {}
-                ]
-            });
+            // Resolve memo IDs linked to this default company
+            const linkedMemosRes = await fetch(
+                `${directusUrl}/items/company_memo_per_companies?filter=${encodeURIComponent(JSON.stringify({ company_id: { _eq: defaultCompanyId } }))}&fields=company_memo_id&limit=-1`,
+                { headers: { "Authorization": `Bearer ${targetToken}` }, next: { revalidate: 0 } }
+            );
+            
+            let linkedMemoIds: number[] = [];
+            if (linkedMemosRes.ok) {
+                const linkedMemosJson = await linkedMemosRes.json();
+                linkedMemoIds = (linkedMemosJson.data || [])
+                    .map((item: { company_memo_id: number }) => Number(item.company_memo_id))
+                    .filter(Boolean);
+            }
+            console.log(`[Announcement Debug] Linked memo IDs for default company:`, linkedMemoIds);
 
-            const memoUrl = `${directusUrl}/items/company_memo?filter=${encodeURIComponent(memoFilter)}&sort=-id,-created_at&fields=*,from.company_id,from.company_name,from.company_code`;
-            console.log(`[Announcement Debug] Fetching memos from URL: ${memoUrl}`);
-            const memoRes = await fetch(memoUrl, {
-                headers: { "Authorization": `Bearer ${targetToken}` },
-                next: { revalidate: 0 }
-            });
+            // If no memos are linked to the default company, don't fetch any
+            if (linkedMemoIds.length === 0) {
+                console.log("[Announcement Debug] No memos linked to default company — skipping memo fetch.");
+            } else {
+                const memoFilter = JSON.stringify({
+                    _and: [
+                        { status: { _eq: "Released" } },
+                        { id: { _in: linkedMemoIds } },
+                        acknowledgedMemoIds.length > 0 ? { id: { _nin: acknowledgedMemoIds } } : {}
+                    ]
+                });
+
+                const memoUrl = `${directusUrl}/items/company_memo?filter=${encodeURIComponent(memoFilter)}&sort=-id,-created_at&fields=*,from.company_id,from.company_name,from.company_code`;
+                console.log(`[Announcement Debug] Fetching memos from URL: ${memoUrl}`);
+                const memoRes = await fetch(memoUrl, {
+                    headers: { "Authorization": `Bearer ${targetToken}` },
+                    next: { revalidate: 0 }
+                });
 
             if (memoRes.ok) {
                 const memoJson = await memoRes.json();
@@ -261,6 +285,7 @@ export default async function ERPMainDashboardPage() {
                 console.error("[Announcement Debug] Memo fetch failed with status:", memoRes.status, await memoRes.text().catch(() => ""));
             }
         }
+    }
     } catch (err) {
         console.error("[Announcement Debug] Caught exception in fetch process:", err);
     }
