@@ -366,6 +366,7 @@ export function ApprovalModal({
 
     const isHoldStatus = activeOrder?.order_status?.toLowerCase().trim() === "on hold" || Boolean(activeOrder?.on_hold_at) || Boolean(activeOrder?.on_hold_by);
     const onHoldUserName = activeOrder?.on_hold_by_user_name || null;
+    const onHoldDept = (activeOrder?.on_hold_by_dept || "accounting").toUpperCase();
     const formattedOnHoldDate = formatOnHoldDate(activeOrder?.on_hold_at);
 
     return (
@@ -398,6 +399,9 @@ export function ApprovalModal({
                                             <Badge variant="outline" className="bg-amber-50 text-amber-900 border-amber-300 font-medium px-2 py-0.5 text-[11px] flex items-center gap-1.5 shadow-xs">
                                                 <PauseCircle className="h-3.5 w-3.5 text-amber-600 shrink-0" />
                                                 <span>On-Hold</span>
+                                                <span className="text-[10px] text-amber-800 font-bold border-l border-amber-300/80 pl-1.5 ml-0.5">
+                                                    [{onHoldDept}]
+                                                </span>
                                                 {(onHoldUserName || formattedOnHoldDate) && (
                                                     <span className="text-[10px] text-amber-800 font-normal border-l border-amber-300/80 pl-1.5 ml-0.5">
                                                         {onHoldUserName && <span>by <strong className="font-semibold text-amber-950">{onHoldUserName}</strong></span>}
@@ -512,6 +516,17 @@ export function ApprovalModal({
                             </div>
                         </div>
                     </div>
+
+                    {/* On Hold Remarks Row */}
+                    {isHoldStatus && (activeOrder.onhold_csr_remarks || activeOrder.remarks) && (
+                        <div className="px-4 sm:px-6 py-3 bg-amber-50/50 border-b border-amber-100 flex items-start gap-3">
+                            <AlertCircle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+                            <div className="flex flex-col">
+                                <span className="text-[10px] font-black uppercase text-amber-800 tracking-widest">Hold Remarks / Reason</span>
+                                <span className="text-xs text-amber-950 font-medium mt-0.5 whitespace-pre-wrap">{activeOrder.onhold_csr_remarks || activeOrder.remarks}</span>
+                            </div>
+                        </div>
+                    )}
 
                     {/* Attachments Row */}
                     {attachments.length > 0 && (

@@ -52,6 +52,9 @@ export interface SalesOrder {
     on_hold_at?: string | null;
     on_hold_by?: number | string | null;
     on_hold_by_user_name?: string | null;
+    on_hold_by_dept?: string | null;
+    onhold_csr_remarks?: string | null;
+    remarks?: string | null;
 }
 
 
@@ -66,11 +69,12 @@ export function useSalesOrderApproval() {
 
     // Filters
     const [statusFilter, setStatusFilter] = useState("For Approval");
+    const [onHoldDeptFilter, setOnHoldDeptFilter] = useState("All");
     const [searchTerm, setSearchTerm] = useState("");
     const [startDate, setStartDate] = useState("");
     const [endDate, setEndDate] = useState("");
 
-    const fetchOrders = async (isLoadMore = false, currentSearch = searchTerm, currentStatus = statusFilter, currentPage = page, currentStart = startDate, currentEnd = endDate) => {
+    const fetchOrders = async (isLoadMore = false, currentSearch = searchTerm, currentStatus = statusFilter, currentPage = page, currentStart = startDate, currentEnd = endDate, currentOnHoldDept = onHoldDeptFilter) => {
         const fetchPage = isLoadMore ? currentPage + 1 : 1;
 
         if (isLoadMore) {
@@ -82,7 +86,7 @@ export function useSalesOrderApproval() {
         }
 
         try {
-            const result = await getPendingOrders(currentStatus, currentSearch, fetchPage, 30, currentStart, currentEnd);
+            const result = await getPendingOrders(currentStatus, currentSearch, fetchPage, 30, currentStart, currentEnd, currentOnHoldDept);
 
             if (isLoadMore) {
                 setOrders(prev => {
@@ -111,11 +115,11 @@ export function useSalesOrderApproval() {
     // Debounce search and status changes
     useEffect(() => {
         const timeoutId = setTimeout(() => {
-            fetchOrders(false, searchTerm, statusFilter, 1, startDate, endDate);
+            fetchOrders(false, searchTerm, statusFilter, 1, startDate, endDate, onHoldDeptFilter);
         }, 400); // 400ms debounce
         return () => clearTimeout(timeoutId);
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [statusFilter, searchTerm, startDate, endDate]);
+    }, [statusFilter, onHoldDeptFilter, searchTerm, startDate, endDate]);
 
     const handleApprove = async (orderIds: (string | number)[]) => {
         try {
@@ -180,7 +184,7 @@ export function useSalesOrderApproval() {
         }
     };
 
-    const refreshOrders = () => fetchOrders(false, searchTerm, statusFilter, 1, startDate, endDate);
+    const refreshOrders = () => fetchOrders(false, searchTerm, statusFilter, 1, startDate, endDate, onHoldDeptFilter);
 
     return {
         orders,
@@ -191,6 +195,8 @@ export function useSalesOrderApproval() {
         loadNextPage,
         statusFilter,
         setStatusFilter,
+        onHoldDeptFilter,
+        setOnHoldDeptFilter,
         searchTerm,
         setSearchTerm,
         startDate,

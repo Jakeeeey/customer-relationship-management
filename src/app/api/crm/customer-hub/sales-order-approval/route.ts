@@ -207,6 +207,18 @@ export async function GET(req: NextRequest) {
                 andIndex++;
             }
 
+            const onHoldDept = req.nextUrl.searchParams.get("onHoldDept");
+            if (statusFilter === "On Hold" && onHoldDept && onHoldDept !== "All") {
+                if (onHoldDept === "accounting") {
+                    ordersParams.set(`filter[_and][${andIndex}][_or][0][on_hold_by_dept][_null]`, "true");
+                    ordersParams.set(`filter[_and][${andIndex}][_or][1][on_hold_by_dept][_eq]`, "accounting");
+                    ordersParams.set(`filter[_and][${andIndex}][_or][2][on_hold_by_dept][_empty]`, "true");
+                } else {
+                    ordersParams.set(`filter[_and][${andIndex}][on_hold_by_dept][_eq]`, onHoldDept);
+                }
+                andIndex++;
+            }
+
             if (trimmedSearch) {
                 ordersParams.set(`filter[_and][${andIndex}][_or][0][customer_code][_icontains]`, trimmedSearch);
                 ordersParams.set(`filter[_and][${andIndex}][_or][1][order_no][_icontains]`, trimmedSearch);
