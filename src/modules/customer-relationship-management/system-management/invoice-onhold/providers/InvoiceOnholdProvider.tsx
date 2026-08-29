@@ -10,7 +10,7 @@ interface InvoiceOnholdContextValue {
   isError: boolean;
   error: Error | null;
   refetch: () => void;
-  putOnHold: (id: string | number) => Promise<void>;
+  putOnHold: (id: string | number, remarks: string) => Promise<void>;
   isPuttingOnHold: boolean;
 }
 
