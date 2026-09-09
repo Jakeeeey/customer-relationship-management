@@ -30,7 +30,7 @@ import { Badge } from "@/components/ui/badge";
 import {
     Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { CustomerWithRelations, PaymentTerm, ReferenceOption } from "../types";
+import { CustomerWithRelations, PaymentTerm, ReferenceOption, resolveCreditSystem } from "../types";
 import { BankAccountManager } from "./BankAccountManager";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -45,6 +45,8 @@ interface CreatableComboboxProps {
     onChange: (value: number | string) => void;
     placeholder: string;
     itemName: string;
+    disabled?: boolean;
+    getItemSuffix?: (id: number | string) => string | null | undefined;
 }
 
 interface LocationOption {
@@ -110,7 +112,7 @@ const renderImagePreview = (imageId: string | null | undefined) => {
 // ============================================================================
 // CREATABLE COMBOBOX
 // ============================================================================
-function CreatableCombobox({items, value, onChange, placeholder, itemName}: Omit<CreatableComboboxProps, 'onCreate'>) {
+function CreatableCombobox({items, value, onChange, placeholder, itemName, disabled, getItemSuffix}: Omit<CreatableComboboxProps, 'onCreate'>) {
     const [open, setOpen] = useState(false);
     const selectedItem = items.find((i) => String(i.id) === String(value));
 
@@ -118,17 +120,25 @@ function CreatableCombobox({items, value, onChange, placeholder, itemName}: Omit
         <Popover open={open} onOpenChange={setOpen}>
             <PopoverTrigger asChild>
                 <FormControl>
-                    <Button variant="outline" role="combobox"
-                            className={cn("w-full h-11 justify-between bg-muted/30", !value && "text-muted-foreground")}>
+                    <Button variant="outline" role="combobox" disabled={disabled}
+                            className={cn("w-full h-11 justify-between bg-muted/30", !value && "text-muted-foreground", disabled && "opacity-50 cursor-not-allowed")}>
                         {selectedItem ? selectedItem.name : placeholder}
                         <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50"/>
                     </Button>
                 </FormControl>
             </PopoverTrigger>
-            <PopoverContent className="w-[300px] p-0 shadow-xl rounded-xl border-border/50 z-[9999]">
+            <PopoverContent className="w-(--radix-popover-trigger-width) max-w-[320px] p-0 shadow-xl rounded-xl border-border/50 z-[9999]">
                 <Command className="bg-transparent overflow-hidden rounded-xl">
                     <CommandInput placeholder={`Search ${itemName}...`} className="h-11"/>
-                    <CommandList className="max-h-[200px] overflow-y-auto custom-scrollbar">
+                    <div
+                        className="max-h-[200px] overflow-y-auto overscroll-contain"
+                        onWheel={(event) => {
+                            event.stopPropagation();
+                            const target = event.currentTarget;
+                            target.scrollTop += event.deltaY;
+                        }}
+                    >
+                    <CommandList className="max-h-none overflow-visible">
                         <CommandEmpty className="p-2">
                             {`No ${itemName} found.`}
                         </CommandEmpty>
@@ -144,11 +154,17 @@ function CreatableCombobox({items, value, onChange, placeholder, itemName}: Omit
                                 >
                                     <Check
                                         className={cn("mr-2 h-4 w-4 text-primary", String(value) === String(item.id) ? "opacity-100" : "opacity-0")}/>
+                                    {getItemSuffix?.(item.id) && (
+                                        <span className="mr-2 text-[10px] uppercase tracking-widest text-muted-foreground">
+                                            {getItemSuffix(item.id)} ·
+                                        </span>
+                                    )}
                                     {item.name}
                                 </CommandItem>
                             ))}
                         </CommandGroup>
                     </CommandList>
+                    </div>
                 </Command>
             </PopoverContent>
         </Popover>
@@ -185,7 +201,15 @@ function SearchableCombobox({items, value, onChange, placeholder, disabled, isLo
             <PopoverContent className="w-[300px] p-0 shadow-xl rounded-xl border-border/50 z-[9999]">
                 <Command className="bg-transparent overflow-hidden rounded-xl filter-none">
                     <CommandInput placeholder="Search..." className="h-11" value={inputValue} onValueChange={setInputValue}/>
-                    <CommandList className="max-h-[250px] overflow-y-auto custom-scrollbar">
+                    <div
+                        className="max-h-[250px] overflow-y-auto overscroll-contain"
+                        onWheel={(event) => {
+                            event.stopPropagation();
+                            const target = event.currentTarget;
+                            target.scrollTop += event.deltaY;
+                        }}
+                    >
+                    <CommandList className="max-h-none overflow-visible">
                         <CommandEmpty>No results found.</CommandEmpty>
                         <CommandGroup>
                             {items.map((item, index) => (
@@ -220,6 +244,7 @@ function SearchableCombobox({items, value, onChange, placeholder, disabled, isLo
                             </CommandGroup>
                         )}
                     </CommandList>
+                    </div>
                 </Command>
             </PopoverContent>
         </Popover>
@@ -256,6 +281,10 @@ const customerSchema = z.object({
         z.number().nullable()
     ),
     price_type: z.string().nullable().optional(),
+    credit_limit: z.preprocess(
+        (v) => (v === "" || v === undefined ? null : v),
+        z.coerce.number().nonnegative("Credit limit cannot be negative").nullable().optional()
+    ),
     price_type_id: z.preprocess(
         (val) => (val === "" || val === null || val === undefined || val === 0 || val === "0" ? null : Number(val)),
         z.number().nullable().optional()
@@ -299,7 +328,7 @@ interface CustomerFormSheetProps {
 const getDefaultValues = (): CustomerFormValues => ({
     customer_code: "", customer_name: "", store_name: "", store_signage: "", contact_number: "",
     customer_email: "", brgy: "", city: "", province: "", tel_number: "", customer_tin: "",
-    payment_term: 0, store_type: undefined as unknown as number, classification: null, price_type: "", price_type_id: null, isActive: 1, isVAT: 0, isEWT: 0,
+    payment_term: 0, store_type: undefined as unknown as number, classification: null, price_type: "", price_type_id: null, credit_limit: null, isActive: 1, isVAT: 0, isEWT: 0,
     discount_type: null, type: "Regular", user_id: null, encoder_id: 1, bank_accounts: [],
     customer_image: "", location: "", otherDetails: "",
 });
@@ -378,6 +407,9 @@ export function CustomerFormSheet({ open, onOpenChange, customer, onSubmit, defa
 
     const selectedProvince = form.watch("province");
     const selectedCity = form.watch("city");
+    const selectedPaymentTermId = form.watch("payment_term");
+    const selectedPaymentTerm = paymentTerms.find((t) => Number(t.id) === Number(selectedPaymentTermId));
+    const creditSystem = resolveCreditSystem(selectedPaymentTerm);
 
     // ========================================================================
     // 🚀 NEW FEATURE: AUTOMATIC IMAGE UPLOAD
@@ -674,6 +706,7 @@ export function CustomerFormSheet({ open, onOpenChange, customer, onSubmit, defa
                     store_type: customer.store_type || undefined as unknown as number,
                     price_type: customer.price_type || "",
                     price_type_id: customer.price_type_id || null,
+                    credit_limit: customer.credit_limit ?? null,
                     isActive: customer.isActive ?? 1,
                     isVAT: customer.isVAT ?? 0,
                     isEWT: customer.isEWT ?? 0,
@@ -718,7 +751,7 @@ export function CustomerFormSheet({ open, onOpenChange, customer, onSubmit, defa
                 ).length;
             case "billing":
                 return errorKeys.filter(k =>
-                    ["payment_term", "price_type", "price_type_id", "isActive", "isVAT", "isEWT"].includes(k)
+                    ["payment_term", "credit_limit", "price_type", "price_type_id", "isActive", "isVAT", "isEWT"].includes(k)
                 ).length;
             case "bank":
                 return form.formState.errors.bank_accounts ? 1 : 0;
@@ -1078,25 +1111,25 @@ export function CustomerFormSheet({ open, onOpenChange, customer, onSubmit, defa
                                                     className="font-bold uppercase text-xs text-muted-foreground">
                                                     Payment Term
                                                 </FormLabel>
-                                                <Select
+                                                <CreatableCombobox
+                                                    items={paymentTerms.map((t) => ({ id: t.id, name: t.payment_name }))}
+                                                    value={field.value}
+                                                    onChange={(val) => {
+                                                        const idVal = Number(val);
+                                                        field.onChange(idVal);
+                                                        const term = paymentTerms.find(t => t.id === idVal);
+                                                        if (term && resolveCreditSystem(term) !== "CREDIT") {
+                                                            form.setValue("credit_limit", null, { shouldValidate: true });
+                                                        }
+                                                    }}
+                                                    getItemSuffix={(id) => {
+                                                        const term = paymentTerms.find(t => t.id === Number(id));
+                                                        return term ? resolveCreditSystem(term) : undefined;
+                                                    }}
+                                                    placeholder={isLoadingPaymentTerms ? "Loading terms..." : "Search payment term..."}
+                                                    itemName="payment term"
                                                     disabled={isLoadingPaymentTerms}
-                                                    onValueChange={(val) => field.onChange(Number(val))}
-                                                    value={field.value ? String(field.value) : ""}
-                                                >
-                                                    <FormControl>
-                                                        <SelectTrigger className="h-11 bg-muted/30">
-                                                            <SelectValue
-                                                                placeholder={isLoadingPaymentTerms ? "Loading terms..." : "Select payment term"}/>
-                                                        </SelectTrigger>
-                                                    </FormControl>
-                                                    <SelectContent>
-                                                        {paymentTerms.map((term) => (
-                                                            <SelectItem key={term.id} value={String(term.id)}>
-                                                                {term.payment_name}
-                                                            </SelectItem>
-                                                        ))}
-                                                    </SelectContent>
-                                                </Select>
+                                                />
                                                 <FormMessage/>
                                             </FormItem>
                                         )}/>
@@ -1133,9 +1166,34 @@ export function CustomerFormSheet({ open, onOpenChange, customer, onSubmit, defa
                                                  <FormMessage/>
                                              </FormItem>
                                          )}/>
-                                    </div>
+                                     </div>
 
-                                    <div
+                                      {creditSystem === "CREDIT" && (
+                                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                          <FormField control={form.control} name="credit_limit" render={({field}) => (
+                                              <FormItem>
+                                                  <FormLabel
+                                                      className="font-bold uppercase text-xs text-muted-foreground">
+                                                      Credit Limit (₱)
+                                                  </FormLabel>
+                                                  <FormControl>
+                                                      <Input
+                                                          type="number"
+                                                          min={0}
+                                                          step="0.01"
+                                                          placeholder="Enter credit limit"
+                                                          value={field.value ?? ""}
+                                                          onChange={(e) => field.onChange(e.target.value === "" ? null : Number(e.target.value))}
+                                                          className="h-11 bg-muted/30"
+                                                      />
+                                                  </FormControl>
+                                                  <FormMessage/>
+                                              </FormItem>
+                                          )}/>
+                                      </div>
+                                      )}
+
+                                     <div
                                         className="bg-muted/20 p-5 rounded-2xl border border-border/50 flex flex-col sm:flex-row gap-8 mt-6">
                                         <FormField control={form.control} name="isActive" render={({field}) => (
                                             <FormItem
