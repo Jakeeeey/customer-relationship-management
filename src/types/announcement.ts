@@ -17,6 +17,8 @@ export interface CompanyMemo {
     memo_no?: string;
     description?: string;
     body?: string;
+    issued_by_code?: string;
+    released_at?: string;
 }
 
 export interface CompanyMemoAttachment {
