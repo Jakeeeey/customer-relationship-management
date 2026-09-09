@@ -27,6 +27,8 @@ export interface Customer {
     payment_term?: number | null;
     store_type: number | null;
     price_type?: string | null;
+  /** Credit limit granted to this customer. @db customer.credit_limit DECIMAL(15,2) NULL. Only meaningful when the chosen payment term resolves to CREDIT; NULL for CASH terms. */
+  credit_limit?: number | null;
     price_type_id?: number | null;
     encoder_id: number;
     credit_type?: number | null;
@@ -85,6 +87,39 @@ export interface PaymentTerm {
     payment_name: string;
     payment_days: number;
     payment_description?: string | null;
+    /**
+     * FK → credit_type.id (1 = CASH, 2 = CREDIT).
+     * Null until the payment_terms.credit_type DDL is applied —
+     * resolver falls back to payment_days logic in that case.
+     */
+    credit_type?: number | null;
+}
+
+export interface CreditType {
+    id: number;
+    credit_name: string;
+}
+
+/** Canonical ids from the credit_type collection (1 = CASH, 2 = CREDIT). */
+export const CREDIT_TYPE_IDS = {
+    CASH: 1,
+    CREDIT: 2,
+} as const;
+
+/**
+ * Resolve the customer credit system label for a payment term.
+ * Prefers the credit_type FK when present; falls back to payment_days
+ * logic (plus the 1-Up-1-Down special case, which carries 0 days but credit).
+ */
+export function resolveCreditSystem(
+    term: Pick<PaymentTerm, 'payment_days' | 'payment_name'> & { credit_type?: number | null } | undefined | null,
+): 'CASH' | 'CREDIT' {
+    if (!term) return 'CASH';
+    if (term.credit_type === CREDIT_TYPE_IDS.CREDIT) return 'CREDIT';
+    if (term.credit_type === CREDIT_TYPE_IDS.CASH) return 'CASH';
+    if ((term.payment_days ?? 0) > 0) return 'CREDIT';
+    if (/1\s*up\s*1\s*down/i.test(term.payment_name ?? '')) return 'CREDIT';
+    return 'CASH';
 }
 
 export interface ReferenceOption {
