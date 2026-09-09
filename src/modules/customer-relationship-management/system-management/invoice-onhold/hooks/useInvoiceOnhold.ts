@@ -28,10 +28,10 @@ export function useInvoiceOnhold() {
     fetchOrders();
   }, [fetchOrders]);
 
-  const putOnHold = async (orderId: string | number) => {
+  const putOnHold = async (orderId: string | number, remarks: string) => {
     setIsPuttingOnHold(true);
     try {
-      await invoiceOnholdService.putOrderOnHold(orderId);
+      await invoiceOnholdService.putOrderOnHold(orderId, remarks);
       await fetchOrders(); // Refresh the list after successfully putting an order on hold
     } catch (err) {
       throw err;
