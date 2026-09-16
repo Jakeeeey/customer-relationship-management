@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowLeft, CheckCircle2, Package, Calculator, AlertCircle, Loader2, MessageSquare } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Package, Calculator, AlertCircle, Loader2, MessageSquare, CreditCard } from "lucide-react";
 import { formatCurrency, calculateChainNetPrice } from "../utils/priceCalc";
 import { LineItem, Salesman, Customer, Supplier, ReceiptType, SalesType, Branch, PaymentTerm } from "../types";
 
@@ -18,6 +18,7 @@ interface SalesOrderCheckoutProps {
     lineItems: LineItem[];
     allocatedQuantities: Record<string, number>;
     updateAllocatedQty: (id: string, qty: number) => void;
+    customerReceivable?: number | null;
     summary: {
         totalAmount: number;     // Ordered Gross
         netAmount: number;       // Ordered Net
@@ -58,9 +59,17 @@ interface SalesOrderCheckoutProps {
 export function SalesOrderCheckout({
     orderNo, lineItems, allocatedQuantities, updateAllocatedQty,
     summary, onBack, onConfirm, submitting, header,
-    orderRemarks, setOrderRemarks, isExistingOrder = false, existingOrderStatus
+    orderRemarks, setOrderRemarks, isExistingOrder = false, existingOrderStatus,
+    customerReceivable
 }: SalesOrderCheckoutProps) {
     const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+
+    const creditLimit = Number(header.customer?.credit_limit || 0);
+    const currentReceivables = Number(customerReceivable || 0);
+    const currentOrderAmount = Number(summary.allocatedAmount || summary.orderedNet || 0);
+    const projectedExposure = currentReceivables + currentOrderAmount;
+    const isExceeded = creditLimit > 0 && projectedExposure > creditLimit;
+    const excessOrAvailable = creditLimit > 0 ? (isExceeded ? projectedExposure - creditLimit : creditLimit - projectedExposure) : 0;
 
     const allAllocationsZero = lineItems.every(item => (allocatedQuantities[item.id] ?? 0) === 0);
     const hasZeroAllocation = lineItems.some(item => (allocatedQuantities[item.id] ?? 0) === 0);
@@ -292,37 +301,85 @@ export function SalesOrderCheckout({
                 <div className="w-full flex flex-col gap-6">
                     <Card className="shadow-2xl border-none bg-slate-900 text-white overflow-hidden">
                         <CardHeader className="p-8 pb-4">
-                            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-                                <div className="space-y-4 flex-1">
-                                    <div className="flex items-center gap-2 text-primary/80 text-[12px] font-black uppercase tracking-[0.2em] mb-4">
+                            <div className="flex flex-col gap-6">
+                                {/* Top Title & Risk Indicator */}
+                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-4">
+                                    <div className="flex items-center gap-2 text-primary/80 text-[12px] font-black uppercase tracking-[0.2em]">
                                         <Calculator className="w-4 h-4" />
                                         Payment Summary
                                     </div>
-                                    <div className="flex flex-col md:flex-row md:items-center gap-8">
-                                        <div className="flex flex-col">
-                                            <span className="text-[10px] text-slate-400 font-black uppercase tracking-widest mb-1 opacity-60">Ordered Gross</span>
-                                            <span className="text-xl font-black tabular-nums text-slate-400 tracking-tight">{formatCurrency(summary.orderedGross)}</span>
-                                        </div>
-                                        <div className="flex flex-col">
-                                            <div className="flex flex-col">
-                                                <span className="text-[10px] text-amber-500 font-black uppercase tracking-widest mb-1">Discount</span>
-                                            </div>
-                                            <span className="text-xl font-black tabular-nums text-amber-500 tracking-tight">-{formatCurrency(summary.orderedDiscount)}</span>
-                                        </div>
-                                        <div className="flex flex-col">
-                                            <span className="text-[10px] text-slate-300 font-black uppercase tracking-widest mb-1 opacity-90">Net Amount</span>
-                                            <span className="text-xl font-black tabular-nums text-slate-300 tracking-tight">{formatCurrency(summary.orderedNet)}</span>
-                                        </div>
-                                        <div className="flex flex-col">
-                                            <span className="text-[10px] text-slate-400 font-black uppercase tracking-widest mb-1 opacity-60">VAT</span>
-                                            <span className="text-lg font-black tabular-nums opacity-60 tracking-tight">{formatCurrency(summary.vatAmount)}</span>
-                                        </div>
-                                        <div className="flex flex-col ml-auto bg-emerald-500/10 p-5 rounded-2xl border border-emerald-500/20 backdrop-blur-xl">
-                                            <span className="text-[10px] text-emerald-400 font-black uppercase tracking-[0.2em] mb-1">Allocated Amount</span>
-                                            <span className="text-4xl font-black text-emerald-400 tabular-nums tracking-tighter tabular-nums underline underline-offset-[12px] decoration-emerald-500/30">
-                                                {formatCurrency(summary.allocatedAmount)}
+
+                                    {creditLimit > 0 ? (
+                                        isExceeded ? (
+                                            <span className="inline-flex items-center gap-1.5 text-[11px] font-black text-rose-300 bg-rose-950/70 border border-rose-600/50 px-2.5 py-1 rounded-lg">
+                                                <AlertCircle className="w-3.5 h-3.5 text-rose-400 shrink-0" />
+                                                Total Exposure Exceeds Credit Limit by {formatCurrency(excessOrAvailable)}
                                             </span>
+                                        ) : (
+                                            <span className="inline-flex items-center gap-1.5 text-[11px] font-bold text-emerald-300 bg-emerald-950/60 border border-emerald-600/40 px-2.5 py-1 rounded-lg">
+                                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                                                Within Limit (Available Credit: {formatCurrency(excessOrAvailable)})
+                                            </span>
+                                        )
+                                    ) : header.customer ? (
+                                        <span className="text-[11px] text-slate-400 italic">No Credit Limit Set</span>
+                                    ) : null}
+                                </div>
+
+                                {/* Financial Exposure Row (Credit Limit, Receivables, Projected Total) */}
+                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 bg-slate-950/60 p-4 rounded-xl border border-slate-800">
+                                    <div className="flex flex-col">
+                                        <span className="text-[10px] text-slate-400 font-black uppercase tracking-wider mb-1 flex items-center gap-1.5">
+                                            <CreditCard className="w-3 h-3 text-slate-400" />
+                                            Credit Limit
+                                        </span>
+                                        <span className="text-base font-black tabular-nums text-slate-200">
+                                            {creditLimit > 0 ? formatCurrency(creditLimit) : "No Limit"}
+                                        </span>
+                                    </div>
+                                    <div className="flex flex-col">
+                                        <span className="text-[10px] text-slate-400 font-black uppercase tracking-wider mb-1">
+                                            Current Receivables
+                                        </span>
+                                        <span className="text-base font-black tabular-nums text-amber-400">
+                                            {formatCurrency(currentReceivables)}
+                                        </span>
+                                    </div>
+                                    <div className="flex flex-col">
+                                        <span className="text-[10px] text-slate-400 font-black uppercase tracking-wider mb-1">
+                                            Projected Total (Receivables + Order)
+                                        </span>
+                                        <span className={`text-base font-black tabular-nums ${isExceeded ? "text-rose-400" : "text-emerald-400"}`}>
+                                            {formatCurrency(projectedExposure)}
+                                        </span>
+                                    </div>
+                                </div>
+
+                                {/* Order Financials Row */}
+                                <div className="flex flex-col md:flex-row md:items-center gap-8 pt-2">
+                                    <div className="flex flex-col">
+                                        <span className="text-[10px] text-slate-400 font-black uppercase tracking-widest mb-1 opacity-60">Ordered Gross</span>
+                                        <span className="text-xl font-black tabular-nums text-slate-400 tracking-tight">{formatCurrency(summary.orderedGross)}</span>
+                                    </div>
+                                    <div className="flex flex-col">
+                                        <div className="flex flex-col">
+                                            <span className="text-[10px] text-amber-500 font-black uppercase tracking-widest mb-1">Discount</span>
                                         </div>
+                                        <span className="text-xl font-black tabular-nums text-amber-500 tracking-tight">-{formatCurrency(summary.orderedDiscount)}</span>
+                                    </div>
+                                    <div className="flex flex-col">
+                                        <span className="text-[10px] text-slate-300 font-black uppercase tracking-widest mb-1 opacity-90">Net Amount</span>
+                                        <span className="text-xl font-black tabular-nums text-slate-300 tracking-tight">{formatCurrency(summary.orderedNet)}</span>
+                                    </div>
+                                    <div className="flex flex-col">
+                                        <span className="text-[10px] text-slate-400 font-black uppercase tracking-widest mb-1 opacity-60">VAT</span>
+                                        <span className="text-lg font-black tabular-nums opacity-60 tracking-tight">{formatCurrency(summary.vatAmount)}</span>
+                                    </div>
+                                    <div className="flex flex-col ml-auto bg-emerald-500/10 p-5 rounded-2xl border border-emerald-500/20 backdrop-blur-xl">
+                                        <span className="text-[10px] text-emerald-400 font-black uppercase tracking-[0.2em] mb-1">Allocated Amount</span>
+                                        <span className="text-4xl font-black text-emerald-400 tabular-nums tracking-tighter tabular-nums underline underline-offset-[12px] decoration-emerald-500/30">
+                                            {formatCurrency(summary.allocatedAmount)}
+                                        </span>
                                     </div>
                                 </div>
                             </div>

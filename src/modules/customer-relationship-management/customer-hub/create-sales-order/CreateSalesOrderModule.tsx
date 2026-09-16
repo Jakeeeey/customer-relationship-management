@@ -96,6 +96,7 @@ export default function CreateSalesOrderModule({ documentViewerUrl }: { document
                     setOrderRemarks={setOrderRemarks}
                     isExistingOrder={!!existingOrderId}
                     existingOrderStatus={existingOrderStatus}
+                    customerReceivable={customerReceivable}
                     header={{
                         salesman: salesmen.find(s => (s.user_id || s.id)?.toString() === selectedSalesmanId) || null,
                         account: selectedAccount || null,
