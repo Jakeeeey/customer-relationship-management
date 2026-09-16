@@ -8,7 +8,14 @@ export function useEmployeeStockPurchase() {
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-    const fetchPurchases = useCallback(async (page = 1, pageSize = 10, searchQuery = "") => {
+    const fetchPurchases = useCallback(async (
+        page = 1, 
+        pageSize = 10, 
+        searchQuery = "",
+        company = "",
+        employee = "",
+        date = ""
+    ) => {
         setIsLoading(true);
         setError(null);
         try {
@@ -17,6 +24,10 @@ export function useEmployeeStockPurchase() {
                 pageSize: pageSize.toString(),
                 q: searchQuery,
             });
+            if (company) params.append("company", company);
+            if (employee) params.append("employee", employee);
+            if (date) params.append("date", date);
+            
             const res = await fetch(`/api/crm/employee-stock-purchase?${params.toString()}`);
             if (!res.ok) {
                 throw new Error("Failed to fetch employee stock purchases");

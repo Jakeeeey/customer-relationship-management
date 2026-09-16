@@ -28,7 +28,8 @@ interface SiteSalesEditModalProps {
 export const SiteSalesEditModal: React.FC<SiteSalesEditModalProps> = ({ isOpen, onClose, invoice }) => {
     const formatDate = (dateString?: string | null) => {
         if (!dateString) return "--";
-        const date = parseISO(dateString);
+        const cleanString = dateString.replace('T', ' ').replace(/Z$/, '').split('.')[0];
+        const date = parseISO(cleanString);
         return isValid(date) ? format(date, "MMM dd, yyyy hh:mm a") : dateString;
     };
 

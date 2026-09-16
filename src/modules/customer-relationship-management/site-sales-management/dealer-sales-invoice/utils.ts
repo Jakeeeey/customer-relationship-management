@@ -30,3 +30,34 @@ export const formatCurrency = (amount: number) => {
         currency: "PHP",
     }).format(amount);
 };
+
+/**
+ * Returns a local Date representation whose fields (year, month, day, hour, minute, second)
+ * match the current time in the Asia/Manila (Philippine) timezone, even if the device runs
+ * in a different timezone (e.g. UTC).
+ * If the device timezone is already Asia/Manila, it returns the input date unmodified.
+ */
+export const getPHTDate = (date: Date = new Date()): Date => {
+    const isAsiaManila = Intl.DateTimeFormat().resolvedOptions().timeZone === 'Asia/Manila';
+    if (isAsiaManila) return date;
+
+    const formatter = new Intl.DateTimeFormat('en-US', {
+        timeZone: 'Asia/Manila',
+        year: 'numeric', month: 'numeric', day: 'numeric',
+        hour: 'numeric', minute: 'numeric', second: 'numeric',
+        hour12: false
+    });
+    const parts = formatter.formatToParts(date);
+    const partMap = Object.fromEntries(parts.map(p => [p.type, p.value]));
+
+    // Construct local representation of Manila time
+    return new Date(
+        Number(partMap.year),
+        Number(partMap.month) - 1,
+        Number(partMap.day),
+        Number(partMap.hour === '24' ? '00' : partMap.hour), // Handle edge cases in some Intl formatters
+        Number(partMap.minute),
+        Number(partMap.second)
+    );
+};
+

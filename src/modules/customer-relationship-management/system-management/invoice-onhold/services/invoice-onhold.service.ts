@@ -26,9 +26,16 @@ export const invoiceOnholdService = {
   /**
    * Puts a specific sales order on hold by its ID.
    */
-  async putOrderOnHold(id: string | number): Promise<void> {
+  async putOrderOnHold(id: string | number, remarks: string, dept: string = "csr"): Promise<void> {
     const response = await fetch(`/api/crm/system-management/invoice-onhold/${id}`, {
       method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        onhold_csr_remarks: remarks,
+        on_hold_by_dept: dept,
+      }),
     });
 
     if (!response.ok) {

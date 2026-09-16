@@ -16,7 +16,10 @@ const getToken = () => {
 export async function fetchAllEmployeeStockPurchases(
     page: number = 1,
     pageSize: number = 10,
-    searchQuery: string = ""
+    searchQuery: string = "",
+    company: string = "",
+    employee: string = "",
+    date: string = ""
 ): Promise<{ data: EmployeeStockPurchase[]; meta: Record<string, unknown> }> {
     const token = getToken();
     const offset = (page - 1) * pageSize;
@@ -25,11 +28,22 @@ export async function fetchAllEmployeeStockPurchases(
     params.append("limit", pageSize.toString());
     params.append("offset", offset.toString());
     params.append("meta", "*");
+    params.append("sort", "-purchase_id");
     
     if (searchQuery) {
         params.append("filter[_or][0][employee_name][_icontains]", searchQuery);
         params.append("filter[_or][1][company_name][_icontains]", searchQuery);
         params.append("filter[_or][2][manual_invoice_no][_icontains]", searchQuery);
+    }
+    
+    if (company) {
+        params.append("filter[company_name][_icontains]", company);
+    }
+    if (employee) {
+        params.append("filter[employee_name][_icontains]", employee);
+    }
+    if (date) {
+        params.append("filter[created_at][_starts_with]", date);
     }
     
     const url = `${DIRECTUS_URL}/items/${COLLECTIONS.EMPLOYEE_STOCK_PURCHASE}?${params.toString()}`;
@@ -132,3 +146,93 @@ export async function createEmployeeStockPurchase(payload: Record<string, unknow
     const espJson = await espRes.json();
     return espJson.data;
 }
+
+export async function syncEmployeeStockPurchases(): Promise<{ syncedCount: number, updatedCount: number }> {
+    const token = getToken();
+
+    // 1. Fetch all PENDING employee_stock_purchase records
+    const params = new URLSearchParams();
+    params.append("limit", "-1"); // Fetch all
+    params.append("filter[status][_eq]", "PENDING");
+
+    const pendingRes = await fetchWithRetry(`${DIRECTUS_URL}/items/${COLLECTIONS.EMPLOYEE_STOCK_PURCHASE}?${params.toString()}`, {
+        cache: "no-store",
+        headers: { Authorization: `Bearer ${token}` }
+    });
+
+    if (!pendingRes.ok) throw new Error("Failed to fetch pending employee stock purchases.");
+    
+    const pendingJson = await pendingRes.json();
+    const pendingRecords: EmployeeStockPurchase[] = pendingJson.data || [];
+
+    if (pendingRecords.length === 0) return { syncedCount: 0, updatedCount: 0 };
+
+    // 2. Group by company_id
+    const companyGroups: Record<number, EmployeeStockPurchase[]> = {};
+    pendingRecords.forEach(record => {
+        if (!companyGroups[record.company_id]) companyGroups[record.company_id] = [];
+        companyGroups[record.company_id].push(record);
+    });
+
+    let updatedCount = 0;
+    const syncedCount = pendingRecords.length;
+
+    // 3. Process each company group
+    for (const companyId of Object.keys(companyGroups)) {
+        const records = companyGroups[Number(companyId)];
+        
+        // Fetch company directus config
+        const companyRes = await fetchWithRetry(`${DIRECTUS_URL}/items/company_list/${companyId}`, {
+            headers: { Authorization: `Bearer ${token}` },
+            cache: 'no-store'
+        });
+        
+        if (!companyRes.ok) continue;
+        
+        const companyData = await companyRes.json();
+        const company = companyData.data;
+
+        if (!company || !company.directus || !company.directus_token) continue;
+
+        const targetDirectusUrl = company.directus.replace(/\/+$/, "");
+        const targetDirectusToken = company.directus_token;
+
+        // Sync each record
+        for (const record of records) {
+            if (!record.dr_payment_id) continue;
+
+            try {
+                const drRes = await fetchWithRetry(`${targetDirectusUrl}/items/${COLLECTIONS.DR_PAYMENT}/${record.dr_payment_id}?fields=is_posted_to_payroll`, {
+                    headers: { Authorization: `Bearer ${targetDirectusToken}` },
+                    cache: 'no-store'
+                });
+
+                if (drRes.ok) {
+                    const drJson = await drRes.json();
+                    const isPosted = drJson.data?.is_posted_to_payroll;
+                    const externalStatus = (isPosted === 1 || isPosted === true) ? "PAID" : "PENDING";
+
+                    if (externalStatus === "PAID" && externalStatus !== record.status) {
+                        const updateRes = await fetchWithRetry(`${DIRECTUS_URL}/items/${COLLECTIONS.EMPLOYEE_STOCK_PURCHASE}/${record.purchase_id}`, {
+                            method: "PATCH",
+                            headers: {
+                                "Content-Type": "application/json",
+                                "Authorization": `Bearer ${token}`
+                            },
+                            body: JSON.stringify({ status: externalStatus })
+                        });
+
+                        if (updateRes.ok) {
+                            updatedCount++;
+                        }
+                    }
+                }
+            } catch (e) {
+                console.error(`Failed to sync dr_payment_id ${record.dr_payment_id}`, e);
+            }
+        }
+    }
+
+    return { syncedCount, updatedCount };
+}
+

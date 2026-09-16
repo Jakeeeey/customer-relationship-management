@@ -24,9 +24,13 @@ export async function PATCH(
         // Current ISO string to act as the timestamp
         const onHoldAt = new Date().toISOString();
 
+        const body = await req.json().catch(() => ({}));
+
         const payload = {
             order_status: "On Hold",
             on_hold_at: onHoldAt,
+            onhold_csr_remarks: body.onhold_csr_remarks || "",
+            on_hold_by_dept: body.on_hold_by_dept || "csr",
         };
 
         const res = await fetch(`${DIRECTUS_URL}/items/sales_order/${id}`, {

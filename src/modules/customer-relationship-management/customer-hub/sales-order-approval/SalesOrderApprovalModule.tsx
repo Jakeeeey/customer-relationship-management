@@ -41,6 +41,8 @@ export default function SalesOrderApprovalModule() {
         orders,
         statusFilter,
         setStatusFilter,
+        onHoldDeptFilter,
+        setOnHoldDeptFilter,
         searchTerm,
         setSearchTerm,
         startDate,
@@ -130,17 +132,33 @@ export default function SalesOrderApprovalModule() {
                     </div>
                 </div>
 
-                <div className="w-full lg:w-[200px]">
-                    <Select value={statusFilter} onValueChange={setStatusFilter}>
-                        <SelectTrigger className="h-9">
-                            <SelectValue placeholder="Status" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="For Approval">For Approval</SelectItem>
-                            <SelectItem value="On Hold">On Hold</SelectItem>
-                            <SelectItem value="Cancelled">Cancelled</SelectItem>
-                        </SelectContent>
-                    </Select>
+                <div className="flex gap-2 w-full lg:w-auto">
+                    {statusFilter === "On Hold" && (
+                        <div className="w-[150px]">
+                            <Select value={onHoldDeptFilter} onValueChange={setOnHoldDeptFilter}>
+                                <SelectTrigger className="h-9">
+                                    <SelectValue placeholder="Department" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="All">All Depts</SelectItem>
+                                    <SelectItem value="accounting">Accounting</SelectItem>
+                                    <SelectItem value="csr">CSR</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    )}
+                    <div className="w-full lg:w-[150px]">
+                        <Select value={statusFilter} onValueChange={setStatusFilter}>
+                            <SelectTrigger className="h-9">
+                                <SelectValue placeholder="Status" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="For Approval">For Approval</SelectItem>
+                                <SelectItem value="On Hold">On Hold</SelectItem>
+                                <SelectItem value="Cancelled">Cancelled</SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
                 </div>
             </div>
 
@@ -218,9 +236,16 @@ export default function SalesOrderApprovalModule() {
                                             {formatCurrency(order.allocated_amount || 0)}
                                         </TableCell>
                                         <TableCell className="text-center">
-                                            <Badge variant="outline" className={`${badgeColor} whitespace-nowrap font-bold`}>
-                                                {status.toUpperCase()}
-                                            </Badge>
+                                            <div className="flex items-center justify-center gap-1.5">
+                                                <Badge variant="outline" className={`${badgeColor} whitespace-nowrap font-bold`}>
+                                                    {status.toUpperCase()}
+                                                </Badge>
+                                                {status === "On Hold" && (
+                                                    <Badge variant="outline" className="bg-muted text-muted-foreground border-muted-foreground/30 font-black px-1.5 py-0 text-[10px]">
+                                                        {(order.on_hold_by_dept || "accounting").charAt(0).toUpperCase()}
+                                                    </Badge>
+                                                )}
+                                            </div>
                                         </TableCell>
                                         <TableCell className="text-right">
                                             <Button variant="outline" size="sm" onClick={(e) => {

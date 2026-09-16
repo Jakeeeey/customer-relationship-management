@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { fetchAllEmployeeStockPurchases, createEmployeeStockPurchase } from "@/modules/customer-relationship-management/employee-stock-purchase/creation/services/employee-stock-purchase";
 import { cookies } from "next/headers";
 
+export const dynamic = "force-dynamic";
+
 function decodeUserIdFromJwt(token: string): number | null {
 	try {
 		const parts = token.split(".");
@@ -32,14 +34,16 @@ export async function GET(req: NextRequest) {
         const page = parseInt(searchParams.get("page") || "1");
         const pageSize = parseInt(searchParams.get("pageSize") || "10");
         const searchQuery = searchParams.get("q") || "";
+        const company = searchParams.get("company") || "";
+        const employee = searchParams.get("employee") || "";
+        const date = searchParams.get("date") || "";
 
-        const result = await fetchAllEmployeeStockPurchases(page, pageSize, searchQuery);
+        const result = await fetchAllEmployeeStockPurchases(page, pageSize, searchQuery, company, employee, date);
         
         return NextResponse.json({
             purchases: result.data,
             metadata: {
-                total_count: result.meta?.total_count || 0,
-                filter_count: result.meta?.filter_count ?? result.meta?.total_count ?? 0,
+                total_count: Number(result.meta?.filter_count ?? result.meta?.total_count ?? 0),
                 page,
                 pageSize,
                 lastUpdated: new Date().toISOString(),

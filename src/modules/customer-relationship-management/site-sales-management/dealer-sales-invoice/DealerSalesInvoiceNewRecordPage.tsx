@@ -22,7 +22,7 @@ import {
     SalesType
 } from "./types";
 import { useDealerSalesInvoice } from "./hooks/useDealerSalesInvoice";
-import { calculateChainNetPrice } from "./utils";
+import { calculateChainNetPrice, getPHTDate } from "./utils";
 import { toast } from "sonner";
 import { DealerSalesInvoiceHeader } from "./components/DealerSalesInvoiceHeader";
 import { DealerSalesInvoiceEncoding } from "./components/DealerSalesInvoiceEncoding";
@@ -66,8 +66,8 @@ export default function DealerSalesInvoiceNewRecordPage() {
     const [isCheckingOrderId, setIsCheckingOrderId] = useState<boolean>(false);
 
     // Internal states for auto-calculated values
-    const [dueDate, setDueDate] = useState<string>(format(new Date(), "yyyy-MM-dd"));
-    const [deliveryDate, setDeliveryDate] = useState<string>(format(new Date(), "yyyy-MM-dd"));
+    const [dueDate, setDueDate] = useState<string>(format(getPHTDate(new Date()), "yyyy-MM-dd"));
+    const [deliveryDate, setDeliveryDate] = useState<string>(format(getPHTDate(new Date()), "yyyy-MM-dd"));
 
     // UI State
     const [isLoadingData, setIsLoadingData] = useState(true);
@@ -207,7 +207,7 @@ export default function DealerSalesInvoiceNewRecordPage() {
         setSelectedSalesman(null);
         setSelectedAccount(null);
         setAccounts([]);
-        setDueDate(format(new Date(), "yyyy-MM-dd"));
+        setDueDate(format(getPHTDate(new Date()), "yyyy-MM-dd"));
 
         try {
             // Fetch linked salesmen (Master Users) for this customer
@@ -250,7 +250,7 @@ export default function DealerSalesInvoiceNewRecordPage() {
             const pt = paymentTerms.find(p => p.id === Number(customer.payment_term));
             if (pt) {
                 const days = pt.payment_days ?? 0;
-                const newDueDate = addDays(new Date(), days);
+                const newDueDate = addDays(getPHTDate(new Date()), days);
                 setDueDate(format(newDueDate, "yyyy-MM-dd"));
             }
         }

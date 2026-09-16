@@ -86,6 +86,11 @@ function decodeJwtPayload(token: string): JwtPayload | null {
     }
 }
 
+function getPhtTimeString(d: Date = new Date()) {
+    const pht = new Date(d.getTime() + 8 * 60 * 60 * 1000);
+    return pht.toISOString().replace('T', ' ').substring(0, 19);
+}
+
 async function resolveUserId() {
     try {
         const cookieStore = await cookies();
@@ -1162,7 +1167,7 @@ export async function PATCH(req: NextRequest) {
 
         if (action === "save_adjustments") {
             const userId = await resolveUserId();
-            const now = new Date().toISOString();
+            const now = getPhtTimeString();
 
             // 1. Process deleted items
             if (deletedDetailIds && deletedDetailIds.length > 0) {
@@ -1301,7 +1306,7 @@ export async function POST(req: NextRequest) {
 
         if (action === "finalize_settlement") {
             const userId = await resolveUserId();
-            const now = new Date().toISOString();
+            const now = getPhtTimeString();
 
             for (const id of invoiceIds) {
                 // Fetch current invoice to check type for VAT safety
@@ -1333,7 +1338,7 @@ export async function POST(req: NextRequest) {
         if (action === "link_return") {
             const { invoiceId, returnId, amount } = body;
             const userId = await resolveUserId();
-            const now = new Date().toISOString();
+            const now = getPhtTimeString();
 
             const res = await fetch(`${DIRECTUS_URL}/items/sales_invoice_sales_return`, {
                 method: "POST",
@@ -1372,7 +1377,7 @@ export async function POST(req: NextRequest) {
 
         if (action === "unlink_memo") {
             const { junctionId, memoId } = body;
-            const now = new Date().toISOString();
+            const now = getPhtTimeString();
 
             console.log(`[UnlinkMemo] Starting unlink for Junction: ${junctionId}, Memo: ${memoId}`);
 
@@ -1441,7 +1446,7 @@ export async function POST(req: NextRequest) {
         if (action === "un_dispatch") {
             const { id } = body;
             const userId = await resolveUserId();
-            const now = new Date().toISOString();
+            const now = getPhtTimeString();
 
             const res = await fetch(`${DIRECTUS_URL}/items/sales_invoice/${id}`, {
                 method: "PATCH",
@@ -1465,7 +1470,7 @@ export async function POST(req: NextRequest) {
 
         if (action === "link_memo") {
             const { invoiceId, memoId, amount, balance } = body;
-            const now = new Date().toISOString();
+            const now = getPhtTimeString();
 
             console.log(`[LinkMemo] Starting link for Invoice: ${invoiceId}, Memo: ${memoId}, Amount: ${amount}, Current Balance: ${balance}`);
 
@@ -1552,7 +1557,7 @@ export async function POST(req: NextRequest) {
 
         if (action === "create_invoice") {
             const userId = await resolveUserId();
-            const now = new Date().toISOString();
+            const now = getPhtTimeString();
             // 1. Create Header (sales_invoice)
             const headerPayload = {
                 order_id: body.order_id,

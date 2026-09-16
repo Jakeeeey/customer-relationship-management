@@ -9,17 +9,21 @@ import { EmployeeStockPurchaseFormModal } from "./components/EmployeeStockPurcha
 import { EmployeeStockPurchaseFormValues, EmployeeStockPurchase } from "./types";
 
 export function EmployeeStockPurchaseModule() {
-    const { data, isLoading, fetchPurchases, createPurchase } = useEmployeeStockPurchaseContext();
+    const { data, metadata, isLoading, fetchPurchases, createPurchase } = useEmployeeStockPurchaseContext();
     const [searchQuery, setSearchQuery] = useState("");
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [currentPage, setCurrentPage] = useState(1);
+    const pageSize = 10;
 
     useEffect(() => {
-        fetchPurchases();
-    }, [fetchPurchases]);
+        fetchPurchases(currentPage, pageSize, searchQuery);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [fetchPurchases, currentPage]);
 
     const handleSearch = (e: React.FormEvent) => {
         e.preventDefault();
-        fetchPurchases(1, 10, searchQuery);
+        setCurrentPage(1);
+        fetchPurchases(1, pageSize, searchQuery);
     };
 
     const handleCreate = async (values: EmployeeStockPurchaseFormValues) => {
@@ -117,6 +121,41 @@ export function EmployeeStockPurchaseModule() {
                                 )}
                             </tbody>
                         </table>
+                    </div>
+                    
+                    {/* Pagination Footer */}
+                    <div className="flex items-center justify-between px-6 py-4 border-t border-border/40 bg-muted/10">
+                        <div className="text-xs font-medium text-muted-foreground">
+                            {metadata && metadata.total_count > 0 ? (
+                                <>
+                                    Showing <span className="font-bold text-foreground">{(currentPage - 1) * pageSize + 1}</span> to <span className="font-bold text-foreground">{Math.min(currentPage * pageSize, metadata.total_count)}</span> of <span className="font-bold text-foreground">{metadata.total_count}</span> entries
+                                </>
+                            ) : (
+                                <>
+                                    Page <span className="font-bold text-foreground">{currentPage}</span>
+                                </>
+                            )}
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <Button 
+                                variant="outline" 
+                                size="sm" 
+                                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                                disabled={currentPage <= 1 || isLoading}
+                                className="h-8 text-xs font-bold uppercase tracking-widest"
+                            >
+                                Previous
+                            </Button>
+                            <Button 
+                                variant="outline" 
+                                size="sm" 
+                                onClick={() => setCurrentPage(prev => prev + 1)}
+                                disabled={data.length < pageSize || isLoading}
+                                className="h-8 text-xs font-bold uppercase tracking-widest"
+                            >
+                                Next
+                            </Button>
+                        </div>
                     </div>
                 </div>
             </div>

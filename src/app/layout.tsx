@@ -8,6 +8,7 @@ import ThemeSettingsProvider from "@/components/theme/ThemeSettingsProvider"
 import { ThemeTransitionProvider } from "@/components/theme/ThemeTransitionOverlay"
 import { Toaster } from "@/components/ui/sonner"
 import { IdleTimer } from "@/components/auth/IdleTimer"
+import { GlobalAnnouncementModal } from "@/components/main-dashboard/global-announcement-modal"
 
 const geistSans = Geist({
     variable: "--font-geist-sans",
@@ -41,6 +42,9 @@ export default function RootLayout({
 
                     {/* Global session monitor */}
                     <IdleTimer />
+
+                    {/* Global announcement modal */}
+                    <GlobalAnnouncementModal />
 
                     {/* Global toast host (Sonner / shadcn) */}
                     <Toaster position="top-right" richColors />

@@ -29,6 +29,7 @@ import { CustomerComparisonModal } from "./CustomerComparisonModal";
 import { findPotentialMatches, SimilarityGroup, Customer } from "../utils/similarity";
 import { parseApiError } from "../utils/error-parser";
 
+const isPending = (status?: string | null) => status !== 'Approved' && status !== 'Rejected';
 
 interface CustomerProspectTableProps {
     data: CustomerProspect[];
@@ -357,6 +358,7 @@ export function CustomerProspectTable({
                             <TableHead className="w-[250px] text-xs font-bold uppercase tracking-wider">Prospect Details</TableHead>
                             <TableHead className="w-[200px] text-xs font-bold uppercase tracking-wider">Store Info</TableHead>
                             <TableHead className="w-[180px] text-xs font-bold uppercase tracking-wider">Location</TableHead>
+                            <TableHead className="w-[120px] text-xs font-bold uppercase tracking-wider text-center">Probability</TableHead>
                             <TableHead className="w-[150px] text-xs font-bold uppercase tracking-wider">Salesman</TableHead>
                             <TableHead className="w-[120px] text-xs font-bold uppercase tracking-wider text-center">Status</TableHead>
                             <TableHead className="w-[140px] text-right text-xs font-bold uppercase tracking-wider">Actions</TableHead>
@@ -370,13 +372,15 @@ export function CustomerProspectTable({
                                     <TableCell><Skeleton className="h-12 w-full rounded-md" /></TableCell>
                                     <TableCell><Skeleton className="h-12 w-full rounded-md" /></TableCell>
                                     <TableCell><Skeleton className="h-12 w-full rounded-md" /></TableCell>
+                                    <TableCell><Skeleton className="h-8 w-16 mx-auto rounded-md" /></TableCell>
+                                    <TableCell><Skeleton className="h-12 w-full rounded-md" /></TableCell>
                                     <TableCell><Skeleton className="h-8 w-20 rounded-full mx-auto" /></TableCell>
                                     <TableCell><Skeleton className="h-8 w-24 rounded-md ml-auto" /></TableCell>
                                 </TableRow>
                             ))
                         ) : data.length === 0 ? (
                             <TableRow>
-                                <TableCell colSpan={6} className="h-32 text-center text-muted-foreground">
+                                <TableCell colSpan={7} className="h-32 text-center text-muted-foreground">
                                     No prospects found for this filter.
                                 </TableCell>
                             </TableRow>
@@ -423,6 +427,13 @@ export function CustomerProspectTable({
                                             </span>
                                         </div>
                                     </TableCell>
+                                    <TableCell className="text-center">
+                                        <div className="flex flex-col items-center">
+                                            <span className="text-sm font-semibold text-primary">
+                                                {prospect.percentage != null ? `${prospect.percentage}%` : "-"}
+                                            </span>
+                                        </div>
+                                    </TableCell>
                                     <TableCell>
                                         <div className="flex items-center gap-2">
                                             <div className="h-7 w-7 rounded-full bg-primary/10 flex items-center justify-center text-[10px] font-bold text-primary shrink-0">
@@ -444,7 +455,7 @@ export function CustomerProspectTable({
                                         <StatusBadge status={prospect.prospect_status} />
                                     </TableCell>
                                     <TableCell className="text-right">
-                                        {prospect.prospect_status === 'Pending' ? (
+                                        {isPending(prospect.prospect_status) ? (
                                             <div className="flex items-center justify-end gap-2">
                                                 <Button
                                                     size="sm"
@@ -588,6 +599,22 @@ export function CustomerProspectTable({
                                                 </span>
                                             </div>
                                         )}
+                                        <div className="flex flex-col">
+                                            <Label className="text-[10px] font-bold text-muted-foreground uppercase mb-1">Probability (%)</Label>
+                                            {isEditing ? (
+                                                <Input 
+                                                    type="number"
+                                                    value={editForm.percentage || ""} 
+                                                    onChange={(e) => setEditForm({...editForm, percentage: e.target.value ? parseFloat(e.target.value) : null})}
+                                                    className="h-8 text-sm"
+                                                    min="0"
+                                                    max="100"
+                                                    step="0.01"
+                                                />
+                                            ) : (
+                                                <span className="font-semibold">{selectedProspect.percentage != null ? `${selectedProspect.percentage}%` : "None"}</span>
+                                            )}
+                                        </div>
                                         <div className="flex flex-col col-span-2 pt-2 border-t mt-1 border-dashed">
                                             <span className="text-[10px] font-bold text-muted-foreground uppercase">Current Status</span>
                                             <div className="flex items-center gap-2 mt-1.5">
@@ -904,7 +931,7 @@ export function CustomerProspectTable({
                                     Save Changes
                                 </Button>
                             </>
-                        ) : selectedProspect?.prospect_status === 'Pending' ? (
+                        ) : (selectedProspect && isPending(selectedProspect.prospect_status)) ? (
                             <>
                                 <Button
                                     variant="outline"
@@ -914,7 +941,7 @@ export function CustomerProspectTable({
                                     <Edit2 className="h-3.5 w-3.5 mr-2" />
                                     Edit
                                 </Button>
-                                {selectedProspect.prospect_status === 'Pending' && (
+                                {selectedProspect && isPending(selectedProspect.prospect_status) && (
                                     <>
                                         <Button
                                             variant="outline"

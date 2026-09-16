@@ -385,45 +385,32 @@ export async function GET(req: NextRequest) {
             let detailsWithProducts = allDetails;
             if (allDetails.length > 0) {
                 const productIds = Array.from(new Set(allDetails.map((d: InvoiceDetailItem) => d.product_id).filter(Boolean)));
-                if (productIds.length > 0) {
-                    const productsUrl = `${BASE_URL}/products?filter[product_id][_in]=${productIds.join(',')}&fields=product_id,product_name,description,product_code,unit_of_measurement&limit=-1`;
-                    const pRes = await fetch(productsUrl, { headers });
+                
+                const dtPromise = fetch(`${BASE_URL}/discount_type?limit=-1&fields=id,discount_type`, { headers }).then(r => r.ok ? r.json() : { data: [] }).catch(() => ({ data: [] }));
+                const unitPromise = fetch(`${BASE_URL}/units?limit=-1`, { headers }).then(r => r.ok ? r.json() : { data: [] }).catch(() => ({ data: [] }));
+                const productPromise = productIds.length > 0 ? fetch(`${BASE_URL}/products?filter[product_id][_in]=${productIds.join(',')}&fields=product_id,product_name,description,product_code,unit_of_measurement&limit=-1`, { headers }).then(r => r.ok ? r.json() : { data: [] }).catch(() => ({ data: [] })) : Promise.resolve({ data: [] });
 
-                    if (pRes.ok) {
-                        const pJson = await pRes.json();
-                        const pData = pJson.data || [];
+                const [dtJson, unitJson, pJson] = await Promise.all([dtPromise, unitPromise, productPromise]);
 
-                        // Fetch Units for UOM
-                        const unitRes = await fetch(`${BASE_URL}/units?limit=-1`, { headers });
-                        const unitMap = new Map<number, string>();
-                        if (unitRes.ok) {
-                            const uJson = await unitRes.json();
-                            (uJson.data || []).forEach((u: UnitItem) => unitMap.set(Number(u.unit_id), u.unit_shortcut || u.unit_name || ""));
-                        }
+                const unitMap = new Map<number, string>();
+                (unitJson.data || []).forEach((u: UnitItem) => unitMap.set(Number(u.unit_id), u.unit_shortcut || u.unit_name || ""));
 
-                        const pMap = new Map<number, ProductItem>();
-                        pData.forEach((p: ProductItem) => {
-                            pMap.set(Number(p.product_id), {
-                                ...p,
-                                uom: unitMap.get(Number(p.unit_of_measurement)) || "PCS"
-                            });
-                        });
+                const pMap = new Map<number, ProductItem>();
+                (pJson.data || []).forEach((p: ProductItem) => {
+                    pMap.set(Number(p.product_id), {
+                        ...p,
+                        uom: unitMap.get(Number(p.unit_of_measurement)) || "PCS"
+                    });
+                });
 
-                        // Fetch Discount Types for Invoice Details mapping
-                        const dtRes = await fetch(`${BASE_URL}/discount_type?limit=-1&fields=id,discount_type`, { headers });
-                        const dtMap = new Map<number, string>();
-                        if (dtRes.ok) {
-                            const dtJson = await dtRes.json();
-                            (dtJson.data || []).forEach((dt: { id: number; discount_type: string }) => dtMap.set(Number(dt.id), dt.discount_type));
-                        }
+                const dtMap = new Map<number, string>();
+                (dtJson.data || []).forEach((dt: { id: number; discount_type: string }) => dtMap.set(Number(dt.id), dt.discount_type));
 
-                        detailsWithProducts = allDetails.map((d: InvoiceDetailItem) => ({
-                            ...d,
-                            product_id: pMap.get(Number(d.product_id)) || d.product_id,
-                            discount_type: d.discount_type ? (dtMap.get(Number(d.discount_type)) || d.discount_type) : null
-                        }));
-                    }
-                }
+                detailsWithProducts = allDetails.map((d: InvoiceDetailItem) => ({
+                    ...d,
+                    product_id: pMap.get(Number(d.product_id)) || d.product_id,
+                    discount_type: d.discount_type ? (dtMap.get(Number(d.discount_type)) || d.discount_type) : null
+                }));
             }
 
             // 4. Fetch PDFs for these invoices
@@ -464,65 +451,44 @@ export async function GET(req: NextRequest) {
             const json = await res.json();
             const details: SaleOrderDetail[] = json.data || [];
 
-            // Fetch Discount Types for mapping
-            const dtUrl = `${BASE_URL}/discount_type?limit=-1&fields=id,discount_type`;
-            const dtRes = await fetch(dtUrl, { headers });
-            const dtMap = new Map<number, string>();
-            if (dtRes.ok) {
-                const dtJson = await dtRes.json();
+            // Fetch auxiliary data concurrently
+            if (details.length > 0) {
+                const productIds = Array.from(new Set(details.map((d: SaleOrderDetail) => typeof d.product_id === 'number' ? d.product_id : null).filter(Boolean)));
+
+                const dtPromise = fetch(`${BASE_URL}/discount_type?limit=-1&fields=id,discount_type`, { headers }).then(r => r.ok ? r.json() : { data: [] }).catch(() => ({ data: [] }));
+                const unitPromise = fetch(`${BASE_URL}/units?limit=-1`, { headers }).then(r => r.ok ? r.json() : { data: [] }).catch(() => ({ data: [] }));
+                const productPromise = productIds.length > 0 ? fetch(`${BASE_URL}/products?filter[product_id][_in]=${productIds.join(',')}&fields=product_id,product_name,description,product_code,unit_of_measurement&limit=-1`, { headers }).then(r => r.ok ? r.json() : { data: [] }).catch(() => ({ data: [] })) : Promise.resolve({ data: [] });
+
+                const [dtJson, unitJson, pJson] = await Promise.all([dtPromise, unitPromise, productPromise]);
+
+                const dtMap = new Map<number, string>();
                 (dtJson.data || []).forEach((dt: { id: number; discount_type: string }) => {
                     dtMap.set(Number(dt.id), dt.discount_type);
                 });
-            }
 
-            // Manual join for product descriptions
-            if (details.length > 0) {
-                const productIds = Array.from(new Set(details.map((d: SaleOrderDetail) => {
-                    if (typeof d.product_id === 'number') return d.product_id;
-                    return null;
-                }).filter(Boolean)));
+                const unitMap = new Map<number, string>();
+                (unitJson.data || []).forEach((u: UnitItem) => unitMap.set(Number(u.unit_id), u.unit_shortcut || u.unit_name || ""));
 
-                if (productIds.length > 0) {
-                    const productsUrl = `${BASE_URL}/products?filter[product_id][_in]=${productIds.join(',')}&fields=product_id,product_name,description,product_code,unit_of_measurement&limit=-1`;
-                    console.log(`[DEBUG] Fetching products for join. URL: ${productsUrl}`);
-                    const pRes = await fetch(productsUrl, { headers });
+                const productMap = new Map<number, ProductItem>();
+                (pJson.data || []).forEach((p: ProductItem) => {
+                    const pid = Number(p.product_id);
+                    if (pid) productMap.set(pid, {
+                        ...p,
+                        uom: unitMap.get(Number(p.unit_of_measurement)) || "PCS"
+                    });
+                });
 
-                    if (pRes.ok) {
-                        const pJson = await pRes.json();
-                        const pData = pJson.data || [];
-
-                        // Fetch Units for UOM
-                        const unitRes = await fetch(`${BASE_URL}/units?limit=-1`, { headers });
-                        const unitMap = new Map<number, string>();
-                        if (unitRes.ok) {
-                            const uJson = await unitRes.json();
-                            (uJson.data || []).forEach((u: UnitItem) => unitMap.set(Number(u.unit_id), u.unit_shortcut || u.unit_name || ""));
-                        }
-
-                        const productMap = new Map<number, ProductItem>();
-                        pData.forEach((p: ProductItem) => {
-                            const pid = Number(p.product_id);
-                            if (pid) productMap.set(pid, {
-                                ...p,
-                                uom: unitMap.get(Number(p.unit_of_measurement)) || "PCS"
-                            });
-                        });
-
-                        details.forEach((d: SaleOrderDetail) => {
-                            const pid = Number(d.product_id);
-                            if (productMap.has(pid)) {
-                                d.product_id = productMap.get(pid) as Product; // Transform ID to Object
-                            }
-
-                            // Map discount type ID to name
-                            if (d.discount_type && dtMap.has(Number(d.discount_type))) {
-                                d.discount_type = dtMap.get(Number(d.discount_type));
-                            }
-                        });
-                    } else {
-                        console.error(`[DEBUG] Product join fetch failed: ${pRes.status}`);
+                details.forEach((d: SaleOrderDetail) => {
+                    const pid = Number(d.product_id);
+                    if (productMap.has(pid)) {
+                        d.product_id = productMap.get(pid) as Product; // Transform ID to Object
                     }
-                }
+
+                    // Map discount type ID to name
+                    if (d.discount_type && dtMap.has(Number(d.discount_type))) {
+                        d.discount_type = dtMap.get(Number(d.discount_type));
+                    }
+                });
             }
 
             return NextResponse.json({ data: details });
