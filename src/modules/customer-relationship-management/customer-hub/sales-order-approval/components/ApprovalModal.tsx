@@ -369,28 +369,6 @@ export function ApprovalModal({
     const onHoldDept = (activeOrder?.on_hold_by_dept || "accounting").toUpperCase();
     const formattedOnHoldDate = formatOnHoldDate(activeOrder?.on_hold_at);
 
-    const formatOnHoldDate = (dateStr: string | null | undefined) => {
-        if (!dateStr) return null;
-        try {
-            const d = new Date(dateStr);
-            if (isNaN(d.getTime())) return dateStr;
-            return d.toLocaleString("en-US", {
-                month: "short",
-                day: "numeric",
-                year: "numeric",
-                hour: "2-digit",
-                minute: "2-digit",
-                hour12: true
-            });
-        } catch {
-            return dateStr;
-        }
-    };
-
-    const isHoldStatus = activeOrder?.order_status?.toLowerCase().trim() === "on hold" || Boolean(activeOrder?.on_hold_at) || Boolean(activeOrder?.on_hold_by);
-    const onHoldUserName = activeOrder?.on_hold_by_user_name || null;
-    const formattedOnHoldDate = formatOnHoldDate(activeOrder?.on_hold_at);
-
     return (
         <>
             <Dialog open={open} onOpenChange={(val) => !val && onClose()}>
