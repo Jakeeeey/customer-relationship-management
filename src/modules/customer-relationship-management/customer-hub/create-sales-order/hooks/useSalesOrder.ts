@@ -30,6 +30,8 @@ export function useSalesOrder() {
     const [customerSearch, setCustomerSearch] = useState("");
     const [hasMoreCustomers, setHasMoreCustomers] = useState(true);
     const [loadingMoreCustomers, setLoadingMoreCustomers] = useState(false);
+    const [customerReceivable, setCustomerReceivable] = useState<number | null>(null);
+    const [loadingReceivable, setLoadingReceivable] = useState(false);
 
     const [suppliers, setSuppliers] = useState<Supplier[]>([]);
     const [selectedSupplierId, setSelectedSupplierId] = useState<string>("");
@@ -96,6 +98,45 @@ export function useSalesOrder() {
     const selectedSalesType = useMemo(() => Array.isArray(salesTypes) ? salesTypes.find(st => st.id.toString() === selectedSalesTypeId) : undefined, [salesTypes, selectedSalesTypeId]);
     const selectedBranch = useMemo(() => Array.isArray(branches) ? branches.find(b => b.id.toString() === selectedBranchId) : undefined, [branches, selectedBranchId]);
 
+    // Fetch Accounts Receivable (Utang) whenever selected customer changes
+    useEffect(() => {
+        const customerCode = selectedCustomer?.customer_code;
+        if (!customerCode) {
+            setCustomerReceivable(null);
+            setLoadingReceivable(false);
+            return;
+        }
+
+        let isMounted = true;
+        setLoadingReceivable(true);
+
+        fetch(`/api/crm/customer-hub/accounts-receivable?customerCode=${encodeURIComponent(customerCode)}`)
+            .then(res => {
+                if (!res.ok) throw new Error("Failed to fetch AR");
+                return res.json();
+            })
+            .then(data => {
+                if (isMounted) {
+                    setCustomerReceivable(typeof data?.amount === "number" ? data.amount : Number(data?.amount || 0));
+                }
+            })
+            .catch(err => {
+                console.warn("[useSalesOrder] Could not fetch customer receivable:", err);
+                if (isMounted) {
+                    setCustomerReceivable(0);
+                }
+            })
+            .finally(() => {
+                if (isMounted) {
+                    setLoadingReceivable(false);
+                }
+            });
+
+        return () => {
+            isMounted = false;
+        };
+    }, [selectedCustomer?.customer_code]);
+
     // Auto-generate preview SO# (Not the final one yet - that's set on enterCheckout)
     const previewOrderNo = useMemo(() => {
         if (existingOrderNo) return existingOrderNo;
@@ -149,6 +190,7 @@ export function useSalesOrder() {
                 setCustomerSearch("");
                 setSelectedCustomerId("");
                 setPaymentTerms(null);
+                setCustomerReceivable(null);
             }
 
             if (currentId && (currentId !== lastId.current || !isAutoFilled.current)) {
@@ -1076,6 +1118,7 @@ export function useSalesOrder() {
         paymentTerms, setPaymentTerms, paymentTermsList,
         handlePriceTypeIdChange,
         handleSubmitOrder, submitting,
-        existingOrderId, existingOrderStatus
+        existingOrderId, existingOrderStatus,
+        customerReceivable, loadingReceivable
     };
 }
