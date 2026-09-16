@@ -31,7 +31,8 @@ export default function CreateSalesOrderModule({ documentViewerUrl }: { document
         paymentTerms, paymentTermsList,
         handlePriceTypeIdChange,
         handleSubmitOrder, submitting,
-        existingOrderId, existingOrderStatus
+        existingOrderId, existingOrderStatus,
+        customerReceivable, loadingReceivable
     } = useSalesOrder();
 
     if (salesmen.length === 0 && !loadingAccounts) {
@@ -95,6 +96,7 @@ export default function CreateSalesOrderModule({ documentViewerUrl }: { document
                     setOrderRemarks={setOrderRemarks}
                     isExistingOrder={!!existingOrderId}
                     existingOrderStatus={existingOrderStatus}
+                    customerReceivable={customerReceivable}
                     header={{
                         salesman: salesmen.find(s => (s.user_id || s.id)?.toString() === selectedSalesmanId) || null,
                         account: selectedAccount || null,
@@ -165,6 +167,8 @@ export default function CreateSalesOrderModule({ documentViewerUrl }: { document
                         previewOrderNo={previewOrderNo}
                         paymentTerms={paymentTerms}
                         paymentTermsList={paymentTermsList}
+                        customerReceivable={customerReceivable}
+                        loadingReceivable={loadingReceivable}
                     />
 
                     {/* Encoding & Cart Section */}
