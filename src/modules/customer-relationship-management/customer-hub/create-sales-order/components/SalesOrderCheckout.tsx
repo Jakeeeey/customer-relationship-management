@@ -170,6 +170,28 @@ export function SalesOrderCheckout({
                                             </span>
                                         </div>
                                     )}
+                                    <div className="flex flex-col">
+                                        <span className="text-[10px] font-black text-muted-foreground uppercase tracking-wider mb-1 flex items-center gap-1">
+                                            <CreditCard className="w-3 h-3 text-slate-400" />
+                                            Credit Limit
+                                        </span>
+                                        <span className="text-xs font-bold text-slate-800">
+                                            {creditLimit > 0 ? formatCurrency(creditLimit) : "No Limit"}
+                                        </span>
+                                    </div>
+                                    <div className="flex flex-col">
+                                        <span className="text-[10px] font-black text-muted-foreground uppercase tracking-wider mb-1">Receivables</span>
+                                        <div className="flex items-center gap-1.5">
+                                            <span className={`text-xs font-bold ${isExceeded ? "text-rose-600 font-black" : "text-amber-600"}`}>
+                                                {formatCurrency(currentReceivables)}
+                                            </span>
+                                            {creditLimit > 0 && isExceeded && (
+                                                <Badge variant="destructive" className="text-[8px] px-1 py-0 uppercase font-black tracking-tighter">
+                                                    Exceeded
+                                                </Badge>
+                                            )}
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </CardHeader>
@@ -313,7 +335,7 @@ export function SalesOrderCheckout({
                                         isExceeded ? (
                                             <span className="inline-flex items-center gap-1.5 text-[11px] font-black text-rose-300 bg-rose-950/70 border border-rose-600/50 px-2.5 py-1 rounded-lg">
                                                 <AlertCircle className="w-3.5 h-3.5 text-rose-400 shrink-0" />
-                                                Total Exposure Exceeds Credit Limit by {formatCurrency(excessOrAvailable)}
+                                                Total Exceeds Credit Limit by {formatCurrency(excessOrAvailable)}
                                             </span>
                                         ) : (
                                             <span className="inline-flex items-center gap-1.5 text-[11px] font-bold text-emerald-300 bg-emerald-950/60 border border-emerald-600/40 px-2.5 py-1 rounded-lg">
@@ -324,35 +346,6 @@ export function SalesOrderCheckout({
                                     ) : header.customer ? (
                                         <span className="text-[11px] text-slate-400 italic">No Credit Limit Set</span>
                                     ) : null}
-                                </div>
-
-                                {/* Financial Exposure Row (Credit Limit, Receivables, Projected Total) */}
-                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 bg-slate-950/60 p-4 rounded-xl border border-slate-800">
-                                    <div className="flex flex-col">
-                                        <span className="text-[10px] text-slate-400 font-black uppercase tracking-wider mb-1 flex items-center gap-1.5">
-                                            <CreditCard className="w-3 h-3 text-slate-400" />
-                                            Credit Limit
-                                        </span>
-                                        <span className="text-base font-black tabular-nums text-slate-200">
-                                            {creditLimit > 0 ? formatCurrency(creditLimit) : "No Limit"}
-                                        </span>
-                                    </div>
-                                    <div className="flex flex-col">
-                                        <span className="text-[10px] text-slate-400 font-black uppercase tracking-wider mb-1">
-                                            Current Receivables
-                                        </span>
-                                        <span className="text-base font-black tabular-nums text-amber-400">
-                                            {formatCurrency(currentReceivables)}
-                                        </span>
-                                    </div>
-                                    <div className="flex flex-col">
-                                        <span className="text-[10px] text-slate-400 font-black uppercase tracking-wider mb-1">
-                                            Projected Total (Receivables + Order)
-                                        </span>
-                                        <span className={`text-base font-black tabular-nums ${isExceeded ? "text-rose-400" : "text-emerald-400"}`}>
-                                            {formatCurrency(projectedExposure)}
-                                        </span>
-                                    </div>
                                 </div>
 
                                 {/* Order Financials Row */}
