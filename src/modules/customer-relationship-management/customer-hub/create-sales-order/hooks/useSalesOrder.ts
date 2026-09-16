@@ -1037,6 +1037,7 @@ export function useSalesOrder() {
                 draft_at: finalStatus === "Draft" ? now : null,
                 pending_date: finalStatus === "Pending" ? now : null,
                 for_approval_at: finalStatus === "For Approval" ? now : null,
+                for_consolidation_at: finalStatus === "For Consolidation" ? now : null,
                 remarks: orderRemarks || "",
                 attachment_id: attachmentId ? Number(attachmentId) : null,
                 payment_terms: paymentTerms ? Number(paymentTerms) : null
@@ -1051,7 +1052,7 @@ export function useSalesOrder() {
                 };
             });
 
-            console.log(`[SubmitOrder] Sending ${itemsWithAllocation.length} item(s) to API. Existing order: ${!!existingOrderId}`);
+            console.log(`[SubmitOrder] Sending ${itemsWithAllocation.length} item(s) to API with status: ${finalStatus}. Existing order: ${!!existingOrderId}`);
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             itemsWithAllocation.forEach((item: any, idx: number) => {
                 console.log(`  [Item ${idx}] detail_id=${item.detail_id}, product=${item.product?.display_name || item.product?.product_id}`);
@@ -1059,8 +1060,12 @@ export function useSalesOrder() {
 
             const res = await salesOrderProvider.createOrder(payload, itemsWithAllocation);
             if (res.success) {
-                console.log(`[SubmitOrder] SUCCESS: ${res.order_no}`);
-                const statusMsg = finalStatus === "Draft" ? "Saved in Draft" : "Submitted for Approval";
+                console.log(`[SubmitOrder] SUCCESS: ${res.order_no} (${finalStatus})`);
+                const statusMsg = finalStatus === "Draft" 
+                    ? "Saved in Draft" 
+                    : finalStatus === "For Consolidation"
+                        ? "Submitted for Consolidation"
+                        : "Submitted for Approval";
                 toast.success(`${statusMsg}: ${res.order_no}`);
                 // Instead of reload, reset the local state
                 setLineItems([]);

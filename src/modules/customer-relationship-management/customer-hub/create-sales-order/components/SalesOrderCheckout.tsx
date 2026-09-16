@@ -34,7 +34,7 @@ interface SalesOrderCheckoutProps {
         vatAmount: number;
     };
     onBack: () => void;
-    onConfirm: (status?: "Draft" | "For Approval") => void;
+    onConfirm: (status?: "Draft" | "For Approval" | "For Consolidation") => void;
     submitting: boolean;
     orderRemarks: string;
     setOrderRemarks: (val: string) => void;
@@ -71,6 +71,11 @@ export function SalesOrderCheckout({
     const isExceeded = creditLimit > 0 && projectedExposure > creditLimit;
     const excessOrAvailable = creditLimit > 0 ? (isExceeded ? projectedExposure - creditLimit : creditLimit - projectedExposure) : 0;
 
+    // Determine target status when approved/committed:
+    // If credit limit is not exceeded (or no credit limit set), go directly to "For Consolidation".
+    // If credit limit is exceeded, go to "For Approval" for review.
+    const targetApprovedStatus: "For Approval" | "For Consolidation" = isExceeded ? "For Approval" : "For Consolidation";
+
     const allAllocationsZero = lineItems.every(item => (allocatedQuantities[item.id] ?? 0) === 0);
     const hasZeroAllocation = lineItems.some(item => (allocatedQuantities[item.id] ?? 0) === 0);
 
@@ -81,16 +86,17 @@ export function SalesOrderCheckout({
             onConfirm("Draft");
         } else if (hasZeroAllocation) {
             // ⚖️ Partial allocation detected. Always show modal to let user choose target status.
-            console.log("[Checkout] Partial allocation detected. Showing workflow selection modal.");
+            console.log(`[Checkout] Partial allocation detected. Showing workflow selection modal (Target: ${targetApprovedStatus}).`);
             setShowConfirmDialog(true);
         } else {
-            // ✅ Full allocation. Proceed directly to Approval.
-            console.log("[Checkout] Full allocation detected. Proceeding to Approval.");
-            onConfirm("For Approval");
+            // ✅ Full allocation with stock.
+            // If within credit limit => "For Consolidation", else => "For Approval"
+            console.log(`[Checkout] Full allocation detected. Routing directly to: ${targetApprovedStatus}.`);
+            onConfirm(targetApprovedStatus);
         }
     };
 
-    const handleFinalConfirm = (status: "Draft" | "For Approval") => {
+    const handleFinalConfirm = (status: "Draft" | "For Approval" | "For Consolidation") => {
         setShowConfirmDialog(false);
         onConfirm(status);
     };
@@ -446,6 +452,7 @@ export function SalesOrderCheckout({
                 hasZeroAllocation={hasZeroAllocation}
                 isExistingOrder={isExistingOrder}
                 existingOrderStatus={existingOrderStatus}
+                targetApprovedStatus={targetApprovedStatus}
             />
         </div>
     );
