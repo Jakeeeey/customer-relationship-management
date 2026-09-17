@@ -123,7 +123,6 @@ interface HeaderPayload {
     draft_at?: string;
     pending_date?: string;
     for_approval_at?: string;
-    for_consolidation_at?: string;
     po_no?: string;
     due_date?: string | null;
     delivery_date?: string | null;
@@ -1103,7 +1102,6 @@ export async function POST(req: NextRequest) {
                 ...(orderStatus === "Draft" ? { draft_at: nowStr } : {}),
                 ...(orderStatus === "Pending" ? { pending_date: nowStr } : {}),
                 ...(orderStatus === "For Approval" ? { for_approval_at: nowStr } : {}),
-                ...(orderStatus === "For Consolidation" ? { for_consolidation_at: nowStr, approved_at: nowStr } : {}),
             };
 
             if (header.po_no) headerPayload.po_no = header.po_no;
@@ -1139,7 +1137,6 @@ export async function POST(req: NextRequest) {
                 ...(orderStatus === "Draft" ? { draft_at: nowStr } : {}),
                 ...(orderStatus === "Pending" ? { pending_date: nowStr } : {}),
                 ...(orderStatus === "For Approval" ? { for_approval_at: nowStr } : {}),
-                ...(orderStatus === "For Consolidation" ? { for_consolidation_at: nowStr, approved_at: nowStr } : {}),
             };
         }
 
