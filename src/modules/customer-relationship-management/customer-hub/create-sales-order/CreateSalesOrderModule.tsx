@@ -32,7 +32,8 @@ export default function CreateSalesOrderModule({ documentViewerUrl }: { document
         handlePriceTypeIdChange,
         handleSubmitOrder, submitting,
         existingOrderId, existingOrderStatus,
-        customerReceivable, loadingReceivable
+        customerReceivable, loadingReceivable,
+        isAutoApprovalEnabled
     } = useSalesOrder();
 
     if (salesmen.length === 0 && !loadingAccounts) {
@@ -97,6 +98,7 @@ export default function CreateSalesOrderModule({ documentViewerUrl }: { document
                     isExistingOrder={!!existingOrderId}
                     existingOrderStatus={existingOrderStatus}
                     customerReceivable={customerReceivable}
+                    isAutoApprovalEnabled={isAutoApprovalEnabled}
                     header={{
                         salesman: salesmen.find(s => (s.user_id || s.id)?.toString() === selectedSalesmanId) || null,
                         account: selectedAccount || null,

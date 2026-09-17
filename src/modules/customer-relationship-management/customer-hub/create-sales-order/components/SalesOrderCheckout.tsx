@@ -40,6 +40,7 @@ interface SalesOrderCheckoutProps {
     setOrderRemarks: (val: string) => void;
     isExistingOrder?: boolean;
     existingOrderStatus?: string;
+    isAutoApprovalEnabled?: boolean;
     header: {
         salesman: Salesman | null;
         account: Salesman | null;
@@ -60,21 +61,30 @@ export function SalesOrderCheckout({
     orderNo, lineItems, allocatedQuantities, updateAllocatedQty,
     summary, onBack, onConfirm, submitting, header,
     orderRemarks, setOrderRemarks, isExistingOrder = false, existingOrderStatus,
-    customerReceivable
+    customerReceivable, isAutoApprovalEnabled = false
 }: SalesOrderCheckoutProps) {
     const [showConfirmDialog, setShowConfirmDialog] = useState(false);
 
-    const creditLimit = Number(header.customer?.credit_limit || 0);
+    // Check if customer has a valid positive credit limit
+    const rawCreditLimit = header.customer?.credit_limit;
+    const hasValidCreditLimit = rawCreditLimit !== null && rawCreditLimit !== undefined && Number(rawCreditLimit) > 0;
+    const creditLimit = hasValidCreditLimit ? Number(rawCreditLimit) : 0;
+
     const currentReceivables = Number(customerReceivable || 0);
     const currentOrderAmount = Number(summary.allocatedAmount || summary.orderedNet || 0);
     const projectedExposure = currentReceivables + currentOrderAmount;
-    const isExceeded = creditLimit > 0 && projectedExposure > creditLimit;
-    const excessOrAvailable = creditLimit > 0 ? (isExceeded ? projectedExposure - creditLimit : creditLimit - projectedExposure) : 0;
+
+    // If customer has no valid credit limit (> 0), they are treated as not having credit clearance (exceeded)
+    const isExceeded = hasValidCreditLimit ? projectedExposure > creditLimit : true;
+    const excessOrAvailable = hasValidCreditLimit ? (isExceeded ? projectedExposure - creditLimit : creditLimit - projectedExposure) : 0;
 
     // Determine target status when approved/committed:
-    // If credit limit is not exceeded (or no credit limit set), go directly to "For Consolidation".
-    // If credit limit is exceeded, go to "For Approval" for review.
-    const targetApprovedStatus: "For Approval" | "For Consolidation" = isExceeded ? "For Approval" : "For Consolidation";
+    // Can go to "For Consolidation" ONLY IF:
+    // 1. Global general_setting `sales_order_auto_approval` is enabled ('1')
+    // 2. Customer has a valid credit limit (> 0)
+    // 3. Current receivables + order amount does not exceed credit limit
+    const canAutoConsolidate = isAutoApprovalEnabled && hasValidCreditLimit && !isExceeded;
+    const targetApprovedStatus: "For Approval" | "For Consolidation" = canAutoConsolidate ? "For Consolidation" : "For Approval";
 
     const allAllocationsZero = lineItems.every(item => (allocatedQuantities[item.id] ?? 0) === 0);
     const hasZeroAllocation = lineItems.some(item => (allocatedQuantities[item.id] ?? 0) === 0);
@@ -90,8 +100,7 @@ export function SalesOrderCheckout({
             setShowConfirmDialog(true);
         } else {
             // ✅ Full allocation with stock.
-            // If within credit limit => "For Consolidation", else => "For Approval"
-            console.log(`[Checkout] Full allocation detected. Routing directly to: ${targetApprovedStatus}.`);
+            console.log(`[Checkout] Full allocation detected. AutoApprovalEnabled=${isAutoApprovalEnabled}, HasValidCreditLimit=${hasValidCreditLimit}, IsExceeded=${isExceeded} => Target: ${targetApprovedStatus}.`);
             onConfirm(targetApprovedStatus);
         }
     };
@@ -182,7 +191,7 @@ export function SalesOrderCheckout({
                                             Credit Limit
                                         </span>
                                         <span className="text-xs font-bold text-slate-800">
-                                            {creditLimit > 0 ? formatCurrency(creditLimit) : "No Limit"}
+                                            {hasValidCreditLimit ? formatCurrency(creditLimit) : "No Limit"}
                                         </span>
                                     </div>
                                     <div className="flex flex-col">
@@ -191,9 +200,15 @@ export function SalesOrderCheckout({
                                             <span className={`text-xs font-bold ${isExceeded ? "text-rose-600 font-black" : "text-amber-600"}`}>
                                                 {formatCurrency(currentReceivables)}
                                             </span>
-                                            {creditLimit > 0 && isExceeded && (
-                                                <Badge variant="destructive" className="text-[8px] px-1 py-0 uppercase font-black tracking-tighter">
-                                                    Exceeded
+                                            {hasValidCreditLimit ? (
+                                                isExceeded && (
+                                                    <Badge variant="destructive" className="text-[8px] px-1 py-0 uppercase font-black tracking-tighter">
+                                                        Exceeded
+                                                    </Badge>
+                                                )
+                                            ) : (
+                                                <Badge variant="outline" className="text-[8px] px-1 py-0 uppercase font-bold tracking-tighter border-amber-300 text-amber-600 bg-amber-50">
+                                                    For Review
                                                 </Badge>
                                             )}
                                         </div>
@@ -337,7 +352,7 @@ export function SalesOrderCheckout({
                                         Payment Summary
                                     </div>
 
-                                    {creditLimit > 0 ? (
+                                    {hasValidCreditLimit ? (
                                         isExceeded ? (
                                             <span className="inline-flex items-center gap-1.5 text-[11px] font-black text-rose-300 bg-rose-950/70 border border-rose-600/50 px-2.5 py-1 rounded-lg">
                                                 <AlertCircle className="w-3.5 h-3.5 text-rose-400 shrink-0" />
@@ -350,7 +365,10 @@ export function SalesOrderCheckout({
                                             </span>
                                         )
                                     ) : header.customer ? (
-                                        <span className="text-[11px] text-slate-400 italic">No Credit Limit Set</span>
+                                        <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-amber-300 bg-amber-950/60 border border-amber-600/40 px-2.5 py-1 rounded-lg">
+                                            <AlertCircle className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                                            No Credit Limit Set (Requires Approval)
+                                        </span>
                                     ) : null}
                                 </div>
 
