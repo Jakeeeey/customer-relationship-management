@@ -121,10 +121,14 @@ export const InventoryReportPrintModal = ({
                 const tableStartY = metadataY + 17;
                 const head: string[][] = [];
                 const body: (string | number | Record<string, unknown>)[][] = [];
-                const foot: string[][] = [];
+                const foot: (string | Record<string, unknown>)[][] = [];
 
                 head.push(['BARCODE', 'BRAND', 'CATEGORY', 'PRODUCT', 'BOX', 'PACK', 'PIECES', 'TOTAL PIECES', 'TOTAL AMOUNT']);
                 let totalAmount = 0;
+                let sumBoxStock = 0;
+                let sumPackStock = 0;
+                let sumPieceStock = 0;
+                let sumTotalPieces = 0;
                 
                 activeData.forEach(item => {
                     const barcode = item.units.find(u => u.barcode)?.barcode || '';
@@ -163,6 +167,10 @@ export const InventoryReportPrintModal = ({
                         itemTotalAmount += runningInv * unitPrice;
                     });
                     totalAmount += itemTotalAmount;
+                    sumBoxStock += boxStock;
+                    sumPackStock += packStock;
+                    sumPieceStock += pieceStock;
+                    sumTotalPieces += totalPieces;
 
                     const formatStock = (stock: number, isPiece: boolean = false) => {
                         const str = stock.toLocaleString(undefined, isPiece ? undefined : { minimumFractionDigits: 2 });
@@ -182,7 +190,22 @@ export const InventoryReportPrintModal = ({
                     ]);
                 });
 
-                foot.push(['', '', '', '', '', '', '', 'TOTAL AMOUNT:', Number(totalAmount).toLocaleString(undefined, { minimumFractionDigits: 2 })]);
+                const formatFootStock = (stock: number, isPiece: boolean = false) => {
+                    const str = stock.toLocaleString(undefined, isPiece ? undefined : { minimumFractionDigits: 2 });
+                    return { content: str, styles: { halign: 'center' } };
+                };
+
+                foot.push([
+                    '', 
+                    '', 
+                    '', 
+                    { content: 'TOTAL:', styles: { halign: 'right' } }, 
+                    formatFootStock(sumBoxStock), 
+                    formatFootStock(sumPackStock), 
+                    formatFootStock(sumPieceStock, true), 
+                    formatFootStock(sumTotalPieces, true), 
+                    { content: Number(totalAmount).toLocaleString(undefined, { minimumFractionDigits: 2 }), styles: { halign: 'right' } }
+                ]);
 
                 autoTable(doc, {
                     startY: tableStartY,
