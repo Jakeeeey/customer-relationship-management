@@ -32,28 +32,6 @@ export function useSalesOrder() {
     const [loadingMoreCustomers, setLoadingMoreCustomers] = useState(false);
     const [customerReceivable, setCustomerReceivable] = useState<number | null>(null);
     const [loadingReceivable, setLoadingReceivable] = useState(false);
-    const [isAutoApprovalEnabled, setIsAutoApprovalEnabled] = useState(false);
-
-    // Fetch general_setting for sales_order_auto_approval
-    useEffect(() => {
-        let isMounted = true;
-        salesOrderProvider.getGeneralSetting("sales_order_auto_approval")
-            .then(res => {
-                if (isMounted) {
-                    const val = res?.setting_value?.toString().trim();
-                    console.log("[useSalesOrder] General setting sales_order_auto_approval:", val);
-                    setIsAutoApprovalEnabled(val === "1");
-                }
-            })
-            .catch(err => {
-                console.warn("[useSalesOrder] Failed to fetch sales_order_auto_approval:", err);
-                if (isMounted) setIsAutoApprovalEnabled(false);
-            });
-
-        return () => {
-            isMounted = false;
-        };
-    }, []);
 
     const [suppliers, setSuppliers] = useState<Supplier[]>([]);
     const [selectedSupplierId, setSelectedSupplierId] = useState<string>("");
@@ -1146,7 +1124,6 @@ export function useSalesOrder() {
         handlePriceTypeIdChange,
         handleSubmitOrder, submitting,
         existingOrderId, existingOrderStatus,
-        customerReceivable, loadingReceivable,
-        isAutoApprovalEnabled
+        customerReceivable, loadingReceivable
     };
 }

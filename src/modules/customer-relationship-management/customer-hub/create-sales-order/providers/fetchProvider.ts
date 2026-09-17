@@ -43,17 +43,6 @@ export const salesOrderProvider = {
         return res.json();
     },
 
-    getGeneralSetting: async (key: string): Promise<{ setting_key: string; setting_value: string } | null> => {
-        try {
-            const res = await fetch(`${API_BASE}?action=general_setting&key=${encodeURIComponent(key)}`);
-            const json = await res.json();
-            const list = Array.isArray(json?.data) ? json.data : (Array.isArray(json) ? json : []);
-            return list.length > 0 ? list[0] : null;
-        } catch {
-            return null;
-        }
-    },
-
     // Pag-search ng mga products na pwedeng bilhin
     searchProducts: async (search: string, customerCode: string, supplierId: number, priceType: string, customerId: number, priceTypeId?: number, salesmanId?: string, branchId?: string): Promise<Product[]> => {
         // Dito natin ipinapasa ang price_type_id para makuha ang tamang presyo mula sa Directus
