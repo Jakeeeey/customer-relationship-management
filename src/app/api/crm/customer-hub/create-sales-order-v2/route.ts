@@ -140,12 +140,14 @@ interface HeaderPayload {
 }
 
 interface DiscountItem {
+    id?: number;
     product_id?: number;
     category_id?: number;
     brand_id?: number;
     discount_type?: number;
     discount_type_id?: number;
     unit_price?: number | string;
+    deleted_at?: string | null;
 }
 
 export async function GET(req: NextRequest) {
@@ -474,7 +476,8 @@ export async function GET(req: NextRequest) {
 
                 const allIds = Array.from(allProductsMap.keys());
                 const l1Items = await fetchInChunks<DiscountItem>(`${DIRECTUS_URL}/items/product_per_customer?filter[customer_code][_eq]=${customerCode}&fields=product_id,unit_price,discount_type`, allIds, "product_id");
-                const l2Items: DiscountItem[] = (await (await fetch(`${DIRECTUS_URL}/items/supplier_category_discount_per_customer?filter[customer_code][_eq]=${customerCode}&filter[supplier_id][_eq]=${supplierId}&limit=-1`, { headers: fetchHeaders })).json()).data || [];
+                const l2Raw: DiscountItem[] = (await (await fetch(`${DIRECTUS_URL}/items/supplier_category_discount_per_customer?filter[customer_code][_eq]=${customerCode}&filter[supplier_id][_eq]=${supplierId}&filter[deleted_at][_null]=true&limit=-1`, { headers: fetchHeaders })).json()).data || [];
+                const l2Items = l2Raw.filter((item) => !item.deleted_at);
 
                 let l4Items: DiscountItem[] = [];
                 if (customerId) {
@@ -537,7 +540,8 @@ export async function GET(req: NextRequest) {
                         const rawCatId = typeof p.product_category === 'object' && p.product_category !== null
                             ? (p.product_category as ExpandedCategory).category_id || (p.product_category as ExpandedCategory).id
                             : p.product_category;
-                        const l2 = l2Items.find((item: DiscountItem) => Number(item.category_id) === Number(rawCatId) || !item.category_id || item.category_id === 0);
+                        const l2 = l2Items.find((item: DiscountItem) => rawCatId && Number(item.category_id) === Number(rawCatId))
+                            || l2Items.find((item: DiscountItem) => !item.category_id || item.category_id === 0);
                         if (l2) { winId = l2.discount_type; level = "Supplier Category Discount"; }
                     }
 
