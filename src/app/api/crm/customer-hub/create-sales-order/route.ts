@@ -211,6 +211,25 @@ export async function GET(req: NextRequest) {
             return NextResponse.json((await res.json()).data || []);
         }
 
+        if (action === "general_setting") {
+            const key = req.nextUrl.searchParams.get("key");
+            let url = `${DIRECTUS_URL}/items/general_setting`;
+            if (key) {
+                url += `?filter[setting_key][_eq]=${encodeURIComponent(key)}&limit=1`;
+            } else {
+                url += `?limit=-1`;
+            }
+            try {
+                const res = await fetch(url, { headers: fetchHeaders });
+                if (!res.ok) return NextResponse.json({ data: [] });
+                const json = await res.json();
+                return NextResponse.json(json);
+            } catch (err) {
+                console.error("[CreateSalesOrder] Error fetching general_setting:", err);
+                return NextResponse.json({ data: [] });
+            }
+        }
+
         if (action === "customers") {
             const salesmanId = req.nextUrl.searchParams.get("salesman_id");
             if (!salesmanId) return NextResponse.json({ error: "salesman_id required" }, { status: 400 });
