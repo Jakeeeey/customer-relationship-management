@@ -30,30 +30,6 @@ export function useSalesOrder() {
     const [customerSearch, setCustomerSearch] = useState("");
     const [hasMoreCustomers, setHasMoreCustomers] = useState(true);
     const [loadingMoreCustomers, setLoadingMoreCustomers] = useState(false);
-    const [customerReceivable, setCustomerReceivable] = useState<number | null>(null);
-    const [loadingReceivable, setLoadingReceivable] = useState(false);
-    const [isAutoApprovalEnabled, setIsAutoApprovalEnabled] = useState(false);
-
-    // Fetch general_setting for sales_order_auto_approval
-    useEffect(() => {
-        let isMounted = true;
-        salesOrderProvider.getGeneralSetting("sales_order_auto_approval")
-            .then(res => {
-                if (isMounted) {
-                    const val = res?.setting_value?.toString().trim();
-                    console.log("[useSalesOrder] General setting sales_order_auto_approval:", val);
-                    setIsAutoApprovalEnabled(val === "1");
-                }
-            })
-            .catch(err => {
-                console.warn("[useSalesOrder] Failed to fetch sales_order_auto_approval:", err);
-                if (isMounted) setIsAutoApprovalEnabled(false);
-            });
-
-        return () => {
-            isMounted = false;
-        };
-    }, []);
 
     const [suppliers, setSuppliers] = useState<Supplier[]>([]);
     const [selectedSupplierId, setSelectedSupplierId] = useState<string>("");
@@ -120,45 +96,6 @@ export function useSalesOrder() {
     const selectedSalesType = useMemo(() => Array.isArray(salesTypes) ? salesTypes.find(st => st.id.toString() === selectedSalesTypeId) : undefined, [salesTypes, selectedSalesTypeId]);
     const selectedBranch = useMemo(() => Array.isArray(branches) ? branches.find(b => b.id.toString() === selectedBranchId) : undefined, [branches, selectedBranchId]);
 
-    // Fetch Accounts Receivable (Utang) whenever selected customer changes
-    useEffect(() => {
-        const customerCode = selectedCustomer?.customer_code;
-        if (!customerCode) {
-            setCustomerReceivable(null);
-            setLoadingReceivable(false);
-            return;
-        }
-
-        let isMounted = true;
-        setLoadingReceivable(true);
-
-        fetch(`/api/crm/customer-hub/accounts-receivable?customerCode=${encodeURIComponent(customerCode)}`)
-            .then(res => {
-                if (!res.ok) throw new Error("Failed to fetch AR");
-                return res.json();
-            })
-            .then(data => {
-                if (isMounted) {
-                    setCustomerReceivable(typeof data?.amount === "number" ? data.amount : Number(data?.amount || 0));
-                }
-            })
-            .catch(err => {
-                console.warn("[useSalesOrder] Could not fetch customer receivable:", err);
-                if (isMounted) {
-                    setCustomerReceivable(0);
-                }
-            })
-            .finally(() => {
-                if (isMounted) {
-                    setLoadingReceivable(false);
-                }
-            });
-
-        return () => {
-            isMounted = false;
-        };
-    }, [selectedCustomer?.customer_code]);
-
     // Auto-generate preview SO# (Not the final one yet - that's set on enterCheckout)
     const previewOrderNo = useMemo(() => {
         if (existingOrderNo) return existingOrderNo;
@@ -212,7 +149,6 @@ export function useSalesOrder() {
                 setCustomerSearch("");
                 setSelectedCustomerId("");
                 setPaymentTerms(null);
-                setCustomerReceivable(null);
             }
 
             if (currentId && (currentId !== lastId.current || !isAutoFilled.current)) {
@@ -1059,7 +995,6 @@ export function useSalesOrder() {
                 draft_at: finalStatus === "Draft" ? now : null,
                 pending_date: finalStatus === "Pending" ? now : null,
                 for_approval_at: finalStatus === "For Approval" ? now : null,
-                for_consolidation_at: finalStatus === "For Consolidation" ? now : null,
                 remarks: orderRemarks || "",
                 attachment_id: attachmentId ? Number(attachmentId) : null,
                 payment_terms: paymentTerms ? Number(paymentTerms) : null
@@ -1074,7 +1009,7 @@ export function useSalesOrder() {
                 };
             });
 
-            console.log(`[SubmitOrder] Sending ${itemsWithAllocation.length} item(s) to API with status: ${finalStatus}. Existing order: ${!!existingOrderId}`);
+            console.log(`[SubmitOrder] Sending ${itemsWithAllocation.length} item(s) to API. Existing order: ${!!existingOrderId}`);
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             itemsWithAllocation.forEach((item: any, idx: number) => {
                 console.log(`  [Item ${idx}] detail_id=${item.detail_id}, product=${item.product?.display_name || item.product?.product_id}`);
@@ -1082,12 +1017,8 @@ export function useSalesOrder() {
 
             const res = await salesOrderProvider.createOrder(payload, itemsWithAllocation);
             if (res.success) {
-                console.log(`[SubmitOrder] SUCCESS: ${res.order_no} (${finalStatus})`);
-                const statusMsg = finalStatus === "Draft" 
-                    ? "Saved in Draft" 
-                    : finalStatus === "For Consolidation"
-                        ? "Submitted for Consolidation"
-                        : "Submitted for Approval";
+                console.log(`[SubmitOrder] SUCCESS: ${res.order_no}`);
+                const statusMsg = finalStatus === "Draft" ? "Saved in Draft" : "Submitted for Approval";
                 toast.success(`${statusMsg}: ${res.order_no}`);
                 // Instead of reload, reset the local state
                 setLineItems([]);
@@ -1145,8 +1076,6 @@ export function useSalesOrder() {
         paymentTerms, setPaymentTerms, paymentTermsList,
         handlePriceTypeIdChange,
         handleSubmitOrder, submitting,
-        existingOrderId, existingOrderStatus,
-        customerReceivable, loadingReceivable,
-        isAutoApprovalEnabled
+        existingOrderId, existingOrderStatus
     };
 }

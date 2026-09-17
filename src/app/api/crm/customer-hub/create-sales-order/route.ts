@@ -123,7 +123,6 @@ interface HeaderPayload {
     draft_at?: string;
     pending_date?: string;
     for_approval_at?: string;
-    for_consolidation_at?: string;
     po_no?: string;
     due_date?: string | null;
     delivery_date?: string | null;
@@ -142,14 +141,12 @@ interface HeaderPayload {
 }
 
 interface DiscountItem {
-    id?: number;
     product_id?: number;
     category_id?: number;
     brand_id?: number;
     discount_type?: number;
     discount_type_id?: number;
     unit_price?: number | string;
-    deleted_at?: string | null;
 }
 
 export async function GET(req: NextRequest) {
@@ -209,25 +206,6 @@ export async function GET(req: NextRequest) {
         if (action === "price_types") {
             const res = await fetch(`${DIRECTUS_URL}/items/price_types?sort=sort&limit=-1`, { headers: fetchHeaders });
             return NextResponse.json((await res.json()).data || []);
-        }
-
-        if (action === "general_setting") {
-            const key = req.nextUrl.searchParams.get("key");
-            let url = `${DIRECTUS_URL}/items/general_setting`;
-            if (key) {
-                url += `?filter[setting_key][_eq]=${encodeURIComponent(key)}&limit=1`;
-            } else {
-                url += `?limit=-1`;
-            }
-            try {
-                const res = await fetch(url, { headers: fetchHeaders });
-                if (!res.ok) return NextResponse.json({ data: [] });
-                const json = await res.json();
-                return NextResponse.json(json);
-            } catch (err) {
-                console.error("[CreateSalesOrder] Error fetching general_setting:", err);
-                return NextResponse.json({ data: [] });
-            }
         }
 
         if (action === "customers") {
@@ -594,8 +572,7 @@ export async function GET(req: NextRequest) {
 
                 const allIds = Array.from(allProductsMap.keys());
                 const l1Items = await fetchInChunks<DiscountItem>(`${DIRECTUS_URL}/items/product_per_customer?filter[customer_code][_eq]=${customerCode}&fields=product_id,unit_price,discount_type`, allIds, "product_id");
-                const l2Raw: DiscountItem[] = (await (await fetch(`${DIRECTUS_URL}/items/supplier_category_discount_per_customer?filter[customer_code][_eq]=${customerCode}&filter[supplier_id][_eq]=${supplierId}&filter[deleted_at][_null]=true&limit=-1`, { headers: fetchHeaders })).json()).data || [];
-                const l2Items = l2Raw.filter((item) => !item.deleted_at);
+                const l2Items: DiscountItem[] = (await (await fetch(`${DIRECTUS_URL}/items/supplier_category_discount_per_customer?filter[customer_code][_eq]=${customerCode}&filter[supplier_id][_eq]=${supplierId}&limit=-1`, { headers: fetchHeaders })).json()).data || [];
 
                 let l4Items: DiscountItem[] = [];
                 if (customerId) {
@@ -661,8 +638,7 @@ export async function GET(req: NextRequest) {
                         const rawCatId = typeof p.product_category === 'object' && p.product_category !== null
                             ? (p.product_category as ExpandedCategory).category_id || (p.product_category as ExpandedCategory).id
                             : p.product_category;
-                        const l2 = l2Items.find((item: DiscountItem) => rawCatId && Number(item.category_id) === Number(rawCatId))
-                            || l2Items.find((item: DiscountItem) => !item.category_id || item.category_id === 0);
+                        const l2 = l2Items.find((item: DiscountItem) => Number(item.category_id) === Number(rawCatId) || !item.category_id || item.category_id === 0);
                         if (l2) { winId = l2.discount_type; level = "Supplier Category Discount"; }
                     }
 
@@ -1126,7 +1102,6 @@ export async function POST(req: NextRequest) {
                 ...(orderStatus === "Draft" ? { draft_at: nowStr } : {}),
                 ...(orderStatus === "Pending" ? { pending_date: nowStr } : {}),
                 ...(orderStatus === "For Approval" ? { for_approval_at: nowStr } : {}),
-                ...(orderStatus === "For Consolidation" ? { for_consolidation_at: nowStr, approved_at: nowStr } : {}),
             };
 
             if (header.po_no) headerPayload.po_no = header.po_no;
@@ -1162,7 +1137,6 @@ export async function POST(req: NextRequest) {
                 ...(orderStatus === "Draft" ? { draft_at: nowStr } : {}),
                 ...(orderStatus === "Pending" ? { pending_date: nowStr } : {}),
                 ...(orderStatus === "For Approval" ? { for_approval_at: nowStr } : {}),
-                ...(orderStatus === "For Consolidation" ? { for_consolidation_at: nowStr, approved_at: nowStr } : {}),
             };
         }
 
