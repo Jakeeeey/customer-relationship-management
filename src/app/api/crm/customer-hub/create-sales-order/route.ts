@@ -462,12 +462,13 @@ export async function GET(req: NextRequest) {
                             const nowTime = Date.now();
                             let invDataToProcess: Record<string, unknown>[] = [];
                             let inventoryIsOk = true;
+                            const forceRefresh = searchParams.get("force_refresh") === "true" || searchParams.get("refresh") === "true";
 
-                            if (globalCachedInventory[invUrl] && (nowTime - (globalCachedInventoryTime[invUrl] || 0) < 5 * 60 * 1000)) {
+                            if (!forceRefresh && globalCachedInventory[invUrl] && (nowTime - (globalCachedInventoryTime[invUrl] || 0) < 5 * 60 * 1000)) {
                                 invDataToProcess = globalCachedInventory[invUrl];
                                 console.log(`[InventoryDebug] Using cached inventory. Records: ${invDataToProcess.length}`);
                             } else {
-                                console.log(`[InventoryDebug] Fetching fresh inventory: ${invUrl}`);
+                                console.log(`[InventoryDebug] Fetching fresh inventory (forceRefresh=${forceRefresh}): ${invUrl}`);
                                 const inventoryRes = await fetch(invUrl, {
                                     headers: {
                                         "Accept": "application/json",
