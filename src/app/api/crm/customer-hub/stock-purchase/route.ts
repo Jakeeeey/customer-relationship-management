@@ -59,6 +59,7 @@ interface DiscountItem {
     discount_type?: number;
     discount_type_id?: number;
     unit_price?: number | string;
+    deleted_at?: string | null;
 }
 
 function decodeJwtPayload(token: string): JwtPayload | null {
@@ -629,7 +630,8 @@ export async function GET(req: NextRequest) {
 
             const allIds = sellableItems.map((p) => Number(p.product_id));
             const l1Items = await fetchInChunks<DiscountItem>(`${DIRECTUS_URL}/items/product_per_customer?filter[customer_code][_eq]=${customerCode}&fields=product_id,unit_price,discount_type`, allIds, "product_id");
-            const l2Items: DiscountItem[] = (await (await fetch(`${DIRECTUS_URL}/items/supplier_category_discount_per_customer?filter[customer_code][_eq]=${customerCode}${supplierId && !isNaN(supplierId) ? `&filter[supplier_id][_eq]=${supplierId}` : ""}&limit=-1`, { headers: fetchHeaders })).json()).data || [];
+            const rawL2Items: DiscountItem[] = (await (await fetch(`${DIRECTUS_URL}/items/supplier_category_discount_per_customer?filter[customer_code][_eq]=${customerCode}${supplierId && !isNaN(supplierId) ? `&filter[supplier_id][_eq]=${supplierId}` : ""}&filter[deleted_at][_null]=true&limit=-1`, { headers: fetchHeaders })).json()).data || [];
+            const l2Items: DiscountItem[] = rawL2Items.filter(item => !item.deleted_at);
 
             const custRes = await fetch(`${DIRECTUS_URL}/items/customer?filter[customer_code][_eq]=${customerCode}&fields=id,discount_type`, { headers: fetchHeaders });
             const customerData = (await custRes.json()).data?.[0];
