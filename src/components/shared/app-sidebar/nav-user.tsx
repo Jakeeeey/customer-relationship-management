@@ -12,7 +12,6 @@ import {
     ShieldCheck,
     Moon,
     Sun,
-    Megaphone,
 } from "lucide-react"
 import { useTheme } from "next-themes"
 
@@ -31,6 +30,7 @@ import {
     SidebarMenuItem,
     useSidebar,
 } from "@/components/ui/sidebar"
+import { ChangePasswordModal } from "@/modules/shared/change-password/components/ChangePasswordModal"
 
 type NavUserProps = {
     user: {
@@ -39,7 +39,7 @@ type NavUserProps = {
         avatar?: string
     }
     /**
-     * Optional subsystem slug (e.g., "hrm", "scm"). 
+     * Optional subsystem slug (e.g., "hrm", "scm").
      * If not provided, it will be automatically detected from the URL.
      */
     subsystemSlug?: string
@@ -51,25 +51,7 @@ export function NavUser({ user, onLogout, subsystemSlug }: NavUserProps) {
     const router = useRouter()
     const pathname = usePathname()
     const [loggingOut, setLoggingOut] = React.useState(false)
-
-    const [announcementsCount, setAnnouncementsCount] = React.useState<number>(0);
-
-    React.useEffect(() => {
-        const fetchCount = () => {
-            fetch("/api/announcements")
-                .then((res) => res.json())
-                .then((data) => {
-                    if (data.announcements) {
-                        setAnnouncementsCount(data.announcements.length);
-                    }
-                })
-                .catch((err) => console.error("Error fetching announcements count:", err));
-        };
-
-        fetchCount();
-        window.addEventListener("announcements-updated", fetchCount);
-        return () => window.removeEventListener("announcements-updated", fetchCount);
-    }, []);
+    const [isPasswordModalOpen, setIsPasswordModalOpen] = React.useState(false)
 
     const currentSlug = subsystemSlug || pathname.split("/")[1] || "hrm"
 
@@ -131,8 +113,8 @@ export function NavUser({ user, onLogout, subsystemSlug }: NavUserProps) {
                             <div className="grid flex-1 text-left text-sm leading-tight">
                                 <span className="truncate font-medium">{user.name}</span>
                                 <span className="truncate text-xs text-muted-foreground">
-                                    {user.email}
-                                </span>
+                  {user.email}
+                </span>
                             </div>
 
                             <ChevronsUpDown className="ml-auto size-4 opacity-70" />
@@ -171,11 +153,15 @@ export function NavUser({ user, onLogout, subsystemSlug }: NavUserProps) {
                                 </Link>
                             </DropdownMenuItem>
 
-                            <DropdownMenuItem asChild>
-                                <Link href={`/${currentSlug}/change-password`} className="cursor-pointer">
-                                    <KeyRound className="mr-2 size-4" />
-                                    Change Password
-                                </Link>
+                            <DropdownMenuItem
+                                className="cursor-pointer"
+                                onSelect={(e) => {
+                                    e.preventDefault()
+                                    setIsPasswordModalOpen(true)
+                                }}
+                            >
+                                <KeyRound className="mr-2 size-4" />
+                                Change Password
                             </DropdownMenuItem>
 
                             <DropdownMenuItem asChild>
@@ -191,21 +177,6 @@ export function NavUser({ user, onLogout, subsystemSlug }: NavUserProps) {
                                     Settings
                                 </Link>
                             </DropdownMenuItem>
-
-                            <DropdownMenuItem
-                                className="cursor-pointer flex items-center justify-between"
-                                onClick={() => window.dispatchEvent(new CustomEvent("open-announcements"))}
-                            >
-                                <span className="flex items-center">
-                                    <Megaphone className="mr-2 size-4" />
-                                    Announcements
-                                </span>
-                                {announcementsCount > 0 && (
-                                    <span className="flex h-4 min-w-[16px] px-1.5 items-center justify-center rounded-full bg-rose-500 text-[9px] font-black text-white shadow-sm leading-none animate-pulse">
-                                        {announcementsCount}
-                                    </span>
-                                )}
-                            </DropdownMenuItem>
                         </DropdownMenuGroup>
 
                         <DropdownMenuSeparator />
@@ -217,15 +188,19 @@ export function NavUser({ user, onLogout, subsystemSlug }: NavUserProps) {
                                 onClick={handleLogout}
                                 disabled={loggingOut}
                             >
-                                <span className="inline-flex items-center">
-                                    <LogOut className="mr-2 size-4" />
-                                    {loggingOut ? "Logging out..." : "Log out"}
-                                </span>
+                <span className="inline-flex items-center">
+                  <LogOut className="mr-2 size-4" />
+                    {loggingOut ? "Logging out..." : "Log out"}
+                </span>
                             </button>
                         </DropdownMenuItem>
                     </DropdownMenuContent>
                 </DropdownMenu>
             </SidebarMenuItem>
+            <ChangePasswordModal
+                open={isPasswordModalOpen}
+                onOpenChange={setIsPasswordModalOpen}
+            />
         </SidebarMenu>
     )
 }
