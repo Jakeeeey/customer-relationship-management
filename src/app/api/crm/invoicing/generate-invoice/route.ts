@@ -174,15 +174,26 @@ export async function POST(req: NextRequest) {
                 throw new Error("Failed to resolve consolidator record for this order. Printing cancelled to prevent incomplete applied quantity updates.");
             }
 
-            // 1c. Resolve isOfficial status for the selected receipt type
+            // 1c. Resolve isOfficial / is_thermal status for the selected receipt type
             let isOfficial = String(order.receipt_type?.isOfficial ?? 1) === "1";
+            let isThermal = order.receipt_type?.is_thermal ?? !isOfficial;
+
             if (receipt_type_id) {
-                const rtRes = await fetch(`${DIRECTUS_BASE}/items/sales_invoice_type/${receipt_type_id}?fields=isOfficial`, {
+                const rtRes = await fetch(`${DIRECTUS_BASE}/items/sales_invoice_type/${receipt_type_id}?fields=isOfficial,is_thermal`, {
                     headers: directusHeaders()
                 });
                 if (rtRes.ok) {
                     const rtData = await rtRes.json();
-                    isOfficial = String(rtData.data?.isOfficial) === "1";
+                    const rtRec = rtData.data;
+                    if (rtRec) {
+                        if (rtRec.is_thermal !== undefined && rtRec.is_thermal !== null) {
+                            isThermal = Boolean(rtRec.is_thermal);
+                            isOfficial = !isThermal;
+                        } else {
+                            isOfficial = String(rtRec.isOfficial) === "1";
+                            isThermal = !isOfficial;
+                        }
+                    }
                 }
             }
 
