@@ -159,6 +159,54 @@ export const InvoicingService = {
         return data.template_config;
     },
 
+    async getTemplates(typeId?: number): Promise<{ id: number; sales_invoice_type_id: number; name: string; is_default: boolean; template_config: ORTemplate }[]> {
+        const url = typeId ? `/api/crm/invoicing/templates?typeId=${typeId}` : `/api/crm/invoicing/templates`;
+        const response = await fetch(url);
+        if (!response.ok) throw new Error("Failed to fetch template list");
+        const data = await response.json();
+        return data.data || [];
+    },
+
+    async createTemplate(payload: { sales_invoice_type_id: number; name: string; is_default?: boolean; template_config: ORTemplate }): Promise<{ success: boolean; data: { id: number; sales_invoice_type_id: number; name: string; is_default: boolean; template_config: ORTemplate } }> {
+        const response = await fetch(`/api/crm/invoicing/templates`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        if (!response.ok) {
+            const errData = await response.json().catch(() => ({}));
+            throw new Error(errData.error || errData.details || "Failed to create template");
+        }
+        return response.json();
+    },
+
+    async updateTemplate(id: number, payload: { name?: string; is_default?: boolean; template_config?: ORTemplate; sales_invoice_type_id?: number }): Promise<{ success: boolean; data: unknown }> {
+        const response = await fetch(`/api/crm/invoicing/templates/${id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        if (!response.ok) {
+            const errData = await response.json().catch(() => ({}));
+            throw new Error(errData.error || errData.details || "Failed to update template");
+        }
+        return response.json();
+    },
+
+    async deleteTemplate(id: number): Promise<{ success: boolean }> {
+        const response = await fetch(`/api/crm/invoicing/templates/${id}`, {
+            method: 'DELETE'
+        });
+
+        if (!response.ok) {
+            const errData = await response.json().catch(() => ({}));
+            throw new Error(errData.error || errData.details || "Failed to delete template");
+        }
+        return response.json();
+    },
+
     async saveTemplate(typeId: number, templateConfig: ORTemplate): Promise<{ success: boolean; data: unknown }> {
         const response = await fetch(`/api/crm/invoicing/templates/${typeId}`, {
             method: 'PATCH',

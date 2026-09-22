@@ -39,7 +39,13 @@ interface RawInventoryItem {
 export const fetchInventoryData = async (): Promise<InventoryItem[]> => {
     const response = await fetch("/api/crm/printables/inventory-report-printables");
     if (!response.ok) {
-        const error = await response.json();
+        const errorText = await response.text();
+        let error;
+        try {
+            error = JSON.parse(errorText);
+        } catch {
+            throw new Error(`Failed to fetch inventory data: ${errorText.substring(0, 100)}...`);
+        }
         throw new Error(error.details || "Failed to fetch inventory data");
     }
     const data = await response.json();
