@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { AlertCircle } from "lucide-react";
 import {
     Dialog,
     DialogContent,
@@ -20,15 +21,26 @@ type StoreTypeFormDialogProps = {
     mode: Mode;
     selectedItem: StoreTypeItem | null;
     isSubmitting: boolean;
+    existingItems?: Array<Pick<StoreTypeItem, "id" | "store_type">>;
     onOpenChange: (open: boolean) => void;
     onSubmit: (typeValue: string) => Promise<void>;
 };
+
+function normalizeStoreType(value: string): string {
+    return value
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9]/g, "")
+        .replace(/(stores?|shops?)$/, "")
+        .replace(/s$/, "");
+}
 
 export function StoreTypeFormDialog({
     open,
     mode,
     selectedItem,
     isSubmitting,
+    existingItems,
     onOpenChange,
     onSubmit,
 }: StoreTypeFormDialogProps) {
@@ -48,9 +60,33 @@ export function StoreTypeFormDialog({
             ? "Update the selected store type."
             : "Review the selected store type details.";
 
+    const trimmedValue = typeValue.trim();
+    const normalizedInput = normalizeStoreType(trimmedValue);
+
+    const duplicateMatch = useMemo(() => {
+        if (!trimmedValue) return null;
+        return (
+            existingItems?.find((item) => {
+                if (mode === "edit" && selectedItem && item.id === selectedItem.id) {
+                    return false;
+                }
+                const itemRaw = (item.store_type ?? "").trim();
+                if (itemRaw.toLowerCase() === trimmedValue.toLowerCase()) {
+                    return true;
+                }
+                const itemNorm = normalizeStoreType(itemRaw);
+                if (itemNorm && normalizedInput) {
+                    return itemNorm === normalizedInput;
+                }
+                return false;
+            }) ?? null
+        );
+    }, [trimmedValue, normalizedInput, existingItems, mode, selectedItem]);
+
     const handleSubmit = async () => {
+        if (!trimmedValue || duplicateMatch) return;
         try {
-            await onSubmit(typeValue);
+            await onSubmit(trimmedValue);
         } catch {
             // Error toast is already handled by the hook/provider flow.
         }
@@ -87,11 +123,22 @@ export function StoreTypeFormDialog({
                             placeholder="Enter store type"
                             disabled={isView || isSubmitting}
                             maxLength={50}
-                            className="h-11"
+                            aria-invalid={!!duplicateMatch}
+                            className={`h-11 ${duplicateMatch ? "border-destructive focus-visible:ring-destructive" : ""}`}
                         />
-                        <p className="mt-2 text-xs text-muted-foreground">
-                            This value is used for customer segmentation and reporting.
-                        </p>
+                        {duplicateMatch ? (
+                            <p className="mt-2 flex items-center gap-1.5 text-xs font-medium text-destructive">
+                                <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                                <span>
+                                    Store type already exists as{" "}
+                                    <strong className="underline font-semibold">{duplicateMatch.store_type}</strong>.
+                                </span>
+                            </p>
+                        ) : (
+                            <p className="mt-2 text-xs text-muted-foreground">
+                                This value is used for customer segmentation and reporting.
+                            </p>
+                        )}
                     </div>
 
                     {mode !== "create" && selectedItem?.created_by_name ? (
@@ -105,8 +152,8 @@ export function StoreTypeFormDialog({
                     {!isView ? (
                         <Button
                             onClick={() => void handleSubmit()}
-                            disabled={isSubmitting || !typeValue.trim()}
-                            className="min-w-32 bg-gradient-to-r from-sky-600 to-cyan-600 text-white hover:from-sky-700 hover:to-cyan-700"
+                            disabled={isSubmitting || !trimmedValue || !!duplicateMatch}
+                            className="min-w-32 bg-gradient-to-r from-sky-600 to-cyan-600 text-white hover:from-sky-700 hover:to-cyan-700 disabled:opacity-50"
                         >
                             {isSubmitting ? "Saving..." : mode === "create" ? "Create" : "Save Changes"}
                         </Button>
