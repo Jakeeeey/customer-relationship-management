@@ -16,6 +16,7 @@ export type StoreTypeUserOption = {
 export type StoreTypeListResponse = {
 	ok: boolean;
 	data: StoreTypeItem[];
+	allTypes?: Array<Pick<StoreTypeItem, "id" | "store_type">>;
 	users: StoreTypeUserOption[];
 	message?: string;
 };
