@@ -138,6 +138,7 @@ export interface ConversionItem {
     net_amount: number;
     unit_shortcut: string;
     barcode?: string;
+    price_changeable?: boolean;
 }
 
 export interface ConversionData {

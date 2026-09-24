@@ -57,6 +57,7 @@ interface ReceiptItem {
     unit_shortcut: string;
     ordered_qty: number;
     barcode?: string;
+    price_changeable?: boolean;
 }
 
 interface Receipt {
@@ -141,7 +142,8 @@ export const ConvertToInvoiceModal: React.FC<ConvertToInvoiceModalProps> = ({
                         net_amount: Number(rawDistNet.toFixed(2)),
                         unit_shortcut: item.unit_shortcut,
                         ordered_qty: ordered,
-                        barcode: item.barcode
+                        barcode: item.barcode,
+                        price_changeable: item.price_changeable
                     };
                 })
                 .filter(item => item.qty > 0);
@@ -254,6 +256,7 @@ export const ConvertToInvoiceModal: React.FC<ConvertToInvoiceModalProps> = ({
                                     unit_shortcut: (d.unit_shortcut as string) ?? "",
                                     ordered_qty: d.quantity as number,
                                     barcode: (d.barcode as string) || (d.product_barcode as string) || (convData?.items?.find(c => c.product_id === d.product_id)?.barcode) || "",
+                                    price_changeable: convData?.items?.find(c => c.product_id === d.product_id)?.price_changeable,
                                 }));
 
                             voidItems.forEach(i => allPids.add(i.product_id));
@@ -311,6 +314,7 @@ export const ConvertToInvoiceModal: React.FC<ConvertToInvoiceModalProps> = ({
                                     unit_shortcut: (d.unit_shortcut as string) ?? "",
                                     ordered_qty: d.quantity as number,
                                     barcode: (d.barcode as string) || (d.product_barcode as string) || (convData?.items?.find(c => c.product_id === d.product_id)?.barcode) || "",
+                                    price_changeable: convData?.items?.find(c => c.product_id === d.product_id)?.price_changeable,
                                 }))
                         }));
 
@@ -358,22 +362,21 @@ export const ConvertToInvoiceModal: React.FC<ConvertToInvoiceModalProps> = ({
         setReceipts(receipts.map(r => r.id === id ? { ...r, receipt_no: no } : r));
     };
 
-    const canOverridePrice = order?.salesman_id?.division_id === 1;
-
     const updateItemPrice = (receiptId: string, productId: number, newPrice: number) => {
+        const validPrice = Math.max(0, newPrice);
         setReceipts(receipts.map(r => r.id === receiptId ? {
             ...r,
             items: r.items.map(i => {
                 if (i.product_id === productId) {
                     const dt = discountTypes.find(d => Number(d.id) === Number(i.discount_type));
                     const totalPercent = dt ? Number(dt.total_percent) : 0;
-                    const rawDiscount = (newPrice * i.qty) * (totalPercent / 100);
+                    const rawDiscount = (validPrice * i.qty) * (totalPercent / 100);
                     const roundedDiscount = Number(rawDiscount.toFixed(2));
-                    const rawNet = (newPrice * i.qty) - roundedDiscount;
+                    const rawNet = (validPrice * i.qty) - roundedDiscount;
                     
                     return {
                         ...i,
-                        unit_price: newPrice,
+                        unit_price: validPrice,
                         discount_amount: roundedDiscount,
                         net_amount: Number(rawNet.toFixed(2))
                     };
@@ -512,7 +515,8 @@ export const ConvertToInvoiceModal: React.FC<ConvertToInvoiceModalProps> = ({
             net_amount: Number(rawInitialNet.toFixed(2)),
             unit_shortcut: convItem.unit_shortcut,
             ordered_qty: ordered,
-            barcode: convItem.barcode
+            barcode: convItem.barcode,
+            price_changeable: convItem.price_changeable
         };
 
         if (targetR && targetR.items.length < maxLen) {
@@ -1419,11 +1423,13 @@ export const ConvertToInvoiceModal: React.FC<ConvertToInvoiceModalProps> = ({
                                                                 />
                                                             </div>
                                                             <div className="col-span-2 text-center px-1 flex items-center justify-center">
-                                                                {canOverridePrice && !r.is_void_reference && !order.existing_invoice_no ? (
+                                                                {item.price_changeable && !r.is_void_reference && !order.existing_invoice_no ? (
                                                                     <div className="relative group/price flex items-center justify-center w-full max-w-[110px] mx-auto">
                                                                         <span className="absolute left-2 text-[10px] font-black text-primary/40 pointer-events-none select-none">₱</span>
                                                                         <Input
                                                                             type="number"
+                                                                            min={0}
+                                                                            step="any"
                                                                             value={item.unit_price}
                                                                             onChange={(e) => updateItemPrice(r.id, item.product_id, parseFloat(e.target.value) || 0)}
                                                                             onFocus={(e) => e.target.select()}
