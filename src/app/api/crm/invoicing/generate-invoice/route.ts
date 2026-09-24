@@ -390,6 +390,31 @@ export async function POST(req: NextRequest) {
                         const currentServed = podData.data[0].served_quantity || 0;
                         const newServedQty = currentServed + item.qty;
 
+                        // Server-side validation for price_changeable
+                        const originalUnitPrice = Number(podData.data[0].unit_price || 0);
+                        if (item.unit_price !== originalUnitPrice) {
+                            const supplierId = typeof order.supplier_id === 'object' ? order.supplier_id?.id : order.supplier_id;
+                            let isChangeable = false;
+                            if (supplierId) {
+                                try {
+                                    const ppsRes = await fetch(`${DIRECTUS_BASE}/items/product_per_supplier?filter[supplier_id][_eq]=${supplierId}&filter[product_id][_eq]=${item.product_id}&fields=price_changeable`, {
+                                        headers: directusHeaders()
+                                    });
+                                    if (ppsRes.ok) {
+                                        const ppsData = await ppsRes.json();
+                                        const ppsVal = ppsData.data?.[0]?.price_changeable;
+                                        isChangeable = ppsVal === 1 || ppsVal === true || ppsVal === "1" || ppsVal === "true";
+                                    }
+                                } catch (e) {
+                                    console.warn(`Failed to check price_changeable for supplier ${supplierId}, product ${item.product_id}`, e);
+                                }
+                            }
+                            if (!isChangeable) {
+                                console.warn(`[Security Audit] Unit price override rejected for product ${item.product_id}. Resetting to original price ${originalUnitPrice}.`);
+                                item.unit_price = originalUnitPrice;
+                            }
+                        }
+
                         // Track original served quantity for rollback
                         updatedSalesOrderDetails.push({ detailId, originalQty: currentServed });
 
