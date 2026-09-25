@@ -17,6 +17,7 @@ type DialogMode = "create" | "edit" | "view";
 export default function StoreTypeModule() {
 	const {
 		items,
+		allStoreTypes,
 		userOptions,
 		searchQuery,
 		createdByFilter,
@@ -155,6 +156,7 @@ export default function StoreTypeModule() {
 				mode={dialogMode}
 				selectedItem={selectedItem}
 				isSubmitting={isSubmitting}
+				existingItems={allStoreTypes.length > 0 ? allStoreTypes : items}
 				onOpenChange={setOpen}
 				onSubmit={handleSubmit}
 			/>

@@ -513,7 +513,8 @@ export async function GET(req: NextRequest) {
         // Construct filter object
         const filters: Record<string, string | number | boolean | object>[] = [];
 
-        if (search) {
+        const cleanSearch = search ? search.trim() : "";
+        if (cleanSearch) {
             // ------------------------------------------------------------------
             // KEY CONCEPT: The sales_order table only has `customer_code` (an ID),
             // NOT the customer's name. To enable name-based search, we must first
@@ -522,17 +523,17 @@ export async function GET(req: NextRequest) {
             // commonly needed in APIs that don't support cross-table search.
             // ------------------------------------------------------------------
             const orConditions: Record<string, object>[] = [
-                { "order_no": { "_icontains": search } },
-                { "customer_code": { "_icontains": search } },
-                { "po_no": { "_icontains": search } }
+                { "order_no": { "_icontains": cleanSearch } },
+                { "customer_code": { "_icontains": cleanSearch } },
+                { "po_no": { "_icontains": cleanSearch } }
             ];
 
             // Look up customer codes by customer_name or store_name
             try {
                 const customerSearchFilter = JSON.stringify({
                     "_or": [
-                        { "customer_name": { "_icontains": search } },
-                        { "store_name": { "_icontains": search } }
+                        { "customer_name": { "_icontains": cleanSearch } },
+                        { "store_name": { "_icontains": cleanSearch } }
                     ]
                 });
                 // Limit to 50 matches to prevent 431 Request Header Fields Too Large (URL too long)
@@ -598,7 +599,9 @@ export async function GET(req: NextRequest) {
             filters.push({ "order_status": { "_eq": status } });
         }
 
-        const filterParam = filters.length > 0 ? `&filter=${JSON.stringify({ "_and": filters })}` : "";
+        const filterParam = filters.length > 0 
+            ? `&filter=${encodeURIComponent(JSON.stringify({ "_and": filters }))}` 
+            : "";
         console.log(`[DEBUG] Final Filter Param: ${filterParam}`);
 
         const safeFetch = async (url: string, name: string) => {

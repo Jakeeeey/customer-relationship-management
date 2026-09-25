@@ -333,8 +333,8 @@ const generateOfficialReceipt = async (data: ReceiptData, existingDoc?: jsPDF): 
             if (config.hidden) return;
 
             // Normal text fields
-            const value = fieldValues[key];
-            if (value !== undefined) {
+            const value = config.isCustom ? (config.value || "") : fieldValues[key];
+            if (value !== undefined && value !== "") {
                 renderField(key, value, 0, 0); 
             }
         });
@@ -366,24 +366,21 @@ const generateOfficialReceipt = async (data: ReceiptData, existingDoc?: jsPDF): 
         
         const lines: string[] = doc.splitTextToSize(productName, productNameMaxWidth);
         
-        // Calculate the actual content height for this row
-        const wrappedContentHeight = lines.length * tableLineStep;
-        const actualRowHeight = Math.max(minRowHeight, wrappedContentHeight + 1); // +1mm padding
+        const neededSlots = Math.max(1, lines.length);
+        const actualRowHeight = neededSlots * minRowHeight;
         
-        // Calculate vertical middle for alignment of Qty, Price, etc.
-        const midYOffset = (actualRowHeight - (tableFontSize * 0.3527)) / 2;
+        // Vertical offset centered within slot 1 of the row grid
+        const midYOffset = (minRowHeight - (tableFontSize * 0.3527)) / 2;
 
-        // Barcode (Vertically Centered)
+        // Barcode (Vertically Centered in Slot 1)
         if (cols?.barcode) {
             const barcodeStr = item.barcode || "";
             doc.text(barcodeStr, cols.barcode.x, currentY + midYOffset, { baseline: 'top' });
         }
 
-        // Draw Product Name (Lines)
+        // Draw Product Name (Lines starting in Slot 1)
         lines.forEach((line, lineIdx) => {
-            // Distribute product name lines vertically centered within the row block
-            const blockTopOffset = (actualRowHeight - wrappedContentHeight) / 2;
-            const lineY = currentY + blockTopOffset + (lineIdx * tableLineStep);
+            const lineY = currentY + midYOffset + (lineIdx * tableLineStep);
             doc.text(line, productNameX, lineY, { baseline: 'top' });
         });
         
@@ -393,6 +390,11 @@ const generateOfficialReceipt = async (data: ReceiptData, existingDoc?: jsPDF): 
         // Unit Price (Centered Vertically)
         doc.text(formatCurrency(item.unit_price), cols?.unit_price?.x || 126, currentY + midYOffset, { align: 'right', baseline: 'top' });
         
+        // Discount Amount (Centered Vertically)
+        if (cols?.discount_amount) {
+            doc.text(formatCurrency(item.discount_amount), cols.discount_amount.x, currentY + midYOffset, { align: 'right', baseline: 'top' });
+        }
+
         // Discount (Centered Vertically)
         doc.text(dt ? dt.discount_type.toUpperCase() : (data.is_official ? "" : "NONE"), cols?.discount?.x || 153, currentY + midYOffset, { align: 'right', baseline: 'top' });
         

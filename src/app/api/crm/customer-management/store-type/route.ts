@@ -28,11 +28,15 @@ function normalizeStoreType(value: string): string {
 	return value
 		.trim()
 		.toLowerCase()
-		.replace(/[^a-z0-9]/g, '')
-		.replace(/store$/, '');
+		.replace(/[^a-z0-9]/g, "")
+		.replace(/(stores?|shops?)$/, "")
+		.replace(/s$/, "");
 }
 
-async function isStoreTypeDuplicate(storeType: string, excludeId?: number): Promise<boolean> {
+async function checkStoreTypeDuplicate(
+	storeType: string,
+	excludeId?: number
+): Promise<{ id: number; store_type: string } | null> {
 	const res = await fetch(`${DIRECTUS_URL}/items/store_type?limit=-1&fields=id,store_type`, {
 		headers: buildFetchHeaders(),
 		cache: "no-store",
@@ -44,14 +48,25 @@ async function isStoreTypeDuplicate(storeType: string, excludeId?: number): Prom
 	}
 
 	const rows: Array<Pick<StoreTypeRow, "id" | "store_type">> = (await res.json()).data ?? [];
+	const trimmedInput = storeType.trim().toLowerCase();
 	const normalizedInput = normalizeStoreType(storeType);
 
-	return rows.some((row) => {
-		if (excludeId && row.id === excludeId) {
-			return false;
+	for (const row of rows) {
+		if (excludeId && row.id === excludeId) continue;
+		const rowRaw = (row.store_type ?? "").trim();
+		if (!rowRaw) continue;
+
+		if (rowRaw.toLowerCase() === trimmedInput) {
+			return { id: row.id, store_type: rowRaw };
 		}
-		return normalizeStoreType(row.store_type ?? "") === normalizedInput;
-	});
+
+		const normalizedRow = normalizeStoreType(rowRaw);
+		if (normalizedRow && normalizedInput && normalizedRow === normalizedInput) {
+			return { id: row.id, store_type: rowRaw };
+		}
+	}
+
+	return null;
 }
 
 function buildFetchHeaders() {
@@ -196,6 +211,10 @@ export async function GET(req: NextRequest) {
 		return NextResponse.json({
 			ok: true,
 			data: filtered,
+			allTypes: storeTypes.map((row) => ({
+				id: row.id,
+				store_type: (row.store_type ?? "").trim(),
+			})),
 			users: userOptions,
 		});
 	} catch (error) {
@@ -226,8 +245,12 @@ export async function POST(req: NextRequest) {
 			return NextResponse.json({ ok: false, message: "Type is required." }, { status: 400 });
 		}
 
-		if (await isStoreTypeDuplicate(storeType)) {
-			return NextResponse.json({ ok: false, message: "Type already exists." }, { status: 409 });
+		const duplicate = await checkStoreTypeDuplicate(storeType);
+		if (duplicate) {
+			return NextResponse.json(
+				{ ok: false, message: `Type already exists as "${duplicate.store_type}".` },
+				{ status: 409 }
+			);
 		}
 
 		const currentTime = getCurrentTimeInPHT();
@@ -285,8 +308,12 @@ export async function PATCH(req: NextRequest) {
 			return NextResponse.json({ ok: false, message: "Type is required." }, { status: 400 });
 		}
 
-		if (await isStoreTypeDuplicate(storeType, id)) {
-			return NextResponse.json({ ok: false, message: "Type already exists." }, { status: 409 });
+		const duplicate = await checkStoreTypeDuplicate(storeType, id);
+		if (duplicate) {
+			return NextResponse.json(
+				{ ok: false, message: `Type already exists as "${duplicate.store_type}".` },
+				{ status: 409 }
+			);
 		}
 
 		const currentTime = getCurrentTimeInPHT();

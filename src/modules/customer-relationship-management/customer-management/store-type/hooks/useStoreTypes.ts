@@ -16,6 +16,7 @@ import {
 
 export function useStoreTypes() {
     const [items, setItems] = useState<StoreTypeItem[]>([]);
+    const [allStoreTypes, setAllStoreTypes] = useState<Array<Pick<StoreTypeItem, "id" | "store_type">>>([]);
     const [userOptions, setUserOptions] = useState<StoreTypeUserOption[]>([]);
     const [searchQuery, setSearchQuery] = useState("");
     const [createdByFilter, setCreatedByFilter] = useState("all");
@@ -32,6 +33,9 @@ export function useStoreTypes() {
                 createdBy: createdByFilter,
             });
             setItems(res.data || []);
+            if (res.allTypes && res.allTypes.length > 0) {
+                setAllStoreTypes(res.allTypes);
+            }
             setUserOptions(res.users || []);
         } catch (err) {
             const normalized = err instanceof Error ? err : new Error("Failed to load store type data.");
@@ -96,6 +100,7 @@ export function useStoreTypes() {
 
     return {
         items,
+        allStoreTypes,
         userOptions,
         searchQuery,
         createdByFilter,
