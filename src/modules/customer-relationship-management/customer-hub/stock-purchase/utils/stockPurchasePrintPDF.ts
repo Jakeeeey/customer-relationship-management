@@ -319,9 +319,21 @@ const generateThermalReceipt = async (data: ReceiptData, existingDoc?: jsPDF): P
     };
 
     const leftRight = (left: string, right: string) => {
-        doc.text(left, THERMAL_MARGIN, y);
-        doc.text(right, THERMAL_WIDTH - THERMAL_MARGIN, y, { align: 'right' });
-        y += lineStep;
+        const rightX = THERMAL_WIDTH - THERMAL_MARGIN;
+        const rightWidth = doc.getTextWidth(right);
+        const leftWidth = doc.getTextWidth(left);
+        const availableWidth = rightX - THERMAL_MARGIN;
+
+        if (leftWidth + rightWidth + 2 > availableWidth) {
+            doc.text(left, THERMAL_MARGIN, y);
+            y += lineStep;
+            doc.text(right, rightX, y, { align: 'right' });
+            y += lineStep;
+        } else {
+            doc.text(left, THERMAL_MARGIN, y);
+            doc.text(right, rightX, y, { align: 'right' });
+            y += lineStep;
+        }
     };
 
     const divider = (char = '=') => {
