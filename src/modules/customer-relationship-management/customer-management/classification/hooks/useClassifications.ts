@@ -21,6 +21,9 @@ import {
 
 export function useClassifications() {
 	const [items, setItems] = useState<ClassificationItem[]>([]);
+	const [allClassifications, setAllClassifications] = useState<
+		Array<Pick<ClassificationItem, "id" | "classification_name">>
+	>([]);
 	const [userOptions, setUserOptions] = useState<ClassificationUserOption[]>([]);
 	const [searchQuery, setSearchQuery] = useState("");
 	const [createdByFilter, setCreatedByFilter] = useState("all");
@@ -44,6 +47,9 @@ export function useClassifications() {
 				createdBy: createdByFilter,
 			});
 			setItems(res.data || []);
+			if (res.allClassifications && res.allClassifications.length > 0) {
+				setAllClassifications(res.allClassifications);
+			}
 			setUserOptions(res.users || []);
 		} catch (err) {
 			const normalized =
@@ -106,7 +112,8 @@ export function useClassifications() {
 				payload.classification_name
 			);
 
-			if (hasDuplicateClassificationName(items, classificationName)) {
+			const pool = allClassifications.length > 0 ? allClassifications : items;
+			if (hasDuplicateClassificationName(pool, classificationName)) {
 				const duplicateError = new Error("Type already exists.");
 				toast.error(duplicateError.message);
 				throw duplicateError;
@@ -126,7 +133,7 @@ export function useClassifications() {
 				setIsSubmitting(false);
 			}
 		},
-		[items, loadData]
+		[allClassifications, items, loadData]
 	);
 
 	const update = useCallback(
@@ -135,7 +142,8 @@ export function useClassifications() {
 				payload.classification_name
 			);
 
-			if (hasDuplicateClassificationName(items, classificationName, payload.id)) {
+			const pool = allClassifications.length > 0 ? allClassifications : items;
+			if (hasDuplicateClassificationName(pool, classificationName, payload.id)) {
 				const duplicateError = new Error("Type already exists.");
 				toast.error(duplicateError.message);
 				throw duplicateError;
@@ -158,7 +166,7 @@ export function useClassifications() {
 				setIsSubmitting(false);
 			}
 		},
-		[items, loadData]
+		[allClassifications, items, loadData]
 	);
 
 	const submitDialog = useCallback(
@@ -182,6 +190,7 @@ export function useClassifications() {
 
 	return {
 		items,
+		allClassifications,
 		paginatedItems,
 		userOptions,
 		searchQuery,

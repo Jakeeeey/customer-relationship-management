@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Search, Plus, Trash2, Loader2, ShoppingCart, Package } from "lucide-react";
+import { Search, Plus, Trash2, Loader2, ShoppingCart, Package, RefreshCw } from "lucide-react";
 import { formatCurrency, calculateChainNetPrice } from "../utils/priceCalc";
 import { LineItem, Product } from "../types";
 
@@ -15,6 +15,7 @@ interface SalesOrderEncodingProps {
     loadingProducts: boolean;
     productSearch: string;
     setProductSearch: (search: string) => void;
+    onRefreshProducts?: () => void;
     lineItems: LineItem[];
     addProduct: (product: Product, qty: number, uom: string) => void;
     removeLineItem: (id: string) => void;
@@ -38,7 +39,7 @@ interface SalesOrderEncodingProps {
 }
 
 export function SalesOrderEncoding({
-    products, loadingProducts, productSearch, setProductSearch, lineItems,
+    products, loadingProducts, productSearch, setProductSearch, onRefreshProducts, lineItems,
     addProduct, removeLineItem, updateLineItemQty,
     summary, onSubmit, submitting
 }: SalesOrderEncodingProps) {
@@ -84,6 +85,16 @@ export function SalesOrderEncoding({
                             title={showOnlyAvailable ? "Showing In-Stock Only" : "Show All Products"}
                         >
                             <Package className={`h-4 w-4 ${showOnlyAvailable ? "animate-pulse" : ""}`} />
+                        </Button>
+                        <Button
+                            variant="outline"
+                            size="icon"
+                            disabled={loadingProducts || !onRefreshProducts}
+                            className="h-9 w-9 border-slate-200 bg-white text-slate-500 hover:text-primary hover:bg-slate-50 transition-all shadow-sm shrink-0"
+                            onClick={onRefreshProducts}
+                            title="Force Refresh / Sync Catalog"
+                        >
+                            <RefreshCw className={`h-4 w-4 ${loadingProducts ? "animate-spin text-primary" : ""}`} />
                         </Button>
                     </div>
                     <CardContent className="p-0 flex-1 overflow-y-auto max-h-[600px] custom-scrollbar">

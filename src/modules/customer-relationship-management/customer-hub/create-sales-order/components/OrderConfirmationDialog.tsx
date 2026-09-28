@@ -14,12 +14,11 @@ import { FileEdit, CheckCircle2, AlertCircle, PackageSearch } from "lucide-react
 interface OrderConfirmationDialogProps {
     open: boolean;
     onClose: () => void;
-    onConfirm: (status: "Draft" | "For Approval" | "For Consolidation") => void;
+    onConfirm: (status: "Draft" | "For Approval") => void;
     orderNo: string;
     hasZeroAllocation: boolean;
     isExistingOrder?: boolean;
     existingOrderStatus?: string;
-    targetApprovedStatus?: "For Approval" | "For Consolidation";
 }
 
 export function OrderConfirmationDialog({
@@ -29,10 +28,8 @@ export function OrderConfirmationDialog({
     orderNo,
     hasZeroAllocation,
     isExistingOrder = false,
-    existingOrderStatus,
-    targetApprovedStatus = "For Approval"
+    existingOrderStatus
 }: OrderConfirmationDialogProps) {
-    const isConsolidation = targetApprovedStatus === "For Consolidation";
     return (
         <Dialog open={open} onOpenChange={onClose}>
             <DialogContent className="sm:max-w-[450px] p-0 overflow-hidden border-none bg-white/95 backdrop-blur-xl shadow-2xl rounded-3xl">
@@ -60,8 +57,8 @@ export function OrderConfirmationDialog({
                                 <span className="text-xs font-black text-amber-700 uppercase tracking-tighter">Partial Allocation Detected</span>
                                 <span className="text-[11px] font-medium text-amber-600/80 leading-relaxed mt-0.5">
                                     {isExistingOrder 
-                                        ? `This is an existing record with zero-allocation items. Submit to ${isConsolidation ? "Consolidation" : "Approval"} to commit these changes.`
-                                        : `Some items have zero allocation. Would you like to save this as a Draft for later fulfillment or proceed directly to ${isConsolidation ? "Consolidation" : "Approval"}?`}
+                                        ? "This is an existing record with zero-allocation items. Submit for approval to commit these changes."
+                                        : "Some items have zero allocation. Would you like to save this as a Draft for later fulfillment or proceed directly to Approval?"}
                                 </span>
                             </div>
                         </div>
@@ -82,18 +79,14 @@ export function OrderConfirmationDialog({
 
                         <Button
                             className="h-20 rounded-2xl bg-slate-900 hover:bg-slate-800 text-white flex flex-col items-center justify-center gap-1 transition-all group"
-                            onClick={() => onConfirm(targetApprovedStatus)}
+                            onClick={() => onConfirm("For Approval")}
                         >
                             <div className="flex items-center gap-2 font-black tracking-tight uppercase group-hover:scale-110 transition-transform">
-                                <CheckCircle2 className={`w-5 h-5 ${isConsolidation ? "text-emerald-400" : "text-amber-400"}`} />
-                                {isConsolidation 
-                                    ? (isExistingOrder ? "Commit to Consolidation" : "Submit for Consolidation")
-                                    : (isExistingOrder ? "Commit to Approval" : "Submit for Approval")}
+                                <CheckCircle2 className="w-5 h-5 text-emerald-400" />
+                                {isExistingOrder ? "Commit to Approval" : "Submit for Approval"}
                             </div>
                             <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest opacity-60 italic">
-                                {isConsolidation 
-                                    ? "Bypass Approval (Within Credit Limit)"
-                                    : (isExistingOrder ? "Update status to For Approval" : "Requires Credit Approval")}
+                                {isExistingOrder ? "Update status to For Approval" : "Bypass Draft Workflow"}
                             </span>
                         </Button>
                     </div>

@@ -123,7 +123,6 @@ interface HeaderPayload {
     draft_at?: string;
     pending_date?: string;
     for_approval_at?: string;
-    for_consolidation_at?: string;
     po_no?: string;
     due_date?: string | null;
     delivery_date?: string | null;
@@ -148,6 +147,7 @@ interface DiscountItem {
     discount_type?: number;
     discount_type_id?: number;
     unit_price?: number | string;
+    deleted_at?: string | null;
 }
 
 export async function GET(req: NextRequest) {
@@ -463,12 +463,13 @@ export async function GET(req: NextRequest) {
                             const nowTime = Date.now();
                             let invDataToProcess: Record<string, unknown>[] = [];
                             let inventoryIsOk = true;
+                            const forceRefresh = searchParams.get("force_refresh") === "true" || searchParams.get("refresh") === "true";
 
-                            if (globalCachedInventory[invUrl] && (nowTime - (globalCachedInventoryTime[invUrl] || 0) < 5 * 60 * 1000)) {
+                            if (!forceRefresh && globalCachedInventory[invUrl] && (nowTime - (globalCachedInventoryTime[invUrl] || 0) < 5 * 60 * 1000)) {
                                 invDataToProcess = globalCachedInventory[invUrl];
                                 console.log(`[InventoryDebug] Using cached inventory. Records: ${invDataToProcess.length}`);
                             } else {
-                                console.log(`[InventoryDebug] Fetching fresh inventory: ${invUrl}`);
+                                console.log(`[InventoryDebug] Fetching fresh inventory (forceRefresh=${forceRefresh}): ${invUrl}`);
                                 const inventoryRes = await fetch(invUrl, {
                                     headers: {
                                         "Accept": "application/json",
@@ -573,7 +574,8 @@ export async function GET(req: NextRequest) {
 
                 const allIds = Array.from(allProductsMap.keys());
                 const l1Items = await fetchInChunks<DiscountItem>(`${DIRECTUS_URL}/items/product_per_customer?filter[customer_code][_eq]=${customerCode}&fields=product_id,unit_price,discount_type`, allIds, "product_id");
-                const l2Items: DiscountItem[] = (await (await fetch(`${DIRECTUS_URL}/items/supplier_category_discount_per_customer?filter[customer_code][_eq]=${customerCode}&filter[supplier_id][_eq]=${supplierId}&limit=-1`, { headers: fetchHeaders })).json()).data || [];
+                const rawL2Items: DiscountItem[] = (await (await fetch(`${DIRECTUS_URL}/items/supplier_category_discount_per_customer?filter[customer_code][_eq]=${customerCode}&filter[supplier_id][_eq]=${supplierId}&filter[deleted_at][_null]=true&limit=-1`, { headers: fetchHeaders })).json()).data || [];
+                const l2Items: DiscountItem[] = rawL2Items.filter(item => !item.deleted_at);
 
                 let l4Items: DiscountItem[] = [];
                 if (customerId) {
@@ -1103,7 +1105,6 @@ export async function POST(req: NextRequest) {
                 ...(orderStatus === "Draft" ? { draft_at: nowStr } : {}),
                 ...(orderStatus === "Pending" ? { pending_date: nowStr } : {}),
                 ...(orderStatus === "For Approval" ? { for_approval_at: nowStr } : {}),
-                ...(orderStatus === "For Consolidation" ? { for_consolidation_at: nowStr, approved_at: nowStr } : {}),
             };
 
             if (header.po_no) headerPayload.po_no = header.po_no;
@@ -1139,7 +1140,6 @@ export async function POST(req: NextRequest) {
                 ...(orderStatus === "Draft" ? { draft_at: nowStr } : {}),
                 ...(orderStatus === "Pending" ? { pending_date: nowStr } : {}),
                 ...(orderStatus === "For Approval" ? { for_approval_at: nowStr } : {}),
-                ...(orderStatus === "For Consolidation" ? { for_consolidation_at: nowStr, approved_at: nowStr } : {}),
             };
         }
 

@@ -233,13 +233,9 @@ export function StockPurchaseEncoding({
                         </div>
                         <Badge 
                             variant="outline" 
-                            className={`px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest ${
-                                isLimitReached && maxLength !== Infinity
-                                    ? 'bg-rose-50 text-rose-500 border-rose-200 animate-pulse' 
-                                    : 'bg-primary/10 text-primary border-primary/20'
-                            }`}
+                            className="px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest bg-primary/10 text-primary border-primary/20"
                         >
-                            {cart.length}{maxLength !== Infinity ? ` / ${maxLength}` : ""} ITEMS
+                            {cart.length} ITEMS
                         </Badge>
                     </CardHeader>
 

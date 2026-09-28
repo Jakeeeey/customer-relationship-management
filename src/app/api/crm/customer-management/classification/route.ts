@@ -35,10 +35,14 @@ function normalizeClassificationName(value: string): string {
 	return value
 		.trim()
 		.toLowerCase()
-		.replace(/[^a-z0-9]/g, '');
+		.replace(/[^a-z0-9]/g, "")
+		.replace(/s$/, "");
 }
 
-async function isClassificationDuplicate(classificationName: string, excludeId?: number): Promise<boolean> {
+async function checkClassificationDuplicate(
+	classificationName: string,
+	excludeId?: number
+): Promise<{ id: number; classification_name: string } | null> {
 	const response = await fetch(
 		`${DIRECTUS_URL}/items/customer_classification?limit=-1&fields=id,classification_name`,
 		{
@@ -54,14 +58,25 @@ async function isClassificationDuplicate(classificationName: string, excludeId?:
 
 	const rows: Array<Pick<ClassificationRow, "id" | "classification_name">> =
 		(await response.json()).data ?? [];
+	const trimmedInput = classificationName.trim().toLowerCase();
 	const normalizedInput = normalizeClassificationName(classificationName);
 
-	return rows.some((row) => {
-		if (excludeId && row.id === excludeId) {
-			return false;
+	for (const row of rows) {
+		if (excludeId && row.id === excludeId) continue;
+		const rowRaw = (row.classification_name ?? "").trim();
+		if (!rowRaw) continue;
+
+		if (rowRaw.toLowerCase() === trimmedInput) {
+			return { id: row.id, classification_name: rowRaw };
 		}
-		return normalizeClassificationName(row.classification_name ?? "") === normalizedInput;
-	});
+
+		const normalizedRow = normalizeClassificationName(rowRaw);
+		if (normalizedRow && normalizedInput && normalizedRow === normalizedInput) {
+			return { id: row.id, classification_name: rowRaw };
+		}
+	}
+
+	return null;
 }
 
 function decodeUserIdFromJwt(token: string): number | null {
@@ -199,6 +214,10 @@ export async function GET(req: NextRequest) {
 		return NextResponse.json({
 			ok: true,
 			data: filtered,
+			allClassifications: rows.map((row) => ({
+				id: row.id,
+				classification_name: (row.classification_name ?? "").trim(),
+			})),
 			users: userOptions,
 		});
 	} catch (error) {
@@ -236,8 +255,12 @@ export async function POST(req: NextRequest) {
 			);
 		}
 
-		if (await isClassificationDuplicate(classificationName)) {
-			return NextResponse.json({ ok: false, message: "Type already exists." }, { status: 409 });
+		const duplicate = await checkClassificationDuplicate(classificationName);
+		if (duplicate) {
+			return NextResponse.json(
+				{ ok: false, message: `Type already exists as "${duplicate.classification_name}".` },
+				{ status: 409 }
+			);
 		}
 
 		const currentTime = getCurrentTimeInPHT();
@@ -302,8 +325,12 @@ export async function PATCH(req: NextRequest) {
 			);
 		}
 
-		if (await isClassificationDuplicate(classificationName, id)) {
-			return NextResponse.json({ ok: false, message: "Type already exists." }, { status: 409 });
+		const duplicate = await checkClassificationDuplicate(classificationName, id);
+		if (duplicate) {
+			return NextResponse.json(
+				{ ok: false, message: `Type already exists as "${duplicate.classification_name}".` },
+				{ status: 409 }
+			);
 		}
 
 		const currentTime = getCurrentTimeInPHT();

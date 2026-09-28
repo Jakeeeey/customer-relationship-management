@@ -35,7 +35,6 @@ export interface Customer {
     payment_term?: number | null;
     province?: string;
     city?: string;
-    credit_limit?: number | string | null;
 }
 
 export interface Supplier {
