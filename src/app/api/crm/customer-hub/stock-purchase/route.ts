@@ -742,11 +742,20 @@ export async function GET(req: NextRequest) {
             const userIds = Array.from(new Set(smData.map((s: Record<string, unknown>) => ((s.employee_id || s.encoder_id || s.user_id) as string | number)?.toString()).filter(Boolean)));
             if (userIds.length === 0) return NextResponse.json([]);
             const uRes = await fetch(`${DIRECTUS_URL}/items/user?filter[user_id][_in]=${userIds.join(',')}&limit=-1`, { headers: fetchHeaders });
-            return NextResponse.json((await uRes.json()).data || []);
+            const uData = (await uRes.json()).data || [];
+            const final = uData.map((u: Record<string, unknown>) => ({
+                ...u,
+                linked_account_ids: smData.filter((s: Record<string, unknown>) => ((s.employee_id || s.encoder_id || s.user_id) as string | number)?.toString() === (u.user_id || u.id)?.toString()).map((s: Record<string, unknown>) => s.id)
+            }));
+            return NextResponse.json(final);
         }
 
         if (type === "accounts") {
             const userId = searchParams.get("userId");
+            if (!userId) {
+                const res = await fetch(`${DIRECTUS_URL}/items/salesman?filter[isActive][_eq]=1&fields=id,salesman_name,salesman_code,price_type,price_type_id,branch_code&limit=-1`, { headers: fetchHeaders });
+                return NextResponse.json((await res.json()).data || []);
+            }
             const res = await fetch(`${DIRECTUS_URL}/items/salesman?filter[_or][0][employee_id][_eq]=${userId}&filter[_or][1][encoder_id][_eq]=${userId}&filter[isActive][_eq]=1&fields=id,salesman_name,salesman_code,price_type,price_type_id,branch_code&limit=-1`, { headers: fetchHeaders });
             return NextResponse.json((await res.json()).data || []);
         }
