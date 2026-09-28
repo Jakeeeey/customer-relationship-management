@@ -164,7 +164,7 @@ export default async function ERPMainDashboardPage() {
             }
         }
 
-        console.log("[Announcement Debug] Starting direct fetch process from directusBase:", directusUrl);
+        if (process.env.NODE_ENV === 'development') console.log("[Announcement Debug] Starting direct fetch process from directusBase:", directusUrl);
 
         // Step 1: Resolve the default company (is_default = 1)
         const defaultCompanyRes = await fetch(
@@ -179,11 +179,11 @@ export default async function ERPMainDashboardPage() {
                 defaultCompanyId = Number(firstCompany.company_id);
             }
         }
-        console.log(`[Announcement Debug] Default company_id: ${defaultCompanyId}`);
+        if (process.env.NODE_ENV === 'development') console.log(`[Announcement Debug] Default company_id: ${defaultCompanyId}`);
 
         // If no default company is configured, show nothing
         if (!defaultCompanyId) {
-            console.log("[Announcement Debug] No default company found — skipping memo fetch.");
+            if (process.env.NODE_ENV === 'development') console.log("[Announcement Debug] No default company found — skipping memo fetch.");
         } else {
             // Resolve memo IDs linked to this default company
             const linkedMemosRes = await fetch(
@@ -198,11 +198,11 @@ export default async function ERPMainDashboardPage() {
                     .map((item: { company_memo_id: number }) => Number(item.company_memo_id))
                     .filter(Boolean);
             }
-            console.log(`[Announcement Debug] Linked memo IDs for default company:`, linkedMemoIds);
+            if (process.env.NODE_ENV === 'development') console.log(`[Announcement Debug] Linked memo IDs for default company:`, linkedMemoIds);
 
             // If no memos are linked to the default company, don't fetch any
             if (linkedMemoIds.length === 0) {
-                console.log("[Announcement Debug] No memos linked to default company — skipping memo fetch.");
+                if (process.env.NODE_ENV === 'development') console.log("[Announcement Debug] No memos linked to default company — skipping memo fetch.");
             } else {
                 const memoFilter = JSON.stringify({
                     _and: [
@@ -213,7 +213,7 @@ export default async function ERPMainDashboardPage() {
                 });
 
                 const memoUrl = `${directusUrl}/items/company_memo?filter=${encodeURIComponent(memoFilter)}&sort=-id,-created_at&fields=*,from.company_id,from.company_name,from.company_code`;
-                console.log(`[Announcement Debug] Fetching memos from URL: ${memoUrl}`);
+                if (process.env.NODE_ENV === 'development') console.log(`[Announcement Debug] Fetching memos from URL: ${memoUrl}`);
                 const memoRes = await fetch(memoUrl, {
                     headers: { "Authorization": `Bearer ${targetToken}` },
                     next: { revalidate: 0 }
@@ -222,7 +222,7 @@ export default async function ERPMainDashboardPage() {
             if (memoRes.ok) {
                 const memoJson = await memoRes.json();
                 const memos = memoJson.data || [];
-                console.log(`[Announcement Debug] Fetched ${memos.length} memos`);
+                if (process.env.NODE_ENV === 'development') console.log(`[Announcement Debug] Fetched ${memos.length} memos`);
 
                 const parts = new Intl.DateTimeFormat("en-US", {
                     timeZone: "Asia/Manila",
@@ -235,18 +235,18 @@ export default async function ERPMainDashboardPage() {
                 const month = parts.find(p => p.type === 'month')?.value;
                 const day = parts.find(p => p.type === 'day')?.value;
                 const currentDateStr = `${year}-${month}-${day}`;
-                console.log(`[Announcement Debug] Current PHT Date: ${currentDateStr}`);
+                if (process.env.NODE_ENV === 'development') console.log(`[Announcement Debug] Current PHT Date: ${currentDateStr}`);
 
                 const matchingMemos = memos.filter((memo: CompanyMemo) => {
                     const start = memo.start_date?.split("T")[0];
                     const end = memo.end_date?.split("T")[0];
                     const isMatch = !!(start && end && currentDateStr >= start && currentDateStr <= end);
-                    console.log(`[Announcement Debug] Comparing memo ID ${memo.id} (Subject: ${memo.subject}): start=${start}, end=${end}, match=${isMatch}`);
+                    if (process.env.NODE_ENV === 'development') console.log(`[Announcement Debug] Comparing memo ID ${memo.id} (Subject: ${memo.subject}): start=${start}, end=${end}, match=${isMatch}`);
                     return isMatch;
                 });
 
                 if (matchingMemos.length > 0) {
-                    console.log(`[Announcement Debug] Matching memos found count: ${matchingMemos.length}`);
+                    if (process.env.NODE_ENV === 'development') console.log(`[Announcement Debug] Matching memos found count: ${matchingMemos.length}`);
 
                     const matchingMemoIds = matchingMemos.map((m: CompanyMemo) => m.id);
                     const attachmentFilter = JSON.stringify({
@@ -263,7 +263,7 @@ export default async function ERPMainDashboardPage() {
                         const attachmentJson = await attachmentRes.json();
                         attachments = attachmentJson.data || [];
                     }
-                    console.log(`[Announcement Debug] Fetched ${attachments.length} total attachments for matching memos`);
+                    if (process.env.NODE_ENV === 'development') console.log(`[Announcement Debug] Fetched ${attachments.length} total attachments for matching memos`);
 
                     announcementsData = matchingMemos.map((memo: CompanyMemo & { from?: { company_id: number; company_name?: string; company_code?: string } | number }) => {
                         let issued_by_code: string | undefined;
@@ -279,15 +279,15 @@ export default async function ERPMainDashboardPage() {
                         };
                     });
                 } else {
-                    console.log("[Announcement Debug] No matching memos for current date range");
+                    if (process.env.NODE_ENV === 'development') console.log("[Announcement Debug] No matching memos for current date range");
                 }
             } else {
-                console.error("[Announcement Debug] Memo fetch failed with status:", memoRes.status, await memoRes.text().catch(() => ""));
+                if (process.env.NODE_ENV === 'development') console.error("[Announcement Debug] Memo fetch failed with status:", memoRes.status, await memoRes.text().catch(() => ""));
             }
         }
     }
     } catch (err) {
-        console.error("[Announcement Debug] Caught exception in fetch process:", err);
+        if (process.env.NODE_ENV === 'development') console.error("[Announcement Debug] Caught exception in fetch process:", err);
     }
 
     const userFullName = [payload.FirstName, payload.LastName].filter(Boolean).join(" ") || "User";
