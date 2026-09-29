@@ -594,8 +594,11 @@ export async function GET(req: NextRequest) {
 
                 const allIds = Array.from(allProductsMap.keys());
                 const l1Items = await fetchInChunks<DiscountItem>(`${DIRECTUS_URL}/items/product_per_customer?filter[customer_code][_eq]=${customerCode}&fields=product_id,unit_price,discount_type`, allIds, "product_id");
-                const l2Raw: DiscountItem[] = (await (await fetch(`${DIRECTUS_URL}/items/supplier_category_discount_per_customer?filter[customer_code][_eq]=${customerCode}&filter[supplier_id][_eq]=${supplierId}&filter[deleted_at][_null]=true&limit=-1`, { headers: fetchHeaders })).json()).data || [];
-                const l2Items = l2Raw.filter((item) => !item.deleted_at);
+                const l2Raw: DiscountItem[] = (await (await fetch(`${DIRECTUS_URL}/items/supplier_category_discount_per_customer?filter[customer_code][_eq]=${customerCode}&filter[supplier_id][_eq]=${supplierId}&filter[deleted_at][_null]=true&sort=-id&limit=-1`, { headers: fetchHeaders })).json()).data || [];
+                // Sort descending by id as an in-memory guarantee that the latest created/updated record is always first
+                const l2Items = l2Raw
+                    .filter((item) => !item.deleted_at)
+                    .sort((a, b) => (Number(b.id) || 0) - (Number(a.id) || 0));
 
                 let l4Items: DiscountItem[] = [];
                 if (customerId) {
