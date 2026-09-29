@@ -644,6 +644,45 @@ export function useSalesOrder() {
         }
     }, [debouncedProductSearch, selectedCustomerId, selectedSupplierId, priceType, priceTypeId, selectedAccountId, selectedBranchId, customers]);
 
+    // Force-refresh products by purging cache and querying fresh data
+    const refreshProducts = useCallback(async () => {
+        if (!selectedCustomerId || !selectedSupplierId) {
+            toast.info("Please select a customer and supplier first");
+            return;
+        }
+
+        const customer = customers.find(c => c.id.toString() === selectedCustomerId);
+        const customerCode = customer?.customer_code;
+        const customerId = selectedCustomerId;
+        const supplierId = selectedSupplierId;
+        const sSalesmanId = selectedAccountId;
+        const sBranchId = selectedBranchId;
+
+        if (!customerCode) return;
+
+        setLoadingProducts(true);
+        try {
+            const productsData = await salesOrderProvider.searchProducts(
+                debouncedProductSearch,
+                customerCode,
+                Number(supplierId),
+                priceType,
+                Number(customerId),
+                priceTypeId || undefined,
+                sSalesmanId,
+                sBranchId,
+                true // forceRefresh
+            );
+            setSupplierProducts(Array.isArray(productsData) ? productsData : []);
+            toast.success("Product catalog refreshed successfully");
+        } catch (e) {
+            console.error("[useSalesOrder] Force refresh failed:", e);
+            toast.error("Failed to refresh product catalog");
+        } finally {
+            setLoadingProducts(false);
+        }
+    }, [debouncedProductSearch, selectedCustomerId, selectedSupplierId, selectedAccountId, selectedBranchId, priceType, priceTypeId, customers]);
+
     // Sync cart items with freshly fetched products (especially 'available' stock info)
     useEffect(() => {
         if (supplierProducts.length > 0 && lineItems.length > 0) {
@@ -1016,7 +1055,7 @@ export function useSalesOrder() {
         deliveryDate, setDeliveryDate,
         poNo, setPoNo,
         priceType, priceTypeId, priceTypeModels,
-        supplierProducts, loadingProducts,
+        supplierProducts, loadingProducts, refreshProducts,
         productSearch, setProductSearch,
         lineItems,
         addProduct, removeLineItem, updateLineItemQty,

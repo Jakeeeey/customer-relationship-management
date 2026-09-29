@@ -22,7 +22,7 @@ export default function CreateSalesOrderModule({ documentViewerUrl }: { document
         deliveryDate, setDeliveryDate,
         poNo, setPoNo,
         priceTypeId, priceTypeModels,
-        supplierProducts, loadingProducts,
+        supplierProducts, loadingProducts, refreshProducts,
         productSearch, setProductSearch,
         lineItems, addProduct, removeLineItem, updateLineItemQty,
         summary,
@@ -180,6 +180,7 @@ export default function CreateSalesOrderModule({ documentViewerUrl }: { document
                             loadingProducts={loadingProducts}
                             productSearch={productSearch}
                             setProductSearch={setProductSearch}
+                            onRefreshProducts={refreshProducts}
                             lineItems={lineItems}
                             addProduct={addProduct}
                             removeLineItem={removeLineItem}

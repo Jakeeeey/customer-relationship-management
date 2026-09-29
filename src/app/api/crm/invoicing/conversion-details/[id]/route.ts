@@ -103,6 +103,9 @@ export async function GET(
 
         const productMap: Record<string, { name: string; unit: string; barcode: string }> = {};
 
+        const supplierId = normalizeId(order.supplier_id);
+        const priceChangeableMap: Record<string, boolean> = {};
+
         if (productIds.length > 0) {
             // Fetch product_name and unit_shortcut
             const prodUrl = `${DIRECTUS_BASE}/items/products?filter[product_id][_in]=${productIds.join(",")}&fields=product_id,product_name,barcode,unit_of_measurement.unit_shortcut`;
@@ -119,6 +122,26 @@ export async function GET(
                 }
             });
             console.log(`[Conversion API] Mapped ${Object.keys(productMap).length} product names and units`);
+
+            // Fetch price_changeable from product_per_supplier
+            if (supplierId) {
+                try {
+                    const ppsUrl = `${DIRECTUS_BASE}/items/product_per_supplier?filter[supplier_id][_eq]=${supplierId}&filter[product_id][_in]=${productIds.join(",")}&fields=product_id,price_changeable`;
+                    const ppsRes = await fetch(ppsUrl, { headers: directusHeaders() });
+                    if (ppsRes.ok) {
+                        const ppsData = await ppsRes.json();
+                        (ppsData.data || []).forEach((pps: { product_id: unknown; price_changeable: unknown }) => {
+                            const pid = normalizeId(pps.product_id);
+                            if (pid) {
+                                const val = pps.price_changeable;
+                                priceChangeableMap[String(pid)] = val === 1 || val === true || val === "1" || val === "true";
+                            }
+                        });
+                    }
+                } catch (e) {
+                    console.error("Failed to fetch product_per_supplier price_changeable:", e);
+                }
+            }
         }
 
         // 4. Find the LATEST Consolidator and Logistics Info (Source of Truth)
@@ -196,7 +219,8 @@ export async function GET(
                 discount_amount: sod.discount_amount,
                 net_amount: sod.net_amount,
                 unit_shortcut: ushortcut,
-                barcode: pInfo.barcode
+                barcode: pInfo.barcode,
+                price_changeable: priceChangeableMap[pidStr] ?? false
             };
         });
 

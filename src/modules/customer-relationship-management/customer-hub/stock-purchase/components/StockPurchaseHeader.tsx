@@ -100,6 +100,14 @@ export function StockPurchaseHeader({
     const [loading, setLoading] = useState(false);
     const [hasMore, setHasMore] = useState(true);
 
+    const selectedInvoiceTypeObj = invoiceTypes.find(t => t.id.toString() === selectedInvoiceType);
+    const isCashSalesInvoice = selectedInvoiceTypeObj
+        ? (selectedInvoiceTypeObj.type?.toUpperCase().includes("CASH SALES") ||
+           selectedInvoiceTypeObj.type?.toUpperCase().includes("CASH INVOICE") ||
+           selectedInvoiceTypeObj.shortcut?.toUpperCase() === "CSI" ||
+           selectedInvoiceTypeObj.shortcut?.toUpperCase() === "CS")
+        : false;
+
     useEffect(() => {
         if (customers && customers.length > 0) {
             setLocalCustomers(customers);
@@ -479,17 +487,17 @@ export function StockPurchaseHeader({
                     </Popover>
                 </div>
 
-                {/* 11. ORDER ID */}
+                {/* 11. ORDER ID / INVOICE NO */}
                 <div className="space-y-2">
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">
-                        Order ID <span className="text-rose-500">*</span>
+                        {isCashSalesInvoice ? "Invoice Number" : "Order ID"} <span className="text-rose-500">*</span>
                     </label>
                     <div className="relative group">
                         <Hash className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-300" />
                         <Input
                             value={previewInvoiceNo || ""}
                             onChange={(e) => onInvoiceNoChange?.(e.target.value)}
-                            placeholder="Enter Order ID..."
+                            placeholder={isCashSalesInvoice ? "Enter Invoice Number..." : "Enter Order ID..."}
                             className={cn(
                                 "h-12 pl-12 pr-10 rounded-xl text-[11px] font-black uppercase tracking-tight shadow-sm transition-all duration-300",
                                 orderIdExists
@@ -503,7 +511,7 @@ export function StockPurchaseHeader({
                     </div>
                     {orderIdExists && (
                         <p className="text-[9px] font-black uppercase tracking-tight text-rose-500 mt-1 pl-1 animate-in fade-in slide-in-from-top-1 duration-300">
-                            This Order ID is already taken. Please enter a unique one.
+                            This {isCashSalesInvoice ? "Invoice Number" : "Order ID"} is already taken. Please enter a unique one.
                         </p>
                     )}
                 </div>

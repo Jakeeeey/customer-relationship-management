@@ -16,6 +16,7 @@ export type ClassificationUserOption = {
 export type ClassificationListResponse = {
 	ok: boolean;
 	data: ClassificationItem[];
+	allClassifications?: Array<Pick<ClassificationItem, "id" | "classification_name">>;
 	users: ClassificationUserOption[];
 	message?: string;
 };
