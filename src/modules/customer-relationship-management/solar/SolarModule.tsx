@@ -83,9 +83,13 @@ export default function SolarModule() {
   const handleLoadSavedQuotation = (q: SolarQuotation) => {
     loadQuotation({
       customerId: q.customer_id,
-      billMonth1: q.bill_month_1,
-      billMonth2: q.bill_month_2,
-      billMonth3: q.bill_month_3,
+      inputMode: q.input_mode || "amount",
+      billMonth1: q.bill_month_1 || 0,
+      billMonth2: q.bill_month_2 || 0,
+      billMonth3: q.bill_month_3 || 0,
+      kwhMonth1: q.kwh_month_1 || 0,
+      kwhMonth2: q.kwh_month_2 || 0,
+      kwhMonth3: q.kwh_month_3 || 0,
       electricityRate: q.electricity_rate,
       designAllowance: q.design_allowance_percent,
       systemType: q.system_type,

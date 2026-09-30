@@ -7,13 +7,20 @@ import { z } from "zod";
 export const SystemTypeEnum = z.enum(["on_grid", "hybrid"]);
 export type SystemType = z.infer<typeof SystemTypeEnum>;
 
+export const InputModeEnum = z.enum(["amount", "kwh"]);
+export type InputMode = z.infer<typeof InputModeEnum>;
+
 export const SolarInputSchema = z.object({
   customerId: z.union([z.number(), z.string()]).refine((val) => Boolean(val), {
     message: "Customer selection is required",
   }),
+  inputMode: InputModeEnum.default("amount"),
   billMonth1: z.number().min(0, "Bill must be 0 or greater").default(0),
   billMonth2: z.number().min(0, "Bill must be 0 or greater").default(0),
   billMonth3: z.number().min(0, "Bill must be 0 or greater").default(0),
+  kwhMonth1: z.number().min(0, "kWh must be 0 or greater").default(0),
+  kwhMonth2: z.number().min(0, "kWh must be 0 or greater").default(0),
+  kwhMonth3: z.number().min(0, "kWh must be 0 or greater").default(0),
   electricityRate: z.number().positive("Rate must be greater than 0").default(12.5),
   designAllowance: z.number().min(0, "Allowance cannot be negative").max(100, "Max allowance is 100%").default(30),
   systemType: SystemTypeEnum.default("hybrid"),
@@ -74,9 +81,13 @@ export const SolarQuotationSchema = z.object({
   province: z.string().optional(),
   
   // Inputs
-  bill_month_1: z.number(),
-  bill_month_2: z.number(),
-  bill_month_3: z.number(),
+  input_mode: InputModeEnum.default("amount"),
+  bill_month_1: z.number().default(0),
+  bill_month_2: z.number().default(0),
+  bill_month_3: z.number().default(0),
+  kwh_month_1: z.number().nullish(),
+  kwh_month_2: z.number().nullish(),
+  kwh_month_3: z.number().nullish(),
   average_bill: z.number(),
   electricity_rate: z.number(),
   design_allowance_percent: z.number(),

@@ -4,7 +4,8 @@ import { useMemo, useState } from "react";
 import { 
   SolarFormInput, 
   SolarCalculationResult, 
-  SystemType 
+  SystemType,
+  InputMode
 } from "../types/solar.schema";
 
 const PEAK_SUN_HOURS_PER_DAY = 3.6;
@@ -16,9 +17,13 @@ const SQM_PER_PANEL = 3.1; // ~3.1 m² roof allowance per panel
 export function useSolarCalculator(initialValues?: Partial<SolarFormInput>) {
   const [formData, setFormData] = useState<SolarFormInput>({
     customerId: initialValues?.customerId || "",
+    inputMode: initialValues?.inputMode ?? "amount",
     billMonth1: initialValues?.billMonth1 ?? 0,
     billMonth2: initialValues?.billMonth2 ?? 0,
     billMonth3: initialValues?.billMonth3 ?? 0,
+    kwhMonth1: initialValues?.kwhMonth1 ?? 0,
+    kwhMonth2: initialValues?.kwhMonth2 ?? 0,
+    kwhMonth3: initialValues?.kwhMonth3 ?? 0,
     electricityRate: initialValues?.electricityRate ?? 12.5,
     designAllowance: initialValues?.designAllowance ?? 30,
     systemType: initialValues?.systemType ?? "hybrid",
@@ -32,9 +37,13 @@ export function useSolarCalculator(initialValues?: Partial<SolarFormInput>) {
 
   const calculation = useMemo<SolarCalculationResult>(() => {
     const { 
+      inputMode,
       billMonth1, 
       billMonth2, 
       billMonth3, 
+      kwhMonth1,
+      kwhMonth2,
+      kwhMonth3,
       electricityRate, 
       designAllowance, 
       systemType, 
@@ -42,12 +51,27 @@ export function useSolarCalculator(initialValues?: Partial<SolarFormInput>) {
     } = formData;
 
     const validRate = electricityRate > 0 ? electricityRate : 12.5;
-    const m1 = Number(billMonth1 || 0);
-    const m2 = Number(billMonth2 || 0);
-    const m3 = Number(billMonth3 || 0);
-    const totalBills = m1 + m2 + m3;
-    const avgBill = totalBills > 0 ? Math.round(totalBills / 3) : 0;
-    const hasCalculatedData = avgBill > 0;
+
+    let avgBill = 0;
+    let estimatedMonthlyKwh = 0;
+
+    if (inputMode === "kwh") {
+      const k1 = Number(kwhMonth1 || 0);
+      const k2 = Number(kwhMonth2 || 0);
+      const k3 = Number(kwhMonth3 || 0);
+      const totalKwh = k1 + k2 + k3;
+      estimatedMonthlyKwh = totalKwh > 0 ? Number((totalKwh / 3).toFixed(1)) : 0;
+      avgBill = Math.round(estimatedMonthlyKwh * validRate);
+    } else {
+      const m1 = Number(billMonth1 || 0);
+      const m2 = Number(billMonth2 || 0);
+      const m3 = Number(billMonth3 || 0);
+      const totalBills = m1 + m2 + m3;
+      avgBill = totalBills > 0 ? Math.round(totalBills / 3) : 0;
+      estimatedMonthlyKwh = validRate > 0 && avgBill > 0 ? Number((avgBill / validRate).toFixed(1)) : 0;
+    }
+
+    const hasCalculatedData = avgBill > 0 || estimatedMonthlyKwh > 0;
 
     if (!hasCalculatedData) {
       return {
@@ -77,7 +101,6 @@ export function useSolarCalculator(initialValues?: Partial<SolarFormInput>) {
       };
     }
 
-    const estimatedMonthlyKwh = Number((avgBill / validRate).toFixed(1));
     const dailyEnergyKwh = Number((estimatedMonthlyKwh / DAYS_PER_MONTH).toFixed(2));
 
     // Base solar requirement: Monthly kWh / (30 days * 3.6 PSH)
@@ -173,9 +196,13 @@ export function useSolarCalculator(initialValues?: Partial<SolarFormInput>) {
   const resetForm = () => {
     setFormData({
       customerId: "",
+      inputMode: "amount",
       billMonth1: 0,
       billMonth2: 0,
       billMonth3: 0,
+      kwhMonth1: 0,
+      kwhMonth2: 0,
+      kwhMonth3: 0,
       electricityRate: 12.5,
       designAllowance: 30,
       systemType: "hybrid",
@@ -187,9 +214,13 @@ export function useSolarCalculator(initialValues?: Partial<SolarFormInput>) {
   const loadQuotation = (item: Partial<SolarFormInput>) => {
     setFormData({
       customerId: item.customerId || "",
+      inputMode: item.inputMode ?? "amount",
       billMonth1: item.billMonth1 ?? 0,
       billMonth2: item.billMonth2 ?? 0,
       billMonth3: item.billMonth3 ?? 0,
+      kwhMonth1: item.kwhMonth1 ?? 0,
+      kwhMonth2: item.kwhMonth2 ?? 0,
+      kwhMonth3: item.kwhMonth3 ?? 0,
       electricityRate: item.electricityRate ?? 12.5,
       designAllowance: item.designAllowance ?? 30,
       systemType: item.systemType ?? "hybrid",

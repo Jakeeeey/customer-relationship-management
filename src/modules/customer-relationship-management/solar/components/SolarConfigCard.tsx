@@ -1,20 +1,15 @@
 "use client";
 
-import React, { useState } from "react";
+import React from "react";
 import { SolarFormInput, CustomerOption } from "../types/solar.schema";
 import { 
-  Building2, 
-  MapPin, 
-  Phone, 
-  Sparkles, 
-  Receipt, 
   Sliders, 
-  Cpu, 
+  Receipt, 
   Zap, 
   Network, 
   BatteryMedium, 
-  Info,
-  Check
+  Check,
+  Coins
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -33,8 +28,17 @@ export const SolarConfigCard: React.FC<SolarConfigCardProps> = ({
   updateField,
   selectedCustomer,
 }) => {
+  const isKwhMode = formData.inputMode === "kwh";
+
   const avgBill = Math.round(
     (Number(formData.billMonth1 || 0) + Number(formData.billMonth2 || 0) + Number(formData.billMonth3 || 0)) / 3
+  );
+
+  const avgKwh = Number(
+    (
+      (Number(formData.kwhMonth1 || 0) + Number(formData.kwhMonth2 || 0) + Number(formData.kwhMonth3 || 0)) /
+      3
+    ).toFixed(1)
   );
 
   return (
@@ -55,19 +59,72 @@ export const SolarConfigCard: React.FC<SolarConfigCardProps> = ({
           </div>
         </div>
 
-        {avgBill > 0 && (
-          <Badge variant="outline" className="px-2.5 py-1 text-xs font-bold border-primary/20 bg-primary/5 text-primary">
-            Avg: ₱{avgBill.toLocaleString()}
-          </Badge>
+        {/* Live Calculation Indicator Badge */}
+        {isKwhMode ? (
+          avgKwh > 0 && (
+            <Badge variant="outline" className="px-2.5 py-1 text-xs font-bold border-primary/20 bg-primary/5 text-primary">
+              Avg: {avgKwh.toLocaleString()} kWh
+            </Badge>
+          )
+        ) : (
+          avgBill > 0 && (
+            <Badge variant="outline" className="px-2.5 py-1 text-xs font-bold border-primary/20 bg-primary/5 text-primary">
+              Avg: ₱{avgBill.toLocaleString()}
+            </Badge>
+          )
         )}
       </div>
 
-      {/* 1. Historical Billing Consumption */}
+      {/* 1. Input Mode Switcher (Amount vs kWh) */}
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+            Consumption Input Basis
+          </Label>
+          <span className="text-[11px] text-muted-foreground">Choose input method</span>
+        </div>
+
+        <div className="grid grid-cols-2 p-1 bg-muted/60 rounded-xl border border-border/60">
+          <button
+            type="button"
+            onClick={() => updateField("inputMode", "amount")}
+            className={cn(
+              "py-2 px-3 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer",
+              !isKwhMode
+                ? "bg-background text-foreground shadow-sm ring-1 ring-border"
+                : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            <Coins className="w-3.5 h-3.5" />
+            <span>By Bill Amount (₱ PHP)</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => updateField("inputMode", "kwh")}
+            className={cn(
+              "py-2 px-3 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer",
+              isKwhMode
+                ? "bg-background text-foreground shadow-sm ring-1 ring-border"
+                : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            <Zap className="w-3.5 h-3.5 text-amber-500" />
+            <span>By Kilowatt-Hours (kWh)</span>
+          </button>
+        </div>
+      </div>
+
+      {/* 2. Historical Billing Consumption Inputs */}
       <div className="space-y-3">
         <div className="flex items-center justify-between">
           <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
             <Receipt className="w-3.5 h-3.5 text-primary" />
-            <span>Monthly Utility Consumption (PHP)</span>
+            <span>
+              {isKwhMode
+                ? "Monthly Energy Consumption (Kilowatt-Hours)"
+                : "Monthly Utility Consumption (PHP)"}
+            </span>
           </Label>
           <span className="text-[11px] text-muted-foreground">Last 3 Billing Cycles</span>
         </div>
@@ -79,17 +136,38 @@ export const SolarConfigCard: React.FC<SolarConfigCardProps> = ({
               Billing Cycle 1
             </span>
             <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground">
-                ₱
-              </span>
+              {!isKwhMode && (
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground">
+                  ₱
+                </span>
+              )}
               <Input
                 type="number"
                 min={0}
                 placeholder="0.00"
-                value={formData.billMonth1 === 0 ? "" : formData.billMonth1}
-                onChange={(e) => updateField("billMonth1", Number(e.target.value) || 0)}
-                className="pl-7 text-right font-bold text-sm h-10 bg-background border-border/80 focus:ring-1 focus:ring-primary"
+                value={
+                  isKwhMode
+                    ? formData.kwhMonth1 === 0 ? "" : formData.kwhMonth1
+                    : formData.billMonth1 === 0 ? "" : formData.billMonth1
+                }
+                onChange={(e) => {
+                  const val = Number(e.target.value) || 0;
+                  if (isKwhMode) {
+                    updateField("kwhMonth1", val);
+                  } else {
+                    updateField("billMonth1", val);
+                  }
+                }}
+                className={cn(
+                  "font-bold text-sm h-10 bg-background border-border/80 focus:ring-1 focus:ring-primary",
+                  !isKwhMode ? "pl-7 text-right" : "pr-12 text-right"
+                )}
               />
+              {isKwhMode && (
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground">
+                  kWh
+                </span>
+              )}
             </div>
           </div>
 
@@ -99,17 +177,38 @@ export const SolarConfigCard: React.FC<SolarConfigCardProps> = ({
               Billing Cycle 2
             </span>
             <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground">
-                ₱
-              </span>
+              {!isKwhMode && (
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground">
+                  ₱
+                </span>
+              )}
               <Input
                 type="number"
                 min={0}
                 placeholder="0.00"
-                value={formData.billMonth2 === 0 ? "" : formData.billMonth2}
-                onChange={(e) => updateField("billMonth2", Number(e.target.value) || 0)}
-                className="pl-7 text-right font-bold text-sm h-10 bg-background border-border/80 focus:ring-1 focus:ring-primary"
+                value={
+                  isKwhMode
+                    ? formData.kwhMonth2 === 0 ? "" : formData.kwhMonth2
+                    : formData.billMonth2 === 0 ? "" : formData.billMonth2
+                }
+                onChange={(e) => {
+                  const val = Number(e.target.value) || 0;
+                  if (isKwhMode) {
+                    updateField("kwhMonth2", val);
+                  } else {
+                    updateField("billMonth2", val);
+                  }
+                }}
+                className={cn(
+                  "font-bold text-sm h-10 bg-background border-border/80 focus:ring-1 focus:ring-primary",
+                  !isKwhMode ? "pl-7 text-right" : "pr-12 text-right"
+                )}
               />
+              {isKwhMode && (
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground">
+                  kWh
+                </span>
+              )}
             </div>
           </div>
 
@@ -119,23 +218,44 @@ export const SolarConfigCard: React.FC<SolarConfigCardProps> = ({
               Billing Cycle 3
             </span>
             <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground">
-                ₱
-              </span>
+              {!isKwhMode && (
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground">
+                  ₱
+                </span>
+              )}
               <Input
                 type="number"
                 min={0}
                 placeholder="0.00"
-                value={formData.billMonth3 === 0 ? "" : formData.billMonth3}
-                onChange={(e) => updateField("billMonth3", Number(e.target.value) || 0)}
-                className="pl-7 text-right font-bold text-sm h-10 bg-background border-border/80 focus:ring-1 focus:ring-primary"
+                value={
+                  isKwhMode
+                    ? formData.kwhMonth3 === 0 ? "" : formData.kwhMonth3
+                    : formData.billMonth3 === 0 ? "" : formData.billMonth3
+                }
+                onChange={(e) => {
+                  const val = Number(e.target.value) || 0;
+                  if (isKwhMode) {
+                    updateField("kwhMonth3", val);
+                  } else {
+                    updateField("billMonth3", val);
+                  }
+                }}
+                className={cn(
+                  "font-bold text-sm h-10 bg-background border-border/80 focus:ring-1 focus:ring-primary",
+                  !isKwhMode ? "pl-7 text-right" : "pr-12 text-right"
+                )}
               />
+              {isKwhMode && (
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground">
+                  kWh
+                </span>
+              )}
             </div>
           </div>
         </div>
       </div>
 
-      {/* 2. Utility Rate & Design Margin */}
+      {/* 3. Utility Rate & Design Margin */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
         {/* Electricity Tariff */}
         <div className="p-3.5 rounded-xl border border-border/70 bg-card space-y-2">
@@ -189,7 +309,7 @@ export const SolarConfigCard: React.FC<SolarConfigCardProps> = ({
         </div>
       </div>
 
-      {/* 3. System Architecture Type (Segmented control) */}
+      {/* 4. System Architecture Type (Segmented control) */}
       <div className="space-y-2.5 pt-1">
         <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
           System Architecture
@@ -251,7 +371,7 @@ export const SolarConfigCard: React.FC<SolarConfigCardProps> = ({
         </div>
       </div>
 
-      {/* 4. PV Module Wattage Pill Selectors */}
+      {/* 5. PV Module Wattage Pill Selectors */}
       <div className="space-y-2.5 pt-1">
         <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
           PV Module Rating

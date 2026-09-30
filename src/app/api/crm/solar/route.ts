@@ -106,9 +106,13 @@ export async function POST(req: NextRequest) {
       contact_number: customer?.contact_number || "",
       
       // Inputs
-      bill_month_1: input.billMonth1,
-      bill_month_2: input.billMonth2,
-      bill_month_3: input.billMonth3,
+      input_mode: input.inputMode || "amount",
+      bill_month_1: input.billMonth1 || 0,
+      bill_month_2: input.billMonth2 || 0,
+      bill_month_3: input.billMonth3 || 0,
+      kwh_month_1: input.kwhMonth1 || 0,
+      kwh_month_2: input.kwhMonth2 || 0,
+      kwh_month_3: input.kwhMonth3 || 0,
       average_bill: calculation.averageBill,
       electricity_rate: input.electricityRate,
       design_allowance_percent: input.designAllowance,
