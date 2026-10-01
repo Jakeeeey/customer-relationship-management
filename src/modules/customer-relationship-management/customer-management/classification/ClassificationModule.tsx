@@ -11,6 +11,7 @@ import { ClassificationToolbar } from "./components/ClassificationToolbar";
 export default function ClassificationModule() {
 	const {
 		items,
+		allClassifications,
 		paginatedItems,
 		userOptions,
 		searchQuery,
@@ -92,6 +93,7 @@ export default function ClassificationModule() {
 				mode={dialogMode}
 				selectedItem={selectedItem}
 				isSubmitting={isSubmitting}
+				existingItems={allClassifications.length > 0 ? allClassifications : items}
 				onOpenChange={setDialogOpen}
 				onSubmit={submitDialog}
 			/>

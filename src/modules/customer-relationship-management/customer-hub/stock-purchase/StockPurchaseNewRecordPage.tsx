@@ -105,14 +105,12 @@ export default function StockPurchaseNewRecordPage() {
     const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
 
     const currentMaxLength = useMemo(() => {
-        if (!selectedInvoiceType) return Infinity;
-        const type = invoiceTypes.find(t => t.id.toString() === selectedInvoiceType);
-        return type?.max_length || Infinity;
-    }, [selectedInvoiceType, invoiceTypes]);
+        return Infinity;
+    }, []);
 
     const isLimitReached = useMemo(() => {
-        return cart.length >= currentMaxLength;
-    }, [cart.length, currentMaxLength]);
+        return false;
+    }, []);
 
 
     // Auto-generate preview ID (Simply return manualInvoiceNo directly)
@@ -155,9 +153,14 @@ export default function StockPurchaseNewRecordPage() {
 
                 setSuppliers(data.suppliers);
                 
-                // Filter to only include Delivery Receipt
+                // Filter to include Delivery Receipt and Cash Sales Invoice
                 const filteredInvoiceTypes = data.invoiceTypes.filter(
-                    t => t.type?.toUpperCase() === "DELIVERY RECEIPT" || t.shortcut?.toUpperCase() === "DR"
+                    t => t.type?.toUpperCase() === "DELIVERY RECEIPT" || 
+                         t.shortcut?.toUpperCase() === "DR" ||
+                         t.type?.toUpperCase().includes("CASH SALES") ||
+                         t.type?.toUpperCase().includes("CASH INVOICE") ||
+                         t.shortcut?.toUpperCase() === "CSI" ||
+                         t.shortcut?.toUpperCase() === "CS"
                 );
                 setInvoiceTypes(filteredInvoiceTypes);
                 
@@ -171,11 +174,14 @@ export default function StockPurchaseNewRecordPage() {
                 const st = await res.json();
                 setSalesTypes(st);
 
+                const directSales = st.find((s: SalesType) => s.operation_name?.toUpperCase() === "DIRECT SALES" || s.operation_name?.toUpperCase() === "DIRECT" || s.operation_name?.toUpperCase().includes("DIRECT"));
                 const dealer = st.find((s: SalesType) => s.operation_name?.toUpperCase() === "DEALER");
                 const dealerOver = st.find((s: SalesType) => s.operation_name?.toUpperCase() === "DEALEROVER");
                 const firstValid = st.find((s: SalesType) => s.operation_name?.toUpperCase() !== "SITE SALES" && s.id !== 3);
 
-                if (dealer) {
+                if (directSales) {
+                    setSelectedSalesType(directSales.id.toString());
+                } else if (dealer) {
                     setSelectedSalesType(dealer.id.toString());
                 } else if (dealerOver) {
                     setSelectedSalesType(dealerOver.id.toString());
@@ -235,32 +241,7 @@ export default function StockPurchaseNewRecordPage() {
         loadData();
     }, [fetchModalData, fetchUtilityData]);
 
-    useEffect(() => {
-        if (selectedInvoiceType && invoiceTypes.length > 0) {
-            const typeObj = invoiceTypes.find(t => t.id.toString() === selectedInvoiceType);
-            if (typeObj) {
-                const limit = typeObj.max_length || "unlimited";
-                const label = typeObj.type || typeObj.shortcut || "Selected Type";
-                
-                if (!isLoadingData) {
-                    toast.info(`${label} has a limit of ${limit} items.`);
-                }
-            }
-        }
-    }, [selectedInvoiceType, invoiceTypes, isLoadingData]);
 
-    useEffect(() => {
-        if (selectedInvoiceType && invoiceTypes.length > 0 && cart.length > 0) {
-            const typeObj = invoiceTypes.find(t => t.id.toString() === selectedInvoiceType);
-            if (typeObj) {
-                const limit = typeObj.max_length || Infinity;
-                if (cart.length > limit) {
-                    setCart(prev => prev.slice(0, limit));
-                    toast.warning(`Receipt Type changed. Cart truncated to the limit of ${limit} items.`);
-                }
-            }
-        }
-    }, [selectedInvoiceType, invoiceTypes, cart.length]);
 
     const handleCustomerSelect = async (customer: Customer) => {
         setSelectedCustomer(customer);
@@ -280,7 +261,12 @@ export default function StockPurchaseNewRecordPage() {
 
                 setLoadingAccounts(true);
                 const userIdToFetch = user.user_id || (user as { id?: number | string }).id || "";
-                const userAccounts = await getAccounts(userIdToFetch);
+                let rawAccounts = await getAccounts(userIdToFetch);
+                if (rawAccounts.length === 0 && user.linked_account_ids && user.linked_account_ids.length > 0) {
+                    const allAccounts = await getAccounts("");
+                    rawAccounts = allAccounts.filter(a => user.linked_account_ids?.some(id => id.toString() === a.id.toString()));
+                }
+                const userAccounts = rawAccounts;
                 setAccounts(userAccounts);
                 setLoadingAccounts(false);
 
@@ -316,7 +302,12 @@ export default function StockPurchaseNewRecordPage() {
         setLoadingAccounts(true);
         try {
             const userIdToFetch = user.user_id || (user as { id?: number | string }).id || "";
-            const userAccounts = await getAccounts(userIdToFetch);
+            let rawAccounts = await getAccounts(userIdToFetch);
+            if (rawAccounts.length === 0 && user.linked_account_ids && user.linked_account_ids.length > 0) {
+                const allAccounts = await getAccounts("");
+                rawAccounts = allAccounts.filter(a => user.linked_account_ids?.some(id => id.toString() === a.id.toString()));
+            }
+            const userAccounts = rawAccounts;
             setAccounts(userAccounts);
 
             if (user.linked_account_ids && user.linked_account_ids.length === 1) {
@@ -408,11 +399,6 @@ export default function StockPurchaseNewRecordPage() {
             });
             toast.success("Added to list");
         } else {
-            if (isLimitReached) {
-                toast.error(`Maximum of ${currentMaxLength} items allowed for this receipt type.`);
-                return;
-            }
-
             setCart(prev => sortCartItems([...prev, {
                 ...product,
                 quantity: 1,

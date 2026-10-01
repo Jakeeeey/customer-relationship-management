@@ -6,12 +6,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { SalesOrder, LogisticsData, ConversionData, DiscountType, ReceiptType, ORTemplate } from "../types";
+import { SalesOrder, LogisticsData, ConversionData, DiscountType, ReceiptType, ORTemplate, formatAddress } from "../types";
 import { InvoicingService, INVOICING_API_BASE } from "../services/InvoicingService";
 import { generateInvoicingPDF, ReceiptData } from "../utils/generateInvoicingPDF";
 import { format } from "date-fns";
 import { formatToPHT } from "../utils/dateUtils";
-import { ReceiptTemplateEditor, MARIKINA_TEMPLATE, DEFAULT_TEMPLATE } from "./ReceiptTemplateEditor";
+import { ReceiptTemplateEditor, MARIKINA_TEMPLATE, DEFAULT_TEMPLATE, TemplateRecord } from "./ReceiptTemplateEditor";
 import { jsPDF } from "jspdf";
 
 import {
@@ -57,6 +57,7 @@ interface ReceiptItem {
     unit_shortcut: string;
     ordered_qty: number;
     barcode?: string;
+    price_changeable?: boolean;
 }
 
 interface Receipt {
@@ -96,6 +97,7 @@ export const ConvertToInvoiceModal: React.FC<ConvertToInvoiceModalProps> = ({
     const [selectedProductId, setSelectedProductId] = useState<number | null>(null);
     const [sourceProductIds, setSourceProductIds] = useState<Set<number> | null>(null);
     const [companyCode, setCompanyCode] = useState<string | null>(null);
+    const [availableTemplates, setAvailableTemplates] = useState<TemplateRecord[]>([]);
 
     const componentRef = useRef<HTMLDivElement>(null);
 
@@ -140,7 +142,8 @@ export const ConvertToInvoiceModal: React.FC<ConvertToInvoiceModalProps> = ({
                         net_amount: Number(rawDistNet.toFixed(2)),
                         unit_shortcut: item.unit_shortcut,
                         ordered_qty: ordered,
-                        barcode: item.barcode
+                        barcode: item.barcode,
+                        price_changeable: item.price_changeable
                     };
                 })
                 .filter(item => item.qty > 0);
@@ -171,7 +174,7 @@ export const ConvertToInvoiceModal: React.FC<ConvertToInvoiceModalProps> = ({
                 InvoicingService.getConversionDetails(order.order_id),
                 InvoicingService.getDiscountTypes(),
                 InvoicingService.getReceiptTypes(),
-                typeId ? InvoicingService.getTemplate(typeId).catch(() => null) : Promise.resolve(null),
+                typeId ? InvoicingService.getTemplates(typeId).catch(() => []) : Promise.resolve([]),
                 InvoicingService.getCompany().catch(() => null),
             ];
 
@@ -197,12 +200,12 @@ export const ConvertToInvoiceModal: React.FC<ConvertToInvoiceModalProps> = ({
                 ))
             ])
                 .then((results) => {
-                    const [logisticsData, convData, discTypes, rTypes, fetchedTemplate, companyData, allInvoiceDetails] = results as unknown as [
+                    const [logisticsData, convData, discTypes, rTypes, templatesData, companyData, allInvoiceDetails] = results as unknown as [
                         LogisticsData[], 
                         ConversionData, 
                         DiscountType[], 
                         ReceiptType[], 
-                        ORTemplate | null, 
+                        TemplateRecord[], 
                         { company_code: string } | null,
                         { id: number; display_no: string | null; details: Record<string, unknown>[] }[]
                     ];
@@ -217,33 +220,20 @@ export const ConvertToInvoiceModal: React.FC<ConvertToInvoiceModalProps> = ({
                     if (order.receipt_type?.id) {
                         setSelectedTypeId(order.receipt_type.id.toString());
                     }
+
+                    const tList = (templatesData || []) as TemplateRecord[];
+                    setAvailableTemplates(tList);
+
                     let finalTemplate: ORTemplate;
-                    if (fetchedTemplate) {
-                        finalTemplate = fetchedTemplate as ORTemplate;
+                    if (tList.length > 0) {
+                        const defaultRec = tList.find(t => t.is_default) || tList[0];
+                        finalTemplate = defaultRec.template_config;
                     } else if (order.receipt_type?.id === 3 && companyData?.company_code === 'MEN2-Marikina') {
                         finalTemplate = MARIKINA_TEMPLATE;
                     } else {
                         finalTemplate = DEFAULT_TEMPLATE;
                     }
                     
-                    // Inject barcode column if missing (e.g. old templates from DB)
-                    if (finalTemplate.tableSettings && finalTemplate.tableSettings.columns && !finalTemplate.tableSettings.columns.barcode) {
-                        finalTemplate.tableSettings.columns.barcode = { x: 10 };
-                    }
-
-                    // MEN2-Dagupan: hide BARCODE column from table (UI + PDF)
-                    if (companyData?.company_code === 'MEN2-Dagupan' && finalTemplate.tableSettings?.columns) {
-                        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-                        const { barcode: _barcode, ...columnsWithoutBarcode } = finalTemplate.tableSettings.columns;
-                        finalTemplate = {
-                            ...finalTemplate,
-                            tableSettings: {
-                                ...finalTemplate.tableSettings,
-                                columns: columnsWithoutBarcode
-                            }
-                        };
-                    }
-
                     setOrTemplate(finalTemplate);
                     if (order.void_invoices && order.void_invoices.length > 0 && invoiceDetails.length > 0) {
                         // ── Void order: multi-dual-receipt setup (Reference + New Editable Copy for each) ──
@@ -265,6 +255,8 @@ export const ConvertToInvoiceModal: React.FC<ConvertToInvoiceModalProps> = ({
                                     net_amount: (d.total_amount as number) ?? 0,
                                     unit_shortcut: (d.unit_shortcut as string) ?? "",
                                     ordered_qty: d.quantity as number,
+                                    barcode: (d.barcode as string) || (d.product_barcode as string) || (convData?.items?.find(c => c.product_id === d.product_id)?.barcode) || "",
+                                    price_changeable: convData?.items?.find(c => c.product_id === d.product_id)?.price_changeable,
                                 }));
 
                             voidItems.forEach(i => allPids.add(i.product_id));
@@ -321,6 +313,8 @@ export const ConvertToInvoiceModal: React.FC<ConvertToInvoiceModalProps> = ({
                                     net_amount: (d.total_amount as number) ?? 0,
                                     unit_shortcut: (d.unit_shortcut as string) ?? "",
                                     ordered_qty: d.quantity as number,
+                                    barcode: (d.barcode as string) || (d.product_barcode as string) || (convData?.items?.find(c => c.product_id === d.product_id)?.barcode) || "",
+                                    price_changeable: convData?.items?.find(c => c.product_id === d.product_id)?.price_changeable,
                                 }))
                         }));
 
@@ -368,22 +362,21 @@ export const ConvertToInvoiceModal: React.FC<ConvertToInvoiceModalProps> = ({
         setReceipts(receipts.map(r => r.id === id ? { ...r, receipt_no: no } : r));
     };
 
-    const canOverridePrice = order?.salesman_id?.division_id === 1;
-
     const updateItemPrice = (receiptId: string, productId: number, newPrice: number) => {
+        const validPrice = Math.max(0, newPrice);
         setReceipts(receipts.map(r => r.id === receiptId ? {
             ...r,
             items: r.items.map(i => {
                 if (i.product_id === productId) {
                     const dt = discountTypes.find(d => Number(d.id) === Number(i.discount_type));
                     const totalPercent = dt ? Number(dt.total_percent) : 0;
-                    const rawDiscount = (newPrice * i.qty) * (totalPercent / 100);
+                    const rawDiscount = (validPrice * i.qty) * (totalPercent / 100);
                     const roundedDiscount = Number(rawDiscount.toFixed(2));
-                    const rawNet = (newPrice * i.qty) - roundedDiscount;
+                    const rawNet = (validPrice * i.qty) - roundedDiscount;
                     
                     return {
                         ...i,
-                        unit_price: newPrice,
+                        unit_price: validPrice,
                         discount_amount: roundedDiscount,
                         net_amount: Number(rawNet.toFixed(2))
                     };
@@ -522,7 +515,8 @@ export const ConvertToInvoiceModal: React.FC<ConvertToInvoiceModalProps> = ({
             net_amount: Number(rawInitialNet.toFixed(2)),
             unit_shortcut: convItem.unit_shortcut,
             ordered_qty: ordered,
-            barcode: convItem.barcode
+            barcode: convItem.barcode,
+            price_changeable: convItem.price_changeable
         };
 
         if (targetR && targetR.items.length < maxLen) {
@@ -717,7 +711,7 @@ export const ConvertToInvoiceModal: React.FC<ConvertToInvoiceModalProps> = ({
 
         const fullName = conversionData?.customer?.customer_name || 'N/A';
         const storeName = conversionData?.customer?.store_name || fullName;
-        const address = `${conversionData?.customer?.province || 'N/A'}, ${conversionData?.customer?.city || 'N/A'}, ${conversionData?.customer?.brgy || 'N/A'}`;
+        const address = formatAddress(conversionData?.customer, orTemplate?.fields?.address?.addressConfig);
 
         try {
             const printableReceipts = receipts.filter(r => !r.is_void_reference);
@@ -748,7 +742,7 @@ export const ConvertToInvoiceModal: React.FC<ConvertToInvoiceModalProps> = ({
                     discountTypes: discountTypes,
                     barcodeDataUrl: undefined,
                     template: orTemplate || DEFAULT_TEMPLATE,
-                    printBackground: companyCode === 'MEN2-Marikina'
+                    printBackground: orTemplate?.printBackground !== undefined ? orTemplate.printBackground : (companyCode === 'MEN2-Marikina')
                 };
 
                 // Accumulate all receipts into a single multi-page document
@@ -860,14 +854,22 @@ export const ConvertToInvoiceModal: React.FC<ConvertToInvoiceModalProps> = ({
         }).format(amount).replace('PHP', '₱').trim();
     };
 
-    const isOfficialReceipt = useMemo(() => {
-        if (order.receipt_type?.id === 3 && companyCode === 'MEN2-Dagupan') {
-            return false;
-        }
+    const isThermal = useMemo(() => {
         const selectedType = receiptTypes.find(t => t.id.toString() === selectedTypeId);
-        if (selectedType) return String(selectedType.isOfficial) === "1";
-        return String(conversionData?.is_official ?? order.receipt_type?.isOfficial ?? 1) === "1";
-    }, [receiptTypes, selectedTypeId, conversionData, order, companyCode]);
+        if (selectedType && selectedType.is_thermal !== undefined && selectedType.is_thermal !== null) {
+            return Boolean(selectedType.is_thermal);
+        }
+        if (order.receipt_type?.is_thermal !== undefined && order.receipt_type?.is_thermal !== null) {
+            return Boolean(order.receipt_type.is_thermal);
+        }
+        // Fallback for unconfigured records: non-official is thermal
+        if (selectedType && selectedType.isOfficial !== undefined && selectedType.isOfficial !== null) {
+            return String(selectedType.isOfficial) !== "1";
+        }
+        return String(conversionData?.is_official ?? order.receipt_type?.isOfficial ?? 1) !== "1";
+    }, [receiptTypes, selectedTypeId, conversionData, order]);
+
+    const isOfficialReceipt = !isThermal;
 
     const previewPaperWidth = isOfficialReceipt ? "210mm" : "58mm";
     const thermalPaperWidth = "58mm";
@@ -1421,11 +1423,13 @@ export const ConvertToInvoiceModal: React.FC<ConvertToInvoiceModalProps> = ({
                                                                 />
                                                             </div>
                                                             <div className="col-span-2 text-center px-1 flex items-center justify-center">
-                                                                {canOverridePrice && !r.is_void_reference && !order.existing_invoice_no ? (
+                                                                {item.price_changeable && !r.is_void_reference && !order.existing_invoice_no ? (
                                                                     <div className="relative group/price flex items-center justify-center w-full max-w-[110px] mx-auto">
                                                                         <span className="absolute left-2 text-[10px] font-black text-primary/40 pointer-events-none select-none">₱</span>
                                                                         <Input
                                                                             type="number"
+                                                                            min={0}
+                                                                            step="any"
                                                                             value={item.unit_price}
                                                                             onChange={(e) => updateItemPrice(r.id, item.product_id, parseFloat(e.target.value) || 0)}
                                                                             onFocus={(e) => e.target.select()}
@@ -1532,6 +1536,30 @@ export const ConvertToInvoiceModal: React.FC<ConvertToInvoiceModalProps> = ({
                         </div>
                         Receipt Preview
                     </DialogTitle>
+
+                    {!isThermal && availableTemplates.length > 0 && (
+                        <div className="flex items-center gap-2 mr-6">
+                            <span className="text-[10px] uppercase font-bold text-muted-foreground">Template:</span>
+                            <select
+                                className="h-8 text-xs font-semibold bg-background border border-border rounded-lg px-2 text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                                value={availableTemplates.find(t => t.name === orTemplate?.name || t.template_config?.name === orTemplate?.name)?.id || availableTemplates[0]?.id || ""}
+                                onChange={(e) => {
+                                    const recId = parseInt(e.target.value);
+                                    const found = availableTemplates.find(t => t.id === recId);
+                                    if (found) {
+                                        setOrTemplate(found.template_config);
+                                        toast.info(`Switched preview template to: "${found.name}"`);
+                                    }
+                                }}
+                            >
+                                {availableTemplates.map(t => (
+                                    <option key={t.id} value={t.id}>
+                                        {t.name} {t.is_default ? "(DEFAULT)" : ""}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+                    )}
                 </DialogHeader>
 
                 <ScrollArea className="flex-1 min-h-0 bg-zinc-100/50 dark:bg-zinc-900/30 overflow-y-auto overflow-x-hidden">
@@ -1700,7 +1728,7 @@ export const ConvertToInvoiceModal: React.FC<ConvertToInvoiceModalProps> = ({
                                             store_name: storeName.toUpperCase(),
                                             payment_name: (conversionData?.payment_name || "N/A").toUpperCase(),
                                             customer_tin: conversionData?.customer?.customer_tin || 'N/A',
-                                            address: `${conversionData?.customer?.province || 'N/A'}, ${conversionData?.customer?.city || 'N/A'}, ${conversionData?.customer?.brgy || 'N/A'}`.toUpperCase(),
+                                            address: formatAddress(conversionData?.customer, orTemplate?.fields?.address?.addressConfig),
                                             vatable_sales: formatCurrency(vatableSales),
                                             vat_amount: formatCurrency(vatAmount),
                                             gross_total: formatCurrency(grossTotal),
@@ -1760,7 +1788,7 @@ export const ConvertToInvoiceModal: React.FC<ConvertToInvoiceModalProps> = ({
                                                 {/* Render template defined fields */}
                                                 {orTemplate ? (
                                                     Object.entries(orTemplate.fields).map(([key, config]) => {
-                                                        const val = fieldValues[key];
+                                                        const val = config.isCustom ? (config.value || "") : fieldValues[key];
                                                         if (!val || key === 'barcode' || config.hidden) return null;
                                                         return (
                                                             <div 
@@ -1812,19 +1840,25 @@ export const ConvertToInvoiceModal: React.FC<ConvertToInvoiceModalProps> = ({
                                                                 product_name: 85,
                                                                 quantity: 22,
                                                                 unit_price: 28,
+                                                                discount_amount: 25,
                                                                 discount: 25,
                                                                 net_amount: 30
                                                             };
+
+                                                            const productNameWidth = tableSet?.product_name_width || w.product_name;
+                                                            const approxCharsPerLine = Math.max(10, Math.floor(productNameWidth / 2.2));
+                                                            const estimatedLines = Math.ceil((item.product_name || "").length / approxCharsPerLine);
+                                                            const neededSlots = Math.max(1, estimatedLines);
+                                                            const actualRowHeight = neededSlots * rowHeight;
 
                                                             return (
                                                                 <div 
                                                                     key={idx} 
                                                                     className="relative w-full flex items-center" 
                                                                     style={{ 
-                                                                        minHeight: `${rowHeight}mm`,
+                                                                        minHeight: `${actualRowHeight}mm`,
                                                                         fontFamily: 'monospace',
-                                                                        fontSize: `${fontSize}pt`,
-                                                                        padding: '1mm 0' // Small padding for breathability
+                                                                        fontSize: `${fontSize}pt`
                                                                     }}
                                                                 >
                                                                     {/* Barcode (if present in template) */}
@@ -1867,6 +1901,15 @@ export const ConvertToInvoiceModal: React.FC<ConvertToInvoiceModalProps> = ({
                                                                         {formatCurrency(item.unit_price)}
                                                                     </div>
                                                                     
+                                                                    {cols?.discount_amount && (
+                                                                        <div 
+                                                                            className="absolute font-normal text-right top-1/2 -translate-y-1/2" 
+                                                                            style={{ left: `${(cols.discount_amount.x || 140) - w.discount_amount}mm`, width: `${w.discount_amount}mm` }}
+                                                                        >
+                                                                            {formatCurrency(item.discount_amount)}
+                                                                        </div>
+                                                                    )}
+
                                                                     <div 
                                                                         className="absolute font-normal text-right uppercase top-1/2 -translate-y-1/2" 
                                                                         style={{ left: `${(cols?.discount?.x || 153) - w.discount}mm`, width: `${w.discount}mm` }}
@@ -1950,21 +1993,14 @@ export const ConvertToInvoiceModal: React.FC<ConvertToInvoiceModalProps> = ({
             <ReceiptTemplateEditor 
                 isOpen={isTemplateEditorOpen}
                 initialTemplate={orTemplate || DEFAULT_TEMPLATE}
+                typeId={order?.receipt_type?.id}
                 onClose={() => setIsTemplateEditorOpen(false)}
-                onSave={async (newTemplate) => {
-                    try {
-                        const typeId = order?.receipt_type?.id;
-                        if (!typeId) {
-                            toast.error("Cannot save template: Receipt Type ID is missing.");
-                            return;
-                        }
-                        await InvoicingService.saveTemplate(typeId, newTemplate);
-                        setOrTemplate(newTemplate);
-                        setIsTemplateEditorOpen(false);
-                        toast.success("Template saved successfully to database");
-                    } catch (err) {
-                        console.error("Failed to save template:", err);
-                        toast.error("Failed to save template to database");
+                onSave={async (savedTemplate) => {
+                    setOrTemplate(savedTemplate);
+                    setIsTemplateEditorOpen(false);
+                    if (order?.receipt_type?.id) {
+                        const list = await InvoicingService.getTemplates(order.receipt_type.id).catch(() => []);
+                        setAvailableTemplates(list);
                     }
                 }}
             />

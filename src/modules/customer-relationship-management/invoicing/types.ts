@@ -33,6 +33,7 @@ export interface ReceiptType {
     id: number;
     type: string;
     isOfficial?: number | string | null;
+    is_thermal?: boolean | null;
 }
 
 export interface PaymentTerm {
@@ -56,6 +57,7 @@ export interface SalesOrder {
         id: number;
         type: string;
         isOfficial?: number | string | null;
+        is_thermal?: boolean | null;
     } | null;
     net_amount: number | null;
     discount_amount: number | null;
@@ -136,6 +138,7 @@ export interface ConversionItem {
     net_amount: number;
     unit_shortcut: string;
     barcode?: string;
+    price_changeable?: boolean;
 }
 
 export interface ConversionData {
@@ -175,7 +178,43 @@ export interface ORFieldConfig {
     barcodeHeight?: number;
     barcodeModuleWidth?: number;
     hideBarcodeText?: boolean;
+
+    // Custom Text Field settings
+    isCustom?: boolean;
+    value?: string;
+
+    // Address Sub-components & Ordering Config
+    addressConfig?: {
+        showProvince?: boolean;
+        showCity?: boolean;
+        showBrgy?: boolean;
+        order?: ('brgy' | 'city' | 'province')[];
+    };
 }
+
+export const formatAddress = (
+    customer?: { province?: string; city?: string; brgy?: string },
+    config?: ORFieldConfig['addressConfig']
+): string => {
+    if (!customer) return 'N/A';
+    const showProvince = config?.showProvince ?? true;
+    const showCity = config?.showCity ?? true;
+    const showBrgy = config?.showBrgy ?? true;
+    const order = config?.order || ['province', 'city', 'brgy'];
+
+    const partsMap: Record<string, string | undefined> = {
+        province: showProvince ? customer.province : undefined,
+        city: showCity ? customer.city : undefined,
+        brgy: showBrgy ? customer.brgy : undefined,
+    };
+
+    const result = order
+        .map(key => partsMap[key])
+        .filter((val): val is string => Boolean(val && val.trim() !== ''))
+        .join(', ');
+
+    return result ? result.toUpperCase() : 'N/A';
+};
 
 export interface ORTemplate {
     id: string;
@@ -183,6 +222,7 @@ export interface ORTemplate {
     width: number;
     height: number;
     backgroundImage?: string; // base64
+    printBackground?: boolean; // include in printed PDF
     fields: Record<string, ORFieldConfig>;
     tableSettings: {
         startY: number;
@@ -194,6 +234,7 @@ export interface ORTemplate {
             product_name?: { x: number };
             quantity?: { x: number };
             unit_price?: { x: number };
+            discount_amount?: { x: number };
             discount?: { x: number };
             net_amount?: { x: number };
         };

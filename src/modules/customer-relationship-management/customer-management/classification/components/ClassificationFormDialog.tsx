@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { AlertCircle } from "lucide-react";
 import {
 	Dialog,
 	DialogContent,
@@ -12,12 +13,14 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { ClassificationDialogMode, ClassificationItem } from "../types";
+import { findDuplicateClassification } from "../utils/businessRules";
 
 type ClassificationFormDialogProps = {
 	open: boolean;
 	mode: ClassificationDialogMode;
 	selectedItem: ClassificationItem | null;
 	isSubmitting: boolean;
+	existingItems?: Array<Pick<ClassificationItem, "id" | "classification_name">>;
 	onOpenChange: (open: boolean) => void;
 	onSubmit: (classificationName: string) => Promise<void>;
 };
@@ -27,6 +30,7 @@ export function ClassificationFormDialog({
 	mode,
 	selectedItem,
 	isSubmitting,
+	existingItems,
 	onOpenChange,
 	onSubmit,
 }: ClassificationFormDialogProps) {
@@ -50,9 +54,21 @@ export function ClassificationFormDialog({
 			? "Update the selected classification type."
 			: "Review the selected classification details.";
 
+	const trimmedName = classificationName.trim();
+
+	const duplicateMatch = useMemo(() => {
+		if (!trimmedName || !existingItems) return null;
+		return findDuplicateClassification(
+			existingItems,
+			trimmedName,
+			mode === "edit" ? selectedItem?.id : undefined
+		);
+	}, [trimmedName, existingItems, mode, selectedItem]);
+
 	const handleSubmit = async () => {
+		if (!trimmedName || duplicateMatch) return;
 		try {
-			await onSubmit(classificationName);
+			await onSubmit(trimmedName);
 		} catch {
 			// Error toast is already handled by the hook/provider flow.
 		}
@@ -89,11 +105,22 @@ export function ClassificationFormDialog({
 							placeholder="Enter classification type"
 							disabled={isView || isSubmitting}
 							maxLength={50}
-							className="h-11"
+							aria-invalid={!!duplicateMatch}
+							className={`h-11 ${duplicateMatch ? "border-destructive focus-visible:ring-destructive" : ""}`}
 						/>
-						<p className="mt-2 text-xs text-muted-foreground">
-							This type is used for customer grouping and reports.
-						</p>
+						{duplicateMatch ? (
+							<p className="mt-2 flex items-center gap-1.5 text-xs font-medium text-destructive">
+								<AlertCircle className="h-3.5 w-3.5 shrink-0" />
+								<span>
+									Classification already exists as{" "}
+									<strong className="underline font-semibold">{duplicateMatch.classification_name}</strong>.
+								</span>
+							</p>
+						) : (
+							<p className="mt-2 text-xs text-muted-foreground">
+								This type is used for customer grouping and reports.
+							</p>
+						)}
 					</div>
 
 					{mode !== "create" && selectedItem?.created_by_name ? (
@@ -104,12 +131,11 @@ export function ClassificationFormDialog({
 				</div>
 
 				<DialogFooter className="border-t bg-muted/30 px-6 py-4">
-					
 					{!isView ? (
 						<Button
 							onClick={() => void handleSubmit()}
-							disabled={isSubmitting || !classificationName.trim()}
-							className="min-w-32 bg-gradient-to-r from-sky-600 to-cyan-600 text-white hover:from-sky-700 hover:to-cyan-700"
+							disabled={isSubmitting || !trimmedName || !!duplicateMatch}
+							className="min-w-32 bg-gradient-to-r from-sky-600 to-cyan-600 text-white hover:from-sky-700 hover:to-cyan-700 disabled:opacity-50"
 						>
 							{isSubmitting ? "Saving..." : mode === "create" ? "Create" : "Save Changes"}
 						</Button>

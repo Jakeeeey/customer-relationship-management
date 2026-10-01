@@ -43,8 +43,19 @@ export const salesOrderProvider = {
         return res.json();
     },
 
+    getGeneralSetting: async (key: string): Promise<{ setting_key: string; setting_value: string } | null> => {
+        try {
+            const res = await fetch(`${API_BASE}?action=general_setting&key=${encodeURIComponent(key)}`);
+            const json = await res.json();
+            const list = Array.isArray(json?.data) ? json.data : (Array.isArray(json) ? json : []);
+            return list.length > 0 ? list[0] : null;
+        } catch {
+            return null;
+        }
+    },
+
     // Pag-search ng mga products na pwedeng bilhin
-    searchProducts: async (search: string, customerCode: string, supplierId: number, priceType: string, customerId: number, priceTypeId?: number, salesmanId?: string, branchId?: string): Promise<Product[]> => {
+    searchProducts: async (search: string, customerCode: string, supplierId: number, priceType: string, customerId: number, priceTypeId?: number, salesmanId?: string, branchId?: string, forceRefresh = false): Promise<Product[]> => {
         // Dito natin ipinapasa ang price_type_id para makuha ang tamang presyo mula sa Directus
         let url = `${API_BASE}?action=products&search=${encodeURIComponent(search)}&customer_code=${customerCode}&supplier_id=${supplierId}&price_type=${priceType}&customer_id=${customerId}`;
         if (priceTypeId) url += `&price_type_id=${priceTypeId}`;
@@ -52,7 +63,17 @@ export const salesOrderProvider = {
         if (branchId) url += `&branch_id=${branchId}`;
 
         const cacheKey = `crm_products_${url}`;
-        const cachedStr = typeof window !== "undefined" ? localStorage.getItem(cacheKey) : null;
+
+        if (forceRefresh && typeof window !== "undefined") {
+            localStorage.removeItem(cacheKey);
+            Object.keys(localStorage).forEach((key) => {
+                if (key.startsWith("crm_products_") && key.includes(`customer_code=${customerCode}`) && key.includes(`supplier_id=${supplierId}`)) {
+                    localStorage.removeItem(key);
+                }
+            });
+        }
+
+        const cachedStr = (!forceRefresh && typeof window !== "undefined") ? localStorage.getItem(cacheKey) : null;
 
         if (cachedStr) {
             try {
@@ -70,7 +91,11 @@ export const salesOrderProvider = {
             }
         }
 
-        const res = await fetch(url);
+        let fetchUrl = url;
+        if (forceRefresh) {
+            fetchUrl += `&force_refresh=true&_t=${Date.now()}`;
+        }
+        const res = await fetch(fetchUrl);
         const data = await res.json();
 
         // Save to cache for 30 minutes (30 * 60 * 1000 = 1800000 ms)
