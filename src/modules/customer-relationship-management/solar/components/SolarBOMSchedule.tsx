@@ -44,7 +44,7 @@ export const SolarBOMSchedule: React.FC<SolarBOMScheduleProps> = ({
       id: "02",
       name: isHybrid ? "Hybrid Energy Inverter" : "On-Grid String Inverter",
       category: "Power Conversion",
-      spec: `${calc.inverterRatingKw} kW ${isHybrid ? "Hybrid Inverter with Dual MPPT & Battery Port" : "Grid-Tie Inverter with Smart Export Management"}`,
+      spec: `${calc.inverterRatingKw} kW ${isHybrid ? "Hybrid Inverter" : "Grid-Tie Inverter"} (${calc.electricalPhase === "three_phase" ? "3-Phase 230V/400V" : "1-Phase 230V"}) with Dual MPPT & Smart Monitoring`,
       qty: hasData ? "1" : "—",
       unit: "unit",
     },
@@ -72,7 +72,16 @@ export const SolarBOMSchedule: React.FC<SolarBOMScheduleProps> = ({
       id: isHybrid ? "05" : "03",
       name: "Roof Mounting Substructure",
       category: "Structural Support",
-      spec: "Anodized Aluminum Rails, End/Mid Clamps, L-Feet Anchors & Stainless Steel Fasteners",
+      spec:
+        calc.roofType === "standing_seam"
+          ? "Anodized Aluminum Rails, Non-Penetrating Standing Seam Clamps, Mid/End Clamps (Zero Roof Penetration)"
+          : calc.roofType === "concrete_deck"
+          ? "High-Strength Elevated Ballasted/Tilt Aluminum Frames for Concrete Slab Decks"
+          : calc.roofType === "tile_roof"
+          ? "Heavy-Duty Stainless Steel Tile Hooks, Aluminum Rails & Weather-Tight Flashing Kits"
+          : calc.roofType === "ground_mount"
+          ? "Hot-Dip Galvanized Ground-Mount Racking System with Concrete Footings"
+          : "Anodized Aluminum Rails, EPDM-Gasketed L-Feet Anchors & Stainless Fasteners (Rib-Type Metal)",
       qty: hasData ? `${calc.panelCount}` : "—",
       unit: "positions",
     },

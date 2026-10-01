@@ -58,7 +58,36 @@ export const SolarPrintView: React.FC<SolarPrintViewProps> = ({
         </div>
       </div>
 
-      {/* System Sizing Summary */}
+      {/* Installation Site & Structural Profile */}
+      <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 text-xs space-y-2">
+        <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">
+          Installation Site & Structural Profile
+        </span>
+        <div className="grid grid-cols-4 gap-3 text-slate-700">
+          <div>
+            <span className="text-[10px] text-slate-400 block">Structure Type</span>
+            <span className="font-bold text-slate-900 capitalize">{input.buildingType || "Residential"} ({input.buildingStoreys || 1}-Storey)</span>
+          </div>
+          <div>
+            <span className="text-[10px] text-slate-400 block">Roof Mounting Surface</span>
+            <span className="font-bold text-slate-900 capitalize">{input.roofType?.replace(/_/g, " ") || "Metal Sheet"}</span>
+          </div>
+          <div>
+            <span className="text-[10px] text-slate-400 block">Roof Orientation / Shading</span>
+            <span className="font-bold text-slate-900 capitalize">{input.roofOrientation || "South"} ({input.shadingCondition?.replace(/_/g, " ") || "Unshaded"})</span>
+          </div>
+          <div>
+            <span className="text-[10px] text-slate-400 block">Electrical Service</span>
+            <span className="font-bold text-slate-900">{input.electricalPhase === "three_phase" ? "3-Phase 230V/400V" : "1-Phase 230V"} ({input.mainBreakerAmps || 60}A)</span>
+          </div>
+        </div>
+        {input.siteDescription && (
+          <div className="pt-1 border-t border-slate-200/60 text-[11px] text-slate-600">
+            <span className="font-semibold text-slate-800">Site Notes: </span>
+            {input.siteDescription}
+          </div>
+        )}
+      </div>
       <div className="border border-slate-200 rounded-xl p-5 space-y-4">
         <div className="flex justify-between items-center border-b pb-3">
           <div>

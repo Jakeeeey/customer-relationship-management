@@ -5,7 +5,12 @@ import {
   SolarFormInput, 
   SolarCalculationResult, 
   SystemType,
-  InputMode
+  InputMode,
+  ElectricalPhase,
+  BuildingType,
+  RoofType,
+  RoofOrientation,
+  ShadingCondition
 } from "../types/solar.schema";
 
 const PEAK_SUN_HOURS_PER_DAY = 3.6;
@@ -28,6 +33,18 @@ export function useSolarCalculator(initialValues?: Partial<SolarFormInput>) {
     designAllowance: initialValues?.designAllowance ?? 30,
     systemType: initialValues?.systemType ?? "hybrid",
     panelWattage: initialValues?.panelWattage ?? 680,
+
+    // Building & Site Profile
+    electricalPhase: initialValues?.electricalPhase ?? "single_phase",
+    mainBreakerAmps: initialValues?.mainBreakerAmps ?? 60,
+    buildingType: initialValues?.buildingType ?? "residential",
+    roofType: initialValues?.roofType ?? "rib_type_gi",
+    roofOrientation: initialValues?.roofOrientation ?? "south",
+    buildingStoreys: initialValues?.buildingStoreys ?? 1,
+    availableRoofAreaSqm: initialValues?.availableRoofAreaSqm ?? 0,
+    shadingCondition: initialValues?.shadingCondition ?? "unshaded",
+    siteDescription: initialValues?.siteDescription ?? "",
+
     notes: initialValues?.notes ?? "",
   });
 
@@ -47,7 +64,10 @@ export function useSolarCalculator(initialValues?: Partial<SolarFormInput>) {
       electricityRate, 
       designAllowance, 
       systemType, 
-      panelWattage 
+      panelWattage,
+      electricalPhase,
+      roofType,
+      availableRoofAreaSqm,
     } = formData;
 
     const validRate = electricityRate > 0 ? electricityRate : 12.5;
@@ -98,6 +118,12 @@ export function useSolarCalculator(initialValues?: Partial<SolarFormInput>) {
         laborCrewSize: 3,
         laborWorkingDays: 0,
         laborPersonDays: 0,
+
+        electricalPhase,
+        roofType,
+        availableRoofAreaSqm: Number(availableRoofAreaSqm || 0),
+        roofFitStatus: "unknown",
+        roofFitDifferenceSqm: 0,
       };
     }
 
@@ -126,6 +152,15 @@ export function useSolarCalculator(initialValues?: Partial<SolarFormInput>) {
 
     // Roof allowance: Panel count * 3.1 m²
     const roofAllowanceSqm = Math.round(panelCount * SQM_PER_PANEL);
+
+    // Roof fit analysis
+    const availSqm = Number(availableRoofAreaSqm || 0);
+    let roofFitStatus: "unknown" | "sufficient" | "insufficient" = "unknown";
+    let roofFitDifferenceSqm = 0;
+    if (availSqm > 0) {
+      roofFitDifferenceSqm = Number((availSqm - roofAllowanceSqm).toFixed(1));
+      roofFitStatus = availSqm >= roofAllowanceSqm ? "sufficient" : "insufficient";
+    }
 
     // Preliminary Inverter Sizing
     const rawInverter = actualSolarKwp * 0.9;
@@ -164,6 +199,11 @@ export function useSolarCalculator(initialValues?: Partial<SolarFormInput>) {
     else if (actualSolarKwp <= 15) laborWorkingDays = 4;
     else laborWorkingDays = 5;
 
+    // Additional day for multi-storey or tile/concrete
+    if (formData.buildingStoreys > 2 || roofType === "tile_roof" || roofType === "concrete_deck") {
+      laborWorkingDays += 1;
+    }
+
     const laborPersonDays = laborCrewSize * laborWorkingDays;
 
     return {
@@ -190,6 +230,12 @@ export function useSolarCalculator(initialValues?: Partial<SolarFormInput>) {
       laborCrewSize,
       laborWorkingDays,
       laborPersonDays,
+
+      electricalPhase,
+      roofType,
+      availableRoofAreaSqm: availSqm,
+      roofFitStatus,
+      roofFitDifferenceSqm,
     };
   }, [formData]);
 
@@ -207,6 +253,17 @@ export function useSolarCalculator(initialValues?: Partial<SolarFormInput>) {
       designAllowance: 30,
       systemType: "hybrid",
       panelWattage: 680,
+
+      electricalPhase: "single_phase",
+      mainBreakerAmps: 60,
+      buildingType: "residential",
+      roofType: "rib_type_gi",
+      roofOrientation: "south",
+      buildingStoreys: 1,
+      availableRoofAreaSqm: 0,
+      shadingCondition: "unshaded",
+      siteDescription: "",
+
       notes: "",
     });
   };
@@ -225,6 +282,17 @@ export function useSolarCalculator(initialValues?: Partial<SolarFormInput>) {
       designAllowance: item.designAllowance ?? 30,
       systemType: item.systemType ?? "hybrid",
       panelWattage: item.panelWattage ?? 680,
+
+      electricalPhase: item.electricalPhase ?? "single_phase",
+      mainBreakerAmps: item.mainBreakerAmps ?? 60,
+      buildingType: item.buildingType ?? "residential",
+      roofType: item.roofType ?? "rib_type_gi",
+      roofOrientation: item.roofOrientation ?? "south",
+      buildingStoreys: item.buildingStoreys ?? 1,
+      availableRoofAreaSqm: item.availableRoofAreaSqm ?? 0,
+      shadingCondition: item.shadingCondition ?? "unshaded",
+      siteDescription: item.siteDescription ?? "",
+
       notes: item.notes ?? "",
     });
   };

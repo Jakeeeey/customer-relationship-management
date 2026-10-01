@@ -94,6 +94,17 @@ export default function SolarModule() {
       designAllowance: q.design_allowance_percent,
       systemType: q.system_type,
       panelWattage: q.panel_wattage as 620 | 680 | 720,
+
+      electricalPhase: q.electrical_phase || "single_phase",
+      mainBreakerAmps: q.main_breaker_rating_amps || 60,
+      buildingType: q.building_type || "residential",
+      roofType: q.roof_type || "rib_type_gi",
+      roofOrientation: q.roof_orientation || "south",
+      buildingStoreys: q.building_storeys || 1,
+      availableRoofAreaSqm: q.available_roof_area_sqm || 0,
+      shadingCondition: q.shading_condition || "unshaded",
+      siteDescription: q.site_description || "",
+
       notes: q.notes || "",
     });
 
@@ -243,6 +254,7 @@ export default function SolarModule() {
                   formData={formData}
                   updateField={updateField}
                   selectedCustomer={selectedCustomer}
+                  roofAllowanceSqm={calculation.roofAllowanceSqm}
                 />
               </div>
             </div>

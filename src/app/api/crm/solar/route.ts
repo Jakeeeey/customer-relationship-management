@@ -119,6 +119,17 @@ export async function POST(req: NextRequest) {
       system_type: input.systemType,
       panel_wattage: input.panelWattage,
 
+      // Site & Building Engineering Profile
+      electrical_phase: input.electricalPhase || "single_phase",
+      main_breaker_rating_amps: input.mainBreakerAmps || 60,
+      building_type: input.buildingType || "residential",
+      roof_type: input.roofType || "rib_type_gi",
+      roof_orientation: input.roofOrientation || "south",
+      building_storeys: input.buildingStoreys || 1,
+      available_roof_area_sqm: input.availableRoofAreaSqm || 0,
+      shading_condition: input.shadingCondition || "unshaded",
+      site_description: input.siteDescription || "",
+
       // Calculated Outputs
       estimated_monthly_kwh: calculation.estimatedMonthlyKwh,
       base_solar_kwp: calculation.baseSolarKwp,

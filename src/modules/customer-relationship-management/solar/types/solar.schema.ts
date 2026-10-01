@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 // ============================================================================
-// SOLAR CALCULATOR FORM SCHEMA
+// ENUMS & TYPES
 // ============================================================================
 
 export const SystemTypeEnum = z.enum(["on_grid", "hybrid"]);
@@ -9,6 +9,31 @@ export type SystemType = z.infer<typeof SystemTypeEnum>;
 
 export const InputModeEnum = z.enum(["amount", "kwh"]);
 export type InputMode = z.infer<typeof InputModeEnum>;
+
+export const ElectricalPhaseEnum = z.enum(["single_phase", "three_phase"]);
+export type ElectricalPhase = z.infer<typeof ElectricalPhaseEnum>;
+
+export const BuildingTypeEnum = z.enum(["residential", "commercial", "industrial", "warehouse"]);
+export type BuildingType = z.infer<typeof BuildingTypeEnum>;
+
+export const RoofTypeEnum = z.enum([
+  "rib_type_gi",
+  "standing_seam",
+  "concrete_deck",
+  "tile_roof",
+  "ground_mount",
+]);
+export type RoofType = z.infer<typeof RoofTypeEnum>;
+
+export const RoofOrientationEnum = z.enum(["south", "east", "west", "flat_deck", "north"]);
+export type RoofOrientation = z.infer<typeof RoofOrientationEnum>;
+
+export const ShadingConditionEnum = z.enum(["unshaded", "minor_shading", "heavy_shading"]);
+export type ShadingCondition = z.infer<typeof ShadingConditionEnum>;
+
+// ============================================================================
+// SOLAR CALCULATOR FORM SCHEMA
+// ============================================================================
 
 export const SolarInputSchema = z.object({
   customerId: z.union([z.number(), z.string()]).refine((val) => Boolean(val), {
@@ -25,6 +50,18 @@ export const SolarInputSchema = z.object({
   designAllowance: z.number().min(0, "Allowance cannot be negative").max(100, "Max allowance is 100%").default(30),
   systemType: SystemTypeEnum.default("hybrid"),
   panelWattage: z.union([z.literal(620), z.literal(680), z.literal(720)]).default(680),
+
+  // Building & Site Engineering Profile
+  electricalPhase: ElectricalPhaseEnum.default("single_phase"),
+  mainBreakerAmps: z.number().default(60),
+  buildingType: BuildingTypeEnum.default("residential"),
+  roofType: RoofTypeEnum.default("rib_type_gi"),
+  roofOrientation: RoofOrientationEnum.default("south"),
+  buildingStoreys: z.number().min(1).default(1),
+  availableRoofAreaSqm: z.number().min(0).default(0),
+  shadingCondition: ShadingConditionEnum.default("unshaded"),
+  siteDescription: z.string().optional(),
+
   notes: z.string().optional(),
 });
 
@@ -58,6 +95,13 @@ export const SolarCalculationResultSchema = z.object({
   laborCrewSize: z.number(),
   laborWorkingDays: z.number(),
   laborPersonDays: z.number(),
+
+  // Site Engineering Analysis
+  electricalPhase: ElectricalPhaseEnum,
+  roofType: RoofTypeEnum,
+  availableRoofAreaSqm: z.number(),
+  roofFitStatus: z.enum(["unknown", "sufficient", "insufficient"]),
+  roofFitDifferenceSqm: z.number(),
 });
 
 export type SolarCalculationResult = z.infer<typeof SolarCalculationResultSchema>;
@@ -93,6 +137,17 @@ export const SolarQuotationSchema = z.object({
   design_allowance_percent: z.number(),
   system_type: SystemTypeEnum,
   panel_wattage: z.number(),
+
+  // Site Profile
+  electrical_phase: ElectricalPhaseEnum.default("single_phase"),
+  main_breaker_rating_amps: z.number().nullish(),
+  building_type: BuildingTypeEnum.default("residential"),
+  roof_type: RoofTypeEnum.default("rib_type_gi"),
+  roof_orientation: RoofOrientationEnum.default("south"),
+  building_storeys: z.number().default(1),
+  available_roof_area_sqm: z.number().nullish(),
+  shading_condition: ShadingConditionEnum.default("unshaded"),
+  site_description: z.string().nullish(),
 
   // Outputs
   estimated_monthly_kwh: z.number(),
