@@ -31,6 +31,7 @@ import {
     Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { CustomerWithRelations, PaymentTerm, ReferenceOption, resolveCreditSystem } from "../types";
+import { matchBarangay, matchCity, matchProvince, matchRegion, parseNominatimAddress } from "@/modules/customer-relationship-management/customer-management/shared/psgc-address";
 import { BankAccountManager } from "./BankAccountManager";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -263,7 +264,17 @@ const customerSchema = z.object({
     customer_email: z.string().email().or(z.literal("")),
     brgy: z.string().min(1, "Barangay is required"),
     city: z.string().min(1, "City is required"),
-    province: z.string().min(1, "Province is required"),
+    province: z.string().optional().or(z.literal("")),
+    region: z.string().optional().or(z.literal("")),
+    zip_code: z.string().optional().or(z.literal("")),
+    unit_building: z.string().optional().or(z.literal("")),
+    house_no: z.string().optional().or(z.literal("")),
+    block: z.string().optional().or(z.literal("")),
+    lot: z.string().optional().or(z.literal("")),
+    phase: z.string().optional().or(z.literal("")),
+    street: z.string().optional().or(z.literal("")),
+    subdivision: z.string().optional().or(z.literal("")),
+    purok_sitio: z.string().optional().or(z.literal("")),
     type: z.enum(["Regular", "Employee"]),
     user_id: z.preprocess(
         (val) => (val === "" || val === null || val === undefined || val === 0 || val === "0" ? null : Number(val)),
@@ -327,7 +338,8 @@ interface CustomerFormSheetProps {
 
 const getDefaultValues = (): CustomerFormValues => ({
     customer_code: "", customer_name: "", store_name: "", store_signage: "", contact_number: "",
-    customer_email: "", brgy: "", city: "", province: "", tel_number: "", customer_tin: "",
+    customer_email: "", brgy: "", city: "", province: "", region: "", tel_number: "", customer_tin: "",
+    zip_code: "", unit_building: "", house_no: "", block: "", lot: "", phase: "", street: "", subdivision: "", purok_sitio: "",
     payment_term: 0, store_type: undefined as unknown as number, classification: null, price_type: "", price_type_id: null, credit_limit: null, isActive: 1, isVAT: 0, isEWT: 0,
     discount_type: null, type: "Regular", user_id: null, encoder_id: 1, bank_accounts: [],
     customer_image: "", location: "", otherDetails: "",
@@ -385,10 +397,28 @@ export function CustomerFormSheet({ open, onOpenChange, customer, onSubmit, defa
     const [priceTypes, setPriceTypes] = useState<ReferenceOption[]>([]);
     const [isLoadingPriceTypes, setIsLoadingPriceTypes] = useState(false);
 
+    const [regionsList, setRegionsList] = useState<LocationOption[]>([]);
+    const [provinceCatalog, setProvinceCatalog] = useState<{ code: string; name: string; regionCode: string }[]>([]);
     const [provincesList, setProvincesList] = useState<LocationOption[]>([]);
     const [citiesList, setCitiesList] = useState<LocationOption[]>([]);
     const [barangaysList, setBarangaysList] = useState<LocationOption[]>([]);
 
+    const [regionCode, setRegionCode] = useState<string | null>(null);
+    const [provinceCode, setProvinceCode] = useState<string | null>(null);
+    const [cityCode, setCityCode] = useState<string | null>(null);
+    const [regionHasNoProvince, setRegionHasNoProvince] = useState(false);
+
+    const regionsRef = useRef<LocationOption[]>([]);
+    const provincesRef = useRef<LocationOption[]>([]);
+    const citiesRef = useRef<LocationOption[]>([]);
+    const barangaysRef = useRef<LocationOption[]>([]);
+
+    useEffect(() => { regionsRef.current = regionsList; }, [regionsList]);
+    useEffect(() => { provincesRef.current = provincesList; }, [provincesList]);
+    useEffect(() => { citiesRef.current = citiesList; }, [citiesList]);
+    useEffect(() => { barangaysRef.current = barangaysList; }, [barangaysList]);
+
+    const [isLoadingRegions, setIsLoadingRegions] = useState(false);
     const [isLoadingProvinces, setIsLoadingProvinces] = useState(false);
     const [isLoadingCities, setIsLoadingCities] = useState(false);
     const [isLoadingBarangays, setIsLoadingBarangays] = useState(false);
@@ -405,6 +435,7 @@ export function CustomerFormSheet({ open, onOpenChange, customer, onSubmit, defa
         defaultValues: getDefaultValues(),
     });
 
+    const selectedRegion = form.watch("region");
     const selectedProvince = form.watch("province");
     const selectedCity = form.watch("city");
     const selectedPaymentTermId = form.watch("payment_term");
@@ -469,17 +500,85 @@ export function CustomerFormSheet({ open, onOpenChange, customer, onSubmit, defa
             const data = await res.json();
 
             if (data && data.address) {
-                const address = data.address;
-                // Attempt to map OSM location names to our form fields
-                const province = address.province || address.state || address.region || "";
-                const city = address.city || address.town || address.municipality || "";
-                const brgy = address.suburb || address.village || address.neighbourhood || address.quarter || "";
+                const parsed = parseNominatimAddress(data.address);
 
-                if (province) form.setValue("province", province, { shouldValidate: true });
-                if (city) form.setValue("city", city, { shouldValidate: true });
-                if (brgy) form.setValue("brgy", brgy, { shouldValidate: true });
+                form.setValue("house_no", parsed.detail.house_no, { shouldValidate: true });
+                form.setValue("unit_building", parsed.detail.unit_building, { shouldValidate: true });
+                form.setValue("street", parsed.detail.street, { shouldValidate: true });
+                form.setValue("subdivision", parsed.detail.subdivision, { shouldValidate: true });
+                form.setValue("purok_sitio", parsed.detail.purok_sitio, { shouldValidate: true });
+                form.setValue("zip_code", parsed.detail.zip_code, { shouldValidate: true });
 
-                toast.success("Address auto-filled from map data!");
+                const finish = () => {
+                    toast.success("Address auto-filled from map data!");
+                };
+
+                const trySetBrgy = (onDone: () => void) => {
+                    let brgyRetry = 0;
+                    const poll = () => {
+                        const brgyMatch = matchBarangay(barangaysRef.current, parsed.brgy);
+                        if (brgyMatch) {
+                            form.setValue("brgy", brgyMatch.name, { shouldValidate: true });
+                            onDone();
+                        } else if (brgyRetry < 10) {
+                            brgyRetry++;
+                            setTimeout(poll, 800);
+                        } else {
+                            onDone();
+                        }
+                    };
+                    setTimeout(poll, 800);
+                };
+
+                const trySetCity = (onDone: () => void) => {
+                    let cityRetry = 0;
+                    const poll = () => {
+                        const cityMatch = matchCity(citiesRef.current, parsed.city);
+                        if (cityMatch) {
+                            form.setValue("city", cityMatch.name, { shouldValidate: true });
+                            trySetBrgy(onDone);
+                        } else if (cityRetry < 10) {
+                            cityRetry++;
+                            setTimeout(poll, 800);
+                        } else {
+                            onDone();
+                        }
+                    };
+                    setTimeout(poll, 800);
+                };
+
+                const trySetProvince = (onDone: () => void) => {
+                    if (!parsed.province) {
+                        trySetCity(onDone);
+                        return;
+                    }
+                    let provRetry = 0;
+                    const poll = () => {
+                        const provMatch = matchProvince(provincesRef.current, parsed.province);
+                        if (provMatch) {
+                            form.setValue("province", provMatch.name, { shouldValidate: true });
+                            trySetCity(onDone);
+                        } else if (provRetry < 10) {
+                            provRetry++;
+                            setTimeout(poll, 800);
+                        } else {
+                            onDone();
+                        }
+                    };
+                    setTimeout(poll, 800);
+                };
+
+                const regionMatch = matchRegion(regionsRef.current, parsed.region);
+                if (regionMatch) {
+                    form.setValue("region", regionMatch.name, { shouldValidate: true });
+                    trySetProvince(finish);
+                } else {
+                    const provMatch = matchProvince(provincesRef.current, parsed.province);
+                    if (provMatch) {
+                        form.setValue("province", provMatch.name, { shouldValidate: true });
+                    }
+                    trySetCity(finish);
+                }
             } else {
                 toast.error("Could not resolve address from these coordinates.");
             }
@@ -495,14 +594,80 @@ export function CustomerFormSheet({ open, onOpenChange, customer, onSubmit, defa
         if (!open) return;
         let isMounted = true;
 
-        const fetchProvinces = async () => {
-            setIsLoadingProvinces(true);
+        const fetchRegions = async () => {
+            setIsLoadingRegions(true);
             try {
-                const res = await fetch("https://psgc.gitlab.io/api/provinces/");
-                if (!res.ok) throw new Error("Failed to fetch provinces");
+                const res = await fetch("https://psgc.gitlab.io/api/regions/");
+                if (!res.ok) throw new Error("Failed to fetch regions");
                 const data = await res.json();
                 if (isMounted) {
-                    setProvincesList(data.map((p: { code: string; name: string }) => ({code: p.code, name: p.name})));
+                    setRegionsList(data.map((r: { code: string; name: string }) => ({code: r.code, name: r.name})));
+                }
+            } catch {
+                console.error("Failed to fetch regions");
+            } finally {
+                if (isMounted) setIsLoadingRegions(false);
+            }
+        };
+        fetchRegions();
+        const fetchProvinceCatalog = async () => {
+            try {
+                const res = await fetch("https://psgc.gitlab.io/api/provinces/");
+                if (!res.ok) throw new Error("Failed to fetch province catalog");
+                const data = await res.json();
+                if (isMounted) {
+                    setProvinceCatalog(data.map((p: { code: string; name: string; regionCode: string }) => ({code: p.code, name: p.name, regionCode: p.regionCode})));
+                }
+            } catch {
+                console.error("Failed to fetch province catalog");
+            }
+        };
+        fetchProvinceCatalog();
+        return () => { isMounted = false; };
+    }, [open]);
+
+    useEffect(() => {
+        let isMounted = true;
+        const fetchProvinces = async () => {
+            if (!selectedRegion || regionsList.length === 0) {
+                if (!selectedRegion) {
+                    setProvincesList([]);
+                    setRegionHasNoProvince(false);
+                    setRegionCode(null);
+                }
+                return;
+            }
+
+            const regionObj = regionsList.find(r => r.name.toLowerCase().trim() === selectedRegion.toLowerCase().trim());
+            if (!regionObj) return;
+            if (regionObj.code === regionCode && provincesList.length > 0) return;
+            setRegionCode(regionObj.code);
+
+            setIsLoadingProvinces(true);
+            try {
+                const res = await fetch(`https://psgc.gitlab.io/api/regions/${regionObj.code}/provinces/`);
+                if (!res.ok) throw new Error("Failed to fetch provinces");
+                const data = await res.json();
+                if (!isMounted) return;
+                const mapped: LocationOption[] = data.map((p: { code: string; name: string }) => ({code: p.code, name: p.name}));
+                setProvincesList(mapped);
+                if (mapped.length === 0) {
+                    setRegionHasNoProvince(true);
+                    setIsLoadingCities(true);
+                    try {
+                        const cityRes = await fetch(`https://psgc.gitlab.io/api/regions/${regionObj.code}/cities-municipalities/`);
+                        if (!cityRes.ok) throw new Error("Failed to fetch cities");
+                        const cityData = await cityRes.json();
+                        if (isMounted) {
+                            setCitiesList(cityData.map((c: { code: string; name: string }) => ({code: c.code, name: c.name})));
+                        }
+                    } catch {
+                        console.error("Failed to fetch cities");
+                    } finally {
+                        if (isMounted) setIsLoadingCities(false);
+                    }
+                } else {
+                    setRegionHasNoProvince(false);
                 }
             } catch {
                 console.error("Failed to fetch provinces");
@@ -512,18 +677,23 @@ export function CustomerFormSheet({ open, onOpenChange, customer, onSubmit, defa
         };
         fetchProvinces();
         return () => { isMounted = false; };
-    }, [open]);
+    }, [selectedRegion, regionsList, regionCode, provincesList.length]);
 
     useEffect(() => {
         let isMounted = true;
         const fetchCities = async () => {
-            if (!selectedProvince || provincesList.length === 0) {
-                setCitiesList([]);
+            if (!selectedProvince) {
+                if (!regionHasNoProvince) {
+                    setCitiesList([]);
+                }
                 return;
             }
+            if (provincesList.length === 0) return;
 
-            const provObj = provincesList.find(p => p.name === selectedProvince);
+            const provObj = provincesList.find(p => p.name.toLowerCase().trim() === selectedProvince.toLowerCase().trim());
             if (!provObj) return;
+            if (provObj.code === provinceCode && citiesList.length > 0) return;
+            setProvinceCode(provObj.code);
 
             setIsLoadingCities(true);
             try {
@@ -534,25 +704,30 @@ export function CustomerFormSheet({ open, onOpenChange, customer, onSubmit, defa
                     setCitiesList(data.map((c: { code: string; name: string }) => ({code: c.code, name: c.name})));
                 }
             } catch {
-                console.error("Failed to fetch provinces");
+                console.error("Failed to fetch cities");
             } finally {
                 if (isMounted) setIsLoadingCities(false);
             }
         };
         fetchCities();
         return () => { isMounted = false; };
-    }, [selectedProvince, provincesList]);
+    }, [selectedProvince, provincesList, provinceCode, regionHasNoProvince, citiesList.length]);
 
     useEffect(() => {
         let isMounted = true;
         const fetchBarangays = async () => {
             if (!selectedCity || citiesList.length === 0) {
-                setBarangaysList([]);
+                if (!selectedCity) {
+                    setBarangaysList([]);
+                    setCityCode(null);
+                }
                 return;
             }
 
-            const cityObj = citiesList.find(c => c.name === selectedCity);
+            const cityObj = citiesList.find(c => c.name.toLowerCase().trim() === selectedCity.toLowerCase().trim());
             if (!cityObj) return;
+            if (cityObj.code === cityCode && barangaysList.length > 0) return;
+            setCityCode(cityObj.code);
 
             setIsLoadingBarangays(true);
             try {
@@ -563,14 +738,14 @@ export function CustomerFormSheet({ open, onOpenChange, customer, onSubmit, defa
                     setBarangaysList(data.map((b: { code: string; name: string }) => ({code: b.code, name: b.name})));
                 }
             } catch {
-                console.error("Failed to fetch provinces");
+                console.error("Failed to fetch barangays");
             } finally {
                 if (isMounted) setIsLoadingBarangays(false);
             }
         };
         fetchBarangays();
         return () => { isMounted = false; };
-    }, [selectedCity, citiesList]);
+    }, [selectedCity, citiesList, cityCode, barangaysList.length]);
 
     useEffect(() => {
         if (open) setActiveTab(defaultTab);
@@ -700,6 +875,16 @@ export function CustomerFormSheet({ open, onOpenChange, customer, onSubmit, defa
                     brgy: customer.brgy || "",
                     city: customer.city || "",
                     province: customer.province || "",
+                    region: customer.region || "",
+                    zip_code: customer.zip_code || "",
+                    unit_building: customer.unit_building || "",
+                    house_no: customer.house_no || "",
+                    block: customer.block || "",
+                    lot: customer.lot || "",
+                    phase: customer.phase || "",
+                    street: customer.street || "",
+                    subdivision: customer.subdivision || "",
+                    purok_sitio: customer.purok_sitio || "",
                     tel_number: customer.tel_number || "",
                     customer_tin: customer.customer_tin || "",
                     payment_term: customer.payment_term || 0,
@@ -726,6 +911,18 @@ export function CustomerFormSheet({ open, onOpenChange, customer, onSubmit, defa
         }
     }, [customer, form, open]);
 
+    useEffect(() => {
+        if (!open || !customer) return;
+        if (form.getValues("region")) return;
+        const provinceName = form.getValues("province");
+        if (!provinceName || regionsList.length === 0 || provinceCatalog.length === 0) return;
+        const catalogEntry = provinceCatalog.find((p) => p.name.toLowerCase().trim() === provinceName.toLowerCase().trim());
+        if (!catalogEntry) return;
+        const regionObj = regionsList.find((r) => r.code === catalogEntry.regionCode);
+        if (!regionObj) return;
+        form.setValue("region", regionObj.name, { shouldValidate: true });
+    }, [open, customer, form, regionsList, provinceCatalog, selectedRegion, selectedProvince]);
+
     const handleFormSubmit: SubmitHandler<CustomerFormValues> = async (values) => {
         try {
             await onSubmit(values);
@@ -747,7 +944,7 @@ export function CustomerFormSheet({ open, onOpenChange, customer, onSubmit, defa
                 ).length;
             case "address":
                 return errorKeys.filter(k =>
-                    ["province", "city", "brgy", "contact_number", "tel_number", "customer_email"].includes(k)
+                    ["region", "province", "city", "brgy", "contact_number", "tel_number", "customer_email", "zip_code", "unit_building", "house_no", "block", "lot", "phase", "street", "subdivision", "purok_sitio"].includes(k)
                 ).length;
             case "billing":
                 return errorKeys.filter(k =>
@@ -989,25 +1186,57 @@ export function CustomerFormSheet({ open, onOpenChange, customer, onSubmit, defa
                                 <TabsContent value="address"
                                              className="space-y-6 m-0 animate-in fade-in slide-in-from-bottom-2">
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                        <FormField control={form.control} name="region" render={({field}) => (
+                                            <FormItem className="flex flex-col md:col-span-2">
+                                                <FormLabel
+                                                    className="font-bold uppercase text-xs text-muted-foreground">Region</FormLabel>
+                                                <SearchableCombobox
+                                                    items={regionsList}
+                                                    value={field.value || ""}
+                                                    isLoading={isLoadingRegions}
+                                                    onChange={(val: string) => {
+                                                        field.onChange(val);
+                                                        form.setValue("province", "", {shouldValidate: true});
+                                                        form.setValue("city", "", {shouldValidate: true});
+                                                        form.setValue("brgy", "", {shouldValidate: true});
+                                                        setProvinceCode(null);
+                                                        setCityCode(null);
+                                                        setProvincesList([]);
+                                                        setCitiesList([]);
+                                                        setBarangaysList([]);
+                                                        setRegionHasNoProvince(false);
+                                                    }}
+                                                    placeholder="Search region..."
+                                                    disabled={isLoadingRegions}
+                                                />
+                                                <FormMessage/>
+                                            </FormItem>
+                                        )}/>
+
+                                        {!regionHasNoProvince && (
                                         <FormField control={form.control} name="province" render={({field}) => (
                                             <FormItem className="flex flex-col md:col-span-2">
                                                 <FormLabel
-                                                    className="font-bold uppercase text-xs text-muted-foreground">Province<RequiredMark /></FormLabel>
+                                                    className="font-bold uppercase text-xs text-muted-foreground">Province</FormLabel>
                                                 <SearchableCombobox
                                                     items={provincesList}
-                                                    value={field.value}
+                                                    value={field.value || ""}
                                                     isLoading={isLoadingProvinces}
                                                     onChange={(val: string) => {
                                                         field.onChange(val);
                                                         form.setValue("city", "", {shouldValidate: true});
                                                         form.setValue("brgy", "", {shouldValidate: true});
+                                                        setCityCode(null);
+                                                        setCitiesList([]);
+                                                        setBarangaysList([]);
                                                     }}
-                                                    placeholder="Search province..."
-                                                    disabled={isLoadingProvinces}
+                                                    placeholder={selectedRegion ? "Search province..." : "Select region first"}
+                                                    disabled={!selectedRegion || isLoadingProvinces}
                                                 />
                                                 <FormMessage/>
                                             </FormItem>
                                         )}/>
+                                        )}
 
                                         <FormField control={form.control} name="city" render={({field}) => (
                                             <FormItem className="flex flex-col">
@@ -1021,9 +1250,10 @@ export function CustomerFormSheet({ open, onOpenChange, customer, onSubmit, defa
                                                     onChange={(val: string) => {
                                                         field.onChange(val);
                                                         form.setValue("brgy", "", {shouldValidate: true});
+                                                        setBarangaysList([]);
                                                     }}
-                                                    placeholder={selectedProvince ? "Search city..." : "Select province first"}
-                                                    disabled={!selectedProvince || isLoadingCities}
+                                                    placeholder={(selectedProvince || regionHasNoProvince) ? "Search city..." : "Select province first"}
+                                                    disabled={(!selectedProvince && !regionHasNoProvince) || isLoadingCities}
                                                 />
                                                 <FormMessage/>
                                             </FormItem>
@@ -1037,13 +1267,65 @@ export function CustomerFormSheet({ open, onOpenChange, customer, onSubmit, defa
                                                     items={barangaysList}
                                                     value={field.value}
                                                     isLoading={isLoadingBarangays}
-                                                    onChange={field.onChange}
+                                                    onChange={(val: string) => {
+                                                        field.onChange(val);
+                                                    }}
                                                     placeholder={selectedCity ? "Search barangay..." : "Select city first"}
                                                     disabled={!selectedCity || isLoadingBarangays}
                                                     allowCustomValue={true}
                                                 />
                                                 <FormMessage/>
                                             </FormItem>
+                                        )}/>
+
+                                        <FormField control={form.control} name="house_no" render={({field}) => (
+                                            <FormItem><FormLabel
+                                                className="font-bold uppercase text-xs text-muted-foreground">House
+                                                No.</FormLabel><FormControl><Input className="h-11 bg-muted/30"
+                                                                                  placeholder="123" {...field} value={field.value || ""} /></FormControl><FormMessage/></FormItem>
+                                        )}/>
+                                        <FormField control={form.control} name="unit_building" render={({field}) => (
+                                            <FormItem><FormLabel
+                                                className="font-bold uppercase text-xs text-muted-foreground">Unit
+                                                / Building</FormLabel><FormControl><Input className="h-11 bg-muted/30"
+                                                                                         placeholder="Unit 4B" {...field} value={field.value || ""} /></FormControl><FormMessage/></FormItem>
+                                        )}/>
+                                        <FormField control={form.control} name="street" render={({field}) => (
+                                            <FormItem><FormLabel
+                                                className="font-bold uppercase text-xs text-muted-foreground">Street</FormLabel><FormControl><Input
+                                                className="h-11 bg-muted/30" placeholder="Rizal St." {...field} value={field.value || ""} /></FormControl><FormMessage/></FormItem>
+                                        )}/>
+                                        <FormField control={form.control} name="subdivision" render={({field}) => (
+                                            <FormItem><FormLabel
+                                                className="font-bold uppercase text-xs text-muted-foreground">Subdivision</FormLabel><FormControl><Input
+                                                className="h-11 bg-muted/30" placeholder="Greenhills" {...field} value={field.value || ""} /></FormControl><FormMessage/></FormItem>
+                                        )}/>
+                                        <FormField control={form.control} name="block" render={({field}) => (
+                                            <FormItem><FormLabel
+                                                className="font-bold uppercase text-xs text-muted-foreground">Block</FormLabel><FormControl><Input
+                                                className="h-11 bg-muted/30" placeholder="Blk 5" {...field} value={field.value || ""} /></FormControl><FormMessage/></FormItem>
+                                        )}/>
+                                        <FormField control={form.control} name="lot" render={({field}) => (
+                                            <FormItem><FormLabel
+                                                className="font-bold uppercase text-xs text-muted-foreground">Lot</FormLabel><FormControl><Input
+                                                className="h-11 bg-muted/30" placeholder="Lot 12" {...field} value={field.value || ""} /></FormControl><FormMessage/></FormItem>
+                                        )}/>
+                                        <FormField control={form.control} name="phase" render={({field}) => (
+                                            <FormItem><FormLabel
+                                                className="font-bold uppercase text-xs text-muted-foreground">Phase</FormLabel><FormControl><Input
+                                                className="h-11 bg-muted/30" placeholder="Phase 2" {...field} value={field.value || ""} /></FormControl><FormMessage/></FormItem>
+                                        )}/>
+                                        <FormField control={form.control} name="purok_sitio" render={({field}) => (
+                                            <FormItem><FormLabel
+                                                className="font-bold uppercase text-xs text-muted-foreground">Purok
+                                                / Sitio</FormLabel><FormControl><Input className="h-11 bg-muted/30"
+                                                                                       placeholder="Purok 3" {...field} value={field.value || ""} /></FormControl><FormMessage/></FormItem>
+                                        )}/>
+                                        <FormField control={form.control} name="zip_code" render={({field}) => (
+                                            <FormItem><FormLabel
+                                                className="font-bold uppercase text-xs text-muted-foreground">Zip
+                                                Code</FormLabel><FormControl><Input className="h-11 bg-muted/30"
+                                                                                    placeholder="2400" {...field} value={field.value || ""} /></FormControl><FormMessage/></FormItem>
                                         )}/>
 
                                         {/* 🚀 FIXED: Auto-Fill Address Button Added */}
