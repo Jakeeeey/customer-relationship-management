@@ -265,6 +265,7 @@ const customerSchema = z.object({
     brgy: z.string().min(1, "Barangay is required"),
     city: z.string().min(1, "City is required"),
     province: z.string().optional().or(z.literal("")),
+    country: z.string().optional().or(z.literal("")),
     region: z.string().optional().or(z.literal("")),
     zip_code: z.string().optional().or(z.literal("")),
     unit_building: z.string().optional().or(z.literal("")),
@@ -338,7 +339,7 @@ interface CustomerFormSheetProps {
 
 const getDefaultValues = (): CustomerFormValues => ({
     customer_code: "", customer_name: "", store_name: "", store_signage: "", contact_number: "",
-    customer_email: "", brgy: "", city: "", province: "", region: "", tel_number: "", customer_tin: "",
+    customer_email: "", brgy: "", city: "", province: "", country: "", region: "", tel_number: "", customer_tin: "",
     zip_code: "", unit_building: "", house_no: "", block: "", lot: "", phase: "", street: "", subdivision: "", purok_sitio: "",
     payment_term: 0, store_type: undefined as unknown as number, classification: null, price_type: "", price_type_id: null, credit_limit: null, isActive: 1, isVAT: 0, isEWT: 0,
     discount_type: null, type: "Regular", user_id: null, encoder_id: 1, bank_accounts: [],
@@ -875,6 +876,7 @@ export function CustomerFormSheet({ open, onOpenChange, customer, onSubmit, defa
                     brgy: customer.brgy || "",
                     city: customer.city || "",
                     province: customer.province || "",
+                    country: customer.country || "",
                     region: customer.region || "",
                     zip_code: customer.zip_code || "",
                     unit_building: customer.unit_building || "",
@@ -944,7 +946,7 @@ export function CustomerFormSheet({ open, onOpenChange, customer, onSubmit, defa
                 ).length;
             case "address":
                 return errorKeys.filter(k =>
-                    ["region", "province", "city", "brgy", "contact_number", "tel_number", "customer_email", "zip_code", "unit_building", "house_no", "block", "lot", "phase", "street", "subdivision", "purok_sitio"].includes(k)
+                    ["country", "region", "province", "city", "brgy", "contact_number", "tel_number", "customer_email", "zip_code", "unit_building", "house_no", "block", "lot", "phase", "street", "subdivision", "purok_sitio"].includes(k)
                 ).length;
             case "billing":
                 return errorKeys.filter(k =>
@@ -1186,6 +1188,14 @@ export function CustomerFormSheet({ open, onOpenChange, customer, onSubmit, defa
                                 <TabsContent value="address"
                                              className="space-y-6 m-0 animate-in fade-in slide-in-from-bottom-2">
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                        <FormField control={form.control} name="country" render={({field}) => (
+                                            <FormItem className="flex flex-col md:col-span-2">
+                                                <FormLabel
+                                                    className="font-bold uppercase text-xs text-muted-foreground">Country</FormLabel>
+                                                <FormControl><Input className="h-11 bg-muted/30" placeholder="Philippines" {...field} value={field.value || ""} /></FormControl>
+                                                <FormMessage/>
+                                            </FormItem>
+                                        )}/>
                                         <FormField control={form.control} name="region" render={({field}) => (
                                             <FormItem className="flex flex-col md:col-span-2">
                                                 <FormLabel

@@ -165,7 +165,8 @@ export function CustomerRegistrationFormSheet({ open, onOpenChange, customer, on
         resolver: zodResolver(customerRegistrationSchema) as Resolver<CustomerRegistrationFormValues>,
         defaultValues: {
             customer_name: "", store_name: "", store_signage: "", contact_number: "",
-            customer_email: "", brgy: "", city: "", province: "", tel_number: "", customer_tin: "",
+            customer_email: "", brgy: "", city: "", province: "", country: "", region: "", tel_number: "", customer_tin: "",
+            zip_code: "", unit_building: "", house_no: "", block: "", lot: "", phase: "", street: "", subdivision: "", purok_sitio: "",
             location: "", type: "Regular", isActive: 1, isVAT: 0, isEWT: 0, image: "",
         },
     });
@@ -339,6 +340,7 @@ export function CustomerRegistrationFormSheet({ open, onOpenChange, customer, on
         if (open && customer) {
             form.reset({
                 ...customer,
+                country: customer.country || "",
                 region: customer.region || "",
                 province: customer.province || "",
                 zip_code: customer.zip_code || "",
@@ -360,7 +362,7 @@ export function CustomerRegistrationFormSheet({ open, onOpenChange, customer, on
         } else if (open && !customer) {
             form.reset({
                 customer_name: "", store_name: "", store_signage: "", contact_number: "",
-                customer_email: "", brgy: "", city: "", province: "", region: "", tel_number: "", customer_tin: "",
+                customer_email: "", brgy: "", city: "", province: "", country: "", region: "", tel_number: "", customer_tin: "",
                 zip_code: "", unit_building: "", house_no: "", block: "", lot: "", phase: "",
                 street: "", subdivision: "", purok_sitio: "",
                 location: "", type: "Regular", isActive: 1, isVAT: 0, isEWT: 0, image: "",
@@ -766,6 +768,19 @@ export function CustomerRegistrationFormSheet({ open, onOpenChange, customer, on
 
                                     <TabsContent value="location" className="space-y-12 animate-in fade-in slide-in-from-bottom-2 duration-300 m-0">
                                         <div className="space-y-10">
+                                            <FormField
+                                                control={form.control}
+                                                name="country"
+                                                render={({ field }) => (
+                                                    <FormItem>
+                                                        <FormLabel className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground px-1">Country</FormLabel>
+                                                        <FormControl>
+                                                            <Input {...field} value={field.value || ""} className="h-16 bg-muted/20 border-border/40 rounded-3xl focus-visible:ring-blue-500/20 text-sm font-bold shadow-sm px-6" placeholder="Philippines" />
+                                                        </FormControl>
+                                                        <FormMessage />
+                                                    </FormItem>
+                                                )}
+                                            />
                                             <div className={cn("grid grid-cols-1 gap-8", !isNoProvinceRegion && "sm:grid-cols-2")}>
                                                 <FormField
                                                     control={form.control}
