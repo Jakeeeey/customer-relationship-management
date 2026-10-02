@@ -43,6 +43,7 @@ export interface Customer {
     division_id?: number | null;
     department_id?: number | null;
     location?: unknown | null; // point type
+    country?: string | null;
     region?: string | null;
     zip_code?: string | null;
     unit_building?: string | null;

@@ -21,6 +21,7 @@ export const customerRegistrationSchema = z.object({
     city: z.string().min(1, "City is required"),
     province: z.string().optional().or(z.literal("")).nullable(),
     location: z.string().optional().nullable(),
+    country: z.string().optional().or(z.literal("")).nullable(),
     region: z.string().optional().or(z.literal("")).nullable(),
     zip_code: z.string().optional().or(z.literal("")).nullable(),
     unit_building: z.string().optional().or(z.literal("")).nullable(),
