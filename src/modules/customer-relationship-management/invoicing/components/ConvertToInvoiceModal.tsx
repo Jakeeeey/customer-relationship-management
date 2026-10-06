@@ -1798,6 +1798,7 @@ export const ConvertToInvoiceModal: React.FC<ConvertToInvoiceModalProps> = ({
                                                                     left: `${config.x}mm`,
                                                                     top: `${config.y}mm`,
                                                                     width: config.maxWidth ? `${config.maxWidth}mm` : 'auto',
+                                                                    maxWidth: config.maxWidth ? `${config.maxWidth}mm` : undefined,
                                                                     fontSize: `${config.fontSize}pt`,
                                                                     fontFamily: config.fontFamily === 'courier' ? 'monospace' : config.fontFamily,
                                                                     fontWeight: config.fontWeight || 'normal',
@@ -1805,7 +1806,8 @@ export const ConvertToInvoiceModal: React.FC<ConvertToInvoiceModalProps> = ({
                                                                     letterSpacing: `${config.charSpacing ?? 0}pt`,
                                                                     transform: `scaleX(${config.scaleX ?? 1})`,
                                                                     transformOrigin: 'left center',
-                                                                    whiteSpace: config.maxWidth ? 'pre-wrap' : 'nowrap'
+                                                                    whiteSpace: config.maxWidth ? 'pre-wrap' : 'nowrap',
+                                                                    wordBreak: 'break-word'
                                                                 }}
                                                             >
                                                                 {val}

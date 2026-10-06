@@ -78,7 +78,9 @@ export const useInventoryReport = () => {
             // For Piece/Box views, we keep summing the RAW runningInventory (total pieces)
             g.piece += item.runningInventory;
 
-            if (item.unit.toUpperCase().includes("BOX") && item.unitCount > 1) {
+            const uUpper = item.unit.toUpperCase();
+            const isBoxUnit = (uUpper.includes("BOX") || uUpper.includes("CASE")) && !uUpper.includes("INNER BOX");
+            if (isBoxUnit && item.unitCount > 1) {
                 g.targetUnitCount = item.unitCount;
             }
         }

@@ -25,6 +25,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { CustomerRegistration, CustomerRegistrationFormValues, customerRegistrationSchema } from "../types";
+import { matchBarangay, matchCity, matchProvince, matchRegion, parseNominatimAddress } from "@/modules/customer-relationship-management/customer-management/shared/psgc-address";
 import { CustomerGeotagMap } from "./CustomerGeotagMap";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -32,6 +33,8 @@ import { toast } from "sonner";
 interface LocationOption {
     code: string;
     name: string;
+    regionCode?: string | null;
+    provinceCode?: string | null | false;
 }
 
 interface SearchableComboboxProps {
@@ -127,25 +130,32 @@ interface CustomerRegistrationFormSheetProps {
 }
 
 export function CustomerRegistrationFormSheet({ open, onOpenChange, customer, onSubmit }: CustomerRegistrationFormSheetProps) {
+    const [regionsList, setRegionsList] = useState<LocationOption[]>([]);
     const [provincesList, setProvincesList] = useState<LocationOption[]>([]);
+    const [provincesCatalog, setProvincesCatalog] = useState<LocationOption[]>([]);
     const [citiesList, setCitiesList] = useState<LocationOption[]>([]);
     const [barangaysList, setBarangaysList] = useState<LocationOption[]>([]);
 
     // Use refs to avoid closure issues in reverseGeocode retries
+    const regionsRef = useRef<LocationOption[]>([]);
     const provincesRef = useRef<LocationOption[]>([]);
     const citiesRef = useRef<LocationOption[]>([]);
     const barangaysRef = useRef<LocationOption[]>([]);
+    const noProvinceRef = useRef(false);
 
     const [storeTypes, setStoreTypes] = useState<{ id: number; store_type: string }[]>([]);
     const [classifications, setClassifications] = useState<{ id: number; classification_name: string }[]>([]);
 
+    useEffect(() => { regionsRef.current = regionsList; }, [regionsList]);
     useEffect(() => { provincesRef.current = provincesList; }, [provincesList]);
     useEffect(() => { citiesRef.current = citiesList; }, [citiesList]);
     useEffect(() => { barangaysRef.current = barangaysList; }, [barangaysList]);
 
+    const [isLoadingRegions, setIsLoadingRegions] = useState(false);
     const [isLoadingProvinces, setIsLoadingProvinces] = useState(false);
     const [isLoadingCities, setIsLoadingCities] = useState(false);
     const [isLoadingBarangays, setIsLoadingBarangays] = useState(false);
+    const [isNoProvinceRegion, setIsNoProvinceRegion] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isGeocoding, setIsGeocoding] = useState(false);
     const [isUploading, setIsUploading] = useState(false);
@@ -155,32 +165,50 @@ export function CustomerRegistrationFormSheet({ open, onOpenChange, customer, on
         resolver: zodResolver(customerRegistrationSchema) as Resolver<CustomerRegistrationFormValues>,
         defaultValues: {
             customer_name: "", store_name: "", store_signage: "", contact_number: "",
-            customer_email: "", brgy: "", city: "", province: "", tel_number: "", customer_tin: "",
+            customer_email: "", brgy: "", city: "", province: "", country: "", region: "", tel_number: "", customer_tin: "",
+            zip_code: "", unit_building: "", house_no: "", block: "", lot: "", phase: "", street: "", subdivision: "", purok_sitio: "",
             location: "", type: "Regular", isActive: 1, isVAT: 0, isEWT: 0, image: "",
         },
     });
 
+    const selectedRegion = form.watch("region");
     const selectedProvince = form.watch("province");
     const selectedCity = form.watch("city");
     const currentLocation = form.watch("location");
 
-    // Fetch Provinces
+    // Fetch Regions
     useEffect(() => {
         if (!open) return;
-        const fetchProvinces = async () => {
-            setIsLoadingProvinces(true);
+        const fetchRegions = async () => {
+            setIsLoadingRegions(true);
             try {
-                const res = await fetch("/api/psgc/provinces");
-                if (!res.ok) throw new Error("Failed to fetch provinces");
+                const res = await fetch("/api/psgc/regions");
+                if (!res.ok) throw new Error("Failed to fetch regions");
                 const data = await res.json();
-                setProvincesList(data.map((p: { code: string; name: string }) => ({ code: p.code, name: p.name })));
+                setRegionsList(data.map((r: { code: string; name: string }) => ({ code: r.code, name: r.name })));
             } catch (err) {
-                console.error("Provinces fetch error:", err);
+                console.error("Regions fetch error:", err);
             } finally {
-                setIsLoadingProvinces(false);
+                setIsLoadingRegions(false);
             }
         };
-        fetchProvinces();
+        fetchRegions();
+    }, [open]);
+
+    // Fetch full province catalog (used to backfill region for legacy rows)
+    useEffect(() => {
+        if (!open) return;
+        const fetchCatalog = async () => {
+            try {
+                const res = await fetch("/api/psgc/provinces");
+                if (!res.ok) throw new Error("Failed to fetch province catalog");
+                const data = await res.json();
+                setProvincesCatalog(data.map((p: { code: string; name: string; regionCode?: string | null }) => ({ code: p.code, name: p.name, regionCode: p.regionCode ?? null })));
+            } catch (err) {
+                console.error("Province catalog fetch error:", err);
+            }
+        };
+        fetchCatalog();
     }, [open]);
 
     // Fetch Store Types and Classifications
@@ -207,14 +235,64 @@ export function CustomerRegistrationFormSheet({ open, onOpenChange, customer, on
         fetchOptions();
     }, [open]);
 
-    // Fetch Cities based on Province
+    // Fetch Provinces based on Region; regions without provinces (NCR/HUC)
+    // load their cities directly and hide the Province level.
     useEffect(() => {
-        const fetchCities = async () => {
-            if (!selectedProvince || provincesList.length === 0) {
-                setCitiesList([]);
+        const fetchProvinces = async () => {
+            const regionName = (selectedRegion || "").toLowerCase().trim();
+            if (!regionName || regionsList.length === 0) {
+                setProvincesList([]);
+                setIsNoProvinceRegion(false);
+                noProvinceRef.current = false;
                 return;
             }
-            const provObj = provincesList.find(p => p.name.toLowerCase().trim() === selectedProvince.toLowerCase().trim());
+            const regionObj = regionsList.find(r => r.name.toLowerCase().trim() === regionName);
+            if (!regionObj) return;
+
+            setIsLoadingProvinces(true);
+            try {
+                const res = await fetch(`/api/psgc/regions/${regionObj.code}/provinces`);
+                if (!res.ok) throw new Error("Failed to fetch provinces");
+                const data = await res.json();
+                const mapped: LocationOption[] = data.map((p: { code: string; name: string; regionCode?: string | null }) => ({ code: p.code, name: p.name, regionCode: p.regionCode ?? null }));
+                setProvincesList(mapped);
+                if (mapped.length === 0) {
+                    setIsNoProvinceRegion(true);
+                    noProvinceRef.current = true;
+                    setIsLoadingCities(true);
+                    try {
+                        const cityRes = await fetch(`/api/psgc/regions/${regionObj.code}/cities-municipalities`);
+                        if (!cityRes.ok) throw new Error("Failed to fetch cities");
+                        const cityData = await cityRes.json();
+                        setCitiesList(cityData.map((c: { code: string; name: string; regionCode?: string | null; provinceCode?: string | null }) => ({ code: c.code, name: c.name, regionCode: c.regionCode ?? null, provinceCode: c.provinceCode ?? null })));
+                    } catch (err) {
+                        console.error("Cities fetch error:", err);
+                    } finally {
+                        setIsLoadingCities(false);
+                    }
+                } else {
+                    setIsNoProvinceRegion(false);
+                    noProvinceRef.current = false;
+                    setCitiesList([]);
+                }
+            } catch (err) {
+                console.error("Provinces fetch error:", err);
+            } finally {
+                setIsLoadingProvinces(false);
+            }
+        };
+        fetchProvinces();
+    }, [selectedRegion, regionsList]);
+
+    // Fetch Cities based on Province (skipped for no-province regions)
+    useEffect(() => {
+        const fetchCities = async () => {
+            const provinceName = (selectedProvince || "").toLowerCase().trim();
+            if (!provinceName || provincesList.length === 0) {
+                if (!noProvinceRef.current) setCitiesList([]);
+                return;
+            }
+            const provObj = provincesList.find(p => p.name.toLowerCase().trim() === provinceName);
             if (!provObj) return;
 
             setIsLoadingCities(true);
@@ -222,7 +300,7 @@ export function CustomerRegistrationFormSheet({ open, onOpenChange, customer, on
                 const res = await fetch(`/api/psgc/provinces/${provObj.code}/cities-municipalities`);
                 if (!res.ok) throw new Error("Failed to fetch cities");
                 const data = await res.json();
-                setCitiesList(data.map((c: { code: string; name: string }) => ({ code: c.code, name: c.name })));
+                setCitiesList(data.map((c: { code: string; name: string; regionCode?: string | null; provinceCode?: string | null }) => ({ code: c.code, name: c.name, regionCode: c.regionCode ?? null, provinceCode: c.provinceCode ?? null })));
             } catch (err) {
                 console.error("Cities fetch error:", err);
             } finally {
@@ -235,11 +313,12 @@ export function CustomerRegistrationFormSheet({ open, onOpenChange, customer, on
     // Fetch Barangays based on City
     useEffect(() => {
         const fetchBarangays = async () => {
-            if (!selectedCity || citiesList.length === 0) {
+            const cityName = (selectedCity || "").toLowerCase().trim();
+            if (!cityName || citiesList.length === 0) {
                 setBarangaysList([]);
                 return;
             }
-            const cityObj = citiesList.find(c => c.name.toLowerCase().trim() === selectedCity.toLowerCase().trim());
+            const cityObj = citiesList.find(c => c.name.toLowerCase().trim() === cityName);
             if (!cityObj) return;
 
             setIsLoadingBarangays(true);
@@ -261,6 +340,18 @@ export function CustomerRegistrationFormSheet({ open, onOpenChange, customer, on
         if (open && customer) {
             form.reset({
                 ...customer,
+                country: customer.country || "",
+                region: customer.region || "",
+                province: customer.province || "",
+                zip_code: customer.zip_code || "",
+                unit_building: customer.unit_building || "",
+                house_no: customer.house_no || "",
+                block: customer.block || "",
+                lot: customer.lot || "",
+                phase: customer.phase || "",
+                street: customer.street || "",
+                subdivision: customer.subdivision || "",
+                purok_sitio: customer.purok_sitio || "",
                 store_signage: customer.store_signage || "",
                 tel_number: customer.tel_number || "",
                 customer_tin: customer.customer_tin || "",
@@ -271,11 +362,26 @@ export function CustomerRegistrationFormSheet({ open, onOpenChange, customer, on
         } else if (open && !customer) {
             form.reset({
                 customer_name: "", store_name: "", store_signage: "", contact_number: "",
-                customer_email: "", brgy: "", city: "", province: "", tel_number: "", customer_tin: "",
+                customer_email: "", brgy: "", city: "", province: "", country: "", region: "", tel_number: "", customer_tin: "",
+                zip_code: "", unit_building: "", house_no: "", block: "", lot: "", phase: "",
+                street: "", subdivision: "", purok_sitio: "",
                 location: "", type: "Regular", isActive: 1, isVAT: 0, isEWT: 0, image: "",
             });
         }
     }, [open, customer, form]);
+
+    // Backfill region for legacy rows saved without one
+    useEffect(() => {
+        if (!open || !customer) return;
+        if (form.getValues("region")) return;
+        const provinceName = (form.getValues("province") || "").toLowerCase().trim();
+        if (!provinceName || regionsList.length === 0 || provincesCatalog.length === 0) return;
+        const catalogEntry = provincesCatalog.find(p => p.name.toLowerCase().trim() === provinceName);
+        const regionCode = catalogEntry?.regionCode;
+        if (!regionCode) return;
+        const regionEntry = regionsList.find(r => r.code === regionCode);
+        if (regionEntry) form.setValue("region", regionEntry.name, { shouldValidate: true });
+    }, [open, customer, regionsList, provincesCatalog, form]);
 
     const reverseGeocode = async (loc: string) => {
         if (!loc) return;
@@ -288,64 +394,88 @@ export function CustomerRegistrationFormSheet({ open, onOpenChange, customer, on
         try {
             const lat = coords[0].trim();
             const lon = coords[1].trim();
+            const latNum = Number(lat);
+            const lonNum = Number(lon);
+            if (Number.isFinite(latNum) && Number.isFinite(lonNum)) {
+                form.setValue("latitude", latNum);
+                form.setValue("longitude", lonNum);
+            }
 
             const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`);
             const data = await res.json();
 
             if (data && data.address) {
-                const { province, city, town, municipality, suburb, village, neighbourhood, quarter, state } = data.address;
-                const provinceName = province || state || "";
-                const cityName = city || town || municipality || "";
-                const brgyName = suburb || village || neighbourhood || quarter || "";
+                const parsed = parseNominatimAddress(data.address);
+                form.setValue("house_no", parsed.detail.house_no, { shouldValidate: true });
+                form.setValue("unit_building", parsed.detail.unit_building, { shouldValidate: true });
+                form.setValue("street", parsed.detail.street, { shouldValidate: true });
+                form.setValue("subdivision", parsed.detail.subdivision, { shouldValidate: true });
+                form.setValue("purok_sitio", parsed.detail.purok_sitio, { shouldValidate: true });
+                form.setValue("zip_code", parsed.detail.zip_code, { shouldValidate: true });
 
-                const findMatch = (list: LocationOption[], val: string) => {
-                    if (!val) return null;
-                    const clean = (s: string) => s.toLowerCase()
-                        .replace(/city of|province of|municipality of/g, "")
-                        .replace(/\s+/g, " ")
-                        .trim();
-                    
-                    const target = clean(val);
-                    return list.find(item => {
-                        const itemName = clean(item.name);
-                        return itemName.includes(target) || target.includes(itemName);
-                    });
+                let brgyRetry = 0;
+                const trySetBrgy = () => {
+                    const brgyMatch = matchBarangay(barangaysRef.current, parsed.brgy);
+                    if (brgyMatch) {
+                        form.setValue("brgy", brgyMatch.name, { shouldValidate: true });
+                        toast.success(`Location identified: ${brgyMatch.name}, ${form.getValues("city")}`);
+                    } else if (parsed.brgy && brgyRetry < 10) {
+                        brgyRetry++;
+                        setTimeout(trySetBrgy, 800);
+                    } else if (parsed.city && form.getValues("city")) {
+                        toast.success(`Location identified: ${form.getValues("city")}`);
+                    }
                 };
 
-                // Step 1: Province
-                const provinceMatch = findMatch(provincesRef.current, provinceName);
-                if (provinceMatch) {
-                    form.setValue("province", provinceMatch.name, { shouldValidate: true });
-                    
-                    // Step 2: City (Wait for citiesList to populate)
-                    let cityRetry = 0;
-                    const trySetCity = () => {
-                        const cityMatch = findMatch(citiesRef.current, cityName);
-                        if (cityMatch) {
-                            form.setValue("city", cityMatch.name, { shouldValidate: true });
-                            
-                            // Step 3: Barangay (Wait for barangaysList)
-                            let brgyRetry = 0;
-                            const trySetBrgy = () => {
-                                const brgyMatch = findMatch(barangaysRef.current, brgyName);
-                                if (brgyMatch) {
-                                    form.setValue("brgy", brgyMatch.name, { shouldValidate: true });
-                                    toast.success(`Location identified: ${brgyMatch.name}, ${cityMatch.name}`);
-                                } else if (brgyRetry < 10) {
-                                    brgyRetry++;
-                                    setTimeout(trySetBrgy, 800);
-                                }
-                            };
-                            setTimeout(trySetBrgy, 800);
-                        } else if (cityRetry < 10) {
-                            cityRetry++;
-                            setTimeout(trySetCity, 800);
+                let cityRetry = 0;
+                const trySetCity = () => {
+                    const cityMatch = matchCity(citiesRef.current, parsed.city);
+                    if (cityMatch) {
+                        form.setValue("city", cityMatch.name, { shouldValidate: true });
+                        setTimeout(trySetBrgy, 800);
+                    } else if (parsed.city && cityRetry < 10) {
+                        cityRetry++;
+                        setTimeout(trySetCity, 800);
+                    }
+                };
+
+                let provinceRetry = 0;
+                const trySetProvince = () => {
+                    if (provincesRef.current.length > 0) {
+                        if (parsed.province) {
+                            const provinceMatch = matchProvince(provincesRef.current, parsed.province);
+                            if (provinceMatch) form.setValue("province", provinceMatch.name, { shouldValidate: true });
                         }
-                    };
-                    setTimeout(trySetCity, 800);
-                } else {
-                    toast.error(`Could not match province: ${provinceName}`);
-                }
+                        setTimeout(trySetCity, 800);
+                        return;
+                    }
+                    if (noProvinceRef.current) {
+                        setTimeout(trySetCity, 800);
+                        return;
+                    }
+                    if (provinceRetry < 10) {
+                        provinceRetry++;
+                        setTimeout(trySetProvince, 800);
+                    } else {
+                        setTimeout(trySetCity, 800);
+                    }
+                };
+
+                let regionRetry = 0;
+                const trySetRegion = () => {
+                    const regionMatch = matchRegion(regionsRef.current, parsed.region);
+                    if (regionMatch) {
+                        form.setValue("region", regionMatch.name, { shouldValidate: true });
+                        setTimeout(trySetProvince, 800);
+                    } else if (!parsed.region) {
+                        setTimeout(trySetCity, 800);
+                    } else if (regionRetry < 10 && regionsRef.current.length === 0) {
+                        regionRetry++;
+                        setTimeout(trySetRegion, 800);
+                    }
+                };
+
+                setTimeout(trySetRegion, 800);
             }
         } catch (err) {
             console.error("Geocoding failure:", err);
@@ -638,63 +768,241 @@ export function CustomerRegistrationFormSheet({ open, onOpenChange, customer, on
 
                                     <TabsContent value="location" className="space-y-12 animate-in fade-in slide-in-from-bottom-2 duration-300 m-0">
                                         <div className="space-y-10">
-                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
+                                            <FormField
+                                                control={form.control}
+                                                name="country"
+                                                render={({ field }) => (
+                                                    <FormItem>
+                                                        <FormLabel className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground px-1">Country</FormLabel>
+                                                        <FormControl>
+                                                            <Input {...field} value={field.value || ""} className="h-16 bg-muted/20 border-border/40 rounded-3xl focus-visible:ring-blue-500/20 text-sm font-bold shadow-sm px-6" placeholder="Philippines" />
+                                                        </FormControl>
+                                                        <FormMessage />
+                                                    </FormItem>
+                                                )}
+                                            />
+                                            <div className={cn("grid grid-cols-1 gap-8", !isNoProvinceRegion && "sm:grid-cols-2")}>
                                                 <FormField
                                                     control={form.control}
-                                                    name="province"
+                                                    name="region"
                                                     render={({ field }) => (
                                                         <FormItem>
-                                                            <FormLabel className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground px-1">Province <RequiredMark /></FormLabel>
+                                                            <FormLabel className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground px-1">Region</FormLabel>
                                                             <SearchableCombobox
-                                                                items={provincesList}
-                                                                value={field.value}
-                                                                onChange={field.onChange}
-                                                                placeholder="Select Province"
-                                                                isLoading={isLoadingProvinces}
+                                                                items={regionsList}
+                                                                value={field.value || ""}
+                                                                onChange={(value) => {
+                                                                    field.onChange(value);
+                                                                    form.setValue("province", "", { shouldValidate: true });
+                                                                    form.setValue("city", "", { shouldValidate: true });
+                                                                    form.setValue("brgy", "", { shouldValidate: true });
+                                                                }}
+                                                                placeholder="Select Region"
+                                                                isLoading={isLoadingRegions}
                                                             />
                                                             <FormMessage />
                                                         </FormItem>
                                                     )}
                                                 />
-                                                <div className="grid grid-cols-2 gap-4">
+                                                {!isNoProvinceRegion && (
                                                     <FormField
                                                         control={form.control}
-                                                        name="city"
+                                                        name="province"
                                                         render={({ field }) => (
-                                                            <FormItem className="flex flex-col min-w-0">
-                                                                <FormLabel className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground px-1 truncate">City / Mun. <RequiredMark /></FormLabel>
+                                                            <FormItem>
+                                                                <FormLabel className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground px-1">Province (Optional)</FormLabel>
                                                                 <SearchableCombobox
-                                                                    items={citiesList}
-                                                                    value={field.value}
-                                                                    onChange={field.onChange}
-                                                                    placeholder="City"
-                                                                    isLoading={isLoadingCities}
-                                                                    disabled={!selectedProvince}
+                                                                    items={provincesList}
+                                                                    value={field.value || ""}
+                                                                    onChange={(value) => {
+                                                                        field.onChange(value);
+                                                                        form.setValue("city", "", { shouldValidate: true });
+                                                                        form.setValue("brgy", "", { shouldValidate: true });
+                                                                    }}
+                                                                    placeholder="Select Province"
+                                                                    isLoading={isLoadingProvinces}
+                                                                    disabled={!selectedRegion}
                                                                 />
                                                                 <FormMessage />
                                                             </FormItem>
                                                         )}
                                                     />
-                                                    <FormField
-                                                        control={form.control}
-                                                        name="brgy"
-                                                        render={({ field }) => (
-                                                            <FormItem className="flex flex-col min-w-0">
-                                                                <FormLabel className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground px-1 truncate">Barangay <RequiredMark /></FormLabel>
-                                                                <SearchableCombobox
-                                                                    items={barangaysList}
-                                                                    value={field.value}
-                                                                    onChange={field.onChange}
-                                                                    placeholder="Brgy"
-                                                                    isLoading={isLoadingBarangays}
-                                                                    disabled={!selectedCity}
-                                                                    allowCustomValue={true}
-                                                                />
-                                                                <FormMessage />
-                                                            </FormItem>
-                                                        )}
-                                                    />
-                                                </div>
+                                                )}
+                                            </div>
+
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
+                                                <FormField
+                                                    control={form.control}
+                                                    name="city"
+                                                    render={({ field }) => (
+                                                        <FormItem className="flex flex-col min-w-0">
+                                                            <FormLabel className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground px-1 truncate">City / Mun. <RequiredMark /></FormLabel>
+                                                            <SearchableCombobox
+                                                                items={citiesList}
+                                                                value={field.value || ""}
+                                                                onChange={(value) => {
+                                                                    field.onChange(value);
+                                                                    form.setValue("brgy", "", { shouldValidate: true });
+                                                                }}
+                                                                placeholder="City"
+                                                                isLoading={isLoadingCities}
+                                                                disabled={isNoProvinceRegion ? !selectedRegion : !selectedProvince}
+                                                            />
+                                                            <FormMessage />
+                                                        </FormItem>
+                                                    )}
+                                                />
+                                                <FormField
+                                                    control={form.control}
+                                                    name="brgy"
+                                                    render={({ field }) => (
+                                                        <FormItem className="flex flex-col min-w-0">
+                                                            <FormLabel className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground px-1 truncate">Barangay <RequiredMark /></FormLabel>
+                                                            <SearchableCombobox
+                                                                items={barangaysList}
+                                                                value={field.value || ""}
+                                                                onChange={field.onChange}
+                                                                placeholder="Brgy"
+                                                                isLoading={isLoadingBarangays}
+                                                                disabled={!selectedCity}
+                                                                allowCustomValue={true}
+                                                            />
+                                                            <FormMessage />
+                                                        </FormItem>
+                                                    )}
+                                                />
+                                            </div>
+
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
+                                                <FormField
+                                                    control={form.control}
+                                                    name="house_no"
+                                                    render={({ field }) => (
+                                                        <FormItem>
+                                                            <FormLabel className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground px-1">House No.</FormLabel>
+                                                            <FormControl>
+                                                                <Input {...field} value={field.value || ""} className="h-16 bg-muted/20 border-border/40 rounded-3xl focus-visible:ring-blue-500/20 text-sm font-bold shadow-sm px-6" placeholder="Ex. 123" />
+                                                            </FormControl>
+                                                            <FormMessage />
+                                                        </FormItem>
+                                                    )}
+                                                />
+                                                <FormField
+                                                    control={form.control}
+                                                    name="unit_building"
+                                                    render={({ field }) => (
+                                                        <FormItem>
+                                                            <FormLabel className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground px-1">Unit / Building</FormLabel>
+                                                            <FormControl>
+                                                                <Input {...field} value={field.value || ""} className="h-16 bg-muted/20 border-border/40 rounded-3xl focus-visible:ring-blue-500/20 text-sm font-bold shadow-sm px-6" placeholder="Ex. Unit 4B, ABC Bldg" />
+                                                            </FormControl>
+                                                            <FormMessage />
+                                                        </FormItem>
+                                                    )}
+                                                />
+                                            </div>
+
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
+                                                <FormField
+                                                    control={form.control}
+                                                    name="block"
+                                                    render={({ field }) => (
+                                                        <FormItem>
+                                                            <FormLabel className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground px-1">Block</FormLabel>
+                                                            <FormControl>
+                                                                <Input {...field} value={field.value || ""} className="h-16 bg-muted/20 border-border/40 rounded-3xl focus-visible:ring-blue-500/20 text-sm font-bold shadow-sm px-6" placeholder="Ex. Blk 5" />
+                                                            </FormControl>
+                                                            <FormMessage />
+                                                        </FormItem>
+                                                    )}
+                                                />
+                                                <FormField
+                                                    control={form.control}
+                                                    name="lot"
+                                                    render={({ field }) => (
+                                                        <FormItem>
+                                                            <FormLabel className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground px-1">Lot</FormLabel>
+                                                            <FormControl>
+                                                                <Input {...field} value={field.value || ""} className="h-16 bg-muted/20 border-border/40 rounded-3xl focus-visible:ring-blue-500/20 text-sm font-bold shadow-sm px-6" placeholder="Ex. Lot 12" />
+                                                            </FormControl>
+                                                            <FormMessage />
+                                                        </FormItem>
+                                                    )}
+                                                />
+                                            </div>
+
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
+                                                <FormField
+                                                    control={form.control}
+                                                    name="phase"
+                                                    render={({ field }) => (
+                                                        <FormItem>
+                                                            <FormLabel className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground px-1">Phase</FormLabel>
+                                                            <FormControl>
+                                                                <Input {...field} value={field.value || ""} className="h-16 bg-muted/20 border-border/40 rounded-3xl focus-visible:ring-blue-500/20 text-sm font-bold shadow-sm px-6" placeholder="Ex. Phase 2" />
+                                                            </FormControl>
+                                                            <FormMessage />
+                                                        </FormItem>
+                                                    )}
+                                                />
+                                                <FormField
+                                                    control={form.control}
+                                                    name="street"
+                                                    render={({ field }) => (
+                                                        <FormItem>
+                                                            <FormLabel className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground px-1">Street</FormLabel>
+                                                            <FormControl>
+                                                                <Input {...field} value={field.value || ""} className="h-16 bg-muted/20 border-border/40 rounded-3xl focus-visible:ring-blue-500/20 text-sm font-bold shadow-sm px-6" placeholder="Ex. Rizal St." />
+                                                            </FormControl>
+                                                            <FormMessage />
+                                                        </FormItem>
+                                                    )}
+                                                />
+                                            </div>
+
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
+                                                <FormField
+                                                    control={form.control}
+                                                    name="subdivision"
+                                                    render={({ field }) => (
+                                                        <FormItem>
+                                                            <FormLabel className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground px-1">Subdivision</FormLabel>
+                                                            <FormControl>
+                                                                <Input {...field} value={field.value || ""} className="h-16 bg-muted/20 border-border/40 rounded-3xl focus-visible:ring-blue-500/20 text-sm font-bold shadow-sm px-6" placeholder="Ex. Greenview Subd." />
+                                                            </FormControl>
+                                                            <FormMessage />
+                                                        </FormItem>
+                                                    )}
+                                                />
+                                                <FormField
+                                                    control={form.control}
+                                                    name="purok_sitio"
+                                                    render={({ field }) => (
+                                                        <FormItem>
+                                                            <FormLabel className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground px-1">Purok / Sitio</FormLabel>
+                                                            <FormControl>
+                                                                <Input {...field} value={field.value || ""} className="h-16 bg-muted/20 border-border/40 rounded-3xl focus-visible:ring-blue-500/20 text-sm font-bold shadow-sm px-6" placeholder="Ex. Purok 3" />
+                                                            </FormControl>
+                                                            <FormMessage />
+                                                        </FormItem>
+                                                    )}
+                                                />
+                                            </div>
+
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
+                                                <FormField
+                                                    control={form.control}
+                                                    name="zip_code"
+                                                    render={({ field }) => (
+                                                        <FormItem>
+                                                            <FormLabel className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground px-1">ZIP Code</FormLabel>
+                                                            <FormControl>
+                                                                <Input {...field} value={field.value || ""} className="h-16 bg-muted/20 border-border/40 rounded-3xl focus-visible:ring-blue-500/20 text-sm font-bold shadow-sm px-6" placeholder="Ex. 6000" />
+                                                            </FormControl>
+                                                            <FormMessage />
+                                                        </FormItem>
+                                                    )}
+                                                />
                                             </div>
 
                                             <div className="space-y-4">
