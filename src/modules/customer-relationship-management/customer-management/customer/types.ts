@@ -43,6 +43,19 @@ export interface Customer {
     division_id?: number | null;
     department_id?: number | null;
     location?: unknown | null; // point type
+    country?: string | null;
+    region?: string | null;
+    zip_code?: string | null;
+    unit_building?: string | null;
+    house_no?: string | null;
+    block?: string | null;
+    lot?: string | null;
+    phase?: string | null;
+    street?: string | null;
+    subdivision?: string | null;
+    purok_sitio?: string | null;
+    latitude?: number | null;
+    longitude?: number | null;
 }
 
 export interface BankAccount {

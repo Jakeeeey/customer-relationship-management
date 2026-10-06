@@ -7,7 +7,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Check, ChevronsUpDown, Calendar as CalendarIcon, Hash, Clock } from "lucide-react";
+import { Check, ChevronsUpDown, Calendar as CalendarIcon, Hash, Clock, CreditCard, AlertCircle, CheckCircle2, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 
@@ -65,6 +65,8 @@ interface SalesOrderHeaderProps {
     paymentTerms: number | null;
     paymentTermsList: PaymentTerm[];
     onPriceTypeChange: (id: string) => void;
+    customerReceivable?: number | null;
+    loadingReceivable?: boolean;
 }
 
 export function SalesOrderHeader({
@@ -82,13 +84,28 @@ export function SalesOrderHeader({
     priceTypeId, priceTypeModels,
     onPriceTypeChange,
     previewOrderNo,
-    paymentTerms, paymentTermsList
+    paymentTerms, paymentTermsList,
+    customerReceivable,
+    loadingReceivable = false
 }: SalesOrderHeaderProps) {
     const [openSalesman, setOpenSalesman] = useState(false);
     const [openAccount, setOpenAccount] = useState(false);
     const [openCustomer, setOpenCustomer] = useState(false);
     const [openSupplier, setOpenSupplier] = useState(false);
     const [openBranch, setOpenBranch] = useState(false);
+
+    const creditLimit = Number(selectedCustomer?.credit_limit || 0);
+    const receivableAmount = Number(customerReceivable || 0);
+    const isExceeded = creditLimit > 0 && receivableAmount > creditLimit;
+
+    const formatCurrency = (val: number) => {
+        return new Intl.NumberFormat("en-PH", {
+            style: "currency",
+            currency: "PHP",
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+        }).format(val);
+    };
 
     return (
         <Card className="shadow-sm border-muted-foreground/10 overflow-hidden">
@@ -290,26 +307,30 @@ export function SalesOrderHeader({
                 </div>
 
                 {/* META FIELDS row 2 */}
-                <div className="flex flex-col gap-1.5">
-                    <label className="text-xs font-bold uppercase text-muted-foreground">Receipt Type</label>
-                    <Select value={selectedReceiptTypeId} onValueChange={onReceiptTypeChange}>
-                        <SelectTrigger className="h-9 text-xs"><SelectValue placeholder="Select type" /></SelectTrigger>
-                        <SelectContent>
-                            {receiptTypes.map(t => <SelectItem key={t.id} value={t.id.toString()}>{t.type}</SelectItem>)}
-                        </SelectContent>
-                    </Select>
+                {/* 1. RECEIPT TYPE & SALES TYPE COMBINED (Option A) */}
+                <div className="grid grid-cols-2 gap-2">
+                    <div className="flex flex-col gap-1.5">
+                        <label className="text-xs font-bold uppercase text-muted-foreground truncate">Receipt Type</label>
+                        <Select value={selectedReceiptTypeId} onValueChange={onReceiptTypeChange}>
+                            <SelectTrigger className="h-9 text-xs"><SelectValue placeholder="Receipt" /></SelectTrigger>
+                            <SelectContent>
+                                {receiptTypes.map(t => <SelectItem key={t.id} value={t.id.toString()}>{t.type}</SelectItem>)}
+                            </SelectContent>
+                        </Select>
+                    </div>
+
+                    <div className="flex flex-col gap-1.5">
+                        <label className="text-xs font-bold uppercase text-muted-foreground truncate">Sales Type</label>
+                        <Select value={selectedSalesTypeId} onValueChange={onSalesTypeChange}>
+                            <SelectTrigger className="h-9 text-xs"><SelectValue placeholder="Type" /></SelectTrigger>
+                            <SelectContent>
+                                {salesTypes.map(t => <SelectItem key={t.id} value={t.id.toString()}>{t.operation_name}</SelectItem>)}
+                            </SelectContent>
+                        </Select>
+                    </div>
                 </div>
 
-                <div className="flex flex-col gap-1.5">
-                    <label className="text-xs font-bold uppercase text-muted-foreground">Sales Type</label>
-                    <Select value={selectedSalesTypeId} onValueChange={onSalesTypeChange}>
-                        <SelectTrigger className="h-9 text-xs"><SelectValue placeholder="Select type" /></SelectTrigger>
-                        <SelectContent>
-                            {salesTypes.map(t => <SelectItem key={t.id} value={t.id.toString()}>{t.operation_name}</SelectItem>)}
-                        </SelectContent>
-                    </Select>
-                </div>
-
+                {/* 2. DUE DATE */}
                 <div className="flex flex-col gap-1.5">
                     <label className="text-xs font-bold uppercase text-muted-foreground">Due Date <span className="text-red-500">*</span></label>
                     <div className="relative">
@@ -325,6 +346,7 @@ export function SalesOrderHeader({
                     </div>
                 </div>
 
+                {/* 3. DELIVERY DATE */}
                 <div className="flex flex-col gap-1.5">
                     <label className="text-xs font-bold uppercase text-muted-foreground">Delivery Date <span className="text-red-500">*</span></label>
                     <div className="relative">
@@ -333,6 +355,7 @@ export function SalesOrderHeader({
                     </div>
                 </div>
 
+                {/* 4. BRANCH */}
                 <div className="flex flex-col gap-1.5">
                     <label className="text-xs font-bold uppercase text-muted-foreground">Branch <span className="text-red-500">*</span></label>
                     <Popover open={openBranch} onOpenChange={setOpenBranch}>
@@ -374,6 +397,83 @@ export function SalesOrderHeader({
                     </Popover>
                 </div>
 
+                {/* ROW 3: FINANCIAL & ORDER METADATA */}
+                {/* 1. CREDIT LIMIT */}
+                <div className="flex flex-col gap-1.5">
+                    <div className="flex items-center justify-between">
+                        <label className="text-xs font-bold uppercase text-muted-foreground">Credit Limit</label>
+                        {creditLimit > 0 ? (
+                            isExceeded ? (
+                                <span className="inline-flex items-center gap-1 text-[10px] font-black text-rose-600 bg-rose-50 border border-rose-200 px-1.5 py-0.5 rounded">
+                                    <AlertCircle className="w-3 h-3 text-rose-500" />
+                                    Exceeded
+                                </span>
+                            ) : (
+                                <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-600 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded">
+                                    <CheckCircle2 className="w-3 h-3 text-emerald-500" />
+                                    Within Limit
+                                </span>
+                            )
+                        ) : selectedCustomer ? (
+                            <span className="text-[10px] text-muted-foreground italic">No Limit</span>
+                        ) : null}
+                    </div>
+                    <div className="relative">
+                        <CreditCard className={cn("absolute left-2.5 top-2.5 h-3.5 w-3.5", isExceeded ? "text-rose-500" : "text-slate-400")} />
+                        <Input
+                            type="text"
+                            value={selectedCustomer ? formatCurrency(creditLimit) : "—"}
+                            className={cn(
+                                "pl-9 h-9 text-xs font-semibold cursor-not-allowed opacity-90",
+                                isExceeded ? "border-rose-200 bg-rose-50/30 text-rose-700" : "bg-slate-50/50"
+                            )}
+                            readOnly
+                            disabled
+                        />
+                    </div>
+                </div>
+
+                {/* 2. RECEIVABLES */}
+                <div className="flex flex-col gap-1.5">
+                    <div className="flex items-center justify-between">
+                        <label className="text-xs font-bold uppercase text-muted-foreground">Receivables</label>
+                        {loadingReceivable && (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-sky-600 animate-pulse">
+                                <Loader2 className="w-3 h-3 animate-spin" />
+                                Checking...
+                            </span>
+                        )}
+                    </div>
+                    <div className="relative">
+                        {loadingReceivable ? (
+                            <Loader2 className="absolute left-2.5 top-2.5 h-3.5 w-3.5 animate-spin text-sky-500" />
+                        ) : (
+                            <Clock className={cn("absolute left-2.5 top-2.5 h-3.5 w-3.5", isExceeded ? "text-rose-500" : "text-amber-500")} />
+                        )}
+                        <Input
+                            type="text"
+                            value={
+                                loadingReceivable
+                                    ? "Loading balance..."
+                                    : selectedCustomer
+                                    ? formatCurrency(receivableAmount)
+                                    : "—"
+                            }
+                            className={cn(
+                                "pl-9 h-9 text-xs font-bold cursor-not-allowed opacity-90",
+                                isExceeded
+                                    ? "border-rose-300 bg-rose-50/50 text-rose-700 font-extrabold"
+                                    : receivableAmount > 0
+                                    ? "border-amber-200 bg-amber-50/30 text-amber-800"
+                                    : "bg-slate-50/50 text-slate-700"
+                            )}
+                            readOnly
+                            disabled
+                        />
+                    </div>
+                </div>
+
+                {/* 3. PO NUMBER */}
                 <div className="flex flex-col gap-1.5">
                     <label className="text-xs font-bold uppercase text-muted-foreground">PO Number <span className="text-red-500">*</span></label>
                     <div className="relative">
@@ -382,6 +482,7 @@ export function SalesOrderHeader({
                     </div>
                 </div>
 
+                {/* 4. PAYMENT TERMS */}
                 <div className="flex flex-col gap-1.5">
                     <label className="text-xs font-bold uppercase text-muted-foreground">Payment Terms</label>
                     <div className="relative">

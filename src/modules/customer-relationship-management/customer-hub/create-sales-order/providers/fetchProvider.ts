@@ -43,15 +43,15 @@ export const salesOrderProvider = {
         return res.json();
     },
 
-    clearProductCache: (customerCode?: string, supplierId?: number | string) => {
-        if (typeof window === "undefined") return;
-        Object.keys(localStorage).forEach((key) => {
-            if (key.startsWith("crm_products_")) {
-                if (!customerCode || (key.includes(`customer_code=${customerCode}`) && (!supplierId || key.includes(`supplier_id=${supplierId}`)))) {
-                    localStorage.removeItem(key);
-                }
-            }
-        });
+    getGeneralSetting: async (key: string): Promise<{ setting_key: string; setting_value: string } | null> => {
+        try {
+            const res = await fetch(`${API_BASE}?action=general_setting&key=${encodeURIComponent(key)}`);
+            const json = await res.json();
+            const list = Array.isArray(json?.data) ? json.data : (Array.isArray(json) ? json : []);
+            return list.length > 0 ? list[0] : null;
+        } catch {
+            return null;
+        }
     },
 
     // Pag-search ng mga products na pwedeng bilhin
