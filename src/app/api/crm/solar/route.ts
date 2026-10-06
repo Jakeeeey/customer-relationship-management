@@ -13,24 +13,24 @@ const COLLECTION = "crm_solar_quotations";
 const FALLBACK_DIR = path.join(process.cwd(), "scratch");
 const FALLBACK_FILE = path.join(FALLBACK_DIR, "solar_quotations_db.json");
 
-function getFallbackStore(): any[] {
+function getFallbackStore(): Record<string, unknown>[] {
   try {
     if (!fs.existsSync(FALLBACK_DIR)) {
       fs.mkdirSync(FALLBACK_DIR, { recursive: true });
     }
     if (!fs.existsSync(FALLBACK_FILE)) {
-      const initial: any[] = [];
+      const initial: Record<string, unknown>[] = [];
       fs.writeFileSync(FALLBACK_FILE, JSON.stringify(initial, null, 2), "utf8");
       return initial;
     }
     const data = fs.readFileSync(FALLBACK_FILE, "utf8");
     return JSON.parse(data);
-  } catch (e) {
+  } catch {
     return [];
   }
 }
 
-function saveFallbackStore(items: any[]) {
+function saveFallbackStore(items: Record<string, unknown>[]) {
   try {
     if (!fs.existsSync(FALLBACK_DIR)) {
       fs.mkdirSync(FALLBACK_DIR, { recursive: true });
@@ -45,7 +45,7 @@ function saveFallbackStore(items: any[]) {
 // GET - Retrieve Solar Quotations
 // ============================================================================
 
-export async function GET(req: NextRequest) {
+export async function GET() {
   try {
     if (DIRECTUS_URL && DIRECTUS_TOKEN) {
       try {
@@ -211,7 +211,7 @@ export async function DELETE(req: NextRequest) {
           method: "DELETE",
           headers: { Authorization: `Bearer ${DIRECTUS_TOKEN}` },
         });
-      } catch (e) {
+      } catch {
         // ignore
       }
     }
@@ -221,7 +221,7 @@ export async function DELETE(req: NextRequest) {
     saveFallbackStore(updated);
 
     return NextResponse.json({ ok: true, message: "Deleted successfully" });
-  } catch (error) {
+  } catch {
     return NextResponse.json({ ok: false, message: "Delete failed" }, { status: 500 });
   }
 }

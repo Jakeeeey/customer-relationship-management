@@ -10,7 +10,6 @@ import {
   PanelTop, 
   BatteryCharging, 
   Info,
-  Sparkles,
   ArrowLeft
 } from "lucide-react";
 

@@ -53,7 +53,7 @@ export function useSolarQuotations() {
       await solarService.delete(id);
       toast.success("Quotation deleted");
       setQuotations((prev) => prev.filter((q) => String(q.id) !== String(id)));
-    } catch (err) {
+    } catch {
       toast.error("Failed to delete quotation");
     }
   };

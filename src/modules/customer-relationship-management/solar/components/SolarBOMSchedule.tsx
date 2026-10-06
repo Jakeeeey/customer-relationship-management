@@ -3,29 +3,22 @@
 import React from "react";
 import { SolarCalculationResult } from "../types/solar.schema";
 import { 
-  PackageCheck, 
   HardHat, 
-  Wrench, 
-  Zap, 
-  BatteryCharging, 
-  ClipboardCheck, 
   FileSpreadsheet, 
   Printer, 
-  CheckCircle2, 
-  Clock 
+  CheckCircle2 
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 
 interface SolarBOMScheduleProps {
   calc: SolarCalculationResult;
-  designAllowance: number;
+  designAllowance?: number;
   onPrint: () => void;
 }
 
 export const SolarBOMSchedule: React.FC<SolarBOMScheduleProps> = ({
   calc,
-  designAllowance,
   onPrint,
 }) => {
   const isHybrid = calc.systemType === "hybrid";

@@ -3,28 +3,19 @@
 import React from "react";
 import { SolarCalculationResult } from "../types/solar.schema";
 import { 
-  Sun, 
-  TrendingUp, 
   Activity, 
-  Layers, 
-  Zap, 
-  ShieldCheck, 
-  Gauge, 
-  ArrowUpRight, 
-  BatteryCharging,
-  Maximize2
+  BatteryCharging 
 } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 
 interface SolarAnalyticsCardProps {
   calc: SolarCalculationResult;
-  electricityRate: number;
+  electricityRate?: number;
 }
 
 export const SolarAnalyticsCard: React.FC<SolarAnalyticsCardProps> = ({
   calc,
-  electricityRate,
 }) => {
   const hasData = calc.hasCalculatedData;
   const isHybrid = calc.systemType === "hybrid";

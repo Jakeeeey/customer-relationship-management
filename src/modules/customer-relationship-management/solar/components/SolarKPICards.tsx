@@ -2,7 +2,7 @@
 
 import React from "react";
 import { SolarCalculationResult } from "../types/solar.schema";
-import { Sun, Zap, PiggyBank, BatteryCharging, CheckCircle, ArrowUpRight } from "lucide-react";
+import { Sun, Zap, PiggyBank, BatteryCharging } from "lucide-react";
 
 interface SolarKPICardsProps {
   calc: SolarCalculationResult;

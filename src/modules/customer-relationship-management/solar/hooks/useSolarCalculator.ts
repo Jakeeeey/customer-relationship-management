@@ -3,14 +3,7 @@
 import { useMemo, useState } from "react";
 import { 
   SolarFormInput, 
-  SolarCalculationResult, 
-  SystemType,
-  InputMode,
-  ElectricalPhase,
-  BuildingType,
-  RoofType,
-  RoofOrientation,
-  ShadingCondition
+  SolarCalculationResult 
 } from "../types/solar.schema";
 
 const PEAK_SUN_HOURS_PER_DAY = 3.6;

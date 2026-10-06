@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { CustomerOption } from "../types/solar.schema";
-import { User, Search, MapPin, Phone, Building2, Check, ChevronsUpDown, Loader2 } from "lucide-react";
+import { User, MapPin, Phone, Building2, Check, ChevronsUpDown, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Popover,
@@ -18,6 +18,17 @@ import {
   CommandList,
 } from "@/components/ui/command";
 import { cn } from "@/lib/utils";
+
+interface RawCustomerRecord {
+  id: number | string;
+  customer_code?: string;
+  customer_name?: string;
+  store_name?: string;
+  city?: string;
+  province?: string;
+  contact_number?: string;
+  customer_email?: string;
+}
 
 interface CustomerSelectorProps {
   selectedCustomerId: number | string;
@@ -44,7 +55,7 @@ export const CustomerSelector: React.FC<CustomerSelectorProps> = ({
         if (!res.ok) throw new Error("Failed to fetch customers");
         const json = await res.json();
         if (isMounted) {
-          const list = (json.customers || []).map((c: any) => ({
+          const list = (json.customers || []).map((c: RawCustomerRecord) => ({
             id: c.id,
             customer_code: c.customer_code || `CUST-${c.id}`,
             customer_name: c.customer_name || "Unnamed Customer",

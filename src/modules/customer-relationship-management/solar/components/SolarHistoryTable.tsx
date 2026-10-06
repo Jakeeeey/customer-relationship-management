@@ -8,9 +8,7 @@ import {
   ExternalLink, 
   RefreshCw, 
   FileText, 
-  Sun, 
-  Calendar, 
-  User 
+  Sun 
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";

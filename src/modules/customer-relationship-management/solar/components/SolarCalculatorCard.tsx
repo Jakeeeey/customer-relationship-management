@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { SolarFormInput, SystemType } from "../types/solar.schema";
+import { SolarFormInput } from "../types/solar.schema";
 import { 
   Calculator, 
   Info, 

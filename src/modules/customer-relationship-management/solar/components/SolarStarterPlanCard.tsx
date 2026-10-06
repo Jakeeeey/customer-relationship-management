@@ -12,8 +12,7 @@ import {
   BatteryCharging, 
   Search, 
   ClipboardCheck, 
-  Check,
-  AlertCircle
+  Check
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 

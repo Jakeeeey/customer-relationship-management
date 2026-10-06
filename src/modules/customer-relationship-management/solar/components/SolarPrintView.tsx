@@ -4,16 +4,7 @@ import React, { useState, useEffect } from "react";
 import { SolarFormInput, SolarCalculationResult, CustomerOption } from "../types/solar.schema";
 import { 
   Sun, 
-  Zap, 
-  ShieldCheck, 
-  BatteryCharging, 
-  Building, 
-  CheckCircle2, 
-  Phone, 
-  Mail, 
-  MapPin,
-  Calendar,
-  FileText
+  CheckCircle2 
 } from "lucide-react";
 
 interface CompanyData {
@@ -35,7 +26,7 @@ interface SolarPrintViewProps {
 }
 
 export const SolarPrintView: React.FC<SolarPrintViewProps> = ({
-  input,
+  input: _input,
   calc,
   customer,
 }) => {
@@ -75,21 +66,32 @@ export const SolarPrintView: React.FC<SolarPrintViewProps> = ({
   const companyEmail = companyData?.company_email || "solar.solutions@vertexenergy.ph";
   const companyName = companyData?.company_name || "VERTEX SOLAR ENERGY SYSTEMS";
 
-  const quotationNo = `QT-SOL-${new Date().getFullYear()}-${String(
-    customer?.id || Math.floor(1000 + Math.random() * 9000)
+  const [quoteMeta] = useState(() => {
+    const now = new Date();
+    const fallbackId = Math.floor(1000 + Math.random() * 9000);
+    const validUntil = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+    return {
+      year: now.getFullYear(),
+      fallbackId,
+      dateFormatted: now.toLocaleDateString("en-PH", {
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      }),
+      validityFormatted: validUntil.toLocaleDateString("en-PH", {
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      }),
+    };
+  });
+
+  const quotationNo = `QT-SOL-${quoteMeta.year}-${String(
+    customer?.id || quoteMeta.fallbackId
   ).padStart(4, "0")}`;
 
-  const quotationDate = new Date().toLocaleDateString("en-PH", {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  });
-
-  const validityDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString("en-PH", {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  });
+  const quotationDate = quoteMeta.dateFormatted;
+  const validityDate = quoteMeta.validityFormatted;
 
   return (
     <>
@@ -137,6 +139,7 @@ export const SolarPrintView: React.FC<SolarPrintViewProps> = ({
           {/* Company Branding */}
           <div className="flex items-start gap-3.5 max-w-[60%]">
             {companyData?.company_logo ? (
+              /* eslint-disable-next-line @next/next/no-img-element */
               <img
                 src={companyData.company_logo}
                 alt={companyName}

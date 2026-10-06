@@ -20,10 +20,8 @@ import {
   Coins, 
   Home, 
   Compass, 
-  Sun, 
   Layers, 
   AlertTriangle, 
-  ShieldAlert, 
   CheckCircle2,
   FileText
 } from "lucide-react";
@@ -44,29 +42,17 @@ import { cn } from "@/lib/utils";
 interface SolarConfigCardProps {
   formData: SolarFormInput;
   updateField: <K extends keyof SolarFormInput>(field: K, value: SolarFormInput[K]) => void;
-  selectedCustomer: CustomerOption | null;
+  selectedCustomer?: CustomerOption | null;
   roofAllowanceSqm: number;
 }
 
 export const SolarConfigCard: React.FC<SolarConfigCardProps> = ({
   formData,
   updateField,
-  selectedCustomer,
   roofAllowanceSqm,
 }) => {
   const [activeConfigTab, setActiveConfigTab] = useState<"consumption" | "site">("consumption");
   const isKwhMode = formData.inputMode === "kwh";
-
-  const avgBill = Math.round(
-    (Number(formData.billMonth1 || 0) + Number(formData.billMonth2 || 0) + Number(formData.billMonth3 || 0)) / 3
-  );
-
-  const avgKwh = Number(
-    (
-      (Number(formData.kwhMonth1 || 0) + Number(formData.kwhMonth2 || 0) + Number(formData.kwhMonth3 || 0)) /
-      3
-    ).toFixed(1)
-  );
 
   const availableArea = Number(formData.availableRoofAreaSqm || 0);
   const hasAreaCheck = availableArea > 0 && roofAllowanceSqm > 0;
