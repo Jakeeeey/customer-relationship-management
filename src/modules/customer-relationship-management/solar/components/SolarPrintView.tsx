@@ -26,7 +26,7 @@ interface SolarPrintViewProps {
 }
 
 export const SolarPrintView: React.FC<SolarPrintViewProps> = ({
-  input: _input,
+  input,
   calc,
   customer,
 }) => {
