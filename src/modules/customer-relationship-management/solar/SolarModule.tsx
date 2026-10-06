@@ -144,7 +144,7 @@ export default function SolarModule() {
   return (
     <div className="w-full max-w-7xl mx-auto space-y-6 pb-16">
       {/* Top Banner / Studio Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-card border border-border/80 p-6 sm:p-7 rounded-2xl shadow-sm">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-card border border-border/80 p-6 sm:p-7 rounded-2xl shadow-sm print:hidden">
         <div className="space-y-1">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center font-bold">
@@ -209,7 +209,7 @@ export default function SolarModule() {
       </div>
 
       {/* Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full space-y-6">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full space-y-6 print:hidden">
         <TabsList className="bg-muted/70 p-1 rounded-xl h-11 w-full sm:w-auto inline-flex">
           <TabsTrigger
             value="calculator"
@@ -276,13 +276,6 @@ export default function SolarModule() {
             designAllowance={formData.designAllowance}
             onPrint={handlePrint}
           />
-
-          {/* Hidden Print Document Layout */}
-          <SolarPrintView
-            input={formData}
-            calc={calculation}
-            customer={selectedCustomer}
-          />
         </TabsContent>
 
         {/* Tab 2: Saved Records History */}
@@ -296,6 +289,13 @@ export default function SolarModule() {
           />
         </TabsContent>
       </Tabs>
+
+      {/* Corporate Quotation Document Layout (Active only during print) */}
+      <SolarPrintView
+        input={formData}
+        calc={calculation}
+        customer={selectedCustomer}
+      />
     </div>
   );
 }

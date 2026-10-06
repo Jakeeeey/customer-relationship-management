@@ -76,9 +76,9 @@ export default async function SolarPage() {
   const headerUser = buildHeaderUserFromToken(token);
 
   return (
-    <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden print:overflow-visible print:h-auto print:block">
       {/* Topbar */}
-      <header className="relative z-10 flex h-14 shrink-0 items-center justify-between border-b shadow-sm bg-background sm:h-16 overflow-hidden">
+      <header className="relative z-10 flex h-14 shrink-0 items-center justify-between border-b shadow-sm bg-background sm:h-16 overflow-hidden print:hidden">
         <div className="flex h-full min-w-0 items-center gap-2 px-3 sm:px-4 overflow-hidden">
           <SidebarTrigger className="-ml-1 shrink-0" />
 
@@ -110,7 +110,7 @@ export default async function SolarPage() {
       </header>
 
       {/* Main Content Area */}
-      <main className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden p-3 sm:p-6 bg-slate-50/50 dark:bg-slate-950/20">
+      <main className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden p-3 sm:p-6 bg-slate-50/50 dark:bg-slate-950/20 print:p-0 print:m-0 print:overflow-visible print:bg-white print:dark:bg-white">
         <SolarModule />
       </main>
     </div>
