@@ -68,7 +68,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
         // Patching Layer: Supplemental data for Consolidated Documents & Physical Inventory Counts
         if (Array.isArray(data) && parentId) {
             try {
-                const { fetchPHCountsForTracing, fetchAllFamilyPHs, getFamilyUnit } = await import("@/modules/customer-relationship-management/traceability-compliance/product-tracing/service");
+                const { fetchPHCountsForTracing, fetchAllFamilyPHs, getFamilyUnit, fetchDirectSalesMovements } = await import("@/modules/customer-relationship-management/traceability-compliance/product-tracing/service");
                 const famUnit = await getFamilyUnit(parentId);
 
                 // 0. Proactively fetch ALL relevant PH documents for this family/branch from Directus.
@@ -255,6 +255,39 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
                         }
                     });
                 });
+
+                // 4. Inject Direct Sales (Stock Purchase) movements if omitted from primary movement view
+                try {
+                    const directSalesItems = await fetchDirectSalesMovements(branchId, parentId);
+                    if (directSalesItems.length > 0) {
+                        const existingDocNos = new Set(nonPhData.map((row: { docNo?: string }) => String(row.docNo || "").toUpperCase().trim()));
+                        directSalesItems.forEach((ds) => {
+                            const cleanDsDoc = String(ds.docNo).toUpperCase().trim();
+                            if (!existingDocNos.has(cleanDsDoc)) {
+                                existingDocNos.add(cleanDsDoc);
+                                const synth: Record<string, unknown> = {
+                                    ts: ds.ts,
+                                    docNo: ds.docNo,
+                                    docType: "Direct Sales",
+                                    branchId: Number(branchId),
+                                    branchName: branchName || "N/A",
+                                    productName: ds.productName || productName || "N/A",
+                                    productId: ds.productId,
+                                    unit: ds.unit,
+                                    unitCount: ds.unitCount,
+                                    inBase: 0,
+                                    outBase: ds.outBase,
+                                    patchDeltaBase: ds.patchDeltaBase,
+                                    descr: ds.descr,
+                                    grossAmount: ds.totalAmount
+                                };
+                                nonPhData.push(synth);
+                            }
+                        });
+                    }
+                } catch (dsErr) {
+                    console.error("[Product Tracing Proxy] Direct Sales Injection Error:", dsErr);
+                }
 
                 nonPhData.forEach((row: Record<string, unknown>) => {
                     row.familyUnit = famUnit.name;

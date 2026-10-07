@@ -412,13 +412,13 @@ export function StockPurchaseHeader({
                 {/* 6. SALES TYPE */}
                 <div className="space-y-2">
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Sales Type</label>
-                    <Select value={selectedSalesType} onValueChange={onSalesTypeChange}>
-                        <SelectTrigger className="h-12 rounded-xl bg-slate-50/30 border-slate-200 dark:border-slate-800 font-black text-[11px] uppercase tracking-tight shadow-sm">
+                    <Select value={selectedSalesType} onValueChange={onSalesTypeChange} disabled={true}>
+                        <SelectTrigger className="h-12 rounded-xl bg-slate-50/30 border-slate-200 dark:border-slate-800 font-black text-[11px] uppercase tracking-tight shadow-sm disabled:opacity-80 disabled:cursor-not-allowed">
                             <SelectValue placeholder="Select Sales Type" />
                         </SelectTrigger>
                         <SelectContent>
                             {salesTypes
-                                .filter(s => s.operation_name?.toUpperCase() !== "SITE SALES" && s.id !== 3)
+                                .filter(s => s.operation_name?.toUpperCase() === "DIRECT SALES" || s.operation_name?.toUpperCase() === "DIRECT" || s.operation_name?.toUpperCase().includes("DIRECT"))
                                 .map(s => (
                                     <SelectItem key={s.id} value={s.id.toString()} className="font-black text-[10px] uppercase">
                                         {s.operation_name}
