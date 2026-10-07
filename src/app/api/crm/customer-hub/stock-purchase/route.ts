@@ -955,6 +955,7 @@ export async function POST(req: NextRequest) {
                 const update: Record<string, unknown> = { 
                     transaction_status: "Dispatched", 
                     isDispatched: 1, 
+                    isPosted: 1,
                     dispatch_date: now, 
                     modified_by: userId, 
                     modified_date: now,
