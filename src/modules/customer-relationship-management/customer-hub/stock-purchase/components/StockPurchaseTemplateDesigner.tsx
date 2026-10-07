@@ -44,7 +44,7 @@ const DEFAULT_TEMPLATE: ORTemplate = {
         startY: 65,
         rowHeight: 12.2,
         fontSize: 10,
-        product_name_width: 85,
+        product_name_width: 75,
         columns: {
             product_name: { x: 10 },
             quantity: { x: 105 },
