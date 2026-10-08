@@ -554,14 +554,19 @@ export function useSalesOrder() {
                 // 1. Fetch current accounts for this user
                 const res = await fetch(`/api/crm/customer-hub/create-sales-order?action=accounts&user_id=${id}`);
                 const data = await res.json();
-                setAccounts(data);
+                
+                const masterUser = salesmen.find(s => (s.user_id || s.id)?.toString() === id);
+                let filteredAccounts: Salesman[] = Array.isArray(data) ? data : [];
+                if (masterUser && masterUser.linked_account_ids && masterUser.linked_account_ids.length > 0) {
+                    filteredAccounts = filteredAccounts.filter(a => masterUser.linked_account_ids?.some(lid => lid.toString() === a.id.toString()));
+                }
+                setAccounts(filteredAccounts);
 
                 // 🚀 SMART ACCOUNT RESOLUTION:
                 // Find if this Master User has a specific account linked to the current selected customer
-                const masterUser = salesmen.find(s => (s.user_id || s.id)?.toString() === id);
                 if (masterUser && masterUser.linked_account_ids && masterUser.linked_account_ids.length === 1) {
                     const linkedId = masterUser.linked_account_ids[0].toString();
-                    const linkedAccount = data.find((a: Salesman) => a.id.toString() === linkedId);
+                    const linkedAccount = filteredAccounts.find((a: Salesman) => a.id.toString() === linkedId);
                     console.log(`[handleSalesmanChange] Master User ${id} has one linked account for this customer: ${linkedId}. Auto-selecting...`);
                     // PASS THE FRESH DATA DIRECTLY to avoid React state delay
                     handleAccountChange(linkedId, linkedAccount);
@@ -646,12 +651,17 @@ export function useSalesOrder() {
                         // Fetch all accounts for this user so the dropdown is ready
                         const res = await fetch(`/api/crm/customer-hub/create-sales-order?action=accounts&user_id=${uid}`);
                         const acctsData = await res.json();
-                        setAccounts(acctsData);
+                        
+                        let filteredAccts: Salesman[] = Array.isArray(acctsData) ? acctsData : [];
+                        if (sm.linked_account_ids && sm.linked_account_ids.length > 0) {
+                            filteredAccts = filteredAccts.filter((a: Salesman) => sm.linked_account_ids?.some(lid => lid.toString() === a.id.toString()));
+                        }
+                        setAccounts(filteredAccts);
 
                         // --- AUTO-SELECT ACCOUNT: If this user has exactly one account linked to this customer ---
                         if (sm.linked_account_ids && sm.linked_account_ids.length === 1) {
                             const aid = sm.linked_account_ids[0].toString();
-                            const linkedAccount = acctsData.find((a: Salesman) => a.id.toString() === aid);
+                            const linkedAccount = filteredAccts.find((a: Salesman) => a.id.toString() === aid);
                             console.log(`[handleCustomerChange] Single account link detected: ${aid}. Auto-selecting Account...`);
                             handleAccountChange(aid, linkedAccount);
                         }
@@ -662,6 +672,21 @@ export function useSalesOrder() {
                     setSelectedSalesmanId("");
                     setSelectedAccountId("");
                     setAccounts([]);
+                } else if (selectedSalesmanId) {
+                    // Update accounts dropdown for currently selected salesman matching linked_account_ids
+                    const currentSm = activeSalesmen.find(s => (s.user_id || s.id)?.toString() === selectedSalesmanId);
+                    if (currentSm) {
+                        const res = await fetch(`/api/crm/customer-hub/create-sales-order?action=accounts&user_id=${selectedSalesmanId}`);
+                        const acctsData = await res.json();
+                        let filteredAccts: Salesman[] = Array.isArray(acctsData) ? acctsData : [];
+                        if (currentSm.linked_account_ids && currentSm.linked_account_ids.length > 0) {
+                            filteredAccts = filteredAccts.filter((a: Salesman) => currentSm.linked_account_ids?.some(lid => lid.toString() === a.id.toString()));
+                        }
+                        setAccounts(filteredAccts);
+                        if (selectedAccountId && !filteredAccts.some(a => a.id.toString() === selectedAccountId)) {
+                            setSelectedAccountId("");
+                        }
+                    }
                 }
             } catch (e) {
                 console.error("Failed to fetch linked salesmen:", e);
