@@ -989,7 +989,9 @@ export function useSalesOrder() {
 
         setSubmitting(true);
         try {
-            const now = new Date().toISOString();
+            const phtDate = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Manila" }));
+            const pad = (n: number) => String(n).padStart(2, '0');
+            const now = `${phtDate.getFullYear()}-${pad(phtDate.getMonth() + 1)}-${pad(phtDate.getDate())}T${pad(phtDate.getHours())}:${pad(phtDate.getMinutes())}:${pad(phtDate.getSeconds())}`;
             // I-prepare ang final payload para sa pag-save ng order
             const payload = {
                 ...(existingOrderId ? { order_id: existingOrderId } : {}),
