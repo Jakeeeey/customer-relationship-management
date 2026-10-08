@@ -86,7 +86,12 @@ export function useSalesOrder() {
     useEffect(() => {
         // Find payment days from the selected payment term ID
         const selectedTerm = paymentTermsList.find(pt => Number(pt.id) === Number(paymentTerms));
-        const days = selectedTerm?.payment_days || 0;
+        let days = selectedTerm?.payment_days || 0;
+
+        const termName = selectedTerm?.payment_name?.trim() || "";
+        if (termName.toLowerCase().includes("1 up 1 down") || termName.toLowerCase().includes("1up 1down")) {
+            days = 1;
+        }
 
         // User clarified: due date is based on order date (today), not delivery date
         const baseDate = new Date();
