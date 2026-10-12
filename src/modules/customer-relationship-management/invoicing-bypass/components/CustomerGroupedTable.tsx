@@ -1,0 +1,330 @@
+"use client";
+
+import React, { useState, useMemo } from "react";
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from "@/components/ui/table";
+import { CustomerGroup, SalesOrder, ReceiptType } from "../types";
+import { formatToPHT } from "../utils/dateUtils";
+import { ChevronDown, ChevronRight, FileText, User, Hash, Calendar, MapPin, AlertTriangle } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+import { Badge } from "@/components/ui/badge";
+import { SalesOrderModal } from "./SalesOrderModal";
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+    DialogFooter,
+} from "@/components/ui/dialog";
+
+interface CustomerGroupedTableProps {
+    groups: CustomerGroup[];
+    onUpdateRemarks?: (orderId: number, newRemarks: string) => void;
+    onUpdateReceiptType?: (orderId: number, typeId: number, receiptTypes: ReceiptType[]) => void;
+}
+
+export const CustomerGroupedTable: React.FC<CustomerGroupedTableProps> = ({ groups, onUpdateRemarks, onUpdateReceiptType }) => {
+    const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+    const [selectedOrder, setSelectedOrder] = useState<SalesOrder | null>(null);
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [isWarningOpen, setIsWarningOpen] = useState(false);
+    const [warningMessage, setWarningMessage] = useState("");
+
+    const { hasAnyGlobalVoid, hasAnyGlobalRecycled } = useMemo(() => {
+        let hasVoid = false;
+        let hasRecycled = false;
+        for (const group of groups) {
+            for (const order of group.orders) {
+                const isOrderVoid = !!order.void_invoices && order.void_invoices.length > 0;
+                const isOrderRecycled = (order.existing_invoices && order.existing_invoices.length > 0) || !!order.existing_invoice_no || !!order.existing_invoice_display_no;
+                if (isOrderVoid) hasVoid = true;
+                if (isOrderRecycled) hasRecycled = true;
+            }
+        }
+        return { hasAnyGlobalVoid: hasVoid, hasAnyGlobalRecycled: hasRecycled };
+    }, [groups]);
+
+    const toggleGroup = (customerCode: string) => {
+        const newExpanded = new Set(expandedGroups);
+        if (newExpanded.has(customerCode)) {
+            newExpanded.delete(customerCode);
+        } else {
+            newExpanded.add(customerCode);
+        }
+        setExpandedGroups(newExpanded);
+    };
+
+    const toggleAll = () => {
+        if (expandedGroups.size === groups.length && groups.length > 0) {
+            setExpandedGroups(new Set());
+        } else {
+            setExpandedGroups(new Set(groups.map(g => g.customer_code)));
+        }
+    };
+
+    const handleRowClick = (order: SalesOrder) => {
+        const isOrderVoid = !!order.void_invoices && order.void_invoices.length > 0;
+        const isOrderRecycled = (order.existing_invoices && order.existing_invoices.length > 0) || !!order.existing_invoice_no || !!order.existing_invoice_display_no;
+
+        if (!isOrderVoid && hasAnyGlobalVoid) {
+            setWarningMessage("Please process all pending Void invoices first before opening Recycled or Normal orders.");
+            setIsWarningOpen(true);
+            return;
+        }
+
+        if (!isOrderVoid && !isOrderRecycled && hasAnyGlobalRecycled) {
+            setWarningMessage("Please process all pending Recycled invoices first before opening Normal orders.");
+            setIsWarningOpen(true);
+            return;
+        }
+
+        setSelectedOrder(order);
+        setIsModalOpen(true);
+    };
+
+    const handleRemarksUpdate = (orderId: number, remarks: string) => {
+        if (selectedOrder && selectedOrder.order_id === orderId) {
+            setSelectedOrder({ ...selectedOrder, remarks });
+        }
+        if (onUpdateRemarks) {
+            onUpdateRemarks(orderId, remarks);
+        }
+    };
+
+    const handleReceiptTypeUpdate = (orderId: number, typeId: number, receiptTypes: ReceiptType[]) => {
+        if (selectedOrder && selectedOrder.order_id === orderId) {
+            const newType = receiptTypes.find(t => t.id === typeId);
+            setSelectedOrder({ 
+                ...selectedOrder, 
+                receipt_type: newType ? { id: newType.id, type: newType.type, isOfficial: newType.isOfficial } : selectedOrder.receipt_type 
+            });
+        }
+        if (onUpdateReceiptType) {
+             onUpdateReceiptType(orderId, typeId, receiptTypes);
+        }
+    };
+
+    const formatDate = (dateString?: string) => {
+        return formatToPHT(dateString, "MMM dd, yyyy");
+    };
+
+    const formatCurrency = (amount: number) => {
+        return new Intl.NumberFormat("en-PH", {
+            style: "currency",
+            currency: "PHP",
+        }).format(amount);
+    };
+
+    return (
+        <>
+            <div className="mb-4 flex justify-end">
+                <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={toggleAll}
+                    disabled={groups.length === 0}
+                    className="rounded-full px-6 h-8 text-[10px] font-black uppercase tracking-widest border-primary/20 hover:bg-primary/5 hover:text-primary transition-all duration-300 shadow-sm"
+                >
+                    {expandedGroups.size === groups.length && groups.length > 0 ? "Close All Accordions" : "Open All Accordions"}
+                </Button>
+            </div>
+            <div className="rounded-xl border bg-card/50 backdrop-blur-sm overflow-hidden shadow-xl ring-1 ring-border/50">
+                <Table>
+                    <TableHeader className="bg-muted/50">
+                        <TableRow className="hover:bg-transparent border-b">
+                            <TableHead className="w-[50px]"></TableHead>
+                            <TableHead className="font-semibold text-foreground/80"><div className="flex items-center gap-2"><User size={14} className="text-primary" /> Customer</div></TableHead>
+                            <TableHead className="font-semibold text-foreground/80"><div className="flex items-center gap-2"><Hash size={14} className="text-primary" /> Code</div></TableHead>
+                            <TableHead className="text-center font-semibold text-foreground/80">Orders</TableHead>
+                            <TableHead className="text-right font-semibold text-foreground/80">Total Group Amount</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {groups.length === 0 ? (
+                            <TableRow>
+                                <TableCell colSpan={5} className="h-48 text-center text-muted-foreground italic">
+                                    <div className="flex flex-col items-center justify-center gap-2">
+                                        <FileText size={48} className="opacity-10" />
+                                        <span>No sales orders found for the selected criteria.</span>
+                                    </div>
+                                </TableCell>
+                            </TableRow>
+                        ) : (
+                            groups.map((group) => (
+                                <React.Fragment key={group.customer_code}>
+                                    <TableRow 
+                                        className={cn(
+                                            "cursor-pointer transition-colors duration-200",
+                                            expandedGroups.has(group.customer_code) ? "bg-primary/5 hover:bg-primary/10" : "hover:bg-muted/50"
+                                        )}
+                                        onClick={() => toggleGroup(group.customer_code)}
+                                    >
+                                        <TableCell className="text-center">
+                                            <Button variant="ghost" size="icon" className="h-10 w-10 hover:bg-primary/10 hover:text-primary transition-all duration-300">
+                                                {expandedGroups.has(group.customer_code) ? (
+                                                    <ChevronDown size={20} className="text-primary animate-in fade-in zoom-in duration-300" />
+                                                ) : (
+                                                    <ChevronRight size={20} className="text-muted-foreground/60 transition-transform duration-300 group-hover:translate-x-1" />
+                                                )}
+                                            </Button>
+                                        </TableCell>
+                                        <TableCell className="font-black text-lg md:text-xl text-foreground/90 tracking-tight">
+                                            <div className="flex items-center gap-3">
+                                                <div className="h-8 w-1 bg-primary/20 rounded-full group-hover:bg-primary transition-colors duration-500" />
+                                                {group.customer_name}
+                                            </div>
+                                        </TableCell>
+                                        <TableCell>
+                                            <Badge variant="outline" className="font-mono text-xs bg-muted/30 border-primary/20 text-primary">
+                                                {group.customer_code}
+                                            </Badge>
+                                        </TableCell>
+                                        <TableCell className="text-center">
+                                            <Badge variant="secondary" className="font-semibold">
+                                                {group.order_count} {group.order_count === 1 ? "Order" : "Orders"}
+                                            </Badge>
+                                        </TableCell>
+                                        <TableCell className="text-right">
+                                            <span className="font-black text-primary text-2xl tracking-tighter drop-shadow-sm">
+                                                {formatCurrency(group.total_amount)}
+                                            </span>
+                                        </TableCell>
+                                    </TableRow>
+                                    
+                                    {expandedGroups.has(group.customer_code) && (
+                                        <TableRow className="bg-muted/10 hover:bg-muted/10 border-b-0">
+                                            <TableCell colSpan={5} className="p-0">
+                                                <div className="p-4 bg-gradient-to-b from-muted/20 to-transparent border-x animate-in slide-in-from-top-2 duration-300 ease-out">
+                                                    <div className="rounded-lg border bg-background overflow-hidden shadow-inner ring-1 ring-border/30">
+                                                        <Table>
+                                                              <TableHeader className="bg-muted/40 divide-y-0">
+                                                                <TableRow className="hover:bg-transparent border-b-0">
+                                                                    <TableHead className="text-[10px] uppercase tracking-[0.2em] font-black text-muted-foreground/60">
+                                                                        <div className="flex items-center gap-2"><Calendar size={12} /> Date</div>
+                                                                    </TableHead>
+                                                                    <TableHead className="text-[10px] uppercase tracking-[0.2em] font-black text-muted-foreground/60">
+                                                                        <div className="flex items-center gap-2"><Hash size={12} /> Order No.</div>
+                                                                    </TableHead>
+                                                                    <TableHead className="text-[10px] uppercase tracking-[0.2em] font-black text-muted-foreground/60">
+                                                                        <div className="flex items-center gap-2"><FileText size={12} /> PO No.</div>
+                                                                    </TableHead>
+                                                                    <TableHead className="text-[10px] uppercase tracking-[0.2em] font-black text-muted-foreground/60">Supplier</TableHead>
+                                                                    <TableHead className="text-[10px] uppercase tracking-[0.2em] font-black text-muted-foreground/60">Salesman</TableHead>
+                                                                    <TableHead className="text-[10px] uppercase tracking-[0.2em] font-black text-muted-foreground/60">Branch</TableHead>
+                                                                    <TableHead className="text-right text-[10px] uppercase tracking-[0.2em] font-black text-muted-foreground/60">Total</TableHead>
+                                                                    <TableHead className="text-right text-[10px] uppercase tracking-[0.2em] font-black text-muted-foreground/60">Allocated</TableHead>
+                                                                </TableRow>
+                                                              </TableHeader>
+                                                            <TableBody>
+                                                                {group.orders.map((order) => {
+                                                                    const isVoid = !!order.void_invoices && order.void_invoices.length > 0;
+                                                                    const isRecycled = !!order.not_fulfilled_at && !isVoid;
+                                                                    return (
+                                                                    <TableRow 
+                                                                        key={order.order_id || order.order_no} 
+                                                                        className={cn(
+                                                                            "border-b last:border-0 transition-colors cursor-pointer",
+                                                                            isVoid
+                                                                                ? "bg-red-200 hover:bg-red-300 dark:bg-red-950/40 dark:hover:bg-red-950/60"
+                                                                                : isRecycled
+                                                                                    ? "bg-orange-200 hover:bg-orange-300/50 dark:bg-orange-900/40 dark:hover:bg-orange-900/50"
+                                                                                    : "hover:bg-primary/10"
+                                                                        )}
+                                                                        onClick={(e) => {
+                                                                            e.stopPropagation();
+                                                                            handleRowClick(order);
+                                                                        }}
+                                                                    >
+                                                                        <TableCell className="text-xs py-3"><div className="flex items-center gap-1.5"><Calendar size={12} className="text-muted-foreground" /> {formatDate(order.order_date)}</div></TableCell>
+                                                                        <TableCell className="text-xs font-bold py-3">
+                                                                            <div className="flex items-center gap-2">
+                                                                                <span className={isVoid ? "text-red-600 dark:text-red-400" : isRecycled ? "text-orange-600 dark:text-orange-400" : "text-primary"}>{order.order_no}</span>
+                                                                                {isVoid && (
+                                                                                    <Badge className="text-[9px] px-1.5 py-0 h-4 bg-red-500/15 text-red-600 dark:text-red-400 border border-red-500/30 font-bold uppercase tracking-wider">
+                                                                                        Void
+                                                                                    </Badge>
+                                                                                )}
+                                                                                {isRecycled && (
+                                                                                    <Badge className="text-[9px] px-1.5 py-0 h-4 bg-orange-500/15 text-orange-600 dark:text-orange-400 border border-orange-500/30 font-bold uppercase tracking-wider">
+                                                                                        Recycled
+                                                                                    </Badge>
+                                                                                )}
+                                                                            </div>
+                                                                        </TableCell>
+                                                                        <TableCell className="text-xs py-3">{order.po_no || "—"}</TableCell>
+                                                                        <TableCell className="text-xs py-3 font-medium text-foreground/80">
+                                                                            {order.supplier_id?.supplier_name 
+                                                                                ? `${order.supplier_id.supplier_name} (${order.supplier_id.supplier_shortcut})` 
+                                                                                : (order.supplier_id?.supplier_shortcut || "—")}
+                                                                        </TableCell>
+                                                                        <TableCell className="text-xs py-3">
+                                                                            <div className="flex flex-col">
+                                                                                <span className="font-semibold text-foreground/90">{order.salesman_id?.salesman_name || "—"}</span>
+                                                                                <span className="text-[10px] text-muted-foreground font-mono">{order.salesman_id?.salesman_code}</span>
+                                                                            </div>
+                                                                        </TableCell>
+                                                                        <TableCell className="text-xs py-3"><div className="flex items-center gap-1.5"><MapPin size={12} className="text-muted-foreground" /> {order.branch_id?.branch_name || "—"}</div></TableCell>
+                                                                        <TableCell className="text-right text-xs font-bold py-3 text-foreground/90">{formatCurrency(order.total_amount || 0)}</TableCell>
+                                                                        <TableCell className="text-right text-xs py-3">
+                                                                            <Badge variant="outline" className="bg-green-500/5 text-green-600 border-green-500/20 font-bold">
+                                                                                {formatCurrency(order.allocated_amount || 0)}
+                                                                            </Badge>
+                                                                        </TableCell>
+                                                                    </TableRow>
+                                                                    );
+                                                                })}
+                                                            </TableBody>
+                                                        </Table>
+                                                    </div>
+                                                </div>
+                                            </TableCell>
+                                        </TableRow>
+                                    )}
+                                </React.Fragment>
+                            ))
+                        )}
+                    </TableBody>
+                </Table>
+            </div>
+            
+            <SalesOrderModal 
+                order={selectedOrder}
+                open={isModalOpen}
+                onClose={() => setIsModalOpen(false)}
+                onUpdateRemarks={handleRemarksUpdate}
+                onUpdateReceiptType={handleReceiptTypeUpdate}
+            />
+
+            <Dialog open={isWarningOpen} onOpenChange={setIsWarningOpen}>
+                <DialogContent className="max-w-md p-6 rounded-2xl border bg-background/95 backdrop-blur-xl shadow-2xl ring-1 ring-border/50 flex flex-col gap-4">
+                    <DialogHeader className="flex flex-col items-center text-center gap-2">
+                        <div className="bg-amber-500/10 p-3 rounded-full border border-amber-500/20 text-amber-500 animate-bounce">
+                            <AlertTriangle size={32} />
+                        </div>
+                        <DialogTitle className="text-xl font-black tracking-tight text-foreground/90 uppercase">
+                            Action Restricted
+                        </DialogTitle>
+                    </DialogHeader>
+                    <div className="text-center text-sm text-muted-foreground/80 leading-relaxed font-medium">
+                        {warningMessage}
+                    </div>
+                    <DialogFooter className="sm:justify-center">
+                        <Button 
+                            onClick={() => setIsWarningOpen(false)}
+                            className="w-full sm:w-auto rounded-full px-8 font-bold bg-amber-500 hover:bg-amber-600 text-white shadow-lg active:scale-95 transition-all duration-200"
+                        >
+                            Got it
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+        </>
+    );
+};

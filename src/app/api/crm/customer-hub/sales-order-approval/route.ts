@@ -618,7 +618,9 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: "orderIds array required" }, { status: 400 });
         }
 
-        const now = new Date().toISOString();
+        const phtNow = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Manila" }));
+        const pad = (n: number) => String(n).padStart(2, '0');
+        const now = `${phtNow.getFullYear()}-${pad(phtNow.getMonth() + 1)}-${pad(phtNow.getDate())}T${pad(phtNow.getHours())}:${pad(phtNow.getMinutes())}:${pad(phtNow.getSeconds())}`;
         let status = "For Consolidation";
         const updateObj: Record<string, string | number | boolean | null | undefined> = { modified_date: now };
 
