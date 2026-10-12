@@ -554,7 +554,7 @@ export function useSalesOrder() {
                 // 1. Fetch current accounts for this user
                 const res = await fetch(`/api/crm/customer-hub/create-sales-order?action=accounts&user_id=${id}`);
                 const data = await res.json();
-                
+
                 const masterUser = salesmen.find(s => (s.user_id || s.id)?.toString() === id);
                 let filteredAccounts: Salesman[] = Array.isArray(data) ? data : [];
                 if (masterUser && masterUser.linked_account_ids && masterUser.linked_account_ids.length > 0) {
@@ -651,7 +651,7 @@ export function useSalesOrder() {
                         // Fetch all accounts for this user so the dropdown is ready
                         const res = await fetch(`/api/crm/customer-hub/create-sales-order?action=accounts&user_id=${uid}`);
                         const acctsData = await res.json();
-                        
+
                         let filteredAccts: Salesman[] = Array.isArray(acctsData) ? acctsData : [];
                         if (sm.linked_account_ids && sm.linked_account_ids.length > 0) {
                             filteredAccts = filteredAccts.filter((a: Salesman) => sm.linked_account_ids?.some(lid => lid.toString() === a.id.toString()));
@@ -1022,7 +1022,7 @@ export function useSalesOrder() {
         try {
             if (selectedBranchId && selectedSupplierId) {
                 const invData = await salesOrderProvider.getCartInventory(selectedBranchId, selectedSupplierId, selectedSalesmanId || undefined);
-                
+
                 // Update lineItems with fresh inventory
                 setLineItems(prev => prev.map(item => {
                     const pid = item.product.product_id || (item.product as unknown as { id: string | number }).id;
@@ -1038,7 +1038,7 @@ export function useSalesOrder() {
                     }
                     return item;
                 }));
-                
+
                 // Ensure all line items have an entry in allocatedQuantities - with Stock Guard
                 setAllocatedQuantities(prev => {
                     const newAlloc = { ...prev };
@@ -1154,8 +1154,8 @@ export function useSalesOrder() {
             const res = await salesOrderProvider.createOrder(payload, itemsWithAllocation);
             if (res.success) {
                 console.log(`[SubmitOrder] SUCCESS: ${res.order_no} (${finalStatus})`);
-                const statusMsg = finalStatus === "Draft" 
-                    ? "Saved in Draft" 
+                const statusMsg = finalStatus === "Draft"
+                    ? "Saved in Draft"
                     : finalStatus === "For Consolidation"
                         ? "Submitted for Consolidation"
                         : "Submitted for Approval";
