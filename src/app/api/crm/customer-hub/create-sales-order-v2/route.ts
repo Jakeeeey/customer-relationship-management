@@ -876,7 +876,9 @@ export async function POST(req: NextRequest) {
             }
         }
 
-        const nowStr = now.toISOString();
+        const phtNow = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Manila" }));
+        const pad = (n: number) => String(n).padStart(2, '0');
+        const nowStr = `${phtNow.getFullYear()}-${pad(phtNow.getMonth() + 1)}-${pad(phtNow.getDate())}T${pad(phtNow.getHours())}:${pad(phtNow.getMinutes())}:${pad(phtNow.getSeconds())}`;
         const dateOnly = nowStr.split('T')[0];
 
         let headerPayload: HeaderPayload;

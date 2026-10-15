@@ -95,9 +95,13 @@ export const InventoryReportPrintModal = ({
                 
                 doc.text(`Branch: ${filters.branch || 'ALL BRANCHES'}`, margins.left, metadataY);
                 doc.text(`Supplier: ${filters.supplier || 'ALL SUPPLIERS'}`, margins.left, metadataY + 5);
+                const isBoxUnitName = (name: string) => {
+                    const u = (name || '').toUpperCase();
+                    return (u.includes('BOX') || u.includes('CASE')) && !u.includes('INNER BOX');
+                };
                 const activeData = data.filter(item => {
                     if (filters.mode === 'Box') {
-                        const boxUnit = item.units.find(u => u.unit.toUpperCase().includes('BOX') || u.unit.toUpperCase().includes('CASE'));
+                        const boxUnit = item.units.find(u => isBoxUnitName(u.unit));
                         return boxUnit && Number(boxUnit.runningInventory) !== 0;
                     }
                     if (filters.mode === 'Piece') {
@@ -133,7 +137,7 @@ export const InventoryReportPrintModal = ({
                 activeData.forEach(item => {
                     const barcode = item.units.find(u => u.barcode)?.barcode || '';
                     
-                    const isBox = (u: InventoryUnit) => u.unit.toUpperCase().includes('BOX') || u.unit.toUpperCase().includes('CASE');
+                    const isBox = (u: InventoryUnit) => isBoxUnitName(u.unit);
                     const isPiece = (u: InventoryUnit) => u.unit.toUpperCase().includes('PIECE') || u.unit.toUpperCase().includes('PCS') || u.unitCount === 1;
                     const isPack = (u: InventoryUnit) => !isBox(u) && !isPiece(u);
 

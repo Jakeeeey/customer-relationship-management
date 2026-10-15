@@ -259,23 +259,27 @@ const generateOfficialReceipt = async (data: ReceiptData, existingDoc?: jsPDF, h
         const dt = data.discountTypes.find(d => d.id === item.discount_type);
         const productName = item.product_name.toUpperCase();
         const productNameX = cols?.['product_name']?.x || 10;
-        const productNameMaxWidth = template?.tableSettings?.product_name_width || ((cols?.['quantity']?.x || 105) - productNameX - 5); 
+        const qtyX = cols?.['quantity']?.x || 105;
+        const maxAllowedNameWidth = qtyX - productNameX - 18;
+        const productNameMaxWidth = template?.tableSettings?.product_name_width 
+            ? Math.min(template.tableSettings.product_name_width, maxAllowedNameWidth)
+            : maxAllowedNameWidth;
         
-        const lines: string[] = doc.splitTextToSize(productName, productNameMaxWidth);
+        const lines: string[] = doc.splitTextToSize(productName, Math.max(30, productNameMaxWidth));
         const wrappedContentHeight = lines.length * tableLineStep;
-        const actualRowHeight = Math.max(minRowHeight, wrappedContentHeight + 1); 
-        const midYOffset = (actualRowHeight - (tableFontSize * 0.3527)) / 2;
+        const actualRowHeight = Math.max(minRowHeight, wrappedContentHeight + 2); 
+        const blockTopOffset = (actualRowHeight - wrappedContentHeight) / 2;
+        const firstLineY = currentY + blockTopOffset;
 
         lines.forEach((line, lineIdx) => {
-            const blockTopOffset = (actualRowHeight - wrappedContentHeight) / 2;
-            const lineY = currentY + blockTopOffset + (lineIdx * tableLineStep);
+            const lineY = firstLineY + (lineIdx * tableLineStep);
             doc.text(line, productNameX, lineY, { baseline: 'top' });
         });
         
-        doc.text(`${item.qty} ${item.unit_shortcut}`, cols?.['quantity']?.x || 105, currentY + midYOffset, { align: 'center', baseline: 'top' });
-        doc.text(formatCurrency(item.unit_price), cols?.['unit_price']?.x || 126, currentY + midYOffset, { align: 'right', baseline: 'top' });
-        doc.text(dt ? dt.discount_type.toUpperCase() : (data.is_official ? "" : "NONE"), cols?.['discount']?.x || 153, currentY + midYOffset, { align: 'right', baseline: 'top' });
-        doc.text(formatCurrency(item.net_amount), cols?.['net_amount']?.x || 184, currentY + midYOffset, { align: 'right', baseline: 'top' });
+        doc.text(`${item.qty} ${item.unit_shortcut}`, qtyX, firstLineY, { align: 'center', baseline: 'top' });
+        doc.text(formatCurrency(item.unit_price), cols?.['unit_price']?.x || 126, firstLineY, { align: 'right', baseline: 'top' });
+        doc.text(dt ? dt.discount_type.toUpperCase() : (data.is_official ? "" : "NONE"), cols?.['discount']?.x || 153, firstLineY, { align: 'right', baseline: 'top' });
+        doc.text(formatCurrency(item.net_amount), cols?.['net_amount']?.x || 184, firstLineY, { align: 'right', baseline: 'top' });
 
         currentY += actualRowHeight;
     });

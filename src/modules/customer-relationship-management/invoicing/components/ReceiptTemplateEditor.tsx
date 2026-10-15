@@ -8,12 +8,72 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { ORTemplate, ORFieldConfig, formatAddress } from "../types";
-import { Upload, Move, Type, Trash2, Maximize2, AlertTriangle, Loader2, Plus, Star, Check } from "lucide-react";
+import { ORTemplate, ORFieldConfig, formatAddress, AddressComponentKey, DEFAULT_ADDRESS_ORDER } from "../types";
+import { Upload, Move, Type, Trash2, Maximize2, AlertTriangle, Loader2, Plus, Star, Check, ChevronUp, ChevronDown, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 import Barcode from "react-barcode";
 import { Switch } from "@/components/ui/switch";
 import { InvoicingService } from "../services/InvoicingService";
+
+const ADDRESS_PRESETS: { label: string; value: string; keys: AddressComponentKey[] }[] = [
+    {
+        label: "Specific to Broad (Standard PH)",
+        value: "standard_ph",
+        keys: [
+            'unit_building', 'house_no', 'block', 'lot', 'phase', 
+            'street', 'subdivision', 'purok_sitio', 'brgy', 
+            'city', 'province', 'region', 'zip_code', 'country'
+        ]
+    },
+    {
+        label: "Commercial / Short Address",
+        value: "commercial_short",
+        keys: [
+            'unit_building', 'house_no', 'street', 'subdivision', 
+            'purok_sitio', 'brgy', 'city', 'province'
+        ]
+    },
+    {
+        label: "Province First",
+        value: "province_first",
+        keys: [
+            'province', 'city', 'brgy', 'purok_sitio', 
+            'subdivision', 'street', 'phase', 'lot', 'block', 
+            'house_no', 'unit_building'
+        ]
+    },
+    {
+        label: "City First",
+        value: "city_first",
+        keys: [
+            'city', 'province', 'brgy', 'street', 'subdivision', 'unit_building'
+        ]
+    },
+    {
+        label: "Barangay First",
+        value: "brgy_first",
+        keys: [
+            'brgy', 'city', 'province', 'region'
+        ]
+    },
+];
+
+const COMPONENT_LABELS: Record<AddressComponentKey, string> = {
+    unit_building: "Unit / Bldg",
+    house_no: "House No.",
+    block: "Block",
+    lot: "Lot",
+    phase: "Phase",
+    street: "Street",
+    subdivision: "Subdivision",
+    purok_sitio: "Purok / Sitio",
+    brgy: "Barangay",
+    city: "City",
+    province: "Province",
+    region: "Region",
+    zip_code: "Zip Code",
+    country: "Country",
+};
 
 export interface TemplateRecord {
     id: number;
@@ -42,7 +102,7 @@ export const DEFAULT_TEMPLATE: ORTemplate = {
         store_name: { x: 45, y: 38, fontSize: 11, fontFamily: 'courier', fontWeight: 'normal', label: 'Store Name' },
         payment_name: { x: 180, y: 38, fontSize: 11, fontFamily: 'courier', fontWeight: 'normal', label: 'Terms' },
         customer_tin: { x: 20, y: 46, fontSize: 11, fontFamily: 'courier', fontWeight: 'normal', label: 'TIN' },
-        address: { x: 33, y: 55, fontSize: 11, fontFamily: 'courier', fontWeight: 'normal', label: 'Address' },
+        address: { x: 33, y: 55, fontSize: 11, fontFamily: 'courier', fontWeight: 'normal', label: 'Address', maxWidth: 150, lineHeight: 1.1 },
         vatable_sales: { x: 180, y: 145, fontSize: 10, fontFamily: 'courier', fontWeight: 'normal', label: 'Vatable Sales' },
         vat_amount: { x: 180, y: 151, fontSize: 10, fontFamily: 'courier', fontWeight: 'normal', label: 'VAT Amount' },
         zero_rated: { x: 180, y: 157, fontSize: 10, fontFamily: 'courier', fontWeight: 'normal', label: 'Zero-Rated Sales', hidden: true },
@@ -84,7 +144,7 @@ export const MARIKINA_TEMPLATE: ORTemplate = {
         store_name: { x: 50, y: 43, fontSize: 11, fontFamily: 'courier', fontWeight: 'bold', label: 'Store Name' },
         payment_name: { x: 170, y: 43, fontSize: 11, fontFamily: 'courier', fontWeight: 'bold', label: 'Terms' },
         customer_tin: { x: 25, y: 52, fontSize: 11, fontFamily: 'courier', fontWeight: 'bold', label: 'TIN' },
-        address: { x: 45, y: 60, fontSize: 11, fontFamily: 'courier', fontWeight: 'bold', label: 'Address' },
+        address: { x: 45, y: 60, fontSize: 11, fontFamily: 'courier', fontWeight: 'bold', label: 'Address', maxWidth: 140, lineHeight: 1.1 },
         vatable_sales: { x: 160, y: 220, fontSize: 10, fontFamily: 'courier', fontWeight: 'normal', label: 'Vatable Sales' },
         vat_amount: { x: 160, y: 226, fontSize: 10, fontFamily: 'courier', fontWeight: 'normal', label: 'VAT Amount' },
         zero_rated: { x: 160, y: 232, fontSize: 10, fontFamily: 'courier', fontWeight: 'normal', label: 'Zero-Rated Sales', hidden: true },
@@ -333,6 +393,29 @@ export const ReceiptTemplateEditor: React.FC<Props> = ({ isOpen, onClose, onSave
                 x: Math.max(0, Math.min(template.width, initialX + dx)),
                 y: Math.max(0, Math.min(template.height, initialY + dy))
             });
+        };
+
+        const onMouseUp = () => {
+            document.removeEventListener('mousemove', onMouseMove);
+            document.removeEventListener('mouseup', onMouseUp);
+        };
+
+        document.addEventListener('mousemove', onMouseMove);
+        document.addEventListener('mouseup', onMouseUp);
+    };
+
+    const handleWidthResize = (key: string, e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (!canvasRef.current) return;
+        const rect = canvasRef.current.getBoundingClientRect();
+        const startX = e.clientX;
+        const currentField = template.fields[key];
+        const initialWidth = currentField?.maxWidth || (template.width - currentField.x);
+
+        const onMouseMove = (moveEvent: MouseEvent) => {
+            const dx = (moveEvent.clientX - startX) * (template.width / rect.width);
+            const newWidth = Math.max(10, Math.min(template.width - currentField.x, Number((initialWidth + dx).toFixed(1))));
+            updateField(key, { maxWidth: newWidth });
         };
 
         const onMouseUp = () => {
@@ -879,73 +962,332 @@ export const ReceiptTemplateEditor: React.FC<Props> = ({ isOpen, onClose, onSave
                                                             />
                                                         </div>
 
-                                                        {key === 'address' && (
-                                                            <div className="col-span-2 pt-2 border-t border-zinc-100 dark:border-zinc-800 space-y-3">
-                                                                <Label className="text-[10px] font-bold uppercase text-muted-foreground">Address Components</Label>
-                                                                
-                                                                <div className="space-y-2">
-                                                                    <div className="flex items-center justify-between">
-                                                                        <Label className="text-[10px]">Show Province</Label>
-                                                                        <Switch 
-                                                                            checked={config.addressConfig?.showProvince ?? true}
-                                                                            onCheckedChange={v => updateField('address', {
-                                                                                addressConfig: {
-                                                                                    ...config.addressConfig,
-                                                                                    showProvince: v
-                                                                                }
-                                                                            })}
-                                                                        />
-                                                                    </div>
-                                                                    <div className="flex items-center justify-between">
-                                                                        <Label className="text-[10px]">Show City</Label>
-                                                                        <Switch 
-                                                                            checked={config.addressConfig?.showCity ?? true}
-                                                                            onCheckedChange={v => updateField('address', {
-                                                                                addressConfig: {
-                                                                                    ...config.addressConfig,
-                                                                                    showCity: v
-                                                                                }
-                                                                            })}
-                                                                        />
-                                                                    </div>
-                                                                    <div className="flex items-center justify-between">
-                                                                        <Label className="text-[10px]">Show Barangay</Label>
-                                                                        <Switch 
-                                                                            checked={config.addressConfig?.showBrgy ?? true}
-                                                                            onCheckedChange={v => updateField('address', {
-                                                                                addressConfig: {
-                                                                                    ...config.addressConfig,
-                                                                                    showBrgy: v
-                                                                                }
-                                                                            })}
-                                                                        />
-                                                                    </div>
-                                                                </div>
+                                                        {key === 'address' && (() => {
+                                                            const isComponentEnabled = (compKey: AddressComponentKey) => {
+                                                                switch (compKey) {
+                                                                    case 'unit_building': return config.addressConfig?.showUnitBuilding ?? false;
+                                                                    case 'house_no': return config.addressConfig?.showHouseNo ?? false;
+                                                                    case 'block': return config.addressConfig?.showBlock ?? false;
+                                                                    case 'lot': return config.addressConfig?.showLot ?? false;
+                                                                    case 'phase': return config.addressConfig?.showPhase ?? false;
+                                                                    case 'street': return config.addressConfig?.showStreet ?? false;
+                                                                    case 'subdivision': return config.addressConfig?.showSubdivision ?? false;
+                                                                    case 'purok_sitio': return config.addressConfig?.showPurokSitio ?? false;
+                                                                    case 'brgy': return config.addressConfig?.showBrgy ?? true;
+                                                                    case 'city': return config.addressConfig?.showCity ?? true;
+                                                                    case 'province': return config.addressConfig?.showProvince ?? true;
+                                                                    case 'region': return config.addressConfig?.showRegion ?? false;
+                                                                    case 'zip_code': return config.addressConfig?.showZipCode ?? false;
+                                                                    case 'country': return config.addressConfig?.showCountry ?? false;
+                                                                    default: return false;
+                                                                }
+                                                            };
 
-                                                                <div className="space-y-1">
-                                                                    <Label className="text-[10px]">Sequence Order</Label>
-                                                                    <Select
-                                                                        value={(config.addressConfig?.order || ['province', 'city', 'brgy']).join(',')}
-                                                                        onValueChange={v => updateField('address', {
-                                                                            addressConfig: {
-                                                                                ...config.addressConfig,
-                                                                                order: v.split(',') as ('brgy' | 'city' | 'province')[]
-                                                                            }
-                                                                        })}
-                                                                    >
-                                                                        <SelectTrigger className="h-8 text-xs">
-                                                                            <SelectValue />
-                                                                        </SelectTrigger>
-                                                                        <SelectContent>
-                                                                            <SelectItem value="province,city,brgy">Province → City → Barangay</SelectItem>
-                                                                            <SelectItem value="brgy,city,province">Barangay → City → Province</SelectItem>
-                                                                            <SelectItem value="city,province,brgy">City → Province → Barangay</SelectItem>
-                                                                            <SelectItem value="brgy,province,city">Barangay → Province → City</SelectItem>
-                                                                        </SelectContent>
-                                                                    </Select>
+                                                            const currentOrder = (config.addressConfig?.order && config.addressConfig.order.length > 0
+                                                                ? config.addressConfig.order 
+                                                                : DEFAULT_ADDRESS_ORDER) as AddressComponentKey[];
+
+                                                            const currentOrderJoined = currentOrder.join(',');
+                                                            const matchedPreset = ADDRESS_PRESETS.find(p => p.keys.join(',') === currentOrderJoined);
+                                                            const selectedPresetValue = matchedPreset ? matchedPreset.value : "custom";
+
+                                                            const moveComponent = (compKey: AddressComponentKey, direction: 'up' | 'down') => {
+                                                                const allKeys = Array.from(new Set([...currentOrder, ...DEFAULT_ADDRESS_ORDER]));
+                                                                const idx = allKeys.indexOf(compKey);
+                                                                if (idx === -1) return;
+                                                                const targetIdx = direction === 'up' ? idx - 1 : idx + 1;
+                                                                if (targetIdx < 0 || targetIdx >= allKeys.length) return;
+
+                                                                const updated = [...allKeys];
+                                                                const temp = updated[idx];
+                                                                updated[idx] = updated[targetIdx];
+                                                                updated[targetIdx] = temp;
+
+                                                                updateField('address', {
+                                                                    addressConfig: {
+                                                                        ...config.addressConfig,
+                                                                        order: updated
+                                                                    }
+                                                                });
+                                                            };
+
+                                                            const resetToStandardOrder = () => {
+                                                                updateField('address', {
+                                                                    addressConfig: {
+                                                                        ...config.addressConfig,
+                                                                        order: DEFAULT_ADDRESS_ORDER
+                                                                    }
+                                                                });
+                                                            };
+
+                                                            const enabledInOrder = currentOrder.filter(k => isComponentEnabled(k));
+
+                                                            return (
+                                                                <div className="col-span-2 pt-2 border-t border-zinc-100 dark:border-zinc-800 space-y-3">
+                                                                    <Label className="text-[10px] font-bold uppercase text-muted-foreground">Address Components</Label>
+                                                                    
+                                                                    <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                                                                        <div className="flex items-center justify-between">
+                                                                            <Label className="text-[10px]">Show Unit / Building</Label>
+                                                                            <Switch 
+                                                                                checked={config.addressConfig?.showUnitBuilding ?? false}
+                                                                                onCheckedChange={v => updateField('address', {
+                                                                                    addressConfig: {
+                                                                                        ...config.addressConfig,
+                                                                                        showUnitBuilding: v
+                                                                                    }
+                                                                                })}
+                                                                            />
+                                                                        </div>
+                                                                        <div className="flex items-center justify-between">
+                                                                            <Label className="text-[10px]">Show House No.</Label>
+                                                                            <Switch 
+                                                                                checked={config.addressConfig?.showHouseNo ?? false}
+                                                                                onCheckedChange={v => updateField('address', {
+                                                                                    addressConfig: {
+                                                                                        ...config.addressConfig,
+                                                                                        showHouseNo: v
+                                                                                    }
+                                                                                })}
+                                                                            />
+                                                                        </div>
+                                                                        <div className="flex items-center justify-between">
+                                                                            <Label className="text-[10px]">Show Block</Label>
+                                                                            <Switch 
+                                                                                checked={config.addressConfig?.showBlock ?? false}
+                                                                                onCheckedChange={v => updateField('address', {
+                                                                                    addressConfig: {
+                                                                                        ...config.addressConfig,
+                                                                                        showBlock: v
+                                                                                    }
+                                                                                })}
+                                                                            />
+                                                                        </div>
+                                                                        <div className="flex items-center justify-between">
+                                                                            <Label className="text-[10px]">Show Lot</Label>
+                                                                            <Switch 
+                                                                                checked={config.addressConfig?.showLot ?? false}
+                                                                                onCheckedChange={v => updateField('address', {
+                                                                                    addressConfig: {
+                                                                                        ...config.addressConfig,
+                                                                                        showLot: v
+                                                                                    }
+                                                                                })}
+                                                                            />
+                                                                        </div>
+                                                                        <div className="flex items-center justify-between">
+                                                                            <Label className="text-[10px]">Show Phase</Label>
+                                                                            <Switch 
+                                                                                checked={config.addressConfig?.showPhase ?? false}
+                                                                                onCheckedChange={v => updateField('address', {
+                                                                                    addressConfig: {
+                                                                                        ...config.addressConfig,
+                                                                                        showPhase: v
+                                                                                    }
+                                                                                })}
+                                                                            />
+                                                                        </div>
+                                                                        <div className="flex items-center justify-between">
+                                                                            <Label className="text-[10px]">Show Street</Label>
+                                                                            <Switch 
+                                                                                checked={config.addressConfig?.showStreet ?? false}
+                                                                                onCheckedChange={v => updateField('address', {
+                                                                                    addressConfig: {
+                                                                                        ...config.addressConfig,
+                                                                                        showStreet: v
+                                                                                    }
+                                                                                })}
+                                                                            />
+                                                                        </div>
+                                                                        <div className="flex items-center justify-between">
+                                                                            <Label className="text-[10px]">Show Subdivision</Label>
+                                                                            <Switch 
+                                                                                checked={config.addressConfig?.showSubdivision ?? false}
+                                                                                onCheckedChange={v => updateField('address', {
+                                                                                    addressConfig: {
+                                                                                        ...config.addressConfig,
+                                                                                        showSubdivision: v
+                                                                                    }
+                                                                                })}
+                                                                            />
+                                                                        </div>
+                                                                        <div className="flex items-center justify-between">
+                                                                            <Label className="text-[10px]">Show Purok / Sitio</Label>
+                                                                            <Switch 
+                                                                                checked={config.addressConfig?.showPurokSitio ?? false}
+                                                                                onCheckedChange={v => updateField('address', {
+                                                                                    addressConfig: {
+                                                                                        ...config.addressConfig,
+                                                                                        showPurokSitio: v
+                                                                                    }
+                                                                                })}
+                                                                            />
+                                                                        </div>
+                                                                        <div className="flex items-center justify-between">
+                                                                            <Label className="text-[10px]">Show Barangay</Label>
+                                                                            <Switch 
+                                                                                checked={config.addressConfig?.showBrgy ?? true}
+                                                                                onCheckedChange={v => updateField('address', {
+                                                                                    addressConfig: {
+                                                                                        ...config.addressConfig,
+                                                                                        showBrgy: v
+                                                                                    }
+                                                                                })}
+                                                                            />
+                                                                        </div>
+                                                                        <div className="flex items-center justify-between">
+                                                                            <Label className="text-[10px]">Show City</Label>
+                                                                            <Switch 
+                                                                                checked={config.addressConfig?.showCity ?? true}
+                                                                                onCheckedChange={v => updateField('address', {
+                                                                                    addressConfig: {
+                                                                                        ...config.addressConfig,
+                                                                                        showCity: v
+                                                                                    }
+                                                                                })}
+                                                                            />
+                                                                        </div>
+                                                                        <div className="flex items-center justify-between">
+                                                                            <Label className="text-[10px]">Show Province</Label>
+                                                                            <Switch 
+                                                                                checked={config.addressConfig?.showProvince ?? true}
+                                                                                onCheckedChange={v => updateField('address', {
+                                                                                    addressConfig: {
+                                                                                        ...config.addressConfig,
+                                                                                        showProvince: v
+                                                                                    }
+                                                                                })}
+                                                                            />
+                                                                        </div>
+                                                                        <div className="flex items-center justify-between">
+                                                                            <Label className="text-[10px]">Show Region</Label>
+                                                                            <Switch 
+                                                                                checked={config.addressConfig?.showRegion ?? false}
+                                                                                onCheckedChange={v => updateField('address', {
+                                                                                    addressConfig: {
+                                                                                        ...config.addressConfig,
+                                                                                        showRegion: v
+                                                                                    }
+                                                                                })}
+                                                                            />
+                                                                        </div>
+                                                                        <div className="flex items-center justify-between">
+                                                                            <Label className="text-[10px]">Show Zip Code</Label>
+                                                                            <Switch 
+                                                                                checked={config.addressConfig?.showZipCode ?? false}
+                                                                                onCheckedChange={v => updateField('address', {
+                                                                                    addressConfig: {
+                                                                                        ...config.addressConfig,
+                                                                                        showZipCode: v
+                                                                                    }
+                                                                                })}
+                                                                            />
+                                                                        </div>
+                                                                        <div className="flex items-center justify-between">
+                                                                            <Label className="text-[10px]">Show Country</Label>
+                                                                            <Switch 
+                                                                                checked={config.addressConfig?.showCountry ?? false}
+                                                                                onCheckedChange={v => updateField('address', {
+                                                                                    addressConfig: {
+                                                                                        ...config.addressConfig,
+                                                                                        showCountry: v
+                                                                                    }
+                                                                                })}
+                                                                            />
+                                                                        </div>
+                                                                    </div>
+
+                                                                    {/* Sequence Order Dropdown */}
+                                                                    <div className="space-y-1">
+                                                                        <Label className="text-[10px] font-semibold">Sequence Preset</Label>
+                                                                        <Select
+                                                                            value={selectedPresetValue}
+                                                                            onValueChange={(val) => {
+                                                                                if (val === "custom") return;
+                                                                                const targetPreset = ADDRESS_PRESETS.find(p => p.value === val);
+                                                                                if (targetPreset) {
+                                                                                    updateField('address', {
+                                                                                        addressConfig: {
+                                                                                            ...config.addressConfig,
+                                                                                            order: targetPreset.keys
+                                                                                        }
+                                                                                    });
+                                                                                }
+                                                                            }}
+                                                                        >
+                                                                            <SelectTrigger className="h-8 text-xs font-medium">
+                                                                                <SelectValue />
+                                                                            </SelectTrigger>
+                                                                            <SelectContent>
+                                                                                {ADDRESS_PRESETS.map(preset => (
+                                                                                    <SelectItem key={preset.value} value={preset.value}>
+                                                                                        {preset.label}
+                                                                                    </SelectItem>
+                                                                                ))}
+                                                                                <SelectItem value="custom" disabled={selectedPresetValue !== "custom"}>
+                                                                                    Custom (Manual Order)
+                                                                                </SelectItem>
+                                                                            </SelectContent>
+                                                                        </Select>
+                                                                    </div>
+
+                                                                    {/* Custom Reorder List */}
+                                                                    <div className="space-y-1.5 pt-1">
+                                                                        <div className="flex items-center justify-between">
+                                                                            <Label className="text-[10px] font-semibold text-muted-foreground uppercase">Arrange Sequence ({enabledInOrder.length})</Label>
+                                                                            <Button
+                                                                                type="button"
+                                                                                variant="ghost"
+                                                                                size="sm"
+                                                                                className="h-5 px-1.5 text-[9px] text-muted-foreground hover:text-foreground"
+                                                                                onClick={resetToStandardOrder}
+                                                                                title="Reset to Standard Order"
+                                                                            >
+                                                                                <RotateCcw className="h-2.5 w-2.5 mr-1" /> Reset
+                                                                            </Button>
+                                                                        </div>
+
+                                                                        <div className="space-y-1 max-h-40 overflow-y-auto pr-1">
+                                                                            {enabledInOrder.map((compKey, index) => (
+                                                                                <div
+                                                                                    key={compKey}
+                                                                                    className="flex items-center justify-between py-1 px-2 rounded-md bg-zinc-100 dark:bg-zinc-800/80 border border-zinc-200/50 dark:border-zinc-700/50 text-[10px]"
+                                                                                >
+                                                                                    <div className="flex items-center gap-1.5 truncate">
+                                                                                        <span className="font-mono text-[9px] text-muted-foreground w-3.5">{index + 1}.</span>
+                                                                                        <span className="font-medium text-foreground truncate">{COMPONENT_LABELS[compKey] || compKey}</span>
+                                                                                    </div>
+                                                                                    <div className="flex items-center gap-0.5 shrink-0">
+                                                                                        <Button
+                                                                                            type="button"
+                                                                                            variant="ghost"
+                                                                                            size="icon"
+                                                                                            className="h-5 w-5 p-0 hover:bg-zinc-200 dark:hover:bg-zinc-700 disabled:opacity-30"
+                                                                                            disabled={index === 0}
+                                                                                            onClick={() => moveComponent(compKey, 'up')}
+                                                                                            title="Move Up"
+                                                                                        >
+                                                                                            <ChevronUp className="h-3 w-3" />
+                                                                                        </Button>
+                                                                                        <Button
+                                                                                            type="button"
+                                                                                            variant="ghost"
+                                                                                            size="icon"
+                                                                                            className="h-5 w-5 p-0 hover:bg-zinc-200 dark:hover:bg-zinc-700 disabled:opacity-30"
+                                                                                            disabled={index === enabledInOrder.length - 1}
+                                                                                            onClick={() => moveComponent(compKey, 'down')}
+                                                                                            title="Move Down"
+                                                                                        >
+                                                                                            <ChevronDown className="h-3 w-3" />
+                                                                                        </Button>
+                                                                                    </div>
+                                                                                </div>
+                                                                            ))}
+                                                                        </div>
+                                                                    </div>
                                                                 </div>
-                                                            </div>
-                                                        )}
+                                                            );
+                                                        })()}
                                                     </>
                                                 )}
                                             </div>
@@ -1106,14 +1448,15 @@ export const ReceiptTemplateEditor: React.FC<Props> = ({ isOpen, onClose, onSave
                                 return (
                                     <div
                                         key={key}
-                                        className={`absolute cursor-move border border-dashed p-1 rounded z-10 flex items-center group transition-colors ${
+                                        className={`absolute cursor-move border border-dashed p-1 rounded z-10 group transition-colors ${
                                             activeField === key 
-                                                ? 'border-primary bg-primary/10 shadow-lg' 
+                                                ? 'border-primary bg-primary/10 shadow-lg ring-1 ring-primary/40' 
                                                 : 'border-blue-400/40 hover:border-blue-500 hover:bg-blue-50/20'
                                         }`}
                                         style={{
                                             left: `${config.x}mm`,
                                             top: `${config.y}mm`,
+                                            width: config.maxWidth ? `${config.maxWidth}mm` : undefined,
                                             maxWidth: config.maxWidth ? `${config.maxWidth}mm` : undefined,
                                             fontSize: `${config.fontSize}pt`,
                                             fontFamily: config.fontFamily === 'courier' ? 'monospace' : config.fontFamily,
@@ -1122,14 +1465,25 @@ export const ReceiptTemplateEditor: React.FC<Props> = ({ isOpen, onClose, onSave
                                             letterSpacing: `${config.charSpacing ?? 0}pt`,
                                             transform: `scaleX(${config.scaleX ?? 1})`,
                                             transformOrigin: 'left center',
-                                            whiteSpace: config.maxWidth ? 'pre-wrap' : 'nowrap'
+                                            whiteSpace: config.maxWidth ? 'pre-wrap' : 'nowrap',
+                                            wordBreak: 'break-word',
                                         }}
                                         onMouseDown={(e) => handleDrag(key, e)}
                                         onClick={() => setActiveField(key)}
                                     >
-                                        <div className="opacity-0 group-hover:opacity-100 absolute -top-3 -left-3 bg-blue-600 text-white p-0.5 rounded shadow">
+                                        <div className="opacity-0 group-hover:opacity-100 absolute -top-3 -left-3 bg-blue-600 text-white p-0.5 rounded shadow z-20">
                                             <Move className="w-2.5 h-2.5" />
                                         </div>
+
+                                        {activeField === key && (
+                                            <div
+                                                className="absolute -right-2 top-0 bottom-0 w-3 cursor-ew-resize flex items-center justify-center z-30 group/handle"
+                                                onMouseDown={(e) => handleWidthResize(key, e)}
+                                                title={`Drag to resize width (${config.maxWidth ? `${config.maxWidth}mm` : 'Auto'})`}
+                                            >
+                                                <div className="w-1.5 h-5 bg-primary rounded-full shadow-md border border-white group-hover/handle:scale-125 transition-transform" />
+                                            </div>
+                                        )}
 
                                         {key === 'barcode' ? (
                                             <div className="inline-block text-center">
@@ -1153,7 +1507,22 @@ export const ReceiptTemplateEditor: React.FC<Props> = ({ isOpen, onClose, onSave
                                             </div>
                                         ) : key === 'address' ? (
                                             formatAddress(
-                                                { province: 'BENGUET', city: 'BAGUIO CITY', brgy: 'HARRISON-CLAUDIO CARANTES' },
+                                                {
+                                                    unit_building: 'UNIT 101',
+                                                    house_no: '123',
+                                                    block: 'BLK 4',
+                                                    lot: 'LOT 5',
+                                                    phase: 'PH 2',
+                                                    street: 'SESSION RD',
+                                                    subdivision: 'SUNSHINE VILL',
+                                                    purok_sitio: 'PUROK 3',
+                                                    brgy: 'HARRISON-CLAUDIO CARANTES',
+                                                    city: 'BAGUIO CITY',
+                                                    province: 'BENGUET',
+                                                    region: 'CAR',
+                                                    zip_code: '2600',
+                                                    country: 'PHILIPPINES'
+                                                },
                                                 config.addressConfig
                                             )
                                         ) : config.isCustom ? (

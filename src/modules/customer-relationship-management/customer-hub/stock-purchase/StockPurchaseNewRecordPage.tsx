@@ -175,18 +175,11 @@ export default function StockPurchaseNewRecordPage() {
                 setSalesTypes(st);
 
                 const directSales = st.find((s: SalesType) => s.operation_name?.toUpperCase() === "DIRECT SALES" || s.operation_name?.toUpperCase() === "DIRECT" || s.operation_name?.toUpperCase().includes("DIRECT"));
-                const dealer = st.find((s: SalesType) => s.operation_name?.toUpperCase() === "DEALER");
-                const dealerOver = st.find((s: SalesType) => s.operation_name?.toUpperCase() === "DEALEROVER");
-                const firstValid = st.find((s: SalesType) => s.operation_name?.toUpperCase() !== "SITE SALES" && s.id !== 3);
 
                 if (directSales) {
                     setSelectedSalesType(directSales.id.toString());
-                } else if (dealer) {
-                    setSelectedSalesType(dealer.id.toString());
-                } else if (dealerOver) {
-                    setSelectedSalesType(dealerOver.id.toString());
-                } else if (firstValid) {
-                    setSelectedSalesType(firstValid.id.toString());
+                } else if (st.length > 0) {
+                    setSelectedSalesType(st[0].id.toString());
                 } else {
                     setSelectedSalesType("");
                 }

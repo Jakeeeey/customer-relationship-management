@@ -107,7 +107,7 @@ export function getUnitLabel(r: InventoryRow): string {
 export function normalizeUnitType(u?: unknown): "box" | "pack" | "pcs" | "other" {
   if (!u) return "other";
   const s = String(u).toLowerCase();
-  if (s.includes("box")) return "box";
+  if ((s.includes("box") || s.includes("case")) && !s.includes("inner box")) return "box";
   if (s.includes("pack")) return "pack";
   if (s.includes("pcs") || s.includes("piece") || s === "pc") return "pcs";
   return "other";

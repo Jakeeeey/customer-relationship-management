@@ -141,19 +141,48 @@ export interface ConversionItem {
     price_changeable?: boolean;
 }
 
+export type AddressComponentKey =
+    | 'unit_building'
+    | 'house_no'
+    | 'block'
+    | 'lot'
+    | 'phase'
+    | 'street'
+    | 'subdivision'
+    | 'purok_sitio'
+    | 'brgy'
+    | 'city'
+    | 'province'
+    | 'region'
+    | 'zip_code'
+    | 'country';
+
+export interface CustomerAddressData {
+    customer_name?: string;
+    store_name?: string;
+    customer_tin?: string;
+    unit_building?: string | null;
+    house_no?: string | null;
+    block?: string | null;
+    lot?: string | null;
+    phase?: string | null;
+    street?: string | null;
+    subdivision?: string | null;
+    purok_sitio?: string | null;
+    brgy?: string | null;
+    city?: string | null;
+    province?: string | null;
+    region?: string | null;
+    zip_code?: string | null;
+    country?: string | null;
+}
+
 export interface ConversionData {
     items: ConversionItem[];
     max_receipt_length: number;
     is_official?: number | string | null;
     discount_types: DiscountType[];
-    customer?: {
-        customer_name: string;
-        store_name?: string;
-        customer_tin: string;
-        province: string;
-        city: string;
-        brgy: string;
-    };
+    customer?: CustomerAddressData;
     payment_name?: string;
     total_allocated_quantity?: number;
     total_picked_quantity?: number;
@@ -185,32 +214,83 @@ export interface ORFieldConfig {
 
     // Address Sub-components & Ordering Config
     addressConfig?: {
-        showProvince?: boolean;
-        showCity?: boolean;
+        showUnitBuilding?: boolean;
+        showHouseNo?: boolean;
+        showBlock?: boolean;
+        showLot?: boolean;
+        showPhase?: boolean;
+        showStreet?: boolean;
+        showSubdivision?: boolean;
+        showPurokSitio?: boolean;
         showBrgy?: boolean;
-        order?: ('brgy' | 'city' | 'province')[];
+        showCity?: boolean;
+        showProvince?: boolean;
+        showRegion?: boolean;
+        showZipCode?: boolean;
+        showCountry?: boolean;
+        order?: (AddressComponentKey | string)[];
     };
 }
 
+export const DEFAULT_ADDRESS_ORDER: AddressComponentKey[] = [
+    'unit_building',
+    'house_no',
+    'block',
+    'lot',
+    'phase',
+    'street',
+    'subdivision',
+    'purok_sitio',
+    'brgy',
+    'city',
+    'province',
+    'region',
+    'zip_code',
+    'country',
+];
+
 export const formatAddress = (
-    customer?: { province?: string; city?: string; brgy?: string },
+    customer?: CustomerAddressData,
     config?: ORFieldConfig['addressConfig']
 ): string => {
     if (!customer) return 'N/A';
-    const showProvince = config?.showProvince ?? true;
-    const showCity = config?.showCity ?? true;
+    const showUnitBuilding = config?.showUnitBuilding ?? false;
+    const showHouseNo = config?.showHouseNo ?? false;
+    const showBlock = config?.showBlock ?? false;
+    const showLot = config?.showLot ?? false;
+    const showPhase = config?.showPhase ?? false;
+    const showStreet = config?.showStreet ?? false;
+    const showSubdivision = config?.showSubdivision ?? false;
+    const showPurokSitio = config?.showPurokSitio ?? false;
     const showBrgy = config?.showBrgy ?? true;
-    const order = config?.order || ['province', 'city', 'brgy'];
+    const showCity = config?.showCity ?? true;
+    const showProvince = config?.showProvince ?? true;
+    const showRegion = config?.showRegion ?? false;
+    const showZipCode = config?.showZipCode ?? false;
+    const showCountry = config?.showCountry ?? false;
 
-    const partsMap: Record<string, string | undefined> = {
-        province: showProvince ? customer.province : undefined,
-        city: showCity ? customer.city : undefined,
+    const partsMap: Record<string, string | undefined | null> = {
+        unit_building: showUnitBuilding ? customer.unit_building : undefined,
+        house_no: showHouseNo ? customer.house_no : undefined,
+        block: showBlock ? customer.block : undefined,
+        lot: showLot ? customer.lot : undefined,
+        phase: showPhase ? customer.phase : undefined,
+        street: showStreet ? customer.street : undefined,
+        subdivision: showSubdivision ? customer.subdivision : undefined,
+        purok_sitio: showPurokSitio ? customer.purok_sitio : undefined,
         brgy: showBrgy ? customer.brgy : undefined,
+        city: showCity ? customer.city : undefined,
+        province: showProvince ? customer.province : undefined,
+        region: showRegion ? customer.region : undefined,
+        zip_code: showZipCode ? customer.zip_code : undefined,
+        country: showCountry ? customer.country : undefined,
     };
+
+    const order = (config?.order && config.order.length > 0) ? config.order : DEFAULT_ADDRESS_ORDER;
 
     const result = order
         .map(key => partsMap[key])
-        .filter((val): val is string => Boolean(val && val.trim() !== ''))
+        .filter((val): val is string => Boolean(val && typeof val === 'string' && val.trim() !== ''))
         .join(', ');
 
     return result ? result.toUpperCase() : 'N/A';
