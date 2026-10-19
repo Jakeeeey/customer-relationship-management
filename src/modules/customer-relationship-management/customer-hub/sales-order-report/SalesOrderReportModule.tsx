@@ -6,7 +6,9 @@ import { fetchSalesOrderData } from "./providers/fetchProvider";
 import { SalesOrderFormFields } from "./components/SalesOrderFormFields";
 import { SalesOrderTable } from "./components/SalesOrderTable";
 import { SalesOrderDetailsModal } from "./components/SalesOrderDetailsModal";
+import { SalesOrderPrintModal } from "./components/SalesOrderPrintModal";
 import { Package2 } from "lucide-react";
+import { toast } from "sonner";
 
 import { SalesOrderSkeleton } from "./components/SalesOrderSkeleton";
 
@@ -38,6 +40,8 @@ export default function SalesOrderReportModule() {
     const [error, setError] = useState<string | null>(null);
     const [selectedOrder, setSelectedOrder] = useState<SalesOrder | null>(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
+    const [printFilters, setPrintFilters] = useState<AppliedFilters | null>(null);
     const [appliedFilters, setAppliedFilters] = useState<AppliedFilters>({
         search: "",
         dateCreated: "",
@@ -108,6 +112,19 @@ export default function SalesOrderReportModule() {
         setAppliedFilters(newFilters);
         currentPageRef.current = 1;
         hasMoreRef.current = true;
+    }, []);
+
+    /** Validates date range before opening the Print modal */
+    const handlePrint = useCallback((filters: AppliedFilters) => {
+        if (!filters.startDate || !filters.endDate) {
+            toast.warning("Date Range Required", {
+                description: "Please set both Start Date and End Date in the Order Date Range filter before printing.",
+                duration: 4000,
+            });
+            return;
+        }
+        setPrintFilters(filters);
+        setIsPrintModalOpen(true);
     }, []);
 
     // Load more function called by the infinite scroll observer
@@ -187,6 +204,7 @@ export default function SalesOrderReportModule() {
                 <SalesOrderFormFields
                     appliedFilters={appliedFilters}
                     onSearch={handleSearch}
+                    onPrint={handlePrint}
                     salesmen={salesmen}
                     branches={branches}
                     suppliers={suppliers}
@@ -232,6 +250,19 @@ export default function SalesOrderReportModule() {
                 suppliers={suppliers}
                 users={users}
             />
+
+            {/* Print PDF Modal */}
+            {printFilters && (
+                <SalesOrderPrintModal
+                    isOpen={isPrintModalOpen}
+                    onClose={() => setIsPrintModalOpen(false)}
+                    filters={printFilters}
+                    customers={customers}
+                    salesmen={salesmen}
+                    branches={branches}
+                    suppliers={suppliers}
+                />
+            )}
 
             <div className="h-8" /> {/* Spacer */}
         </div>

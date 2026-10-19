@@ -8,6 +8,8 @@ import ThemeSettingsProvider from "@/components/theme/ThemeSettingsProvider"
 import { ThemeTransitionProvider } from "@/components/theme/ThemeTransitionOverlay"
 import { Toaster } from "@/components/ui/sonner"
 import { IdleTimer } from "@/components/auth/IdleTimer"
+import { GlobalDealeroverSalesmanRankingsModal } from "@/components/main-dashboard/dealerover-salesman-rankings/global-dealerover-salesman-rankings-modal";
+
 import { GlobalAnnouncementModal } from "@/components/main-dashboard/global-announcement-modal"
 
 const geistSans = Geist({
@@ -48,6 +50,10 @@ export default function RootLayout({
 
                     {/* Global toast host (Sonner / shadcn) */}
                     <Toaster position="top-right" richColors />
+
+            {/* Global Dealerover Salesman Rankings Modal */}
+            <GlobalDealeroverSalesmanRankingsModal />
+
                 </ThemeProvider>
             </body>
         </html>

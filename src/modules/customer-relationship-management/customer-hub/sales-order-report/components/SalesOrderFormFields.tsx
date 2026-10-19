@@ -2,10 +2,11 @@
 
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import { Card, CardContent } from "@/components/ui/card";
 import { Salesman, Branch, Supplier } from "../types";
-import { Search, Calendar } from "lucide-react";
+import { Search, Calendar, Printer } from "lucide-react";
 import { useEffect, useState } from "react";
 
 interface AppliedFilters {
@@ -25,12 +26,13 @@ interface AppliedFilters {
 interface SalesOrderFormFieldsProps {
     appliedFilters: AppliedFilters;
     onSearch: (filters: AppliedFilters) => void;
+    onPrint: (filters: AppliedFilters) => void;
     salesmen: Salesman[];
     branches: Branch[];
     suppliers: Supplier[];
 }
 
-export function SalesOrderFormFields({ appliedFilters, onSearch, salesmen, branches, suppliers }: SalesOrderFormFieldsProps) {
+export function SalesOrderFormFields({ appliedFilters, onSearch, onPrint, salesmen, branches, suppliers }: SalesOrderFormFieldsProps) {
     const [draftFilters, setDraftFilters] = useState<AppliedFilters>(appliedFilters);
 
     const handleInputChange = (key: keyof AppliedFilters, value: string) => {
@@ -188,6 +190,20 @@ export function SalesOrderFormFields({ appliedFilters, onSearch, salesmen, branc
                                 onChange={(e) => handleInputChange("endDate", e.target.value)}
                             />
                         </div>
+                    </div>
+
+                    {/* Print PDF Button */}
+                    <div className="flex flex-col gap-1.5 justify-end">
+                        <Label className="text-[10px] font-bold text-transparent uppercase pl-1 select-none">Action</Label>
+                        <Button
+                            id="sales-order-print-btn"
+                            variant="outline"
+                            className="h-9 gap-2 px-4 font-bold text-xs uppercase tracking-widest border-primary/30 text-primary hover:bg-primary hover:text-white transition-all rounded-lg shadow-sm"
+                            onClick={() => onPrint(draftFilters)}
+                        >
+                            <Printer className="h-4 w-4" />
+                            Print PDF
+                        </Button>
                     </div>
                 </div>
             </CardContent>

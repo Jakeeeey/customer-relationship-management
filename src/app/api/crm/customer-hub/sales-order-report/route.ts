@@ -54,9 +54,10 @@ interface UnitItem {
 export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const type = searchParams.get("type");
+    const printAll = searchParams.get("printAll") === "true";
     const page = parseInt(searchParams.get("page") || "1");
     const pageSize = parseInt(searchParams.get("pageSize") || "15");
-    const offset = (page - 1) * pageSize;
+    const offset = printAll ? 0 : (page - 1) * pageSize;
 
     // Filter parameters
     const search = searchParams.get("search");
@@ -630,7 +631,7 @@ export async function GET(req: NextRequest) {
             aggregatesRes,
             usersRes
         ] = await Promise.all([
-            fetch(`${BASE_URL}/sales_order?limit=${pageSize}&offset=${offset}&sort=-order_date,-created_date&meta=*&fields=${salesOrderFields}${filterParam}`, { headers }),
+            fetch(`${BASE_URL}/sales_order?limit=${printAll ? -1 : pageSize}&offset=${offset}&sort=-order_date,-created_date&meta=*&fields=${salesOrderFields}${filterParam}`, { headers }),
             safeFetch(`${BASE_URL}/customer?limit=-1&fields=id,customer_code,customer_name,store_name,city,province`, "customer"),
             safeFetch(`${BASE_URL}/salesman?limit=-1&fields=id,salesman_code,salesman_name,truck_plate`, "salesman"),
             safeFetch(`${BASE_URL}/branches?limit=-1&fields=id,branch_code,branch_name`, "branches"),
