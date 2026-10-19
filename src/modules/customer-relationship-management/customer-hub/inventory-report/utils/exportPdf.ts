@@ -2,7 +2,6 @@
 import autoTable from "jspdf-autotable";
 import type { Styles, HAlignType } from "jspdf-autotable";
 import { PdfEngine } from "@/components/pdf-layout-design/PdfEngine";
-import { PAPER_SIZES } from "@/components/pdf-layout-design/constants";
 import {
   pdfTemplateService,
   type PdfTemplate,
@@ -210,16 +209,17 @@ export default async function exportInventoryReportPdf(
       const pageWidth = pdf.internal.pageSize.getWidth();
       const usableWidth = pageWidth - margins.left - margins.right;
 
-      const baseSize =
-        config.paperSize === "Custom"
-          ? config.customSize
-          : PAPER_SIZES[config.paperSize] || PAPER_SIZES.Legal;
+      const actualPageHeight = pdf.internal.pageSize.getHeight();
+      const defaultBottom = margins.bottom || 10;
+      let calculatedBottom = defaultBottom;
 
-      const paperHeight =
-        config.orientation === "landscape" ? baseSize.width : baseSize.height;
-      const bottomMargin = config.bodyEnd
-        ? paperHeight - config.bodyEnd
-        : margins.bottom;
+      if (config.bodyEnd && config.bodyEnd < actualPageHeight) {
+        calculatedBottom = Math.max(defaultBottom, actualPageHeight - config.bodyEnd);
+      } else {
+        calculatedBottom = Math.max(defaultBottom, 18);
+      }
+
+      const bottomMargin = calculatedBottom;
 
       let y = startY;
 

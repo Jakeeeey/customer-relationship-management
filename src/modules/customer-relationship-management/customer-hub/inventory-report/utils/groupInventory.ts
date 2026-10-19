@@ -286,6 +286,21 @@ export function groupInventoryRows(rows: InventoryRow[]): ProductGroup[] {
   return Array.from(m.entries()).map(([key, items]) => {
     const first = items[0];
     const analysis = analyzeGroup(items);
+
+    // Determine the representative unit label:
+    // Prefer box/case unit if present (since quantities are converted to box units),
+    // otherwise unit with highest unitCount, or fallback to first unit.
+    const boxUnit = analysis.unitInfo.find((u) => u.unitType === "box" && u.unit);
+    const maxUnit = analysis.unitInfo.reduce<(typeof analysis.unitInfo)[0] | null>(
+      (best, cur) =>
+        !best || (cur.unitCount || 1) > (best.unitCount || 1) ? cur : best,
+      null,
+    );
+    const resolvedUnit =
+      (boxUnit && boxUnit.unit) ||
+      (maxUnit && maxUnit.unit) ||
+      getUnitLabel(first);
+
     return {
       key,
       items,
@@ -303,7 +318,7 @@ export function groupInventoryRows(rows: InventoryRow[]): ProductGroup[] {
       category: getString(first, ["category", "category_name"]),
       branch: getString(first, ["branch", "branch_name"]),
       supplier: getString(first, ["supplier", "supplier_name", "supplier_shortcut"]),
-      unit: getUnitLabel(first),
+      unit: resolvedUnit,
     };
   });
 }
