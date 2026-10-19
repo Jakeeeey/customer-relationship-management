@@ -215,11 +215,17 @@ export default async function exportInventoryReportPdf(
           ? config.customSize
           : PAPER_SIZES[config.paperSize] || PAPER_SIZES.Legal;
 
-      const paperHeight =
-        config.orientation === "landscape" ? baseSize.width : baseSize.height;
-      const bottomMargin = config.bodyEnd
-        ? paperHeight - config.bodyEnd
-        : margins.bottom;
+      const actualPageHeight = pdf.internal.pageSize.getHeight();
+      const defaultBottom = margins.bottom || 10;
+      let calculatedBottom = defaultBottom;
+
+      if (config.bodyEnd && config.bodyEnd < actualPageHeight) {
+        calculatedBottom = Math.max(defaultBottom, actualPageHeight - config.bodyEnd);
+      } else {
+        calculatedBottom = Math.max(defaultBottom, 18);
+      }
+
+      const bottomMargin = calculatedBottom;
 
       let y = startY;
 
