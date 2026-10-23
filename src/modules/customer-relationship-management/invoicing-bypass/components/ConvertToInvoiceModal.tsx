@@ -769,6 +769,9 @@ export const ConvertToInvoiceModal: React.FC<ConvertToInvoiceModalProps> = ({
             formData.append("receipt_numbers", archivedReceiptNos.join(", "));
             formData.append("width_mm", (orTemplate?.width || 210).toString());
             formData.append("height_mm", (orTemplate?.height || 265).toString());
+            if (orTemplate) {
+                formData.append("template", JSON.stringify(orTemplate));
+            }
 
             // 3. Execute Atomic Backend Transaction
             const updateRes = await fetch(`${INVOICING_API_BASE}/generate-invoice`, {
@@ -1739,6 +1742,9 @@ export const ConvertToInvoiceModal: React.FC<ConvertToInvoiceModalProps> = ({
                                         const netTotal = grossTotal - discountTotal;
                                         const vatableSales = netTotal / 1.12;
                                         const vatAmount = netTotal - vatableSales;
+                                        const isWithholdingTaxVisible = Boolean(orTemplate?.fields?.withholding_tax && !orTemplate.fields.withholding_tax.hidden);
+                                        const withholdingTax = isWithholdingTaxVisible ? Number((vatableSales * 0.01).toFixed(2)) : 0;
+                                        const totalAmountDue = netTotal - withholdingTax;
 
                                         const resolvedPreviewDate = customInvoiceDate ? new Date(customInvoiceDate + "T00:00:00") : new Date();
 
@@ -1756,11 +1762,11 @@ export const ConvertToInvoiceModal: React.FC<ConvertToInvoiceModalProps> = ({
                                             net_total: formatCurrency(netTotal),
                                             po_no: `PO NO. : ${order.po_no || ""}`,
                                             salesman: `SALESMAN : ${order.salesman_id?.salesman_name || "N/A"}`,
-                                            total_amount_due: formatCurrency(netTotal),
-                                            net_total_footer: formatCurrency(netTotal),
+                                            total_amount_due: formatCurrency(totalAmountDue),
+                                            net_total_footer: formatCurrency(totalAmountDue),
                                             zero_rated: "0.00",
                                             exempt: "0.00",
-                                            withholding_tax: "0.00"
+                                            withholding_tax: formatCurrency(withholdingTax)
                                         };
 
                                         return (

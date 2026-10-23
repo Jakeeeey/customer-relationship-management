@@ -42,9 +42,11 @@ export async function POST(req: NextRequest) {
         const receiptNumbers = formData.get("receipt_numbers") as string;
         const widthMm = formData.get("width_mm") as string;
         const heightMm = formData.get("height_mm") as string;
+        const templateStr = formData.get("template") as string;
 
         const order = orderStr ? JSON.parse(orderStr) : null;
         const receipts = receiptsStr ? JSON.parse(receiptsStr) : null;
+        const template = templateStr ? JSON.parse(templateStr) : null;
 
         if (!order || !receipts || receipts.length === 0) {
             return NextResponse.json({ error: "Missing order or receipts data" }, { status: 400 });
@@ -232,7 +234,13 @@ export async function POST(req: NextRequest) {
                 const grossAmount = receipt.items.reduce((sum: number, item: { qty: number; unit_price: number }) => sum + (item.qty * item.unit_price), 0);
                 const discountAmount = receipt.items.reduce((sum: number, item: { discount_amount: number }) => sum + item.discount_amount, 0);
                 const netAmount = receipt.items.reduce((sum: number, item: { net_amount: number }) => sum + item.net_amount, 0);
-                const totalAmount = grossAmount - discountAmount;
+                const baseTotalAmount = grossAmount - discountAmount;
+
+                // Withholding Tax Calculation (1% of VATable Sales if field is visible in template)
+                const isWithholdingTaxVisible = Boolean(template?.fields?.withholding_tax && !template.fields.withholding_tax.hidden);
+                const vatableSales = netAmount / 1.12;
+                const withholdingTax = isWithholdingTaxVisible ? Number((vatableSales * 0.01).toFixed(2)) : 0;
+                const totalAmount = Number((baseTotalAmount - withholdingTax).toFixed(2));
 
                 // Receipt logic
                 const isReceipt = isOfficial ? 1 : 0;

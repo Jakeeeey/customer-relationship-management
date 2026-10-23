@@ -297,6 +297,11 @@ const generateOfficialReceipt = async (data: ReceiptData, existingDoc?: jsPDF): 
     const vatableSales = netTotal / 1.12;
     const vatAmount = netTotal - vatableSales;
 
+    // Withholding Tax Calculation (1% of VATable Sales if field is visible in template)
+    const isWithholdingTaxVisible = Boolean(template?.fields?.withholding_tax && !template.fields.withholding_tax.hidden);
+    const withholdingTax = isWithholdingTaxVisible ? Number((vatableSales * 0.01).toFixed(2)) : 0;
+    const totalAmountDue = netTotal - withholdingTax;
+
     const fieldValues: Record<string, string> = {
         customer_name: data.customer_name.toUpperCase(),
         date: formatToPHT(new Date(), "MMM dd, yyyy").toUpperCase(),
@@ -311,11 +316,11 @@ const generateOfficialReceipt = async (data: ReceiptData, existingDoc?: jsPDF): 
         net_total: formatCurrency(netTotal),
         po_no: `PO NO. : ${data.po_no}`,
         salesman: `SALESMAN : ${data.salesman_name}`,
-        total_amount_due: formatCurrency(netTotal),
-        net_total_footer: formatCurrency(netTotal),
+        total_amount_due: formatCurrency(totalAmountDue),
+        net_total_footer: formatCurrency(totalAmountDue),
         zero_rated: "0.00",
         exempt: "0.00",
-        withholding_tax: "0.00"
+        withholding_tax: formatCurrency(withholdingTax)
     };
 
     // Render every field defined in the template
