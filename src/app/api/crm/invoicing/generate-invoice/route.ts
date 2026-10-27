@@ -42,11 +42,9 @@ export async function POST(req: NextRequest) {
         const receiptNumbers = formData.get("receipt_numbers") as string;
         const widthMm = formData.get("width_mm") as string;
         const heightMm = formData.get("height_mm") as string;
-        const templateStr = formData.get("template") as string;
 
         const order = orderStr ? JSON.parse(orderStr) : null;
         const receipts = receiptsStr ? JSON.parse(receiptsStr) : null;
-        const template = templateStr ? JSON.parse(templateStr) : null;
 
         if (!order || !receipts || receipts.length === 0) {
             return NextResponse.json({ error: "Missing order or receipts data" }, { status: 400 });
@@ -217,6 +215,26 @@ export async function POST(req: NextRequest) {
                 }
             }
 
+            // 1e. Resolve Customer isEWT
+            let customerIsEWT = 0;
+            const custCode = order.customer_code?.customer_code || (typeof order.customer_code === 'string' ? order.customer_code : null);
+            if (custCode) {
+                try {
+                    const custRes = await fetch(`${DIRECTUS_BASE}/items/customer?filter[customer_code][_eq]=${encodeURIComponent(custCode)}&fields=isEWT`, {
+                        headers: directusHeaders()
+                    });
+                    if (custRes.ok) {
+                        const custData = await custRes.json();
+                        customerIsEWT = Number(custData.data?.[0]?.isEWT || 0);
+                    }
+                } catch (e) {
+                    console.warn(`[Customer] Failed to fetch isEWT for ${custCode}:`, e);
+                    customerIsEWT = Number(order.customer_code?.isEWT || 0);
+                }
+            } else {
+                customerIsEWT = Number(order.customer_code?.isEWT || 0);
+            }
+
             let expectedOrderUpdatesCount = 0;
             let expectedConsolidatorUpdatesCount = 0;
 
@@ -236,10 +254,9 @@ export async function POST(req: NextRequest) {
                 const netAmount = receipt.items.reduce((sum: number, item: { net_amount: number }) => sum + item.net_amount, 0);
                 const baseTotalAmount = grossAmount - discountAmount;
 
-                // Withholding Tax Calculation (1% of VATable Sales if field is visible in template)
-                const isWithholdingTaxVisible = Boolean(template?.fields?.withholding_tax && !template.fields.withholding_tax.hidden);
+                // Withholding Tax Calculation (Only for Official Receipts, computed if customer has isEWT == 1)
                 const vatableSales = netAmount / 1.12;
-                const withholdingTax = isWithholdingTaxVisible ? Number((vatableSales * 0.01).toFixed(2)) : 0;
+                const withholdingTax = (isOfficial && customerIsEWT === 1) ? Number((vatableSales * 0.01).toFixed(2)) : 0;
                 const totalAmount = Number((baseTotalAmount - withholdingTax).toFixed(2));
 
                 // Receipt logic
@@ -269,6 +286,7 @@ export async function POST(req: NextRequest) {
                     gross_amount: grossAmount,
                     discount_amount: discountAmount,
                     net_amount: netAmount,
+                    ewt_amount: withholdingTax > 0 ? withholdingTax : null,
                     isReceipt: isReceipt,
                     vat_amount: vatAmount,
                     modified_by: createdBy,

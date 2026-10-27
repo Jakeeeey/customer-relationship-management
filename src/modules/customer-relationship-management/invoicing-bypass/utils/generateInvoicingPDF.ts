@@ -28,6 +28,7 @@ export interface ReceiptData {
     po_no: string;
     salesman_name: string;
     is_official: boolean;
+    is_ewt?: boolean | number;
     discountTypes: DiscountType[];
     barcodeDataUrl?: string;
     template?: ORTemplate;
@@ -298,9 +299,9 @@ const generateOfficialReceipt = async (data: ReceiptData, existingDoc?: jsPDF): 
     const vatableSales = netTotal / 1.12;
     const vatAmount = netTotal - vatableSales;
 
-    // Withholding Tax Calculation (1% of VATable Sales if field is visible in template)
-    const isWithholdingTaxVisible = Boolean(template?.fields?.withholding_tax && !template.fields.withholding_tax.hidden);
-    const withholdingTax = isWithholdingTaxVisible ? Number((vatableSales * 0.01).toFixed(2)) : 0;
+    // Withholding Tax Calculation (Only for Official Receipts, computed if customer has isEWT == 1)
+    const isEWT = data.is_ewt === 1 || data.is_ewt === true;
+    const withholdingTax = data.is_official && isEWT ? Number((vatableSales * 0.01).toFixed(2)) : 0;
     const totalAmountDue = netTotal - withholdingTax;
 
     const resolvedDate = data.customDate ? new Date(data.customDate + "T00:00:00") : new Date();
@@ -334,6 +335,11 @@ const generateOfficialReceipt = async (data: ReceiptData, existingDoc?: jsPDF): 
                 if (data.receipt_no) {
                     drawBarcodeVector(doc, data.receipt_no, config.x, config.y, config);
                 }
+                return;
+            }
+
+            // Do not render Withholding Tax if not an official receipt or customer is not EWT
+            if (key === 'withholding_tax' && (!data.is_official || !isEWT)) {
                 return;
             }
 

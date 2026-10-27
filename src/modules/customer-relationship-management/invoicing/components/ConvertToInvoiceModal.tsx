@@ -739,6 +739,7 @@ export const ConvertToInvoiceModal: React.FC<ConvertToInvoiceModalProps> = ({
                     po_no: order.po_no || "",
                     salesman_name: order.salesman_id?.salesman_name || "N/A",
                     is_official: isOfficialReceipt,
+                    is_ewt: conversionData?.customer?.isEWT ?? order.customer_code?.isEWT ?? 0,
                     discountTypes: discountTypes,
                     barcodeDataUrl: undefined,
                     template: orTemplate || DEFAULT_TEMPLATE,
@@ -1724,8 +1725,8 @@ export const ConvertToInvoiceModal: React.FC<ConvertToInvoiceModalProps> = ({
                                         const netTotal = grossTotal - discountTotal;
                                         const vatableSales = netTotal / 1.12;
                                         const vatAmount = netTotal - vatableSales;
-                                        const isWithholdingTaxVisible = Boolean(orTemplate?.fields?.withholding_tax && !orTemplate.fields.withholding_tax.hidden);
-                                        const withholdingTax = isWithholdingTaxVisible ? Number((vatableSales * 0.01).toFixed(2)) : 0;
+                                        const isEWT = (conversionData?.customer?.isEWT === 1 || order.customer_code?.isEWT === 1);
+                                        const withholdingTax = isOfficialReceipt && isEWT ? Number((vatableSales * 0.01).toFixed(2)) : 0;
                                         const totalAmountDue = netTotal - withholdingTax;
 
                                         const fieldValues: Record<string, string> = {
@@ -1796,6 +1797,7 @@ export const ConvertToInvoiceModal: React.FC<ConvertToInvoiceModalProps> = ({
                                                     Object.entries(orTemplate.fields).map(([key, config]) => {
                                                         const val = config.isCustom ? (config.value || "") : fieldValues[key];
                                                         if (!val || key === 'barcode' || config.hidden) return null;
+                                                        if (key === 'withholding_tax' && (!isOfficialReceipt || !isEWT)) return null;
                                                         return (
                                                             <div 
                                                                 key={key} 
