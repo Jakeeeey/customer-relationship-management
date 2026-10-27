@@ -739,6 +739,7 @@ export const ConvertToInvoiceModal: React.FC<ConvertToInvoiceModalProps> = ({
                     po_no: order.po_no || "",
                     salesman_name: order.salesman_id?.salesman_name || "N/A",
                     is_official: isOfficialReceipt,
+                    is_ewt: conversionData?.customer?.isEWT ?? order.customer_code?.isEWT ?? 0,
                     discountTypes: discountTypes,
                     barcodeDataUrl: undefined,
                     template: orTemplate || DEFAULT_TEMPLATE,
@@ -765,6 +766,9 @@ export const ConvertToInvoiceModal: React.FC<ConvertToInvoiceModalProps> = ({
             formData.append("receipt_numbers", archivedReceiptNos.join(", "));
             formData.append("width_mm", (orTemplate?.width || 210).toString());
             formData.append("height_mm", (orTemplate?.height || 265).toString());
+            if (orTemplate) {
+                formData.append("template", JSON.stringify(orTemplate));
+            }
 
             // 3. Execute Atomic Backend Transaction
             const updateRes = await fetch(`${INVOICING_API_BASE}/generate-invoice`, {
@@ -1721,6 +1725,9 @@ export const ConvertToInvoiceModal: React.FC<ConvertToInvoiceModalProps> = ({
                                         const netTotal = grossTotal - discountTotal;
                                         const vatableSales = netTotal / 1.12;
                                         const vatAmount = netTotal - vatableSales;
+                                        const isEWT = (conversionData?.customer?.isEWT === 1 || order.customer_code?.isEWT === 1);
+                                        const withholdingTax = isOfficialReceipt && isEWT ? Number((vatableSales * 0.01).toFixed(2)) : 0;
+                                        const totalAmountDue = netTotal - withholdingTax;
 
                                         const fieldValues: Record<string, string> = {
                                             customer_name: fullName.toUpperCase(),
@@ -1736,11 +1743,11 @@ export const ConvertToInvoiceModal: React.FC<ConvertToInvoiceModalProps> = ({
                                             net_total: formatCurrency(netTotal),
                                             po_no: `PO NO. : ${order.po_no || ""}`,
                                             salesman: `SALESMAN : ${order.salesman_id?.salesman_name || "N/A"}`,
-                                            total_amount_due: formatCurrency(netTotal),
-                                            net_total_footer: formatCurrency(netTotal),
+                                            total_amount_due: formatCurrency(totalAmountDue),
+                                            net_total_footer: formatCurrency(totalAmountDue),
                                             zero_rated: "0.00",
                                             exempt: "0.00",
-                                            withholding_tax: "0.00"
+                                            withholding_tax: formatCurrency(withholdingTax)
                                         };
 
                                         return (
@@ -1790,6 +1797,7 @@ export const ConvertToInvoiceModal: React.FC<ConvertToInvoiceModalProps> = ({
                                                     Object.entries(orTemplate.fields).map(([key, config]) => {
                                                         const val = config.isCustom ? (config.value || "") : fieldValues[key];
                                                         if (!val || key === 'barcode' || config.hidden) return null;
+                                                        if (key === 'withholding_tax' && (!isOfficialReceipt || !isEWT)) return null;
                                                         return (
                                                             <div 
                                                                 key={key} 

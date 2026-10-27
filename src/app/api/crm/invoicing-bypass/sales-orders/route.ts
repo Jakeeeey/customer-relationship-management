@@ -94,14 +94,14 @@ export async function GET(req: NextRequest) {
         // ── 1. Manual Join for Customers ──────────────────────────────────────
         const uniqueCustomerCodes = Array.from(new Set(orders.map((o: { customer_code: string }) => o.customer_code).filter(Boolean)));
         
-        const customersRes = await fetch(`${DIRECTUS_BASE}/items/customer?filter[customer_code][_in]=${uniqueCustomerCodes.join(",")}&fields=customer_code,customer_name`, {
+        const customersRes = await fetch(`${DIRECTUS_BASE}/items/customer?filter[customer_code][_in]=${uniqueCustomerCodes.join(",")}&fields=customer_code,customer_name,isEWT`, {
             headers: directusHeaders(),
         });
 
-        const customerMap = new Map<string, { customer_code: string; customer_name: string }>();
+        const customerMap = new Map<string, { customer_code: string; customer_name: string; isEWT?: number }>();
         if (customersRes.ok) {
             const customersData = await customersRes.json();
-            customersData.data.forEach((c: { customer_code: string; customer_name: string }) => {
+            customersData.data.forEach((c: { customer_code: string; customer_name: string; isEWT?: number }) => {
                 customerMap.set(c.customer_code, c);
             });
         }
@@ -144,7 +144,8 @@ export async function GET(req: NextRequest) {
                 ...o,
                 customer_code: customerMap.get(o.customer_code) || {
                     customer_code: o.customer_code,
-                    customer_name: "Unknown Customer"
+                    customer_name: "Unknown Customer",
+                    isEWT: 0
                 },
                 // Recycled order fields (legacy support + new array)
                 existing_invoice_no: existingInvoices[0]?.invoice_id ?? null,

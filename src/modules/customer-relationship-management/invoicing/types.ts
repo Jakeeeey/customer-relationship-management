@@ -27,6 +27,7 @@ export interface Customer {
     id: number;
     customer_code: string;
     customer_name: string;
+    isEWT?: number;
 }
 
 export interface ReceiptType {
@@ -161,6 +162,7 @@ export interface CustomerAddressData {
     customer_name?: string;
     store_name?: string;
     customer_tin?: string;
+    isEWT?: number;
     unit_building?: string | null;
     house_no?: string | null;
     block?: string | null;
