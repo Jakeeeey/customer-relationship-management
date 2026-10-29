@@ -316,7 +316,7 @@ export const InventoryReportPrintModal = ({
         } finally {
             setIsGenerating(false);
         }
-    }, [selectedTemplateName, companyData, customFilename, filters.mode, filters.branch, filters.supplier, userName, data]);
+    }, [selectedTemplateName, companyData, customFilename, filters.mode, filters.branch, filters.supplier, userName, data, allowAllSuppliers]);
 
     useEffect(() => {
         if (isOpen && selectedTemplateName && companyData) {
