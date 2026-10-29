@@ -11,7 +11,7 @@ import { pdfTemplateService, PdfTemplate } from "@/components/pdf-layout-design/
 import { CompanyData } from "@/components/pdf-layout-design/types"
 import { Input } from "@/components/ui/input"
 import { RefreshCcw, Download, FileText } from "lucide-react"
-import autoTable from "jspdf-autotable"
+import autoTable, { Styles } from "jspdf-autotable"
 import { toast } from "sonner"
 import { InventoryReportMode, GroupedInventoryItem, InventoryUnit } from "../types"
 import { cn } from "@/lib/utils"
@@ -250,29 +250,29 @@ export const InventoryReportPrintModal = ({
                     ]);
                 }
 
-                const columnStyles = allowAllSuppliers
+                const columnStyles: { [key: string]: Partial<Styles> } = allowAllSuppliers
                     ? {
                         0: { cellWidth: 18 }, // BARCODE
                         1: { cellWidth: 20 }, // SUPPLIER
                         2: { cellWidth: 15 }, // BRAND
                         3: { cellWidth: 18 }, // CATEGORY
                         4: { cellWidth: 'auto' }, // PRODUCT
-                        5: { cellWidth: 14, halign: 'center' as const }, // BOX
-                        6: { cellWidth: 14, halign: 'center' as const }, // PACK
-                        7: { cellWidth: 14, halign: 'center' as const }, // PIECES
-                        8: { cellWidth: 18, halign: 'center' as const }, // TOTAL PIECES
-                        9: { cellWidth: 18, halign: 'right' as const }, // TOTAL AMOUNT
+                        5: { cellWidth: 14, halign: 'center' }, // BOX
+                        6: { cellWidth: 14, halign: 'center' }, // PACK
+                        7: { cellWidth: 14, halign: 'center' }, // PIECES
+                        8: { cellWidth: 18, halign: 'center' }, // TOTAL PIECES
+                        9: { cellWidth: 18, halign: 'right' }, // TOTAL AMOUNT
                     }
                     : {
                         0: { cellWidth: 20 }, // BARCODE
                         1: { cellWidth: 15 }, // BRAND
                         2: { cellWidth: 20 }, // CATEGORY
                         3: { cellWidth: 'auto' }, // PRODUCT
-                        4: { cellWidth: 15, halign: 'center' as const }, // BOX
-                        5: { cellWidth: 15, halign: 'center' as const }, // PACK
-                        6: { cellWidth: 15, halign: 'center' as const }, // PIECES
-                        7: { cellWidth: 20, halign: 'center' as const }, // TOTAL PIECES
-                        8: { cellWidth: 20, halign: 'right' as const }, // TOTAL AMOUNT
+                        4: { cellWidth: 15, halign: 'center' }, // BOX
+                        5: { cellWidth: 15, halign: 'center' }, // PACK
+                        6: { cellWidth: 15, halign: 'center' }, // PIECES
+                        7: { cellWidth: 20, halign: 'center' }, // TOTAL PIECES
+                        8: { cellWidth: 20, halign: 'right' }, // TOTAL AMOUNT
                     };
 
                 autoTable(doc, {
