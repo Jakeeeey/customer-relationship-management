@@ -27,6 +27,7 @@ interface InventoryReportPrintModalProps {
         mode: InventoryReportMode
     }
     userName?: string
+    allowAllSuppliers?: boolean
 }
 
 export const InventoryReportPrintModal = ({ 
@@ -35,7 +36,8 @@ export const InventoryReportPrintModal = ({
     onClose, 
     data,
     filters,
-    userName 
+    userName,
+    allowAllSuppliers = false
 }: InventoryReportPrintModalProps) => {
     const [templates, setTemplates] = useState<PdfTemplate[]>([])
     const [selectedTemplateName, setSelectedTemplateName] = useState<string>("")
@@ -93,8 +95,11 @@ export const InventoryReportPrintModal = ({
                 doc.setFont("helvetica", "normal");
                 const metadataY = startY + 12;
                 
-                doc.text(`Branch: ${filters.branch || 'ALL BRANCHES'}`, margins.left, metadataY);
-                doc.text(`Supplier: ${filters.supplier || 'ALL SUPPLIERS'}`, margins.left, metadataY + 5);
+                const displayBranch = (!filters.branch || filters.branch === 'all') ? 'ALL BRANCHES' : filters.branch;
+                const displaySupplier = (!filters.supplier || filters.supplier === 'all') ? 'ALL SUPPLIERS' : filters.supplier;
+                
+                doc.text(`Branch: ${displayBranch}`, margins.left, metadataY);
+                doc.text(`Supplier: ${displaySupplier}`, margins.left, metadataY + 5);
                 const isBoxUnitName = (name: string) => {
                     const u = (name || '').toUpperCase();
                     return (u.includes('BOX') || u.includes('CASE')) && !u.includes('INNER BOX');
@@ -127,7 +132,11 @@ export const InventoryReportPrintModal = ({
                 const body: (string | number | Record<string, unknown>)[][] = [];
                 const foot: (string | Record<string, unknown>)[][] = [];
 
-                head.push(['BARCODE', 'BRAND', 'CATEGORY', 'PRODUCT', 'BOX', 'PACK', 'PIECES', 'TOTAL PIECES', 'TOTAL AMOUNT']);
+                if (allowAllSuppliers) {
+                    head.push(['BARCODE', 'SUPPLIER', 'BRAND', 'CATEGORY', 'PRODUCT', 'BOX', 'PACK', 'PIECES', 'TOTAL PIECES', 'TOTAL AMOUNT']);
+                } else {
+                    head.push(['BARCODE', 'BRAND', 'CATEGORY', 'PRODUCT', 'BOX', 'PACK', 'PIECES', 'TOTAL PIECES', 'TOTAL AMOUNT']);
+                }
                 let totalAmount = 0;
                 let sumBoxStock = 0;
                 let sumPackStock = 0;
@@ -181,17 +190,32 @@ export const InventoryReportPrintModal = ({
                         return stock > 0 ? { content: str, styles: { fontStyle: 'bold' } } : str;
                     };
 
-                    body.push([
-                        barcode,
-                        item.brand,
-                        item.category,
-                        item.products,
-                        formatStock(boxStock),
-                        formatStock(packStock),
-                        formatStock(pieceStock, true),
-                        formatStock(totalPieces, true),
-                        itemTotalAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })
-                    ]);
+                    if (allowAllSuppliers) {
+                        body.push([
+                            barcode,
+                            item.supplier,
+                            item.brand,
+                            item.category,
+                            item.products,
+                            formatStock(boxStock),
+                            formatStock(packStock),
+                            formatStock(pieceStock, true),
+                            formatStock(totalPieces, true),
+                            itemTotalAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })
+                        ]);
+                    } else {
+                        body.push([
+                            barcode,
+                            item.brand,
+                            item.category,
+                            item.products,
+                            formatStock(boxStock),
+                            formatStock(packStock),
+                            formatStock(pieceStock, true),
+                            formatStock(totalPieces, true),
+                            itemTotalAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })
+                        ]);
+                    }
                 });
 
                 const formatFootStock = (stock: number, isPiece: boolean = false) => {
@@ -199,17 +223,57 @@ export const InventoryReportPrintModal = ({
                     return { content: str, styles: { halign: 'center' } };
                 };
 
-                foot.push([
-                    '', 
-                    '', 
-                    '', 
-                    { content: 'TOTAL:', styles: { halign: 'right' } }, 
-                    formatFootStock(sumBoxStock), 
-                    formatFootStock(sumPackStock), 
-                    formatFootStock(sumPieceStock, true), 
-                    formatFootStock(sumTotalPieces, true), 
-                    { content: Number(totalAmount).toLocaleString(undefined, { minimumFractionDigits: 2 }), styles: { halign: 'right' } }
-                ]);
+                if (allowAllSuppliers) {
+                    foot.push([
+                        '', 
+                        '', 
+                        '', 
+                        '', 
+                        { content: 'TOTAL:', styles: { halign: 'right' } }, 
+                        formatFootStock(sumBoxStock), 
+                        formatFootStock(sumPackStock), 
+                        formatFootStock(sumPieceStock, true), 
+                        formatFootStock(sumTotalPieces, true), 
+                        { content: Number(totalAmount).toLocaleString(undefined, { minimumFractionDigits: 2 }), styles: { halign: 'right' } }
+                    ]);
+                } else {
+                    foot.push([
+                        '', 
+                        '', 
+                        '', 
+                        { content: 'TOTAL:', styles: { halign: 'right' } }, 
+                        formatFootStock(sumBoxStock), 
+                        formatFootStock(sumPackStock), 
+                        formatFootStock(sumPieceStock, true), 
+                        formatFootStock(sumTotalPieces, true), 
+                        { content: Number(totalAmount).toLocaleString(undefined, { minimumFractionDigits: 2 }), styles: { halign: 'right' } }
+                    ]);
+                }
+
+                const columnStyles = allowAllSuppliers
+                    ? {
+                        0: { cellWidth: 18 }, // BARCODE
+                        1: { cellWidth: 20 }, // SUPPLIER
+                        2: { cellWidth: 15 }, // BRAND
+                        3: { cellWidth: 18 }, // CATEGORY
+                        4: { cellWidth: 'auto' }, // PRODUCT
+                        5: { cellWidth: 14, halign: 'center' as const }, // BOX
+                        6: { cellWidth: 14, halign: 'center' as const }, // PACK
+                        7: { cellWidth: 14, halign: 'center' as const }, // PIECES
+                        8: { cellWidth: 18, halign: 'center' as const }, // TOTAL PIECES
+                        9: { cellWidth: 18, halign: 'right' as const }, // TOTAL AMOUNT
+                    }
+                    : {
+                        0: { cellWidth: 20 }, // BARCODE
+                        1: { cellWidth: 15 }, // BRAND
+                        2: { cellWidth: 20 }, // CATEGORY
+                        3: { cellWidth: 'auto' }, // PRODUCT
+                        4: { cellWidth: 15, halign: 'center' as const }, // BOX
+                        5: { cellWidth: 15, halign: 'center' as const }, // PACK
+                        6: { cellWidth: 15, halign: 'center' as const }, // PIECES
+                        7: { cellWidth: 20, halign: 'center' as const }, // TOTAL PIECES
+                        8: { cellWidth: 20, halign: 'right' as const }, // TOTAL AMOUNT
+                    };
 
                 autoTable(doc, {
                     startY: tableStartY,
@@ -225,17 +289,7 @@ export const InventoryReportPrintModal = ({
                         cellPadding: 1,
                         valign: 'middle'
                     },
-                    columnStyles: {
-                        0: { cellWidth: 20 }, // BARCODE
-                        1: { cellWidth: 15 }, // BRAND
-                        2: { cellWidth: 20 }, // CATEGORY
-                        3: { cellWidth: 'auto' }, // PRODUCT
-                        4: { cellWidth: 15, halign: 'center' }, // BOX
-                        5: { cellWidth: 15, halign: 'center' }, // PACK
-                        6: { cellWidth: 15, halign: 'center' }, // PIECES
-                        7: { cellWidth: 20, halign: 'center' }, // TOTAL PIECES
-                        8: { cellWidth: 20, halign: 'right' }, // TOTAL AMOUNT
-                    }
+                    columnStyles: columnStyles
                 });
 
                 if (config) {
