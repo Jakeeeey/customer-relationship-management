@@ -205,7 +205,6 @@ export async function GET(req: NextRequest) {
             const search = searchParams.get("search") || "";
             const salesmanId = searchParams.get("salesmanId");
             const customerId = searchParams.get("customerId");
-            const salesTypeId = searchParams.get("salesTypeId");
             const startDate = searchParams.get("startDate");
             const endDate = searchParams.get("endDate");
             const isDispatched = searchParams.get("isDispatched") === "true";
@@ -216,18 +215,10 @@ export async function GET(req: NextRequest) {
                 _and: []
             };
 
-            // Restrict always to Delivery Receipt (shortcut "DR")
+            // Strictly enforce Direct Sales only for Stock Purchase (sales_type = 6)
             filters._and.push({
-                invoice_type: {
-                    shortcut: { _eq: "DR" }
-                }
+                sales_type: { _eq: 6 }
             });
-
-            if (salesTypeId && salesTypeId !== "all") {
-                filters._and.push({ sales_type: { _eq: salesTypeId } });
-            } else {
-                filters._and.push({ sales_type: { _neq: 3 } });
-            }
 
             if (searchParams.has("isDispatched")) {
                 if (isDispatched) {
@@ -384,25 +375,16 @@ export async function GET(req: NextRequest) {
             const search = searchParams.get("search") || "";
             const salesmanId = searchParams.get("salesmanId");
             const customerId = searchParams.get("customerId");
-            const salesTypeId = searchParams.get("salesTypeId");
             const startDate = searchParams.get("startDate");
             const endDate = searchParams.get("endDate");
             const isDispatched = searchParams.get("isDispatched") === "true";
 
             const filters: { _and: Record<string, unknown>[] } = { _and: [] };
 
-            // Restrict always to Delivery Receipt (shortcut "DR")
+            // Strictly enforce Direct Sales only for Stock Purchase (sales_type = 6)
             filters._and.push({
-                invoice_type: {
-                    shortcut: { _eq: "DR" }
-                }
+                sales_type: { _eq: 6 }
             });
-
-            if (salesTypeId && salesTypeId !== "all") {
-                filters._and.push({ sales_type: { _eq: salesTypeId } });
-            } else {
-                filters._and.push({ sales_type: { _neq: 3 } });
-            }
             if (searchParams.has("isDispatched")) {
                 if (isDispatched) {
                     filters._and.push({ isDispatched: { _eq: true } });
@@ -776,7 +758,7 @@ export async function GET(req: NextRequest) {
         }
 
         if (type === "sales_types") {
-            const res = await fetch(`${DIRECTUS_URL}/items/operation?fields=id,operation_name&limit=-1`, { headers: fetchHeaders });
+            const res = await fetch(`${DIRECTUS_URL}/items/operation?filter[operation_name][_icontains]=DIRECT&fields=id,operation_name&limit=-1`, { headers: fetchHeaders });
             return NextResponse.json((await res.json()).data || []);
         }
 
