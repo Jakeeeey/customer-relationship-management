@@ -4,6 +4,7 @@ import { fetchInventoryData } from "../providers/fetchProvider";
 
 export const useInventoryReport = () => {
     const [data, setData] = useState<InventoryItem[]>([]);
+    const [allowAllSuppliers, setAllowAllSuppliers] = useState(false);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [mode, setMode] = useState<InventoryReportMode>("Breakdown");
@@ -18,7 +19,8 @@ export const useInventoryReport = () => {
             try {
                 setLoading(true);
                 const result = await fetchInventoryData();
-                setData(result);
+                setData(result.items);
+                setAllowAllSuppliers(result.allowAllSuppliers);
             } catch (err: unknown) {
                 setError(err instanceof Error ? err.message : "An unknown error occurred");
             } finally {
@@ -98,8 +100,12 @@ export const useInventoryReport = () => {
 
     // 2. Filter grouped data (Much faster because grouped dataset is smaller)
     const displayData = useMemo(() => {
-        // Prevent loading data until both branch and supplier are explicitly selected
-        if (selectedBranch === "all" || selectedSupplier === "all") {
+        // Prevent loading data until required filters are selected
+        const isFiltersSelected = allowAllSuppliers 
+            ? selectedBranch !== "all" 
+            : (selectedBranch !== "all" && selectedSupplier !== "all");
+
+        if (!isFiltersSelected) {
             return [];
         }
 
@@ -148,12 +154,13 @@ export const useInventoryReport = () => {
         }
 
         return filtered;
-    }, [groupedData, search, selectedBranch, selectedSupplier, stockFilter]);
+    }, [groupedData, search, selectedBranch, selectedSupplier, stockFilter, allowAllSuppliers]);
 
     return {
         data: displayData,
         loading,
         error,
+        allowAllSuppliers,
         mode,
         setMode,
         search,

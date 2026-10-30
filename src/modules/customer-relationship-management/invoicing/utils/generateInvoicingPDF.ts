@@ -28,6 +28,7 @@ export interface ReceiptData {
     po_no: string;
     salesman_name: string;
     is_official: boolean;
+    is_ewt?: boolean | number;
     discountTypes: DiscountType[];
     barcodeDataUrl?: string;
     template?: ORTemplate;
@@ -297,6 +298,11 @@ const generateOfficialReceipt = async (data: ReceiptData, existingDoc?: jsPDF): 
     const vatableSales = netTotal / 1.12;
     const vatAmount = netTotal - vatableSales;
 
+    // Withholding Tax Calculation (Only for Official Receipts, computed if customer has isEWT == 1)
+    const isEWT = data.is_ewt === 1 || data.is_ewt === true;
+    const withholdingTax = data.is_official && isEWT ? Number((vatableSales * 0.01).toFixed(2)) : 0;
+    const totalAmountDue = netTotal - withholdingTax;
+
     const fieldValues: Record<string, string> = {
         customer_name: data.customer_name.toUpperCase(),
         date: formatToPHT(new Date(), "MMM dd, yyyy").toUpperCase(),
@@ -311,11 +317,11 @@ const generateOfficialReceipt = async (data: ReceiptData, existingDoc?: jsPDF): 
         net_total: formatCurrency(netTotal),
         po_no: `PO NO. : ${data.po_no}`,
         salesman: `SALESMAN : ${data.salesman_name}`,
-        total_amount_due: formatCurrency(netTotal),
-        net_total_footer: formatCurrency(netTotal),
+        total_amount_due: formatCurrency(totalAmountDue),
+        net_total_footer: formatCurrency(totalAmountDue),
         zero_rated: "0.00",
         exempt: "0.00",
-        withholding_tax: "0.00"
+        withholding_tax: formatCurrency(withholdingTax)
     };
 
     // Render every field defined in the template
@@ -326,6 +332,11 @@ const generateOfficialReceipt = async (data: ReceiptData, existingDoc?: jsPDF): 
                 if (data.receipt_no) {
                     drawBarcodeVector(doc, data.receipt_no, config.x, config.y, config);
                 }
+                return;
+            }
+
+            // Do not render Withholding Tax if not an official receipt or customer is not EWT
+            if (key === 'withholding_tax' && (!data.is_official || !isEWT)) {
                 return;
             }
 
