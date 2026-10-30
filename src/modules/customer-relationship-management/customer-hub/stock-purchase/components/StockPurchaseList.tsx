@@ -66,7 +66,6 @@ export const StockPurchaseList: React.FC<StockPurchaseListProps> = ({
     isLoading,
     salesmen,
     customers,
-    salesTypes,
     totalCount,
     onFilterChange 
 }) => {
