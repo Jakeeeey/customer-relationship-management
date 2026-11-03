@@ -66,7 +66,6 @@ export const StockPurchaseList: React.FC<StockPurchaseListProps> = ({
     isLoading,
     salesmen,
     customers,
-    salesTypes,
     totalCount,
     onFilterChange 
 }) => {
@@ -86,12 +85,10 @@ export const StockPurchaseList: React.FC<StockPurchaseListProps> = ({
         dateTo, setDateTo
     } = useStockPurchaseStore();
 
-    const [salesType, setSalesType] = useState("all");
     const [sorting, setSorting] = useState<SortingState>([{ id: "invoice_date", desc: true }]);
     const [rowSelection, setRowSelection] = useState({});
     const [openCustomer, setOpenCustomer] = useState(false);
     const [openSalesman, setOpenSalesman] = useState(false);
-    const [openSalesType, setOpenSalesType] = useState(false);
 
     const [localCustomers, setLocalCustomers] = useState<Customer[]>([]);
     const [searchQuery, setSearchQuery] = useState("");
@@ -197,13 +194,13 @@ export const StockPurchaseList: React.FC<StockPurchaseListProps> = ({
             search,
             salesmanId: salesman === "all" ? undefined : salesman,
             customerId: customer === "all" ? undefined : customer,
-            salesTypeId: salesType === "all" ? undefined : salesType,
+            salesTypeId: undefined,
             startDate: dateFrom,
             endDate: dateTo,
             isDispatched: undefined,
             isPaid: undefined
         });
-    }, [onFilterChange, search, salesman, customer, salesType, dateFrom, dateTo]);
+    }, [onFilterChange, search, salesman, customer, dateFrom, dateTo]);
 
     useEffect(() => {
         const timer = setTimeout(applyFilters, 500);
@@ -568,66 +565,11 @@ export const StockPurchaseList: React.FC<StockPurchaseListProps> = ({
 
                     <div className="space-y-1.5">
                         <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Sales Type</label>
-                        <Popover open={openSalesType} onOpenChange={setOpenSalesType}>
-                            <PopoverTrigger asChild>
-                                <Button
-                                    variant="outline"
-                                    role="combobox"
-                                    aria-expanded={openSalesType}
-                                    className={cn("w-full justify-between h-auto py-2 px-3", salesType === "all" && "text-muted-foreground")}
-                                >
-                                    <div className="flex flex-col items-start truncate text-left">
-                                        <span className="font-medium text-slate-900 dark:text-slate-100 truncate w-full">
-                                            {salesType === "all" 
-                                                ? "Select Sales Type" 
-                                                : (salesTypes.find(st => st.id.toString() === salesType)?.operation_name || salesType)}
-                                        </span>
-                                    </div>
-                                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                                </Button>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-[300px] p-0" align="start">
-                                <Command>
-                                    <CommandInput placeholder="Search sales type..." />
-                                    <CommandList>
-                                        <CommandEmpty>No results found.</CommandEmpty>
-                                        <CommandGroup>
-                                            <CommandItem
-                                                value="all"
-                                                onSelect={() => {
-                                                    setSalesType("all");
-                                                    setOpenSalesType(false);
-                                                }}
-                                                className="flex items-center gap-2 py-3 cursor-pointer"
-                                            >
-                                                <Check className={cn("h-4 w-4 shrink-0", salesType === "all" ? "opacity-100" : "opacity-0")} />
-                                                <span className="font-medium text-slate-900 dark:text-slate-100">All Sales Types</span>
-                                            </CommandItem>
-                                            {salesTypes
-                                                .filter((st) => st.operation_name?.toUpperCase() !== "SITE SALES" && st.id !== 3)
-                                                .map((st) => (
-                                                    <CommandItem
-                                                        key={st.id}
-                                                        value={st.operation_name}
-                                                        onSelect={() => {
-                                                            setSalesType(st.id.toString());
-                                                            setOpenSalesType(false);
-                                                        }}
-                                                        className="flex items-center gap-2 py-3 cursor-pointer"
-                                                    >
-                                                        <Check className={cn("h-4 w-4 shrink-0", salesType === st.id.toString() ? "opacity-100" : "opacity-0")} />
-                                                        <div className="flex flex-col overflow-hidden flex-1 min-w-0">
-                                                            <span className="font-medium text-slate-900 dark:text-slate-100 leading-tight whitespace-normal break-words overflow-hidden" style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
-                                                                {st.operation_name}
-                                                            </span>
-                                                        </div>
-                                                    </CommandItem>
-                                                ))}
-                                        </CommandGroup>
-                                    </CommandList>
-                                </Command>
-                            </PopoverContent>
-                        </Popover>
+                        <div className="flex items-center h-auto py-2.5 px-3 rounded-md border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 cursor-not-allowed">
+                            <span className="font-semibold text-xs tracking-tight text-slate-700 dark:text-slate-300">
+                                DIRECT SALES
+                            </span>
+                        </div>
                     </div>
 
                     <div className="space-y-1.5">

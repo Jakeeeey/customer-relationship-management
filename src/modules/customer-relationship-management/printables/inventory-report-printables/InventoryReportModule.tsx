@@ -23,7 +23,7 @@ import { GroupedInventoryItem, InventoryUnit } from "./types"
 
 export const InventoryReportModule = ({ userName }: { userName?: string }) => {
     const { 
-        data, loading, error, mode, setMode, search, setSearch, 
+        data, loading, error, allowAllSuppliers, mode, setMode, search, setSearch, 
         selectedBranch, setSelectedBranch, selectedSupplier, setSelectedSupplier,
         stockFilter, setStockFilter,
         branches, suppliers
@@ -32,12 +32,16 @@ export const InventoryReportModule = ({ userName }: { userName?: string }) => {
     const [isPrintModalOpen, setIsPrintModalOpen] = React.useState(false)
     const [modalMode, setModalMode] = React.useState<'preview' | 'print'>('preview')
 
-    const isFiltersSelected = selectedBranch !== "all" && selectedSupplier !== "all";
+    const isFiltersSelected = allowAllSuppliers 
+        ? selectedBranch !== "all" 
+        : (selectedBranch !== "all" && selectedSupplier !== "all");
 
     const handleOpenModal = (mode: 'preview' | 'print') => {
         if (!isFiltersSelected) {
             toast.warning("Complete the selection", {
-                description: "You must select a specific Branch and Supplier before viewing the report."
+                description: allowAllSuppliers 
+                    ? "You must select a specific Branch before viewing the report." 
+                    : "You must select a specific Branch and Supplier before viewing the report."
             });
             return;
         }
@@ -411,7 +415,11 @@ export const InventoryReportModule = ({ userName }: { userName?: string }) => {
                             <div className="flex flex-col items-center justify-center py-24 text-muted-foreground/60">
                                 <Boxes className="h-16 w-16 mb-4 opacity-20" />
                                 <h3 className="text-xl font-black uppercase tracking-widest text-foreground/50">Select Filters to Load Data</h3>
-                                <p className="text-sm font-medium mt-2">Please select a specific Branch and Supplier from the dropdowns above.</p>
+                                <p className="text-sm font-medium mt-2">
+                                    {allowAllSuppliers 
+                                        ? "Please select a specific Branch from the dropdown above." 
+                                        : "Please select a specific Branch and Supplier from the dropdowns above."}
+                                </p>
                             </div>
                         ) : (
                             <div className="p-1">
@@ -439,6 +447,7 @@ export const InventoryReportModule = ({ userName }: { userName?: string }) => {
                     mode: mode
                 }}
                 userName={userName}
+                allowAllSuppliers={allowAllSuppliers}
             />
         </div>
     )

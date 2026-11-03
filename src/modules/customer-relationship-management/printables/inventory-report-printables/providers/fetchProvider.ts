@@ -36,7 +36,12 @@ interface RawInventoryItem {
     cost?: number | string;
 }
 
-export const fetchInventoryData = async (): Promise<InventoryItem[]> => {
+export interface FetchInventoryResult {
+    items: InventoryItem[];
+    allowAllSuppliers: boolean;
+}
+
+export const fetchInventoryData = async (): Promise<FetchInventoryResult> => {
     const response = await fetch("/api/crm/printables/inventory-report-printables");
     if (!response.ok) {
         const errorText = await response.text();
@@ -48,11 +53,13 @@ export const fetchInventoryData = async (): Promise<InventoryItem[]> => {
         }
         throw new Error(error.details || "Failed to fetch inventory data");
     }
-    const data = await response.json();
+    const result = await response.json();
+    const rawItems: RawInventoryItem[] = Array.isArray(result) ? result : (result.items || []);
+    const allowAllSuppliers: boolean = Boolean(result?.settings?.allowAllSuppliers);
 
     // Map the Spring Boot response to our InventoryItem type
     // The Spring Boot response might have different field names (camelCase vs snake_case)
-    return data.map((item: RawInventoryItem) => ({
+    const items = rawItems.map((item: RawInventoryItem) => ({
         supplier: item.supplierShortcut || item.supplier_shortcut || item.supplierName || "N/A",
         branch: item.branchName || item.branch_name || item.branchId || "N/A",
         brand: item.productBrand || item.product_brand || item.brandName || "N/A",
@@ -65,4 +72,9 @@ export const fetchInventoryData = async (): Promise<InventoryItem[]> => {
         barcode: item.productBarcode || item.product_barcode || "",
         price: Number(item.cost_per_unit || item.costPerUnit || item.price || item.unit_price || item.unitPrice || item.cost || 0)
     }));
+
+    return {
+        items,
+        allowAllSuppliers
+    };
 };
