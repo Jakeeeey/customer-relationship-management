@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { ORTemplate, ORFieldConfig, formatAddress, AddressComponentKey, DEFAULT_ADDRESS_ORDER } from "../types";
-import { Upload, Move, Type, Trash2, Maximize2, AlertTriangle, Loader2, Plus, Star, Check, ChevronUp, ChevronDown, RotateCcw } from "lucide-react";
+import { Upload, Move, Type, Trash2, Copy, Maximize2, AlertTriangle, Loader2, Plus, Star, Check, ChevronUp, ChevronDown, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 import Barcode from "react-barcode";
 import { Switch } from "@/components/ui/switch";
@@ -781,24 +781,52 @@ export const ReceiptTemplateEditor: React.FC<Props> = ({ isOpen, onClose, onSave
                                                 <span className="text-[10px] font-mono text-muted-foreground">
                                                     X:{Math.round(config.x)} Y:{Math.round(config.y)}
                                                 </span>
-                                                {config.isCustom && (
+                                                <Button 
+                                                    variant="ghost" 
+                                                    size="sm" 
+                                                    className="h-5 w-5 p-0 text-muted-foreground hover:text-primary hover:bg-primary/10" 
+                                                    onClick={(e) => { 
+                                                        e.stopPropagation(); 
+                                                        const dupKey = `${key}_copy_${Date.now()}`; 
+                                                        setTemplate(prev => ({ 
+                                                            ...prev, 
+                                                            fields: { 
+                                                                ...prev.fields, 
+                                                                [dupKey]: { 
+                                                                    ...config, 
+                                                                    x: config.x + 4, 
+                                                                    y: config.y + 4, 
+                                                                    label: `${config.label} (Copy)`, 
+                                                                    sourceField: config.sourceField || (config.isCustom ? undefined : key), 
+                                                                    hidden: false 
+                                                                } 
+                                                            } 
+                                                        })); 
+                                                        setActiveField(dupKey); 
+                                                        toast.success(`Duplicated ${config.label}`); 
+                                                    }} 
+                                                    title="Duplicate Field" 
+                                                > 
+                                                    <Copy className="w-3 h-3" /> 
+                                                </Button> 
+                                                {(config.isCustom || config.sourceField || key.includes("_copy_")) && ( 
                                                     <Button 
                                                         variant="ghost" 
                                                         size="sm" 
-                                                        className="h-5 w-5 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            setTemplate(prev => {
-                                                                const next = { ...prev.fields };
-                                                                delete next[key];
-                                                                return { ...prev, fields: next };
-                                                            });
-                                                            if (activeField === key) setActiveField(null);
-                                                        }}
-                                                        title="Delete Custom Text"
-                                                    >
-                                                        <Trash2 className="w-3 h-3" />
-                                                    </Button>
+                                                        className="h-5 w-5 p-0 text-destructive hover:text-destructive hover:bg-destructive/10" 
+                                                        onClick={(e) => { 
+                                                            e.stopPropagation(); 
+                                                            setTemplate(prev => { 
+                                                                const next = { ...prev.fields }; 
+                                                                delete next[key]; 
+                                                                return { ...prev, fields: next }; 
+                                                            }); 
+                                                            if (activeField === key) setActiveField(null); 
+                                                        }} 
+                                                        title="Delete Field" 
+                                                    > 
+                                                        <Trash2 className="w-3 h-3" /> 
+                                                    </Button> 
                                                 )}
                                             </div>
                                         </div>
@@ -876,10 +904,15 @@ export const ReceiptTemplateEditor: React.FC<Props> = ({ isOpen, onClose, onSave
                                                 ) : (
                                                     /* NORMAL FIELD SETTINGS */
                                                     <>
-                                                        {config.isCustom && (
+                                                        {(config.isCustom || config.sourceField || key.includes('_copy_')) && (
                                                             <div className="space-y-2 pb-2 border-b border-zinc-100 dark:border-zinc-800">
                                                                 <div className="space-y-1">
-                                                                    <Label className="text-[10px] font-bold">Field Label (Admin Name)</Label>
+                                                                    <div className="flex items-center justify-between">
+                                                                        <Label className="text-[10px] font-bold">Field Label (Admin Name)</Label>
+                                                                        {config.sourceField && (
+                                                                            <span className="text-[9px] text-primary bg-primary/10 px-1 rounded font-mono">Linked: {config.sourceField}</span>
+                                                                        )}
+                                                                    </div>
                                                                     <Input 
                                                                         type="text" 
                                                                         value={config.label} 
@@ -887,15 +920,17 @@ export const ReceiptTemplateEditor: React.FC<Props> = ({ isOpen, onClose, onSave
                                                                         className="h-8 text-xs font-semibold"
                                                                     />
                                                                 </div>
-                                                                <div className="space-y-1">
-                                                                    <Label className="text-[10px] font-bold text-primary">Text Content (Printed Value)</Label>
-                                                                    <Input 
-                                                                        type="text" 
-                                                                        value={config.value ?? ""} 
-                                                                        onChange={e => updateField(key, { value: e.target.value })} 
-                                                                        className="h-8 text-xs font-bold border-primary/40 focus-visible:ring-primary"
-                                                                    />
-                                                                </div>
+                                                                {config.isCustom && (
+                                                                    <div className="space-y-1">
+                                                                        <Label className="text-[10px] font-bold text-primary">Text Content (Printed Value)</Label>
+                                                                        <Input 
+                                                                            type="text" 
+                                                                            value={config.value ?? ""} 
+                                                                            onChange={e => updateField(key, { value: e.target.value })} 
+                                                                            className="h-8 text-xs font-bold border-primary/40 focus-visible:ring-primary"
+                                                                        />
+                                                                    </div>
+                                                                )}
                                                             </div>
                                                         )}
                                                         <div className="space-y-1">
@@ -1505,7 +1540,7 @@ export const ReceiptTemplateEditor: React.FC<Props> = ({ isOpen, onClose, onSave
                                                     </div>
                                                 )}
                                             </div>
-                                        ) : key === 'address' ? (
+                                        ) : (key === 'address' || config.sourceField === 'address') ? (
                                             formatAddress(
                                                 {
                                                     unit_building: 'UNIT 101',
