@@ -213,6 +213,7 @@ export interface ORFieldConfig {
     // Custom Text Field settings
     isCustom?: boolean;
     value?: string;
+    sourceField?: string;
 
     // Address Sub-components & Ordering Config
     addressConfig?: {
