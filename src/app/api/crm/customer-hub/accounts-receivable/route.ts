@@ -11,9 +11,19 @@ export async function GET(req: NextRequest) {
     }
 
     try {
-        // Use the specific IP and Port provided for the Accounts Receivable service
-        const baseUrl = process.env.SPRING_AR_API_BASE_URL || "http://100.95.246.18:8088";
-        const targetUrl = `${baseUrl}/api/v1/accounts-receivable/customer-receivable?customerCode=${encodeURIComponent(customerCode)}`;
+            const baseUrl = (
+            process.env.SPRING_AR_API_BASE_URL ||
+            process.env.SPRING_API_BASE_URL ||
+            ""
+        ).replace(/\/+$/, "");
+
+        if (!baseUrl) {
+            return NextResponse.json(
+                { error: "Spring API base URL is not configured" },
+                { status: 500 }
+            );
+        }
+        const targetUrl = `${baseUrl}/api/v1/accounts-receivable`;
         
         console.log(`[AR Proxy] Fetching from: ${targetUrl}`);
         
@@ -32,7 +42,21 @@ export async function GET(req: NextRequest) {
         }
 
         const data = await res.json();
-        return NextResponse.json(data);
+
+        const rows: unknown[] = Array.isArray(data)
+            ? data
+            : Array.isArray((data as { data?: unknown[] })?.data)
+                ? (data as { data: unknown[] }).data
+                : Array.isArray((data as { content?: unknown[] })?.content)
+                    ? (data as { content: unknown[] }).content
+                    : [];
+
+        const filtered = rows.filter((row) => {
+            const code = (row as { customerCode?: unknown }).customerCode;
+            return String(code ?? "").trim() === customerCode.trim();
+        });
+
+        return NextResponse.json(filtered);
     } catch (error: unknown) {
         const err = error as Error;
         console.error("[AR Proxy] Fatal error:", err);
