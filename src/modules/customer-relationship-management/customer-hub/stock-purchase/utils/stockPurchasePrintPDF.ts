@@ -216,8 +216,12 @@ const generateOfficialReceipt = async (data: ReceiptData, existingDoc?: jsPDF, h
         vatable_sales: formatCurrency(vatableSales),
         vat_amount: formatCurrency(vatAmount),
         gross_total: formatCurrency(grossTotal),
+        gross_total_label: "GROSS TOTAL:",
         discount_total: formatCurrency(discountTotal),
+        discount_total_label: "DISCOUNT TOTAL:",
         net_total: formatCurrency(netTotal),
+        net_total_label: "NET TOTAL:",
+        total_amount_due_label: "TOTAL DUE:",
         po_no: `PO NO. : ${data.po_no}`,
         salesman: `SALESMAN : ${data.salesman_name}`,
         total_amount_due: formatCurrency(netTotal),
@@ -256,7 +260,7 @@ const generateOfficialReceipt = async (data: ReceiptData, existingDoc?: jsPDF, h
     const tableLineStep = (tableFontSize * 0.3527) * 1.1; 
 
     (data.items || []).forEach((item) => {
-        const dt = data.discountTypes.find(d => d.id === item.discount_type);
+        const dt = data.discountTypes?.find(d => d.id === item.discount_type || d.discount_type?.toUpperCase() === String(item.discount_type_name || item.discount_type).toUpperCase());
         const productName = item.product_name.toUpperCase();
         const productNameX = cols?.['product_name']?.x || 10;
         const qtyX = cols?.['quantity']?.x || 105;
@@ -278,7 +282,16 @@ const generateOfficialReceipt = async (data: ReceiptData, existingDoc?: jsPDF, h
         
         doc.text(`${item.qty} ${item.unit_shortcut}`, qtyX, firstLineY, { align: 'center', baseline: 'top' });
         doc.text(formatCurrency(item.unit_price), cols?.['unit_price']?.x || 126, firstLineY, { align: 'right', baseline: 'top' });
-        doc.text(dt ? dt.discount_type.toUpperCase() : (data.is_official ? "" : "NONE"), cols?.['discount']?.x || 153, firstLineY, { align: 'right', baseline: 'top' });
+        const discountTypeLabel = dt?.discount_type?.toUpperCase() || (item.discount_type_name ? item.discount_type_name.toUpperCase() : (typeof item.discount_type === 'string' && item.discount_type ? item.discount_type.toUpperCase() : null));
+        const unitDisc = item.unit_discount ?? (item.qty > 0 ? (item.discount_amount / item.qty) : 0);
+
+        if (discountTypeLabel) {
+            doc.text(discountTypeLabel, cols?.['discount']?.x || 153, firstLineY, { align: 'right', baseline: 'top' });
+        } else if (unitDisc > 0) {
+            doc.text(formatCurrency(unitDisc), cols?.['discount']?.x || 153, firstLineY, { align: 'right', baseline: 'top' });
+        } else if (!data.is_official) {
+            doc.text("NONE", cols?.['discount']?.x || 153, firstLineY, { align: 'right', baseline: 'top' });
+        }
         doc.text(formatCurrency(item.net_amount), cols?.['net_amount']?.x || 184, firstLineY, { align: 'right', baseline: 'top' });
 
         currentY += actualRowHeight;

@@ -175,6 +175,8 @@ export const StockPurchaseCreatePrintPreviewModal: React.FC<StockPurchaseCreateP
             total_amount: item.total_amount,
             gross_amount: item.unit_price * item.quantity,
             discounts: item.discounts,
+            discount_type: item.discount_type,
+            unit_discount: item.unit_discount,
         }));
     }, [cart]);
 
@@ -317,8 +319,9 @@ export const StockPurchaseCreatePrintPreviewModal: React.FC<StockPurchaseCreateP
     };
 
     return (
-        <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-            <DialogContent className={cn(
+        <>
+            <Dialog open={isOpen && !isDesignerOpen} onOpenChange={(open) => !open && onClose()}>
+                <DialogContent className={cn(
                 "h-[90vh] flex flex-col p-0 gap-0 overflow-hidden bg-slate-50 border-none shadow-2xl rounded-3xl transition-all duration-500 ease-in-out",
                 isOfficial
                     ? "!w-[min(calc(210mm+3rem),calc(100vw-1rem))] !max-w-[min(calc(210mm+3rem),calc(100vw-1rem))]"
@@ -420,16 +423,17 @@ export const StockPurchaseCreatePrintPreviewModal: React.FC<StockPurchaseCreateP
                     </div>
                 </div>
             </DialogContent>
-
-            {isOfficial && (
-                <StockPurchaseTemplateDesigner
-                    isOpen={isDesignerOpen}
-                    onClose={() => setIsDesignerOpen(false)}
-                    onSave={handleTemplateSave}
-                    initialTemplate={template ?? undefined}
-                    isSaving={isSavingTemplate}
-                />
-            )}
         </Dialog>
-    );
+
+        {isOfficial && (
+            <StockPurchaseTemplateDesigner
+                isOpen={isOpen && isDesignerOpen}
+                onClose={() => setIsDesignerOpen(false)}
+                onSave={handleTemplateSave}
+                initialTemplate={template ?? undefined}
+                isSaving={isSavingTemplate}
+            />
+        )}
+    </>
+);
 };
