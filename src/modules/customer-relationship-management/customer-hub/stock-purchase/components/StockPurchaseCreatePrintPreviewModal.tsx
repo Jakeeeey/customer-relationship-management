@@ -16,6 +16,9 @@ import {
     Layout,
 } from "lucide-react";
 import { format } from 'date-fns';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
 
 import {
     Customer,
@@ -30,7 +33,7 @@ import {
 import { DiscountType, ORTemplate } from '../types/print';
 import { mapStockPurchaseToReceiptData } from '../utils/mapping';
 import { generateStockPurchasePrintPDF } from '../utils/stockPurchasePrintPDF';
-import { StockPurchasePrintService } from '../services/StockPurchasePrintService';
+import { StockPurchasePrintService, TemplateRecord } from '../services/StockPurchasePrintService';
 import { stockPurchaseProvider } from '../providers/fetchProvider';
 import { calculateChainNetPrice } from '../utils';
 import { cn } from "@/lib/utils";
@@ -100,10 +103,15 @@ export const StockPurchaseCreatePrintPreviewModal: React.FC<StockPurchaseCreateP
     const [isGenerating, setIsGenerating] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
     const [isDesignerOpen, setIsDesignerOpen] = useState(false);
-    const [isSavingTemplate, setIsSavingTemplate] = useState(false);
 
     const [discountTypes, setDiscountTypes] = useState<DiscountType[]>(preFetchedDiscountTypes);
     const [template, setTemplate] = useState<ORTemplate | null>(preFetchedTemplate);
+    const [templateList, setTemplateList] = useState<TemplateRecord[]>([]);
+    const [selectedTemplateId, setSelectedTemplateId] = useState<string>("");
+
+    const invoiceTypeObj = invoiceTypes.find(t => t.id.toString() === selectedInvoiceType) ?? null;
+    const isOfficial = invoiceTypeObj ? Number(invoiceTypeObj.isOfficial) === 1 : true;
+    const invoiceTypeId = invoiceTypeObj?.id ?? (isOfficial ? 1 : 2);
 
     useEffect(() => {
         setDiscountTypes(preFetchedDiscountTypes);
@@ -113,9 +121,33 @@ export const StockPurchaseCreatePrintPreviewModal: React.FC<StockPurchaseCreateP
         setTemplate(preFetchedTemplate);
     }, [preFetchedTemplate]);
 
-    const invoiceTypeObj = invoiceTypes.find(t => t.id.toString() === selectedInvoiceType) ?? null;
-    const isOfficial = invoiceTypeObj ? Number(invoiceTypeObj.isOfficial) === 1 : true;
-    const invoiceTypeId = invoiceTypeObj?.id ?? (isOfficial ? 1 : 2);
+    // Fetch template list for current invoiceTypeId
+    const loadTemplateList = useCallback(async () => {
+        if (!isOpen) return;
+        try {
+            const list = await StockPurchasePrintService.getTemplates(invoiceTypeId);
+            setTemplateList(list);
+            if (list.length > 0) {
+                const defaultRec = list.find(t => t.is_default) || list[0];
+                setSelectedTemplateId(defaultRec.id.toString());
+                setTemplate(defaultRec.template_config);
+            }
+        } catch (e) {
+            console.error("Failed to fetch template list for preview:", e);
+        }
+    }, [isOpen, invoiceTypeId]);
+
+    useEffect(() => {
+        loadTemplateList();
+    }, [loadTemplateList]);
+
+    const handleTemplateChange = (recIdStr: string) => {
+        setSelectedTemplateId(recIdStr);
+        const found = templateList.find(t => t.id.toString() === recIdStr);
+        if (found) {
+            setTemplate(found.template_config);
+        }
+    };
 
     const buildDraftHeader = useCallback((): StockPurchaseHeader => {
         const branchObj = branches.find(b => b.id.toString() === selectedBranch) ?? null;
@@ -302,138 +334,155 @@ export const StockPurchaseCreatePrintPreviewModal: React.FC<StockPurchaseCreateP
         }
     };
 
-    const handleTemplateSave = async (newTemplate: ORTemplate) => {
-        setIsSavingTemplate(true);
-        try {
-            await StockPurchasePrintService.saveTemplate(invoiceTypeId, newTemplate);
-            setTemplate(newTemplate);
-            generatePreview();
-            toast.success("Template saved successfully");
-            setIsDesignerOpen(false);
-        } catch (error) {
-            console.error("Failed to save template:", error);
-            toast.error("Failed to save template changes");
-        } finally {
-            setIsSavingTemplate(false);
+    const handleTemplateSave = async (newTemplate: ORTemplate, _isDefault?: boolean, recordId?: number) => {
+        setTemplate(newTemplate);
+        if (recordId) {
+            setSelectedTemplateId(recordId.toString());
         }
+        await loadTemplateList();
+        generatePreview();
+        toast.success("Template saved successfully");
+        setIsDesignerOpen(false);
     };
 
     return (
         <>
             <Dialog open={isOpen && !isDesignerOpen} onOpenChange={(open) => !open && onClose()}>
                 <DialogContent className={cn(
-                "h-[90vh] flex flex-col p-0 gap-0 overflow-hidden bg-slate-50 border-none shadow-2xl rounded-3xl transition-all duration-500 ease-in-out",
-                isOfficial
-                    ? "!w-[min(calc(210mm+3rem),calc(100vw-1rem))] !max-w-[min(calc(210mm+3rem),calc(100vw-1rem))]"
-                    : "!w-[min(450px,calc(100vw-1rem))] !max-w-[min(450px,calc(100vw-1rem))]"
-            )}>
-                <div className="flex items-center justify-between px-6 py-4 bg-white border-b shadow-sm z-10">
-                    <div className="flex items-center gap-3">
-                        <div className="p-2.5 bg-indigo-600 rounded-xl shadow-indigo-100 shadow-lg">
-                            <Printer className="w-5 h-5 text-white" />
-                        </div>
-                        <div>
-                            <DialogTitle className="text-xl font-black tracking-tighter text-slate-900 uppercase">
-                                Print Preview
-                            </DialogTitle>
-                            <p className="text-xs font-bold text-slate-400 tracking-widest uppercase">
-                                {previewInvoiceNo} · Draft
-                            </p>
-                        </div>
-                    </div>
-
-                    <Button
-                        variant="outline"
-                        size="icon"
-                        onClick={onClose}
-                        disabled={isSaving}
-                        className="rounded-xl border-slate-200 hover:bg-slate-50 text-slate-400 hover:text-slate-600 transition-colors"
-                    >
-                        <X className="w-5 h-5" />
-                    </Button>
-                </div>
-
-                <div className="flex-1 overflow-hidden relative flex bg-slate-200/50 p-6 justify-center">
-                    {isGenerating && (
-                        <div className="absolute inset-0 flex flex-col items-center justify-center bg-white/60 backdrop-blur-sm z-20">
-                            <div className="relative">
-                                <Loader2 className="w-12 h-12 text-indigo-600 animate-spin" />
-                                <div className="absolute inset-0 flex items-center justify-center">
-                                    <FileText className="w-5 h-5 text-indigo-400" />
-                                </div>
+                    "h-[90vh] flex flex-col p-0 gap-0 overflow-hidden bg-slate-50 border-none shadow-2xl rounded-3xl transition-all duration-500 ease-in-out",
+                    isOfficial
+                        ? "!w-[min(calc(210mm+3rem),calc(100vw-1rem))] !max-w-[min(calc(210mm+3rem),calc(100vw-1rem))]"
+                        : "!w-[min(450px,calc(100vw-1rem))] !max-w-[min(450px,calc(100vw-1rem))]"
+                )}>
+                    <div className="flex items-center justify-between px-6 py-4 bg-white border-b shadow-sm z-10">
+                        <div className="flex items-center gap-3">
+                            <div className="p-2.5 bg-indigo-600 rounded-xl shadow-indigo-100 shadow-lg">
+                                <Printer className="w-5 h-5 text-white" />
                             </div>
-                            <p className="mt-4 text-sm font-black text-slate-900 tracking-tighter uppercase">
-                                Preparing Document...
-                            </p>
+                            <div>
+                                <DialogTitle className="text-xl font-black tracking-tighter text-slate-900 uppercase">
+                                    Print Preview
+                                </DialogTitle>
+                                <p className="text-xs font-bold text-slate-400 tracking-widest uppercase">
+                                    {previewInvoiceNo} · Draft
+                                </p>
+                            </div>
                         </div>
-                    )}
 
-                    <div className={cn(
-                        "w-full h-full bg-white shadow-2xl rounded-2xl overflow-hidden border border-slate-200 transition-all duration-500",
-                        isOfficial ? "max-w-[210mm]" : "max-w-[80mm]"
-                    )}>
-                        {pdfUrl ? (
-                            <iframe
-                                src={`${pdfUrl}#toolbar=0&navpanes=0&scrollbar=0`}
-                                className="w-full h-full border-none"
-                                title="Print Preview"
-                            />
-                        ) : (
-                            <div className="w-full h-full flex items-center justify-center text-slate-400 uppercase font-black tracking-widest text-xs">
-                                No Preview Available
+                        {/* Template Dropdown in Preview Header */}
+                        {isOfficial && templateList.length > 0 && (
+                            <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1 shadow-sm">
+                                <Label className="text-[10px] font-black uppercase text-slate-400 tracking-widest whitespace-nowrap">Template:</Label>
+                                <Select value={selectedTemplateId} onValueChange={handleTemplateChange}>
+                                    <SelectTrigger className="h-7 text-xs font-bold min-w-[150px] border-none bg-transparent focus:ring-0 p-0 text-slate-800">
+                                        <SelectValue placeholder="Select Template..." />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {templateList.map(t => (
+                                            <SelectItem key={t.id} value={t.id.toString()} className="text-xs font-semibold">
+                                                <div className="flex items-center gap-2">
+                                                    <span>{t.name}</span>
+                                                    {t.is_default && <Badge variant="secondary" className="text-[9px] px-1 py-0 bg-indigo-50 text-indigo-600">DEFAULT</Badge>}
+                                                </div>
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
                             </div>
                         )}
-                    </div>
-                </div>
 
-                <div className="px-6 py-4 bg-white border-t flex items-center justify-between shadow-[0_-4px_20px_rgba(0,0,0,0.03)]">
-                    <div className="flex items-center gap-2 text-slate-400">
-                        <div className="flex items-center gap-2">
-                            <div className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
-                            <span className="text-[10px] font-black tracking-widest uppercase text-amber-600">
-                                Draft · Not yet saved
-                            </span>
-                        </div>
-                    </div>
-
-                    <div className="flex items-center gap-3">
-                        {isOfficial && (
-                            <Button
-                                variant="outline"
-                                onClick={() => setIsDesignerOpen(true)}
-                                disabled={isSaving}
-                                className="rounded-2xl h-12 px-6 border-2 border-indigo-100 text-indigo-600 hover:bg-indigo-50 font-black tracking-tighter active:scale-95 transition-all flex items-center gap-2 bg-white"
-                            >
-                                <Layout className="w-4 h-4" />
-                                CONFIGURE LAYOUT
-                            </Button>
-                        )}
                         <Button
-                            onClick={handlePrintAndSave}
-                            disabled={isSaving || isGenerating}
-                            className="rounded-2xl h-12 px-8 bg-indigo-600 hover:bg-indigo-700 font-black tracking-tighter text-white shadow-lg shadow-indigo-200 active:scale-95 transition-all flex items-center gap-2 disabled:opacity-50"
+                            variant="outline"
+                            size="icon"
+                            onClick={onClose}
+                            disabled={isSaving}
+                            className="rounded-xl border-slate-200 hover:bg-slate-50 text-slate-400 hover:text-slate-600 transition-colors"
                         >
-                            {isSaving ? (
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                                <Printer className="w-4 h-4" />
-                            )}
-                            {isSaving ? "SAVING..." : "PRINT NOW"}
+                            <X className="w-5 h-5" />
                         </Button>
                     </div>
-                </div>
-            </DialogContent>
-        </Dialog>
 
-        {isOfficial && (
-            <StockPurchaseTemplateDesigner
-                isOpen={isOpen && isDesignerOpen}
-                onClose={() => setIsDesignerOpen(false)}
-                onSave={handleTemplateSave}
-                initialTemplate={template ?? undefined}
-                isSaving={isSavingTemplate}
-            />
-        )}
-    </>
-);
+                    <div className="flex-1 overflow-hidden relative flex bg-slate-200/50 p-6 justify-center">
+                        {isGenerating && (
+                            <div className="absolute inset-0 flex flex-col items-center justify-center bg-white/60 backdrop-blur-sm z-20">
+                                <div className="relative">
+                                    <Loader2 className="w-12 h-12 text-indigo-600 animate-spin" />
+                                    <div className="absolute inset-0 flex items-center justify-center">
+                                        <FileText className="w-5 h-5 text-indigo-400" />
+                                    </div>
+                                </div>
+                                <p className="mt-4 text-sm font-black text-slate-900 tracking-tighter uppercase">
+                                    Preparing Document...
+                                </p>
+                            </div>
+                        )}
+
+                        <div className={cn(
+                            "w-full h-full bg-white shadow-2xl rounded-2xl overflow-hidden border border-slate-200 transition-all duration-500",
+                            isOfficial ? "max-w-[210mm]" : "max-w-[80mm]"
+                        )}>
+                            {pdfUrl ? (
+                                <iframe
+                                    src={`${pdfUrl}#toolbar=0&navpanes=0&scrollbar=0`}
+                                    className="w-full h-full border-none"
+                                    title="Print Preview"
+                                />
+                            ) : (
+                                <div className="w-full h-full flex items-center justify-center text-slate-400 uppercase font-black tracking-widest text-xs">
+                                    No Preview Available
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    <div className="px-6 py-4 bg-white border-t flex items-center justify-between shadow-[0_-4px_20px_rgba(0,0,0,0.03)]">
+                        <div className="flex items-center gap-2 text-slate-400">
+                            <div className="flex items-center gap-2">
+                                <div className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+                                <span className="text-[10px] font-black tracking-widest uppercase text-amber-600">
+                                    Draft · Not yet saved
+                                </span>
+                            </div>
+                        </div>
+
+                        <div className="flex items-center gap-3">
+                            {isOfficial && (
+                                <Button
+                                    variant="outline"
+                                    onClick={() => setIsDesignerOpen(true)}
+                                    disabled={isSaving}
+                                    className="rounded-2xl h-12 px-6 border-2 border-indigo-100 text-indigo-600 hover:bg-indigo-50 font-black tracking-tighter active:scale-95 transition-all flex items-center gap-2 bg-white"
+                                >
+                                    <Layout className="w-4 h-4" />
+                                    CONFIGURE LAYOUT
+                                </Button>
+                            )}
+                            <Button
+                                onClick={handlePrintAndSave}
+                                disabled={isSaving || isGenerating}
+                                className="rounded-2xl h-12 px-8 bg-indigo-600 hover:bg-indigo-700 font-black tracking-tighter text-white shadow-lg shadow-indigo-200 active:scale-95 transition-all flex items-center gap-2 disabled:opacity-50"
+                            >
+                                {isSaving ? (
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                    <Printer className="w-4 h-4" />
+                                )}
+                                {isSaving ? "SAVING..." : "PRINT NOW"}
+                            </Button>
+                        </div>
+                    </div>
+                </DialogContent>
+            </Dialog>
+
+            {isOfficial && (
+                <StockPurchaseTemplateDesigner
+                    isOpen={isOpen && isDesignerOpen}
+                    onClose={() => setIsDesignerOpen(false)}
+                    onSave={handleTemplateSave}
+                    initialTemplate={template ?? undefined}
+                    typeId={invoiceTypeId}
+                />
+            )}
+        </>
+    );
 };
