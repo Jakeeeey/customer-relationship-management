@@ -1,6 +1,6 @@
 import jsPDF from 'jspdf';
 import { formatToPHT } from './dateUtils';
-import { ReceiptData, ReceiptItem, ORFieldConfig } from '../types/print';
+import { ReceiptData, ReceiptItem, ORFieldConfig, formatAddress, CustomerAddressData } from '../types/print';
 import { StockPurchasePrintService } from '../services/StockPurchasePrintService';
 
 const OR_WIDTH = 210;
@@ -135,7 +135,8 @@ const generateOfficialReceipt = async (data: ReceiptData, existingDoc?: jsPDF, h
         creator: 'VOS System'
     });
 
-    if (template?.backgroundImage && !hideBackground) {
+    const shouldPrintBackground = template?.printBackground !== undefined ? template.printBackground : true;
+    if (template?.backgroundImage && !hideBackground && shouldPrintBackground) {
         try {
             const imgData = data.backgroundImageDataUrl || await getImageDataUrl(StockPurchasePrintService.getImageUrl(template.backgroundImage));
             doc.addImage(imgData, 'JPEG', 0, 0, width, height, undefined, 'FAST');
@@ -205,6 +206,18 @@ const generateOfficialReceipt = async (data: ReceiptData, existingDoc?: jsPDF, h
     const vatAmount = data.vat_amount ?? (netTotal - (netTotal / 1.12));
     const vatableSales = netTotal - vatAmount;
 
+    let formattedAddress = data.address.toUpperCase();
+    const addressConfig = template?.fields?.address?.addressConfig;
+    if (addressConfig) {
+        const addrData: CustomerAddressData = {
+            brgy: data.address
+        };
+        const computedAddr = formatAddress(addrData, addressConfig);
+        if (computedAddr && computedAddr !== 'N/A') {
+            formattedAddress = computedAddr;
+        }
+    }
+
     const fieldValues: Record<string, string> = {
         customer_name: data.customer_name.toUpperCase(),
         date: formatToPHT(new Date(), "MMM dd, yyyy").toUpperCase(),
@@ -212,7 +225,7 @@ const generateOfficialReceipt = async (data: ReceiptData, existingDoc?: jsPDF, h
         payment_name: data.payment_name.toUpperCase(),
         terms: data.payment_name.toUpperCase(),
         customer_tin: data.customer_tin || "N/A",
-        address: data.address.toUpperCase(),
+        address: formattedAddress,
         vatable_sales: formatCurrency(vatableSales),
         vat_amount: formatCurrency(vatAmount),
         gross_total: formatCurrency(grossTotal),
@@ -241,8 +254,10 @@ const generateOfficialReceipt = async (data: ReceiptData, existingDoc?: jsPDF, h
                 return;
             }
             if (config.hidden) return;
-            const value = fieldValues[key];
-            if (value !== undefined) {
+
+            const effectiveKey = config.sourceField || key;
+            const value = config.isCustom ? (config.value || "") : fieldValues[effectiveKey];
+            if (value !== undefined && value !== "") {
                 renderField(key, value, 0, 0); 
             }
         });
@@ -274,6 +289,10 @@ const generateOfficialReceipt = async (data: ReceiptData, existingDoc?: jsPDF, h
         const actualRowHeight = Math.max(minRowHeight, wrappedContentHeight + 2); 
         const blockTopOffset = (actualRowHeight - wrappedContentHeight) / 2;
         const firstLineY = currentY + blockTopOffset;
+
+        if (cols?.['barcode']?.x) {
+            doc.text(item.order_no || "", cols['barcode'].x, firstLineY, { baseline: 'top' });
+        }
 
         lines.forEach((line, lineIdx) => {
             const lineY = firstLineY + (lineIdx * tableLineStep);
