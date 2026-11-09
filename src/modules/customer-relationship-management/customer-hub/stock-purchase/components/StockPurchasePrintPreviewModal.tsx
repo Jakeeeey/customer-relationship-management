@@ -168,8 +168,9 @@ export const StockPurchasePrintPreviewModal: React.FC<StockPurchasePrintPreviewM
     };
 
     return (
-        <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-            <DialogContent className={cn(
+        <>
+            <Dialog open={isOpen && !isDesignerOpen} onOpenChange={(open) => !open && onClose()}>
+                <DialogContent className={cn(
                 "h-[90vh] flex flex-col p-0 gap-0 overflow-hidden bg-slate-50 border-none shadow-2xl rounded-3xl transition-all duration-500 ease-in-out",
                 isOfficial 
                     ? "!w-[min(calc(210mm+3rem),calc(100vw-1rem))] !max-w-[min(calc(210mm+3rem),calc(100vw-1rem))]" 
@@ -267,16 +268,17 @@ export const StockPurchasePrintPreviewModal: React.FC<StockPurchasePrintPreviewM
                     </div>
                 </div>
             </DialogContent>
-
-            {isOfficial && (
-                <StockPurchaseTemplateDesigner 
-                    isOpen={isDesignerOpen}
-                    onClose={() => setIsDesignerOpen(false)}
-                    onSave={handleTemplateSave}
-                    initialTemplate={template || undefined}
-                    isSaving={isSavingTemplate}
-                />
-            )}
         </Dialog>
-    );
+
+        {isOfficial && (
+            <StockPurchaseTemplateDesigner 
+                isOpen={isOpen && isDesignerOpen}
+                onClose={() => setIsDesignerOpen(false)}
+                onSave={handleTemplateSave}
+                initialTemplate={template || undefined}
+                isSaving={isSavingTemplate}
+            />
+        )}
+    </>
+);
 };

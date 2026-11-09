@@ -344,7 +344,8 @@ const generateOfficialReceipt = async (data: ReceiptData, existingDoc?: jsPDF): 
             if (config.hidden) return;
 
             // Normal text fields
-            const value = config.isCustom ? (config.value || "") : fieldValues[key];
+            const effectiveKey = config.sourceField || key;
+            const value = config.isCustom ? (config.value || "") : fieldValues[effectiveKey];
             if (value !== undefined && value !== "") {
                 renderField(key, value, 0, 0); 
             }

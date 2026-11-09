@@ -33,8 +33,12 @@ const DEFAULT_TEMPLATE: ORTemplate = {
         vatable_sales: { x: 180, y: 145, fontSize: 10, fontFamily: 'courier', fontWeight: 'normal', label: 'Vatable Sales' },
         vat_amount: { x: 180, y: 151, fontSize: 10, fontFamily: 'courier', fontWeight: 'normal', label: 'VAT Amount' },
         gross_total: { x: 180, y: 157, fontSize: 11, fontFamily: 'courier', fontWeight: 'normal', label: 'Gross Total' },
+        gross_total_label: { x: 135, y: 157, fontSize: 11, fontFamily: 'courier', fontWeight: 'bold', label: 'Gross Total Label' },
         discount_total: { x: 180, y: 163, fontSize: 10, fontFamily: 'courier', fontWeight: 'normal', label: 'Discount Total' },
+        discount_total_label: { x: 135, y: 163, fontSize: 10, fontFamily: 'courier', fontWeight: 'bold', label: 'Discount Total Label' },
         net_total: { x: 180, y: 175, fontSize: 12, fontFamily: 'courier', fontWeight: 'normal', label: 'Net Total' },
+        net_total_label: { x: 135, y: 175, fontSize: 12, fontFamily: 'courier', fontWeight: 'bold', label: 'Net Total Label' },
+        total_amount_due_label: { x: 135, y: 200, fontSize: 12, fontFamily: 'courier', fontWeight: 'bold', label: 'Total Due Label' },
         po_no: { x: 10, y: 185, fontSize: 10, fontFamily: 'courier', fontWeight: 'normal', label: 'PO Number' },
         salesman: { x: 10, y: 191, fontSize: 10, fontFamily: 'courier', fontWeight: 'normal', label: 'Salesman Name' },
         total_amount_due: { x: 180, y: 200, fontSize: 12, fontFamily: 'courier', fontWeight: 'normal', label: 'Total Amount Due' },
@@ -144,7 +148,7 @@ export const StockPurchaseTemplateDesigner: React.FC<Props> = ({ isOpen, onClose
 
     return (
         <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-            <DialogContent className="max-w-[95vw] w-[1400px] h-[90vh] flex flex-col p-0 gap-0 overflow-hidden bg-slate-50 border-none shadow-2xl rounded-3xl">
+            <DialogContent className="!max-w-[95vw] !w-[95vw] sm:!max-w-[95vw] h-[92vh] flex flex-col p-0 gap-0 overflow-hidden bg-slate-50 border-none shadow-2xl rounded-3xl">
                 <DialogHeader className="px-6 py-4 bg-white border-b shadow-sm">
                     <DialogTitle className="text-xl font-black tracking-tighter text-slate-900 uppercase">
                         Layout Designer

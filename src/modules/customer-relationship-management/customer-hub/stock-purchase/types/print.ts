@@ -49,7 +49,9 @@ export interface ReceiptItem {
     ordered_qty: number;
     qty: number;
     unit_price: number;
-    discount_type: number | null;
+    discount_type: number | string | null;
+    discount_type_name?: string | null;
+    unit_discount?: number;
     discount_amount: number;
     net_amount: number;
     gross_amount: number;

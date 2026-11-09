@@ -1795,7 +1795,8 @@ export const ConvertToInvoiceModal: React.FC<ConvertToInvoiceModalProps> = ({
                                                 {/* Render template defined fields */}
                                                 {orTemplate ? (
                                                     Object.entries(orTemplate.fields).map(([key, config]) => {
-                                                        const val = config.isCustom ? (config.value || "") : fieldValues[key];
+                                                        const effectiveKey = config.sourceField || key;
+                                                        const val = config.isCustom ? (config.value || "") : fieldValues[effectiveKey];
                                                         if (!val || key === 'barcode' || config.hidden) return null;
                                                         if (key === 'withholding_tax' && (!isOfficialReceipt || !isEWT)) return null;
                                                         return (
