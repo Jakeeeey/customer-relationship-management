@@ -393,7 +393,7 @@ export function useSalesOrder() {
                                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                                 const enrichedProductsMap = new Map<number, any>();
                                 try {
-                                    const pUrl = `${salesOrderProvider.API_BASE}?action=products&customer_code=${header.customer_code}&supplier_id=${header.supplier_id}&branch_id=${header.branch_id}`;
+                                    const pUrl = `${salesOrderProvider.API_BASE}?action=products&customer_code=${header.customer_code}&supplier_id=${header.supplier_id}&branch_id=${header.branch_id}&price_type_id=${header.price_type_id || ""}`;
                                     const pData = await fetch(pUrl).then(r => r.json());
                                     if (Array.isArray(pData)) {
                                         pData.forEach(p => enrichedProductsMap.set(Number(p.product_id), p));
@@ -429,15 +429,12 @@ export function useSalesOrder() {
                                     const rawOrdered = it.ordered_quantity;
                                     const rawQty = it.quantity;
                                     const qty = (rawOrdered !== undefined && rawOrdered !== null) ? Number(rawOrdered) : Number(rawQty ?? 0);
-                                    const uPrice = Number(it.unit_price || 0);
-
-                                    // Always prefer enriched product discounts from catalog
-                                    const discounts = (enrichedP?.discounts && enrichedP.discounts.length > 0)
-                                        ? enrichedP.discounts
-                                        : (p.discounts || []);
+                                    const isDraft = header.order_status === "Draft";
+                                    const uPrice = Number(isDraft && enrichedP ? enrichedP.base_price : it.unit_price) || 0;
+                                    const discounts = isDraft ? (p.discounts || []) : (it.product?.discounts || []);
 
                                     let netUnitPrice: number;
-                                    if (discounts.length > 0) {
+                                    if (discounts.length > 0 || (isDraft && enrichedP)) {
                                         // Best case: recalculate from actual discount percentages
                                         netUnitPrice = calculateChainNetPrice(uPrice, discounts);
                                     } else {
@@ -453,8 +450,11 @@ export function useSalesOrder() {
                                         }
                                     }
 
-                                    const calcTotal = uPrice * qty;
-                                    const calcNet = netUnitPrice * qty;
+                                    const calcTotal = isDraft ? uPrice * qty : Number(it.gross_amount ?? uPrice * qty);
+                                    const calcNet = isDraft ? netUnitPrice * qty : Number(it.net_amount ?? calcTotal);
+                                    const discountType = isDraft
+                                        ? (p.discount_level || String(it.discount_type || "none"))
+                                        : (it.discount_type ? (it.product?.discount_level || String(it.discount_type)) : "None");
 
                                     console.log(`[useSalesOrder] Item PID=${pid}, ordQty=${qty}, allocQty=${allocMap[tempId]}, uPrice=${uPrice}, discounts=${JSON.stringify(discounts)}, netUnit=${netUnitPrice}, calcNet=${calcNet}`);
 
@@ -464,10 +464,13 @@ export function useSalesOrder() {
                                         uom: it.uom || it.unit_of_measurement || p?.uom || p?.uom_shortcut || p?.uom_name || enrichedP?.uom || enrichedP?.uom_shortcut || enrichedP?.uom_name || "PCS",
                                         unitPrice: uPrice,
                                         quantity: qty,
-                                        discountType: p.discount_level || (typeof it.discount_type === 'number' && it.discount_type !== 0 ? String(it.discount_type) : (it.discount_type || "none")),
+                                        discountType,
                                         product: {
                                             ...p,
-                                            discount_type: it.discount_type || p.discount_type,
+                                            base_price: isDraft ? (p.base_price ?? uPrice) : uPrice,
+                                            discounts,
+                                            discount_type: isDraft && enrichedP ? enrichedP.discount_type : it.discount_type,
+                                            discount_level: discountType,
                                             id: p.id || p.product_id,
                                             product_id: p.product_id || pid,
                                             display_name: p.display_name || p.description || p.product_name || `Unknown Product ${pid}`,
@@ -479,7 +482,7 @@ export function useSalesOrder() {
                                         discounts: discounts,
                                         netAmount: calcNet,
                                         totalAmount: calcTotal,
-                                        discountAmount: calcTotal - calcNet,
+                                        discountAmount: isDraft ? calcTotal - calcNet : Number(it.discount_amount ?? calcTotal - calcNet),
                                         savedNetAmount: Number(it.net_amount || 0),
                                         savedDiscountAmount: Number(it.discount_amount || 0),
                                         savedAllocatedQty: Number(it.allocated_quantity || 0)
@@ -795,8 +798,10 @@ export function useSalesOrder() {
 
                     const newBasePrice = Number(match.base_price) || 0;
                     const newDiscounts = match.discounts || [];
+                    const newDiscountType = String(match.discount_level || match.discount_type || "None");
 
-                    const priceChanged = isEditable && (newBasePrice !== li.unitPrice || JSON.stringify(newDiscounts) !== JSON.stringify(li.discounts));
+                    const priceChanged = isEditable && (newBasePrice !== li.unitPrice || JSON.stringify(newDiscounts) !== JSON.stringify(li.discounts)
+                        || String(match.discount_type ?? "") !== String(li.product.discount_type ?? "") || newDiscountType !== li.discountType);
                     const metaChanged = match.available_qty !== li.product.available_qty || match.display_name !== li.product.display_name;
 
                     if (priceChanged || metaChanged) {
@@ -824,11 +829,13 @@ export function useSalesOrder() {
                             netAmount: updatedNetAmount,
                             totalAmount: updatedTotalAmount,
                             discountAmount: updatedDiscountAmount,
-                            discountType: (match.discount_level || match.discount_type || li.discountType) as string | undefined,
+                            discountType: isEditable ? newDiscountType : li.discountType,
                             product: {
                                 ...li.product,
-                                base_price: newBasePrice, // Keep catalog price in sync
-                                discounts: newDiscounts,
+                                base_price: isEditable ? newBasePrice : li.product.base_price,
+                                discounts: isEditable ? newDiscounts : li.product.discounts,
+                                discount_type: isEditable ? match.discount_type : li.product.discount_type,
+                                discount_level: isEditable ? match.discount_level : li.product.discount_level,
                                 available_qty: (match.available_qty ?? match.available ?? 0) as number,
                                 display_name: match.display_name || match.product_name || li.product.display_name,
                                 description: match.description || li.product.description,
@@ -940,9 +947,11 @@ export function useSalesOrder() {
     }, [lineItems]);
 
     const summary = useMemo(() => {
+        const preserveSavedPricing = !!existingOrderId && existingOrderStatus !== "Draft";
         // --- ORDERED TOTALS (The Customer's Request) ---
         const orderedGross = lineItems.reduce((sum, item) => sum + (item.unitPrice * item.quantity), 0);
         const orderedNet = lineItems.reduce((sum, item) => {
+            if (preserveSavedPricing) return sum + item.netAmount;
             const netPricePerUnit = calculateChainNetPrice(item.unitPrice, item.discounts);
             return sum + (netPricePerUnit * item.quantity);
         }, 0);
@@ -956,7 +965,9 @@ export function useSalesOrder() {
 
         const allocatedNet = lineItems.reduce((sum, item) => {
             const qty = allocatedQuantities[item.id] !== undefined ? allocatedQuantities[item.id] : item.quantity;
-            const netPricePerUnit = calculateChainNetPrice(item.unitPrice, item.discounts);
+            const netPricePerUnit = preserveSavedPricing
+                ? (item.quantity > 0 ? item.netAmount / item.quantity : 0)
+                : calculateChainNetPrice(item.unitPrice, item.discounts);
             return sum + (netPricePerUnit * qty);
         }, 0);
 
@@ -980,7 +991,7 @@ export function useSalesOrder() {
             vattableSales,
             vatAmount
         };
-    }, [lineItems, allocatedQuantities]);
+    }, [lineItems, allocatedQuantities, existingOrderId, existingOrderStatus]);
 
     const isValidAllocation = useMemo(() => {
         return lineItems.every(item => {

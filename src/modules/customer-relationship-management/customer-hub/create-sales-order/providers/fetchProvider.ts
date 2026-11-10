@@ -62,7 +62,7 @@ export const salesOrderProvider = {
         if (salesmanId) url += `&salesman_id=${salesmanId}`;
         if (branchId) url += `&branch_id=${branchId}`;
 
-        const cacheKey = `crm_products_${url}`;
+        const cacheKey = `crm_products_v2_${url}`;
 
         if (forceRefresh && typeof window !== "undefined") {
             localStorage.removeItem(cacheKey);
