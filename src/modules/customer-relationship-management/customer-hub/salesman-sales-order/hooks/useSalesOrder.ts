@@ -1,0 +1,1300 @@
+"use client";
+
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { useSearchParams } from "next/navigation";
+import { LineItem, Salesman, Customer, Supplier, Product, ReceiptType, SalesType, Branch, PriceTypeModel, PaymentTerm } from "../types";
+import { salesOrderProvider as defaultProvider } from "../providers/fetchProvider";
+import { calculateChainNetPrice } from "../utils/priceCalc";
+import { toast } from "sonner";
+
+
+export function useSalesOrder(salesOrderProvider = defaultProvider) {
+    const salesmanScoped = true;
+    const API_BASE = salesOrderProvider.API_BASE;
+    const [contextError, setContextError] = useState("");
+    const searchParams = useSearchParams();
+    const attachmentId = searchParams.get("attachment_id");
+    const externalSalesOrderId = searchParams.get("orderId") || searchParams.get("sales_order_id");
+    const isAutoFilled = useRef(false);
+    const lastId = useRef<string | null>(null);
+
+    // Selection State (IDs for dropdowns)
+    const [allSalesmen, setAllSalesmen] = useState<Salesman[]>([]);
+    const [salesmen, setSalesmen] = useState<Salesman[]>([]);
+    const [selectedSalesmanId, setSelectedSalesmanId] = useState<string>("");
+
+    const [accounts, setAccounts] = useState<Salesman[]>([]);
+    const [selectedAccountId, setSelectedAccountId] = useState<string>("");
+    const scopedAccountId = salesmanScoped ? selectedAccountId : "";
+    const [loadingAccounts, setLoadingAccounts] = useState(false);
+
+    const [customers, setCustomers] = useState<Customer[]>([]);
+    const [scopedCustomer, setScopedCustomer] = useState<Customer | undefined>();
+    const customerRequestGeneration = useRef(0);
+    const [selectedCustomerId, setSelectedCustomerId] = useState<string>("");
+    const [loadingCustomers, setLoadingCustomers] = useState(false);
+    const [customerSearch, setCustomerSearch] = useState("");
+    const [hasMoreCustomers, setHasMoreCustomers] = useState(true);
+    const [loadingMoreCustomers, setLoadingMoreCustomers] = useState(false);
+    const [customerReceivable, setCustomerReceivable] = useState<number | null>(null);
+    const [loadingReceivable, setLoadingReceivable] = useState(false);
+    const [scopedCreditVerified, setScopedCreditVerified] = useState(false);
+    const [isAutoApprovalEnabled, setIsAutoApprovalEnabled] = useState(false);
+
+    // Fetch general_setting for sales_order_auto_approval
+    useEffect(() => {
+        let isMounted = true;
+        salesOrderProvider.getGeneralSetting("sales_order_auto_approval")
+            .then(res => {
+                if (isMounted) {
+                    const val = res?.setting_value?.toString().trim();
+                    console.log("[useSalesOrder] General setting sales_order_auto_approval:", val);
+                    setIsAutoApprovalEnabled(val === "1");
+                }
+            })
+            .catch(err => {
+                console.warn("[useSalesOrder] Failed to fetch sales_order_auto_approval:", err);
+                if (isMounted) setIsAutoApprovalEnabled(false);
+            });
+
+        return () => {
+            isMounted = false;
+        };
+    }, [salesOrderProvider]);
+
+    const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+    const [selectedSupplierId, setSelectedSupplierId] = useState<string>("");
+    const loadingSuppliers = false;
+
+    const [branches, setBranches] = useState<Branch[]>([]);
+    const [selectedBranchId, setSelectedBranchId] = useState<string>("");
+
+    const [priceTypeModels, setPriceTypeModels] = useState<PriceTypeModel[]>([]);
+
+    // Meta Settings
+    const [receiptTypes, setReceiptTypes] = useState<ReceiptType[]>([]);
+    const [selectedReceiptTypeId, setSelectedReceiptTypeId] = useState<string>("");
+
+    const [salesTypes, setSalesTypes] = useState<SalesType[]>([]);
+    const [selectedSalesTypeId, setSelectedSalesTypeId] = useState<string>("1");
+
+    const [dueDate, setDueDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
+    const [deliveryDate, setDeliveryDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
+    const [poNo, setPoNo] = useState("");
+    const [priceType, setPriceType] = useState<string>("A");
+    const [priceTypeId, setPriceTypeId] = useState<number | null>(null);
+
+    // Product Results
+    const [supplierProducts, setSupplierProducts] = useState<Product[]>([]);
+    const [loadingProducts, setLoadingProducts] = useState(false);
+    const [productSearch, setProductSearch] = useState("");
+
+
+    // Cart
+    const [lineItems, setLineItems] = useState<LineItem[]>([]);
+    const [submitting, setSubmitting] = useState(false);
+
+    // Checkout State
+    const [isCheckout, setIsCheckout] = useState(false);
+    const [isCheckoutLoading, setIsCheckoutLoading] = useState(false);
+    const [orderNo, setOrderNo] = useState("");
+    const [existingOrderNo, setExistingOrderNo] = useState("");
+    const [allocatedQuantities, setAllocatedQuantities] = useState<Record<string, number>>({});
+    const [orderRemarks, setOrderRemarks] = useState("");
+    const [existingOrderId, setExistingOrderId] = useState<number | null>(null);
+    const [existingOrderStatus, setExistingOrderStatus] = useState<string>("");
+    const [paymentTerms, setPaymentTerms] = useState<number | null>(null);
+    const [paymentTermsList, setPaymentTermsList] = useState<PaymentTerm[]>([]);
+
+    // --- AUTO-DATE CALCULATION ---
+    useEffect(() => {
+        // Find payment days from the selected payment term ID
+        const selectedTerm = paymentTermsList.find(pt => Number(pt.id) === Number(paymentTerms));
+        let days = selectedTerm?.payment_days || 0;
+
+        const termName = selectedTerm?.payment_name?.trim() || "";
+        if (termName.toLowerCase().includes("1 up 1 down") || termName.toLowerCase().includes("1up 1down")) {
+            days = 1;
+        }
+
+        // User clarified: due date is based on order date (today), not delivery date
+        const baseDate = new Date();
+        const futureDate = new Date(baseDate.getTime() + (days * 24 * 60 * 60 * 1000));
+        setDueDate(futureDate.toISOString().split('T')[0]);
+
+    }, [paymentTerms, paymentTermsList]);
+
+    const selectedSalesman = useMemo(() => Array.isArray(salesmen) ? salesmen.find(s => (s.user_id || s.id)?.toString() === selectedSalesmanId) : undefined, [salesmen, selectedSalesmanId]);
+    const selectedAccount = useMemo(() => Array.isArray(accounts) ? accounts.find(a => a.id.toString() === selectedAccountId) : undefined, [accounts, selectedAccountId]);
+    const selectedCustomer = useMemo(() => (Array.isArray(customers) ? customers.find(c => c.id.toString() === selectedCustomerId) : undefined) || (salesmanScoped && scopedCustomer?.id.toString() === selectedCustomerId ? scopedCustomer : undefined), [customers, selectedCustomerId, salesmanScoped, scopedCustomer]);
+    const selectedSupplier = useMemo(() => Array.isArray(suppliers) ? suppliers.find(s => s.id.toString() === selectedSupplierId) : undefined, [suppliers, selectedSupplierId]);
+    const selectedReceiptType = useMemo(() => Array.isArray(receiptTypes) ? receiptTypes.find(rt => rt.id.toString() === selectedReceiptTypeId) : undefined, [receiptTypes, selectedReceiptTypeId]);
+    const selectedSalesType = useMemo(() => Array.isArray(salesTypes) ? salesTypes.find(st => st.id.toString() === selectedSalesTypeId) : undefined, [salesTypes, selectedSalesTypeId]);
+    const selectedBranch = useMemo(() => Array.isArray(branches) ? branches.find(b => b.id.toString() === selectedBranchId) : undefined, [branches, selectedBranchId]);
+
+    useEffect(() => {
+        if (!salesmanScoped || !selectedAccountId) return;
+        let active = true;
+        fetch(`${API_BASE}?action=account_context&salesman_id=${selectedAccountId}`)
+            .then(async response => { if (!response.ok) throw new Error("Account configuration is unavailable"); return response.json(); })
+            .then(data => { if (active) { setSuppliers(data.suppliers); setBranches(data.branches); setPriceTypeModels(data.priceTypes); } })
+            .catch(error => { if (active) setContextError(error.message); });
+        return () => { active = false; };
+    }, [salesmanScoped, selectedAccountId, API_BASE]);
+
+    // Fetch Accounts Receivable (Utang) whenever selected customer changes
+    useEffect(() => {
+        const customerCode = selectedCustomer?.customer_code;
+        if (!customerCode) {
+            setCustomerReceivable(null);
+            setLoadingReceivable(false);
+            return;
+        }
+
+        let isMounted = true;
+        setLoadingReceivable(true);
+        if (salesmanScoped) setScopedCreditVerified(false);
+
+        fetch(`${API_BASE}?action=receivable&customer_code=${encodeURIComponent(customerCode)}&salesman_id=${scopedAccountId}`)
+            .then(res => {
+                if (!res.ok) throw new Error("Failed to fetch AR");
+                return res.json();
+            })
+            .then(data => {
+                if (isMounted) {
+                    if (salesmanScoped && (typeof data?.amount !== "number" || !Number.isFinite(data.amount))) throw new Error("Invalid credit balance");
+                    setCustomerReceivable(typeof data?.amount === "number" ? data.amount : Number(data?.amount || 0));
+                    if (salesmanScoped) setScopedCreditVerified(true);
+                }
+            })
+            .catch(err => {
+                console.warn("[useSalesOrder] Could not fetch customer receivable:", err);
+                if (isMounted) {
+                    setCustomerReceivable(0);
+                    if (salesmanScoped) { setScopedCreditVerified(false); toast.warning("Credit balance unavailable. This order will require credit approval."); }
+                }
+            })
+            .finally(() => {
+                if (isMounted) {
+                    setLoadingReceivable(false);
+                }
+            });
+
+        return () => {
+            isMounted = false;
+        };
+    }, [selectedCustomer?.customer_code, salesmanScoped, API_BASE, scopedAccountId]);
+
+    // Auto-generate preview SO# (Not the final one yet - that's set on enterCheckout)
+    const previewOrderNo = useMemo(() => {
+        if (existingOrderNo) return existingOrderNo;
+        if (!selectedSupplierId) return "DRAFT-SO";
+        const prefix = selectedSupplier?.supplier_shortcut || "SO";
+        const now = new Date();
+        const datePart = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`;
+        return `${prefix}-${datePart}XXXXX`;
+    }, [existingOrderNo, selectedSupplier, selectedSupplierId]);
+
+    // Initial Data Fetch
+    useEffect(() => {
+        const init = async () => {
+            const [sm, sup, br, pt, rec, ops, pterms] = await Promise.all([
+                salesOrderProvider.getSalesmen(),
+                salesOrderProvider.getSuppliers(),
+                salesOrderProvider.getBranches(),
+                salesOrderProvider.getPriceTypes(),
+                fetch(`${API_BASE}?action=invoice_types`).then(r => r.json()),
+                fetch(`${API_BASE}?action=operations`).then(r => r.json()),
+                fetch(`${API_BASE}?action=payment_terms`).then(r => r.json())
+            ]);
+
+            const smArray = Array.isArray(sm) ? sm : [];
+            setAllSalesmen(smArray);
+            setSalesmen(smArray);
+            if (salesmanScoped && smArray[0]) {
+                setSelectedSalesmanId(String(smArray[0].user_id || smArray[0].id));
+                const response = await fetch(`${API_BASE}?action=accounts`);
+                if (!response.ok) throw new Error("Unable to load authorized salesman accounts");
+                setAccounts(await response.json());
+            }
+            setSuppliers(Array.isArray(sup) ? sup : []);
+            setBranches(Array.isArray(br) ? br : []);
+            setPriceTypeModels(Array.isArray(pt) ? pt : []);
+            setReceiptTypes(Array.isArray(rec) ? rec : []);
+            setSalesTypes(Array.isArray(ops) ? ops : []);
+            setPaymentTermsList(Array.isArray(pterms) ? pterms : []);
+
+            if (Array.isArray(rec) && rec.length > 0) setSelectedReceiptTypeId(rec[0].id.toString());
+            if (Array.isArray(ops) && ops.length > 0) setSelectedSalesTypeId(ops[0].id.toString());
+
+            // Check for Auto-fill from URL
+            const currentId = attachmentId || externalSalesOrderId;
+
+            // IF NO ID: Reset to blank state if we previously had one to prevent data carry-over
+            if (!currentId && lastId.current) {
+                console.log("[useSalesOrder] ID cleared. Resetting to blank state.");
+                isAutoFilled.current = false;
+                lastId.current = null;
+                setLineItems([]);
+                setAllocatedQuantities({});
+                setExistingOrderId(null);
+                setExistingOrderNo("");
+                setExistingOrderStatus("");
+                setOrderRemarks("");
+                setCustomerSearch("");
+                setSelectedCustomerId("");
+                setPaymentTerms(null);
+                setCustomerReceivable(null);
+            }
+
+            if (currentId && (currentId !== lastId.current || !isAutoFilled.current)) {
+                console.log(`[useSalesOrder] Auto-filling for ${currentId}. Last was ${lastId.current}`);
+                isAutoFilled.current = true;
+                lastId.current = currentId;
+
+                // Reset order-specific state to prevent data leakage from previous order session
+                setLineItems([]);
+                setAllocatedQuantities({});
+                setExistingOrderId(null);
+                setExistingOrderNo("");
+                setOrderRemarks("");
+
+                try {
+                    let finalSalesOrderId = externalSalesOrderId;
+
+                    if (attachmentId) {
+                        const attachment = await fetch(`${API_BASE}?action=get_attachment&id=${attachmentId}`).then(r => { if (!r.ok) throw new Error("Attachment access denied"); return r.json(); });
+
+                        if (attachment) {
+                            if (attachment.sales_order_id) {
+                                finalSalesOrderId = attachment.sales_order_id.toString();
+                            } else if (attachment.sales_order_no) {
+                                // Fallback: Resolve by Sales Order Number (Grouping Logic)
+                                console.log(`[useSalesOrder] Found order_no ${attachment.sales_order_no} on attachment, looking up existing order...`);
+                                const lookup = await fetch(`${API_BASE}?action=get_order&order_no=${encodeURIComponent(attachment.sales_order_no)}`).then(r => r.json());
+                                if (lookup && lookup.header && !lookup.error) {
+                                    finalSalesOrderId = (lookup.header.order_id || lookup.header.id).toString();
+                                    console.log(`[useSalesOrder] Resolved ${attachment.sales_order_no} to existing Order ID: ${finalSalesOrderId}`);
+                                }
+                            }
+                        }
+
+                        // PRE-FILL METADATA (Only if no existing order was resolved)
+                        if (!finalSalesOrderId && attachment) {
+                            console.log(`[useSalesOrder] New attachment detected. Initializing with: ${attachment.customer_code} | Ref: ${attachment.sales_order_no}`);
+
+                            // Initialize the Order Reference so it matches the group
+                            if (attachment.sales_order_no) setExistingOrderNo(attachment.sales_order_no);
+
+                            // EXACT SALESMAN MATCH (Extract Price Type & ID correctly based on literal callsheet assignment)
+                            if (attachment.salesman_id) {
+                                const smData = await fetch(`${salesOrderProvider.API_BASE}?action=salesman_by_id&id=${attachment.salesman_id}`).then(r => r.json());
+                                if (smData) {
+                                    const uidStr = (smData.employee_id || smData.encoder_id || smData.user_id)?.toString();
+                                    const sIdStr = smData.id?.toString();
+
+                                    if (uidStr) {
+                                        setSelectedSalesmanId(uidStr);
+                                        const accts = await fetch(`${salesOrderProvider.API_BASE}?action=accounts&user_id=${uidStr}`).then(r => r.json());
+                                        setAccounts(accts);
+
+                                        if (sIdStr) {
+                                            setSelectedAccountId(sIdStr);
+                                            console.log(`[useSalesOrder] Auto-selected Account ID from attachment: ${sIdStr}`);
+
+                                            // Trigger accurate price type calculation based on Salesman details
+                                            let finalPriceTypeId: number | null = null;
+                                            if (smData.price_type_id !== null && smData.price_type_id !== undefined) {
+                                                finalPriceTypeId = Number(smData.price_type_id);
+                                            }
+
+                                            setPriceTypeId(finalPriceTypeId);
+
+                                            if (finalPriceTypeId && Array.isArray(pt)) {
+                                                const ptModel = pt.find(m => m.price_type_id === finalPriceTypeId);
+                                                if (ptModel) {
+                                                    setPriceType(ptModel.price_type_name);
+                                                    console.log(`[useSalesOrder] Extracted Price Type: ${ptModel.price_type_name} (ID: ${finalPriceTypeId})`);
+                                                } else if (smData.price_type) {
+                                                    setPriceType(smData.price_type);
+                                                } else {
+                                                    setPriceType("A");
+                                                }
+                                            } else if (smData.price_type) {
+                                                setPriceType(smData.price_type);
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            if (attachment.customer_code) {
+                                setCustomerSearch(attachment.customer_code);
+                                const custs = await salesOrderProvider.getAllCustomers(attachment.customer_code, 0);
+                                if (custs.length > 0) {
+                                    if (salesmanScoped) setScopedCustomer(custs[0]);
+                                    setCustomers(custs);
+                                    const targetCustId = custs[0].id.toString();
+                                    setSelectedCustomerId(targetCustId);
+                                    if (custs[0].payment_term !== undefined) setPaymentTerms(custs[0].payment_term);
+
+                                    console.log(`[useSalesOrder] Auto-selected Customer: ${custs[0].customer_name} (ID: ${targetCustId})`);
+                                }
+                            }
+                        }
+                    }
+
+                    if (finalSalesOrderId) {
+                        setExistingOrderId(Number(finalSalesOrderId));
+                        const orderData = await fetch(`${API_BASE}?action=get_order&order_id=${finalSalesOrderId}`).then(r => { if (!r.ok) throw new Error("Order access denied"); return r.json(); });
+                        const { header, items } = orderData;
+                        console.log("[useSalesOrder] Loading Existing Order Data:", { header, items });
+
+                        if (header) {
+                            setExistingOrderStatus(header.order_status || "");
+                            setExistingOrderNo(header.order_no || "");
+                            setPoNo(header.po_no || "");
+
+                            const parseDate = (d: unknown) => {
+                                if (!d) return "";
+                                const str = String(d);
+                                return str.includes('T') ? str.split('T')[0] : str;
+                            };
+
+                            const dDate = parseDate(header.due_date);
+                            const delDate = parseDate(header.delivery_date);
+
+                            setDueDate(dDate);
+                            setDeliveryDate(delDate);
+                            setOrderRemarks(header.remarks || "");
+
+                            if (header.salesman_id) {
+                                const smUser = await fetch(`${salesOrderProvider.API_BASE}?action=salesman_by_id&id=${header.salesman_id}`).then(r => r.json());
+                                if (smUser) {
+                                    const uid = (smUser.employee_id || smUser.encoder_id || smUser.user_id)?.toString();
+                                    if (uid) {
+                                        setSelectedSalesmanId(uid);
+                                        const accts = await fetch(`${salesOrderProvider.API_BASE}?action=accounts&user_id=${uid}`).then(r => r.json());
+                                        setAccounts(accts);
+                                        setSelectedAccountId(header.salesman_id.toString());
+                                    }
+
+                                    // If the order header lacks a price_type_id, fallback to the salesman's assigned price type
+                                    if (!header.price_type_id && smUser.price_type_id) {
+                                        header.price_type_id = smUser.price_type_id;
+                                    }
+                                }
+                            }
+
+                            if (header.customer_code) {
+                                const custs = await salesOrderProvider.getAllCustomers(header.customer_code, 0);
+                                if (custs.length > 0) {
+                                    if (salesmanScoped) setScopedCustomer(custs[0]);
+                                    setCustomers(custs);
+                                    setSelectedCustomerId(custs[0].id.toString());
+                                }
+                            }
+
+                            if (header.payment_terms !== undefined) setPaymentTerms(header.payment_terms);
+
+                            if (header.price_type_id) {
+                                const pTIdNum = Number(header.price_type_id);
+                                setPriceTypeId(pTIdNum);
+                                // Resolve price type name using the locally fetched `pt` array to bypass React state stale closures
+                                if (Array.isArray(pt)) {
+                                    const ptModel = pt.find((m: PriceTypeModel) => m.price_type_id === pTIdNum);
+                                    if (ptModel) {
+                                        setPriceType(ptModel.price_type_name);
+                                    }
+                                }
+                            }
+
+                            if (header.supplier_id) setSelectedSupplierId(header.supplier_id.toString());
+                            if (header.branch_id) setSelectedBranchId(header.branch_id.toString());
+                            if (header.receipt_type) setSelectedReceiptTypeId(header.receipt_type.toString());
+                            if (header.sales_type) setSelectedSalesTypeId(header.sales_type.toString());
+
+                            if (items && Array.isArray(items)) {
+                                console.log("[useSalesOrder] Mapping Items with Enrichment:", items.length);
+
+                                // 1. Fetch full product metadata for enriched information (discounts, categories)
+                                // We use the current header context to get the same discount logic as the catalog
+                                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                                const enrichedProductsMap = new Map<number, any>();
+                                try {
+                                    const pUrl = `${salesOrderProvider.API_BASE}?action=products&customer_code=${header.customer_code}&supplier_id=${header.supplier_id}&branch_id=${header.branch_id}&price_type_id=${header.price_type_id || ""}${salesmanScoped ? `&salesman_id=${header.salesman_id}` : ""}`;
+                                    const pData = await fetch(pUrl).then(r => r.json());
+                                    if (Array.isArray(pData)) {
+                                        pData.forEach(p => enrichedProductsMap.set(Number(p.product_id), p));
+                                    }
+                                } catch (e) {
+                                    console.error("[useSalesOrder] Product enrichment failed:", e);
+                                }
+
+                                let invData: Record<number, { available: number, unitCount: number }> = {};
+                                try {
+                                    if (header.branch_id && header.supplier_id) {
+                                        const smId = header.salesman_id ? header.salesman_id.toString() : undefined;
+                                        invData = await salesOrderProvider.getCartInventory(header.branch_id.toString(), header.supplier_id.toString(), smId);
+                                        console.log("[useSalesOrder] Fetched Draft Cart Inventory:", Object.keys(invData).length, "items");
+                                    }
+                                } catch (e) {
+                                    console.error("[useSalesOrder] Draft inventory fetch failed:", e);
+                                }
+
+                                const allocMap: Record<string, number> = {};
+                                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                                const mappedItems = items.map((it: any) => {
+                                    const tempId = Math.random().toString(36).substr(2, 9);
+                                    allocMap[tempId] = Number(it.allocated_quantity ?? 0);
+
+                                    // Preserve original Detail ID for Smart Update logic
+                                    const originalPK = it.detail_id || it.order_detail_id || it.id;
+
+                                    const pid = Number(typeof it.product_id === 'object' ? it.product_id?.product_id : it.product_id);
+                                    const enrichedP = enrichedProductsMap.get(pid);
+                                    const p = enrichedP || it.product || (typeof it.product_id === 'object' ? it.product_id : { product_id: it.product_id });
+
+                                    const rawOrdered = it.ordered_quantity;
+                                    const rawQty = it.quantity;
+                                    const qty = (rawOrdered !== undefined && rawOrdered !== null) ? Number(rawOrdered) : Number(rawQty ?? 0);
+                                    const isDraft = header.order_status === "Draft";
+                                    const uPrice = Number(isDraft && enrichedP ? enrichedP.base_price : it.unit_price) || 0;
+                                    const discounts = isDraft ? (p.discounts || []) : (it.product?.discounts || []);
+
+                                    let netUnitPrice: number;
+                                    if (discounts.length > 0 || (isDraft && enrichedP)) {
+                                        // Best case: recalculate from actual discount percentages
+                                        netUnitPrice = calculateChainNetPrice(uPrice, discounts);
+                                    } else {
+                                        // Fallback: use gross vs net from DB based on ORDERED qty (not allocated)
+                                        // This preserves the discount even if allocated was 0
+                                        const dbGross = Number(it.gross_amount || 0);
+                                        const dbOrdered = Number(it.ordered_quantity || it.quantity || 0);
+                                        const dbNet = Number(it.net_amount || 0);
+                                        if (dbGross > 0 && dbNet > 0 && dbOrdered > 0 && dbGross !== dbNet) {
+                                            netUnitPrice = uPrice * (dbNet / dbGross);
+                                        } else {
+                                            netUnitPrice = uPrice;
+                                        }
+                                    }
+
+                                    const calcTotal = isDraft ? uPrice * qty : Number(it.gross_amount ?? uPrice * qty);
+                                    const calcNet = isDraft ? netUnitPrice * qty : Number(it.net_amount ?? calcTotal);
+                                    const discountType = isDraft
+                                        ? (p.discount_level || String(it.discount_type || "none"))
+                                        : (it.discount_type ? (it.product?.discount_level || String(it.discount_type)) : "None");
+
+                                    console.log(`[useSalesOrder] Item PID=${pid}, ordQty=${qty}, allocQty=${allocMap[tempId]}, uPrice=${uPrice}, discounts=${JSON.stringify(discounts)}, netUnit=${netUnitPrice}, calcNet=${calcNet}`);
+
+                                    return {
+                                        id: tempId,
+                                        detail_id: originalPK, // Bida to! 🚀
+                                        uom: it.uom || it.unit_of_measurement || p?.uom || p?.uom_shortcut || p?.uom_name || enrichedP?.uom || enrichedP?.uom_shortcut || enrichedP?.uom_name || "PCS",
+                                        unitPrice: uPrice,
+                                        quantity: qty,
+                                        discountType,
+                                        product: {
+                                            ...p,
+                                            base_price: isDraft ? (p.base_price ?? uPrice) : uPrice,
+                                            discounts,
+                                            discount_type: isDraft && enrichedP ? enrichedP.discount_type : it.discount_type,
+                                            discount_level: discountType,
+                                            id: p.id || p.product_id,
+                                            product_id: p.product_id || pid,
+                                            display_name: p.display_name || p.description || p.product_name || `Unknown Product ${pid}`,
+                                            product_name: p.product_name,
+                                            description: p.description,
+                                            available_qty: invData[Number(pid)]?.available ?? p.available_qty ?? 0,
+                                            unit_count: p.unit_count || p.unit_of_measurement_count || 1
+                                        },
+                                        discounts: discounts,
+                                        netAmount: calcNet,
+                                        totalAmount: calcTotal,
+                                        discountAmount: isDraft ? calcTotal - calcNet : Number(it.discount_amount ?? calcTotal - calcNet),
+                                        savedNetAmount: Number(it.net_amount || 0),
+                                        savedDiscountAmount: Number(it.discount_amount || 0),
+                                        savedAllocatedQty: Number(it.allocated_quantity || 0)
+                                    };
+                                });
+                                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                                setLineItems(mappedItems as any);
+                                setAllocatedQuantities(allocMap);
+                            }
+                        }
+                    }
+                } catch (err) {
+                    console.error("[useSalesOrder] Auto-fill error", err);
+                    toast.error("Failed to load auto-fill data");
+                    if (salesmanScoped) setContextError("Unable to open this order or attachment with your salesman permissions");
+                }
+            }
+        };
+        init().catch(error => setContextError(error instanceof Error ? error.message : "Unable to load salesman context"));
+    }, [attachmentId, externalSalesOrderId, API_BASE, salesOrderProvider, salesmanScoped]);
+
+    // Debounced Customer Search
+    useEffect(() => {
+        let active = true;
+        customerRequestGeneration.current += 1;
+        const fetchCustomers = async () => {
+            setLoadingCustomers(true);
+            setHasMoreCustomers(true);
+            try {
+                const data = salesmanScoped
+                    ? await fetch(`${API_BASE}?action=customers&salesman_id=${scopedAccountId}&search=${encodeURIComponent(customerSearch)}`).then(r => { if (!r.ok) throw new Error("Customer lookup denied"); return r.json(); })
+                    : await salesOrderProvider.getAllCustomers(customerSearch, 0);
+                const results = Array.isArray(data) ? data : [];
+                if (!active) return;
+                setCustomers(results);
+                if (results.length < 30) setHasMoreCustomers(false);
+            } catch (err) {
+                console.error("Search error", err);
+            } finally {
+                if (active) setLoadingCustomers(false);
+            }
+        };
+
+        const timer = setTimeout(fetchCustomers, 400);
+        return () => { active = false; clearTimeout(timer); };
+    }, [customerSearch, salesmanScoped, scopedAccountId, API_BASE, salesOrderProvider]);
+
+    const loadMoreCustomers = useCallback(async () => {
+        if (loadingMoreCustomers || !hasMoreCustomers) return;
+        setLoadingMoreCustomers(true);
+        const generation = customerRequestGeneration.current;
+        try {
+            const currentCount = customers.length;
+            const data = salesmanScoped
+                ? await fetch(`${API_BASE}?action=customers&salesman_id=${scopedAccountId}&search=${encodeURIComponent(customerSearch)}&offset=${currentCount}`).then(r => { if (!r.ok) throw new Error("Customer lookup denied"); return r.json(); })
+                : await salesOrderProvider.getAllCustomers(customerSearch, currentCount);
+            const moreResults = Array.isArray(data) ? data : [];
+            if (salesmanScoped && generation !== customerRequestGeneration.current) return;
+            if (moreResults.length > 0) {
+                setCustomers(prev => [...prev, ...moreResults]);
+                if (moreResults.length < 30) setHasMoreCustomers(false);
+            } else {
+                setHasMoreCustomers(false);
+            }
+        } catch (err) {
+            console.error("Pagination error", err);
+        } finally {
+            setLoadingMoreCustomers(false);
+        }
+    }, [customers.length, customerSearch, loadingMoreCustomers, hasMoreCustomers, salesmanScoped, scopedAccountId, API_BASE, salesOrderProvider]);
+
+    // Change Handlers
+    const handleSalesmanChange = async (id: string) => {
+        if (salesmanScoped) return;
+        setSelectedSalesmanId(id);
+        setSelectedAccountId("");
+        // Do not clear customer selection or list
+        setAccounts([]);
+
+        if (id) {
+            setLoadingAccounts(true);
+            try {
+                // 1. Fetch current accounts for this user
+                const res = await fetch(`${API_BASE}?action=accounts&user_id=${id}`);
+                const data = await res.json();
+
+                const masterUser = salesmen.find(s => (s.user_id || s.id)?.toString() === id);
+                let filteredAccounts: Salesman[] = Array.isArray(data) ? data : [];
+                if (masterUser && masterUser.linked_account_ids && masterUser.linked_account_ids.length > 0) {
+                    filteredAccounts = filteredAccounts.filter(a => masterUser.linked_account_ids?.some(lid => lid.toString() === a.id.toString()));
+                }
+                setAccounts(filteredAccounts);
+
+                // 🚀 SMART ACCOUNT RESOLUTION:
+                // Find if this Master User has a specific account linked to the current selected customer
+                if (masterUser && masterUser.linked_account_ids && masterUser.linked_account_ids.length === 1) {
+                    const linkedId = masterUser.linked_account_ids[0].toString();
+                    const linkedAccount = filteredAccounts.find((a: Salesman) => a.id.toString() === linkedId);
+                    console.log(`[handleSalesmanChange] Master User ${id} has one linked account for this customer: ${linkedId}. Auto-selecting...`);
+                    // PASS THE FRESH DATA DIRECTLY to avoid React state delay
+                    handleAccountChange(linkedId, linkedAccount);
+                }
+            } catch (e) {
+                console.error(e);
+            } finally {
+                setLoadingAccounts(false);
+            }
+        }
+    };
+
+    const handleAccountChange = async (id: string, providedAccount?: Salesman) => {
+        if (salesmanScoped) {
+            setScopedCustomer(undefined);
+            customerRequestGeneration.current += 1;
+            setCustomers([]);
+            setLoadingCustomers(true);
+            setSuppliers([]);
+            setBranches([]);
+            setPriceTypeModels([]);
+            setSupplierProducts([]);
+            setSelectedCustomerId("");
+            setCustomerSearch("");
+            setLineItems([]);
+            setAllocatedQuantities({});
+            setSelectedSupplierId("");
+        }
+        setSelectedAccountId(id);
+        // Do not clear customer selection
+
+        const account = providedAccount || accounts.find(a => a.id.toString() === id);
+        if (account) {
+            setPriceType(account.price_type || "A");
+            setPriceTypeId(account.price_type_id || null);
+            if (account.branch_code) {
+                const bId = typeof account.branch_code === "object"
+                    ? (account.branch_code as { id?: number | string }).id
+                    : account.branch_code;
+                if (bId) setSelectedBranchId(bId.toString());
+            }
+        }
+
+        if (salesmanScoped) return; // Scoped search effect owns account-specific loading/pagination.
+        if (id) {
+            setLoadingCustomers(true);
+            try {
+                const data = await salesOrderProvider.getCustomers(Number(id));
+                setCustomers(prev => {
+                    const dataSafe = Array.isArray(data) ? data : [];
+                    if (salesmanScoped || !selectedCustomerId) return dataSafe;
+                    const selected = prev.find(c => c.id.toString() === selectedCustomerId);
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    if (selected && !dataSafe.find((c: any) => c.id.toString() === selected.id.toString())) {
+                        return [selected, ...dataSafe];
+                    }
+                    return dataSafe;
+                });
+            } catch (e) {
+                console.error(e);
+            } finally {
+                setLoadingCustomers(false);
+            }
+        }
+    };
+
+    const handleCustomerChange = async (id: string) => {
+        setSelectedCustomerId(id);
+        const customer = customers.find(c => c.id.toString() === id);
+        if (salesmanScoped) {
+            setScopedCustomer(customer);
+            setLineItems([]);
+            setAllocatedQuantities({});
+            if (customer?.payment_term !== undefined) setPaymentTerms(customer.payment_term);
+            return;
+        }
+
+        if (customer) {
+            // Apply customer-specific defaults
+            if (customer.price_type) setPriceType(customer.price_type);
+            if (customer.price_type_id) setPriceTypeId(Number(customer.price_type_id));
+            if (customer.payment_term !== undefined) setPaymentTerms(customer.payment_term);
+        }
+
+        if (id) {
+            try {
+                // 🚀 GET LINKED SALESMEN (Via customer_salesmen link table)
+                const linkedUsers = await salesOrderProvider.getSalesmanByCustomer(Number(id));
+                const activeSalesmen = Array.isArray(linkedUsers) && linkedUsers.length > 0 ? linkedUsers : allSalesmen;
+                setSalesmen(activeSalesmen);
+
+                // Check if current selection is still valid
+                const isCurrentValid = activeSalesmen.some(s => (s.user_id || s.id)?.toString() === selectedSalesmanId);
+
+                // --- SCENARIO A: Only one Master User linked to this customer ---
+                if (activeSalesmen.length === 1) {
+                    const sm = activeSalesmen[0];
+                    const uid = (sm.user_id || sm.id)?.toString();
+                    if (uid && (!selectedSalesmanId || !isCurrentValid)) {
+                        console.log(`[handleCustomerChange] Single salesman detected: ${uid}. Auto-selecting...`);
+
+                        // Set Master User
+                        setSelectedSalesmanId(uid);
+
+                        // Fetch all accounts for this user so the dropdown is ready
+                        const res = await fetch(`${API_BASE}?action=accounts&user_id=${uid}`);
+                        const acctsData = await res.json();
+
+                        let filteredAccts: Salesman[] = Array.isArray(acctsData) ? acctsData : [];
+                        if (sm.linked_account_ids && sm.linked_account_ids.length > 0) {
+                            filteredAccts = filteredAccts.filter((a: Salesman) => sm.linked_account_ids?.some(lid => lid.toString() === a.id.toString()));
+                        }
+                        setAccounts(filteredAccts);
+
+                        // --- AUTO-SELECT ACCOUNT: If this user has exactly one account linked to this customer ---
+                        if (sm.linked_account_ids && sm.linked_account_ids.length === 1) {
+                            const aid = sm.linked_account_ids[0].toString();
+                            const linkedAccount = filteredAccts.find((a: Salesman) => a.id.toString() === aid);
+                            console.log(`[handleCustomerChange] Single account link detected: ${aid}. Auto-selecting Account...`);
+                            handleAccountChange(aid, linkedAccount);
+                        }
+                    }
+                }
+                // --- SCENARIO B: Current user no longer valid or multiple options ---
+                else if (!isCurrentValid) {
+                    setSelectedSalesmanId("");
+                    setSelectedAccountId("");
+                    setAccounts([]);
+                } else if (selectedSalesmanId) {
+                    // Update accounts dropdown for currently selected salesman matching linked_account_ids
+                    const currentSm = activeSalesmen.find(s => (s.user_id || s.id)?.toString() === selectedSalesmanId);
+                    if (currentSm) {
+                        const res = await fetch(`${API_BASE}?action=accounts&user_id=${selectedSalesmanId}`);
+                        const acctsData = await res.json();
+                        let filteredAccts: Salesman[] = Array.isArray(acctsData) ? acctsData : [];
+                        if (currentSm.linked_account_ids && currentSm.linked_account_ids.length > 0) {
+                            filteredAccts = filteredAccts.filter((a: Salesman) => currentSm.linked_account_ids?.some(lid => lid.toString() === a.id.toString()));
+                        }
+                        setAccounts(filteredAccts);
+                        if (selectedAccountId && !filteredAccts.some(a => a.id.toString() === selectedAccountId)) {
+                            setSelectedAccountId("");
+                        }
+                    }
+                }
+            } catch (e) {
+                console.error("Failed to fetch linked salesmen:", e);
+                setSalesmen(allSalesmen);
+                setSelectedSalesmanId("");
+                setSelectedAccountId("");
+                setAccounts([]);
+            }
+        } else {
+            setSalesmen(allSalesmen);
+            setSelectedSalesmanId("");
+            setSelectedAccountId("");
+            setAccounts([]);
+        }
+    };
+
+    const handlePriceTypeIdChange = (id: string) => {
+        const nid = id ? Number(id) : null;
+        setPriceTypeId(nid);
+        if (nid) {
+            const model = priceTypeModels.find(p => p.price_type_id === nid);
+            if (model) setPriceType(model.price_type_name);
+        }
+    };
+
+    const handleSupplierChange = (id: string) => {
+        setSelectedSupplierId(id);
+        setLineItems([]);
+        setAllocatedQuantities({});
+    };
+
+    // Auto-fetch products when supplier is selected
+    useEffect(() => {
+        if (selectedCustomerId && selectedSupplierId) {
+            const customer = customers.find(c => c.id.toString() === selectedCustomerId);
+            const customerCode = customer?.customer_code;
+            const customerId = selectedCustomerId;
+            const supplierId = selectedSupplierId;
+            const sSalesmanId = selectedAccountId; // Use the selected account (salesman record PK)
+            const sBranchId = selectedBranchId;
+
+            if (customerCode) {
+                setLoadingProducts(true);
+
+                // Concurrent fetch for products
+                salesOrderProvider.searchProducts("", customerCode, Number(supplierId), priceType, Number(customerId), priceTypeId || undefined, sSalesmanId, sBranchId)
+                    .then((productsData) => {
+                        setSupplierProducts(Array.isArray(productsData) ? productsData : []);
+                    }).catch(error => {
+                        if (salesmanScoped) { setSupplierProducts([]); toast.error(error instanceof Error ? error.message : "Product lookup failed"); }
+                    }).finally(() => setLoadingProducts(false));
+            }
+        } else {
+            setSupplierProducts([]);
+        }
+    }, [selectedCustomerId, selectedSupplierId, priceType, priceTypeId, selectedAccountId, selectedBranchId, customers, salesOrderProvider, salesmanScoped]);
+
+    // Force-refresh products by purging cache and querying fresh data
+    const refreshProducts = useCallback(async () => {
+        if (!selectedCustomerId || !selectedSupplierId) {
+            toast.info("Please select a customer and supplier first");
+            return;
+        }
+
+        const customer = customers.find(c => c.id.toString() === selectedCustomerId);
+        const customerCode = customer?.customer_code;
+        const customerId = selectedCustomerId;
+        const supplierId = selectedSupplierId;
+        const sSalesmanId = selectedAccountId;
+        const sBranchId = selectedBranchId;
+
+        if (!customerCode) return;
+
+        setLoadingProducts(true);
+        try {
+            const productsData = await salesOrderProvider.searchProducts(
+                "",
+                customerCode,
+                Number(supplierId),
+                priceType,
+                Number(customerId),
+                priceTypeId || undefined,
+                sSalesmanId,
+                sBranchId,
+                true // forceRefresh
+            );
+            setSupplierProducts(Array.isArray(productsData) ? productsData : []);
+            toast.success("Product catalog refreshed successfully");
+        } catch (e) {
+            console.error("[useSalesOrder] Force refresh failed:", e);
+            toast.error("Failed to refresh product catalog");
+        } finally {
+            setLoadingProducts(false);
+        }
+    }, [selectedCustomerId, selectedSupplierId, selectedAccountId, selectedBranchId, priceType, priceTypeId, customers, salesOrderProvider]);
+
+    // Sync cart items with freshly fetched products (especially 'available' stock info)
+    useEffect(() => {
+        if (supplierProducts.length > 0 && lineItems.length > 0) {
+            // Price Sync Logic: Only auto-update if it's a new order or still in Draft status
+            const isEditable = !existingOrderId || existingOrderStatus === "Draft";
+
+            setLineItems(prev => {
+                let changed = false;
+                const next = prev.map(li => {
+                    const match = supplierProducts.find(sp => Number(sp.product_id) === Number(li.product.product_id));
+                    if (!match) return li;
+
+                    const newBasePrice = Number(match.base_price) || 0;
+                    const newDiscounts = match.discounts || [];
+                    const newDiscountType = String(match.discount_level || match.discount_type || "None");
+
+                    const priceChanged = isEditable && (newBasePrice !== li.unitPrice || JSON.stringify(newDiscounts) !== JSON.stringify(li.discounts)
+                        || String(match.discount_type ?? "") !== String(li.product.discount_type ?? "") || newDiscountType !== li.discountType);
+                    const metaChanged = match.available_qty !== li.product.available_qty || match.display_name !== li.product.display_name;
+
+                    if (priceChanged || metaChanged) {
+                        changed = true;
+
+                        let updatedUnitPrice = li.unitPrice;
+                        let updatedDiscounts = li.discounts;
+                        let updatedNetAmount = li.netAmount;
+                        let updatedTotalAmount = li.totalAmount;
+                        let updatedDiscountAmount = li.discountAmount;
+
+                        if (priceChanged) {
+                            updatedUnitPrice = newBasePrice;
+                            updatedDiscounts = newDiscounts;
+                            const netPrice = calculateChainNetPrice(newBasePrice, newDiscounts);
+                            updatedTotalAmount = newBasePrice * li.quantity;
+                            updatedNetAmount = netPrice * li.quantity;
+                            updatedDiscountAmount = updatedTotalAmount - updatedNetAmount;
+                        }
+
+                        return {
+                            ...li,
+                            unitPrice: updatedUnitPrice,
+                            discounts: updatedDiscounts,
+                            netAmount: updatedNetAmount,
+                            totalAmount: updatedTotalAmount,
+                            discountAmount: updatedDiscountAmount,
+                            discountType: isEditable ? newDiscountType : li.discountType,
+                            product: {
+                                ...li.product,
+                                base_price: isEditable ? newBasePrice : li.product.base_price,
+                                discounts: isEditable ? newDiscounts : li.product.discounts,
+                                discount_type: isEditable ? match.discount_type : li.product.discount_type,
+                                discount_level: isEditable ? match.discount_level : li.product.discount_level,
+                                available_qty: (match.available_qty ?? match.available ?? 0) as number,
+                                display_name: match.display_name || match.product_name || li.product.display_name,
+                                description: match.description || li.product.description,
+                                unit_count: (match.unit_count || li.product.unit_count) as number | null
+                            }
+                        };
+                    }
+                    return li;
+                });
+                return changed ? next : prev;
+            });
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [supplierProducts]);
+
+    // Line Item Logic
+    const addProduct = (product: Product, quantity: number, uom: string) => {
+        // Check if product already exists in cart with the same UOM
+        const existingItem = lineItems.find(item =>
+            item.product.product_id === product.product_id && item.uom === uom
+        );
+
+        if (existingItem) {
+            updateLineItemQty(existingItem.id, existingItem.quantity + quantity);
+            return;
+        }
+
+        const id = Math.random().toString(36).substr(2, 9);
+        const basePrice = Number(product.base_price) || 0;
+        const discounts = product.discounts || [];
+        const netUnitPrice = calculateChainNetPrice(basePrice, discounts);
+        const totalAmount = basePrice * quantity;
+        const netAmount = netUnitPrice * quantity;
+
+        const newItem: LineItem = {
+            id,
+            product,
+            quantity,
+            uom,
+            unitPrice: basePrice,
+            discountType: product.discount_level || undefined,
+            discounts,
+            netAmount,
+            totalAmount,
+            discountAmount: totalAmount - netAmount
+        };
+
+        setLineItems(prev => [...prev, newItem]);
+        // Also initialize allocation for the new item - but GUARD against 0/negative stock
+        const initialAlloc = Math.max(0, Math.min(quantity, Number(product.available_qty) || 0));
+        setAllocatedQuantities(prev => ({ ...prev, [id]: initialAlloc }));
+    };
+
+    const removeLineItem = async (id: string) => {
+        const item = lineItems.find(i => i.id === id);
+
+        // --- REAL-TIME DELETION ---
+        // If the item exists in the DB (has detail_id), force delete it now
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        if ((item as any)?.detail_id) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            console.log(`[RemoveItem] Force deleting detail_id=${(item as any).detail_id} from DB...`);
+            try {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const res = await salesOrderProvider.deleteOrderItem((item as any).detail_id);
+                if (res.success) {
+                    toast.success("Item removed from database");
+                } else {
+                    console.error("[RemoveItem] DB Deletion failed:", res.error);
+                }
+            } catch (err) {
+                console.error("[RemoveItem] DB Deletion Exception:", err);
+            }
+        }
+
+        setLineItems(prev => {
+            console.log(`[RemoveItem] Removing from local state: tempId=${id}`);
+            return prev.filter(item => item.id !== id);
+        });
+        setAllocatedQuantities(prev => {
+            const next = { ...prev };
+            delete next[id];
+            return next;
+        });
+    };
+
+    const updateLineItemQty = useCallback((id: string, qty: number) => {
+        setLineItems(prev => prev.map(item => {
+            if (item.id !== id) return item;
+
+            const totalAmount = item.unitPrice * qty;
+            const netPrice = calculateChainNetPrice(item.unitPrice, item.discounts);
+            const netAmount = netPrice * qty;
+            return {
+                ...item,
+                quantity: qty,
+                totalAmount,
+                netAmount,
+                discountAmount: totalAmount - netAmount
+            };
+        }));
+        const matchedItem = lineItems.find(li => li.id === id);
+        if (!matchedItem) return;
+
+        // Sync with allocation quantities so checkout sees the same number - with Stock Guard
+        const available = Number(matchedItem.product.available_qty) || 0;
+        const initialAlloc = Math.max(0, Math.min(qty, available));
+        setAllocatedQuantities(prev => ({ ...prev, [id]: initialAlloc }));
+    }, [lineItems]);
+
+    const summary = useMemo(() => {
+        const preserveSavedPricing = !!existingOrderId && existingOrderStatus !== "Draft";
+        // --- ORDERED TOTALS (The Customer's Request) ---
+        const orderedGross = lineItems.reduce((sum, item) => sum + (item.unitPrice * item.quantity), 0);
+        const orderedNet = lineItems.reduce((sum, item) => {
+            if (preserveSavedPricing) return sum + item.netAmount;
+            const netPricePerUnit = calculateChainNetPrice(item.unitPrice, item.discounts);
+            return sum + (netPricePerUnit * item.quantity);
+        }, 0);
+        const orderedDiscount = Math.max(0, orderedGross - orderedNet);
+
+        // --- ALLOCATED TOTALS (The Fulfillment Reality) ---
+        const allocatedGross = lineItems.reduce((sum, item) => {
+            const qty = allocatedQuantities[item.id] !== undefined ? allocatedQuantities[item.id] : item.quantity;
+            return sum + (item.unitPrice * qty);
+        }, 0);
+
+        const allocatedNet = lineItems.reduce((sum, item) => {
+            const qty = allocatedQuantities[item.id] !== undefined ? allocatedQuantities[item.id] : item.quantity;
+            const netPricePerUnit = preserveSavedPricing
+                ? (item.quantity > 0 ? item.netAmount / item.quantity : 0)
+                : calculateChainNetPrice(item.unitPrice, item.discounts);
+            return sum + (netPricePerUnit * qty);
+        }, 0);
+
+        const allocatedDiscount = Math.max(0, allocatedGross - allocatedNet);
+
+        // Financial Ratios for display (VAT)
+        const vattableSales = orderedNet / 1.12;
+        const vatAmount = orderedNet - vattableSales;
+
+        return {
+            totalAmount: orderedGross, // Total Gross requested
+            netAmount: orderedNet,    // Total Net requested
+            discountAmount: orderedDiscount, // Total Discount requested
+            orderedGross,
+            orderedNet,
+            orderedDiscount,
+            allocatedGross,
+            allocatedNet,
+            allocatedDiscount,
+            allocatedAmount: allocatedNet, // Total Net allocated (to be billed)
+            vattableSales,
+            vatAmount
+        };
+    }, [lineItems, allocatedQuantities, existingOrderId, existingOrderStatus]);
+
+    const isValidAllocation = useMemo(() => {
+        return lineItems.every(item => {
+            const allocated = allocatedQuantities[item.id] ?? item.quantity;
+            const available = Number(item.product.available_qty) || 0;
+            // Valid if non-negative, <= ordered AND <= available
+            return allocated >= 0 && allocated <= item.quantity && allocated <= available;
+        });
+    }, [lineItems, allocatedQuantities]);
+
+    const enterCheckout = async () => {
+        if (lineItems.length === 0) {
+            toast.error("No items in order");
+            return;
+        }
+        if (!dueDate) {
+            toast.error("Due Date is required");
+            return;
+        }
+        if (!deliveryDate) {
+            toast.error("Delivery Date is required");
+            return;
+        }
+        if (!poNo.trim()) {
+            toast.error("PO Number is required");
+            return;
+        }
+
+        if (existingOrderNo) {
+            setOrderNo(existingOrderNo);
+        } else {
+            const now = new Date();
+            const prefix = selectedSupplier?.supplier_shortcut || "SO";
+            const generatedNo = `${prefix}-${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}${String(now.getSeconds()).padStart(2, '0')}`;
+            setOrderNo(generatedNo);
+        }
+
+        setIsCheckoutLoading(true);
+        try {
+            if (selectedBranchId && selectedSupplierId) {
+                const invData = await salesOrderProvider.getCartInventory(selectedBranchId, selectedSupplierId, (salesmanScoped ? selectedAccountId : selectedSalesmanId) || undefined);
+
+                // Update lineItems with fresh inventory
+                setLineItems(prev => prev.map(item => {
+                    const pid = item.product.product_id || (item.product as unknown as { id: string | number }).id;
+                    if (pid && invData[Number(pid)]) {
+                        return {
+                            ...item,
+                            product: {
+                                ...item.product,
+                                available_qty: invData[Number(pid)].available,
+                                unit_count: invData[Number(pid)].unitCount
+                            }
+                        };
+                    }
+                    return item;
+                }));
+
+                // Ensure all line items have an entry in allocatedQuantities - with Stock Guard
+                setAllocatedQuantities(prev => {
+                    const newAlloc = { ...prev };
+                    lineItems.forEach(item => {
+                        const pid = item.product.product_id || (item.product as unknown as { id: string | number }).id;
+                        const available = (pid && invData[Number(pid)]) ? invData[Number(pid)].available : (Number(item.product.available_qty) || 0);
+                        if (newAlloc[item.id] === undefined) {
+                            newAlloc[item.id] = Math.max(0, Math.min(item.quantity, available));
+                        } else {
+                            // Re-clamp if inventory changed
+                            newAlloc[item.id] = Math.max(0, Math.min(newAlloc[item.id], item.quantity, available));
+                        }
+                    });
+                    return newAlloc;
+                });
+            } else {
+                // Fallback if no branch/supplier
+                lineItems.forEach(item => {
+                    if (allocatedQuantities[item.id] === undefined) {
+                        const initialAlloc = Math.max(0, Math.min(item.quantity, Number(item.product.available_qty) || 0));
+                        setAllocatedQuantities(prev => ({ ...prev, [item.id]: initialAlloc }));
+                    }
+                });
+            }
+            setIsCheckout(true);
+        } catch (e) {
+            console.error("Failed to fetch cart inventory", e);
+            toast.error(salesmanScoped ? "Unable to verify stock. Refresh inventory before checkout." : "Failed to verify inventory. Proceeding with known stock.");
+            if (!salesmanScoped) setIsCheckout(true);
+        } finally {
+            setIsCheckoutLoading(false);
+        }
+    };
+
+    const updateAllocatedQty = (id: string, qty: number) => {
+        const item = lineItems.find(li => li.id === id);
+        if (!item) return;
+
+        const available = Number(item.product.available_qty) || 0;
+        const maxAllowed = Math.max(0, Math.min(item.quantity, available));
+
+        let finalQty = qty;
+        if (finalQty > maxAllowed) finalQty = maxAllowed;
+        if (finalQty < 0) finalQty = 0;
+
+        setAllocatedQuantities(prev => ({ ...prev, [id]: finalQty }));
+    };
+
+    const handleSubmitOrder = useCallback(async (forcedStatus?: string) => {
+        if (!selectedAccountId || !selectedCustomerId || !selectedSupplierId || !selectedReceiptTypeId || !selectedBranchId) {
+            toast.error("Please complete all header selections");
+            return;
+        }
+        if (lineItems.length === 0) {
+            toast.error("No items in order");
+            return;
+        }
+
+        const hasZeroAllocation = Object.values(allocatedQuantities).some(v => v === 0);
+        // Priority: Manual Force > Existing Draft (Elevate to For Approval) > Allocation-based default
+        const finalStatus = forcedStatus || (existingOrderId ? "For Approval" : (hasZeroAllocation ? "Draft" : "For Approval"));
+
+        setSubmitting(true);
+        try {
+            const phtDate = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Manila" }));
+            const pad = (n: number) => String(n).padStart(2, '0');
+            const now = `${phtDate.getFullYear()}-${pad(phtDate.getMonth() + 1)}-${pad(phtDate.getDate())}T${pad(phtDate.getHours())}:${pad(phtDate.getMinutes())}:${pad(phtDate.getSeconds())}`;
+            // I-prepare ang final payload para sa pag-save ng order
+            const payload = {
+                ...(existingOrderId ? { order_id: existingOrderId } : {}),
+                customer_id: Number(selectedCustomerId),
+                customer_code: selectedCustomer?.customer_code,
+                salesman_id: Number(selectedAccountId),
+                supplier_id: Number(selectedSupplierId),
+                branch_id: Number(selectedBranchId),
+                price_type_id: priceTypeId ? Number(priceTypeId) : null,
+                receipt_type: Number(selectedReceiptTypeId),
+                sales_type: Number(selectedSalesTypeId),
+                po_no: poNo,
+                due_date: dueDate,
+                delivery_date: deliveryDate,
+                total_amount: summary.orderedGross,
+                discount_amount: summary.orderedDiscount,
+                net_amount: summary.orderedNet,
+                allocated_amount: summary.allocatedNet,
+                order_no: orderNo,
+                order_status: finalStatus,
+                // Align with DB Schema timestamps
+                draft_at: finalStatus === "Draft" ? now : null,
+                pending_date: finalStatus === "Pending" ? now : null,
+                for_approval_at: finalStatus === "For Approval" ? now : null,
+                for_consolidation_at: finalStatus === "For Consolidation" ? now : null,
+                remarks: orderRemarks || "",
+                attachment_id: attachmentId ? Number(attachmentId) : null,
+                payment_terms: paymentTerms ? Number(paymentTerms) : null
+            };
+
+            const itemsWithAllocation = lineItems.map(item => {
+                const qtyVal = allocatedQuantities[item.id] !== undefined ? allocatedQuantities[item.id] : item.quantity;
+                return {
+                    ...item,
+                    allocated_quantity: qtyVal,
+                    allocated_amount: (calculateChainNetPrice(item.unitPrice, item.discounts)) * (qtyVal ?? 0)
+                };
+            });
+
+            console.log(`[SubmitOrder] Sending ${itemsWithAllocation.length} item(s) to API with status: ${finalStatus}. Existing order: ${!!existingOrderId}`);
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            itemsWithAllocation.forEach((item: any, idx: number) => {
+                console.log(`  [Item ${idx}] detail_id=${item.detail_id}, product=${item.product?.display_name || item.product?.product_id}`);
+            });
+
+            const res = await salesOrderProvider.createOrder(payload, itemsWithAllocation);
+            if (res.success) {
+                console.log(`[SubmitOrder] SUCCESS: ${res.order_no} (${finalStatus})`);
+                const statusMsg = finalStatus === "Draft"
+                    ? "Saved in Draft"
+                    : finalStatus === "For Consolidation"
+                        ? "Submitted for Consolidation"
+                        : "Submitted for Approval";
+                toast.success(`${statusMsg}: ${res.order_no}`);
+                // Instead of reload, reset the local state
+                setLineItems([]);
+                setAllocatedQuantities({});
+                setOrderRemarks("");
+                setIsCheckout(false);
+                setPoNo("");
+                setDueDate("");
+                setDeliveryDate("");
+                // Clear selection IDs to reset dropdowns
+                if (!salesmanScoped) setSelectedSalesmanId("");
+                setSelectedAccountId("");
+                setSelectedCustomerId("");
+                setSelectedSupplierId("");
+                setSelectedReceiptTypeId("");
+                setSelectedBranchId("");
+                setExistingOrderId(null);
+                setExistingOrderStatus("");
+                setExistingOrderNo("");
+
+                // Just confirmation, since state is already reset
+            } else {
+                console.error(`[SubmitOrder] FAILED: ${res.error}`);
+                toast.error(res.error || "Failed to create order");
+            }
+        } catch (e: unknown) {
+            const err = e as Error;
+            console.error(`[SubmitOrder] EXCEPTION:`, err);
+            toast.error(err.message || "Submission error");
+        } finally {
+            setSubmitting(false);
+        }
+    }, [selectedAccountId, selectedCustomerId, selectedSupplierId, selectedReceiptTypeId, selectedBranchId, priceTypeId, lineItems, selectedCustomer, selectedSalesTypeId, poNo, dueDate, deliveryDate, summary, orderNo, orderRemarks, allocatedQuantities, existingOrderId, attachmentId, paymentTerms, salesOrderProvider, salesmanScoped]);
+
+    return {
+        contextError,
+        salesmen, selectedSalesmanId, handleSalesmanChange, selectedSalesman,
+        accounts, selectedAccountId, handleAccountChange, selectedAccount, loadingAccounts,
+        customers, selectedCustomerId, handleCustomerChange, selectedCustomer, loadingCustomers,
+        customerSearch, setCustomerSearch, hasMoreCustomers, loadingMoreCustomers, loadMoreCustomers,
+        suppliers, selectedSupplierId, handleSupplierChange, selectedSupplier, loadingSuppliers,
+        branches, selectedBranchId, setSelectedBranchId, selectedBranch,
+        receiptTypes, selectedReceiptTypeId, setSelectedReceiptTypeId, selectedReceiptType,
+        salesTypes, selectedSalesTypeId, setSelectedSalesTypeId, selectedSalesType,
+        dueDate, setDueDate,
+        deliveryDate, setDeliveryDate,
+        poNo, setPoNo,
+        priceType, priceTypeId, priceTypeModels,
+        supplierProducts, loadingProducts, refreshProducts,
+        productSearch, setProductSearch,
+        lineItems,
+        addProduct, removeLineItem, updateLineItemQty,
+        summary, isValidAllocation,
+        isCheckout, setIsCheckout, isCheckoutLoading, orderNo, previewOrderNo, enterCheckout, allocatedQuantities, updateAllocatedQty,
+        orderRemarks, setOrderRemarks,
+        paymentTerms, setPaymentTerms, paymentTermsList,
+        handlePriceTypeIdChange,
+        handleSubmitOrder, submitting,
+        existingOrderId, existingOrderStatus,
+        customerReceivable, loadingReceivable,
+        isAutoApprovalEnabled: isAutoApprovalEnabled && (!salesmanScoped || scopedCreditVerified)
+    };
+}
