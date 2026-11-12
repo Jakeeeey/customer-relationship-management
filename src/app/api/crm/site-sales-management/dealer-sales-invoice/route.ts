@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
+import { latestPriceOverrides, type PriceOverrideRow } from "@/app/api/crm/customer-hub/create-sales-order/latestPriceOverrides";
 
 const COOKIE_NAME = "vos_access_token";
 // Force re-scan to resolve duplicate handler issue
@@ -601,8 +602,8 @@ export async function GET(req: NextRequest) {
             if (linkedProductIds.length === 0) return NextResponse.json([]);
 
             const priceOverrides: Record<number, number> = {};
-            const poRes = await fetchInChunks<{ product_id: number | string; price: number | string }>(`${DIRECTUS_URL}/items/product_per_price_type?filter[price_type_id][_eq]=${priceTypeId}&filter[status][_in]=published,approved`, linkedProductIds, "product_id");
-            poRes.forEach(po => { priceOverrides[Number(po.product_id)] = Number(po.price); });
+            const poRes = await fetchInChunks<PriceOverrideRow>(`${DIRECTUS_URL}/items/product_per_price_type?filter[price_type_id][_eq]=${priceTypeId}&filter[status][_in]=published,approved&fields=id,product_id,price,updated_at`, linkedProductIds, "product_id");
+            Object.assign(priceOverrides, latestPriceOverrides(poRes));
 
             const initialProducts = await fetchInChunks<ProductItem>(`${DIRECTUS_URL}/items/products?filter[isActive][_eq]=1&fields=*,product_category.category_id,product_category.category_name,product_brand.brand_id,product_brand.brand_name`, linkedProductIds, "product_id");
 
