@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { loadCustomerProductDiscounts, resolveCustomerProductDiscount } from "@/modules/customer-relationship-management/customer-hub/shared/customerProductDiscount";
+import { latestPriceOverrides, type PriceOverrideRow } from "@/app/api/crm/customer-hub/create-sales-order/latestPriceOverrides";
 
 const COOKIE_NAME = "vos_access_token";
 
@@ -495,12 +496,9 @@ export async function GET(req: NextRequest) {
 
                 const priceOverrides: Record<number, number> = {};
                 if (priceTypeId) {
-                    const poRes = await fetch(`${DIRECTUS_URL}/items/product_per_price_type?filter[price_type_id][_eq]=${priceTypeId}&filter[status][_in]=published,approved&fields=product_id,price&limit=-1`, { headers: fetchHeaders });
-                    const poData: { product_id: number | string | { id?: number; product_id?: number }; price: number | string }[] = (await poRes.json()).data || [];
-                    poData.forEach((po) => {
-                        const pid = po.product_id && typeof po.product_id === 'object' ? (po.product_id.id || po.product_id.product_id) : po.product_id;
-                        if (pid) priceOverrides[Number(pid)] = Number(po.price);
-                    });
+                    const poRes = await fetch(`${DIRECTUS_URL}/items/product_per_price_type?filter[price_type_id][_eq]=${priceTypeId}&filter[status][_in]=published,approved&fields=id,product_id,price,updated_at&limit=-1`, { headers: fetchHeaders });
+                    const poData: PriceOverrideRow[] = (await poRes.json()).data || [];
+                    Object.assign(priceOverrides, latestPriceOverrides(poData));
                 }
 
                 const typeIds = new Set(

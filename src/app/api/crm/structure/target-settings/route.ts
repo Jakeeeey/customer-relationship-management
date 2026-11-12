@@ -186,7 +186,13 @@ export async function GET(req: NextRequest) {
         // 6. Fetch special pricing (product_per_price_type)
         const pricingRes = await fetch(`${DIRECTUS_URL}/items/product_per_price_type?limit=-1`, { headers: fetchHeaders });
         const pData = await pricingRes.json() as DirectusResponse<object[]>;
-        const productPricing = pData.data || [];
+        // The UI resolves a price with .find(); sort newest first so duplicate
+        // product/price-type rows resolve to the latest price deterministically.
+        const productPricing = [...(pData.data || [])].sort((a, b) => {
+            const left = a as { updated_at?: string | null };
+            const right = b as { updated_at?: string | null };
+            return String(right.updated_at ?? "").localeCompare(String(left.updated_at ?? ""));
+        });
 
         // 7. Fetch Customer-Salesman mappings for these salesmen
         const custSalesmenRes = await fetch(`${DIRECTUS_URL}/items/customer_salesmen?filter[salesman_id][_in]=${smIds.join(',')}&limit=-1`, { headers: fetchHeaders });
